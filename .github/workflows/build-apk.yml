@@ -3,80 +3,150 @@ name: Build SAN SHINE Android APK
 on:
   workflow_dispatch:
   push:
-    branches: [main, master]
-    paths:
-      - 'app/**'
-      - 'build.gradle'
-      - 'settings.gradle'
-      - 'gradle.properties'
-      - 'tests/**'
-      - '.github/workflows/build-apk.yml'
+    branches:
+      - main
 
 permissions:
   contents: read
 
 jobs:
-  apk:
-    name: Audit and Build Android APK
+  build:
+    name: Build Android APK
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 45
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Configure Java 17
+      - name: Repair Android project structure
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          copy_if_missing() {
+            dest="$1"
+            shift
+            if [[ -s "$dest" ]]; then
+              return 0
+            fi
+            for source in "$@"; do
+              if [[ -s "$source" ]]; then
+                mkdir -p "$(dirname "$dest")"
+                cp "$source" "$dest"
+                echo "Restored $dest"
+                return 0
+              fi
+            done
+            echo "::error::Missing file: $dest"
+            exit 1
+          }
+
+          copy_if_missing app/build.gradle \
+            "build (1).gradle" \
+            app/src/main/build.gradle
+
+          copy_if_missing app/src/main/AndroidManifest.xml \
+            AndroidManifest.xml
+
+          copy_if_missing app/src/main/java/com/sunshine/accounting/MainActivity.java \
+            MainActivity.java
+
+          copy_if_missing app/src/main/assets/www/index.html \
+            index.html
+
+          copy_if_missing app/src/main/assets/www/static/icons.js \
+            icons.js
+
+          copy_if_missing app/src/main/assets/www/static/tailwind.css \
+            tailwind.css
+
+          copy_if_missing app/src/main/res/drawable/ic_launcher.xml \
+            ic_launcher.xml
+
+          copy_if_missing tests/check_project.py \
+            check_project.py
+
+          copy_if_missing tests/test_accounting.js \
+            test_accounting.js
+
+          copy_if_missing tests/test_signed_licenses.js \
+            test_signed_licenses.js
+
+          test -s build.gradle
+          test -s settings.gradle
+          test -s gradle.properties
+
+          echo "Project files verified"
+
+      - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Install Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools'
 
       - name: Install Android API 35
-        run: sdkmanager --install 'platforms;android-35' 'build-tools;35.0.0'
+        run: |
+          sdkmanager --install \
+            'platforms;android-35' \
+            'build-tools;35.0.0'
 
-      - name: Configure compatible Gradle 8.9
+      - name: Setup Gradle 8.9
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
 
-      - name: Validate project assets, JS, permissions and native bridge
+      - name: Check Android project
         run: python3 tests/check_project.py
 
-      - name: Verify JavaScript syntax
+      - name: Check JavaScript
         run: |
           python3 - <<'PY'
           from pathlib import Path
           import re
-          html = Path('app/src/main/assets/www/index.html').read_text(encoding='utf-8')
-          scripts = re.findall(r'<script(?:\s[^>]*)?>([\s\S]*?)</script>', html, re.I)
-          Path('/tmp/sunshine-inline.js').write_text('\n'.join(scripts), encoding='utf-8')
+
+          html = Path(
+              'app/src/main/assets/www/index.html'
+          ).read_text(encoding='utf-8')
+
+          scripts = re.findall(
+              r'<script(?:\s[^>]*)?>([\s\S]*?)</script>',
+              html,
+              re.I
+          )
+
+          Path('/tmp/app.js').write_text(
+              '\n'.join(scripts),
+              encoding='utf-8'
+          )
           PY
-          node --check /tmp/sunshine-inline.js
+
+          node --check /tmp/app.js
           node --check app/src/main/assets/www/static/icons.js
 
-      - name: Test core accounting calculations
+      - name: Test accounting system
         run: node tests/test_accounting.js
 
-      - name: Verify RSA-signed offline licenses and reject forged codes
+      - name: Test license security
         run: node tests/test_signed_licenses.js
 
-      - name: Build debug APK and collect diagnostic log
+      - name: Build Android APK
         shell: bash
         run: |
           set -o pipefail
-          gradle --no-daemon --stacktrace :app:assembleDebug 2>&1 | tee build-log.txt
+          gradle --no-daemon --stacktrace \
+            :app:assembleDebug 2>&1 | tee build-log.txt
 
-      - name: Verify APK exists and is not empty
+      - name: Check APK
         run: |
           test -s app/build/outputs/apk/debug/app-debug.apk
-          ls -lh app/build/outputs/apk/debug/app-debug.apk
-          echo '### Android APK generated' >> "$GITHUB_STEP_SUMMARY"
-          echo 'Download SAN-SHINE-Android-APK from Artifacts.' >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Upload installable debug APK
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: SAN-SHINE-Android-APK
@@ -84,11 +154,11 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      - name: Upload diagnostic log when build fails
+      - name: Upload error report
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: SAN-SHINE-build-error-log
+          name: SAN-SHINE-Error-Log
           path: build-log.txt
           if-no-files-found: ignore
           retention-days: 7
