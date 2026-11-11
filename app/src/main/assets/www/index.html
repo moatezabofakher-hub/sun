@@ -110,7 +110,12 @@
         }
 
         /* Thermal & PDF Receipt Preview Styling */
-        .receipt-paper {
+        /* English layout follows the selected application direction; currency values keep their own notation. */
+        html[lang="en"] #mainContent .text-right,
+        html[lang="en"] #modalBox .text-right { text-align: left !important; }
+        html[lang="en"] #screenSubtitle { direction: ltr; }
+        html[lang="en"] .nav-btn span { line-height: 1.2; }
+                .receipt-paper {
             background: #fff;
             font-family: 'Cairo', monospace;
             box-shadow: 0 4px 20px rgba(0,0,0,0.15);
@@ -254,6 +259,7 @@
     <!-- Hidden Canvas for ESC/POS Arabic Raster Thermal Printing (GS v 0) -->
     <canvas id="thermalCanvas" class="hidden"></canvas>
 
+    <script src="static/i18n.js"></script>
     <script>
         /********************************************************************
          * 1. CORE DATABASE & STATE (100% CLEAN - ZERO DEMO ITEMS/INVOICES)
@@ -274,6 +280,8 @@
                 btPrintMode: 'auto', // 'auto' | 'native' | 'web' | 'rawbt' | 'system'
                 btMacAddress: '',    // Optional MAC address for direct Cordova/Capacitor connection
                 printFontScale: 0.75, // 0.75 = أصغر (الافتراضي)، 0.85 = صغير، 1.0 = متوسط، 1.2 = كبير، 1.4 = عريض
+                language: 'ar',          // Persisted UI language: 'ar' or 'en'
+                allowNegativeStockSales: false, // Safety default: no sale beyond available inventory
                 defaultCurrency: 'USD',
                 selectedWarehouseId: 'wh_main',
                 appProtection: { pinSalt: '', pinHash: '', pinAlgo: 'sha256-v1', securityQuestions: [], recoveryFailures: 0, recoveryLockedUntil: 0, lockApp: false, protectDeletion: false, fingerprintEnabled: false, fingerprintCredentialId: '' }
@@ -1161,6 +1169,7 @@
             // Some Android wrappers emit both a native Back event and popstate.
             if (now - lastSystemBackTime < 180) return;
             lastSystemBackTime = now;
+            if (document.getElementById('appProtectionLock')) return;
             AppNav.handleBackButton();
         }
 
@@ -2130,7 +2139,17 @@
                 c.classList.remove('hidden');
                 document.getElementById('confirmDelBtn').onclick = () => {
                     c.classList.add('hidden');
-                    onConfirm();
+                    // Optional protection now covers individual record deletions.
+                    // Full database reset has its own compulsory PIN flow and confirmation.
+                    if (State.settings.appProtection?.protectDeletion && title !== 'تصفير شامل للنظام') {
+                        ProtectionController.requirePinForDestructiveAction(
+                            'أدخل رمز الحماية لتأكيد حذف السجل',
+                            onConfirm,
+                            'حذف السجل'
+                        );
+                    } else {
+                        onConfirm();
+                    }
                 };
             },
 
@@ -3412,6 +3431,29 @@
                 const mode = State.settings.btPrintMode || 'auto';
 
                 main.innerHTML = `
+                    <!-- Persisted interface language and sales stock policy. -->
+                    <div class="bg-white rounded-2xl border border-slate-200 p-4 mb-4 shadow-xs space-y-3">
+                        <h3 class="font-bold text-sm text-slate-900 flex items-center gap-2">
+                            <i class="fas fa-globe text-indigo-600"></i><span>اللغة</span>
+                        </h3>
+                        <label for="appLanguage" class="block text-xs font-semibold text-slate-600">لغة التطبيق</label>
+                        <select id="appLanguage" aria-label="لغة التطبيق" onchange="I18n.setLanguage(this.value)" class="w-full border border-slate-300 bg-white text-slate-900 rounded-xl py-3 px-3 text-sm font-bold">
+                            <option value="ar" ${State.settings.language !== 'en' ? 'selected' : ''}>العربية</option>
+                            <option value="en" ${State.settings.language === 'en' ? 'selected' : ''}>English</option>
+                        </select>
+                    </div>
+                    <div class="bg-white rounded-2xl border border-slate-200 p-4 mb-4 shadow-xs space-y-3">
+                        <h3 class="font-bold text-sm text-slate-900 flex items-center gap-2">
+                            <i class="fas fa-boxes-stacked text-emerald-600"></i><span>إعدادات المخزون</span>
+                        </h3>
+                        <label for="allowOutOfStockSales" class="flex items-center justify-between gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200 cursor-pointer">
+                            <span class="space-y-1">
+                                <span class="block text-xs font-extrabold text-slate-800">السماح ببيع المواد التي نفذ رصيدها</span>
+                                <span class="block text-[11px] text-slate-500 leading-relaxed">عند التفعيل يمكن حفظ فاتورة مبيعات حتى لو أصبح رصيد المادة سالباً. عند الإلغاء يتم منع البيع فوق الرصيد المتاح.</span>
+                            </span>
+                            <input type="checkbox" id="allowOutOfStockSales" onchange="SettingsController.setAllowOutOfStockSales(this.checked)" ${State.settings.allowNegativeStockSales === true ? 'checked' : ''} class="w-5 h-5 shrink-0 accent-emerald-600" />
+                        </label>
+                    </div>
                     <!-- License and activation are accessible from Settings only. -->
                     <div class="bg-white rounded-2xl border border-slate-200 p-4 mb-4 shadow-xs space-y-3">
                         <h3 class="font-bold text-sm text-slate-900 flex items-center gap-2">
@@ -3518,11 +3560,12 @@
                         </button>
                     </div>
 
-                    <div class="bg-white rounded-2xl border border-slate-200 p-4 mb-4 shadow-xs space-y-3">
+                    <div id="appProtectionSettings" class="bg-white rounded-2xl border border-slate-200 p-4 mb-4 shadow-xs space-y-3">
                         <h3 class="font-bold text-sm text-slate-900 flex items-center gap-2">
                             <i class="fas fa-shield-halved text-emerald-600"></i>
                             <span>حماية التطبيق</span>
                         </h3>
+                        <p class="text-[11px] font-semibold text-rose-700 bg-rose-50 border border-rose-100 rounded-xl p-2.5">حذف اللوغو وتصفير قاعدة البيانات يتطلبان رمز حماية حتى عند إيقاف خيار الحماية من حذف البيانات. عند عدم تعيين رمز، يجب إنشاؤه أولاً.</p>
                         <p class="text-[11px] text-slate-500">تغيير كلمة السر يتطلب إدخال الكلمة الحالية أولاً. عند تعيين كلمة سر جديدة، عيّن سؤالَي أمان مختلفين لتتمكن من استعادتها عند نسيانها. يتم حفظ الإجابات كبصمات مشفّرة بدلاً من نصوص واضحة.</p>
                         ${State.settings.appProtection?.pinHash ? `
                         <div>
@@ -3562,7 +3605,7 @@
                             <input id="protectLockApp" type="checkbox" ${State.settings.appProtection?.lockApp ? 'checked' : ''} class="w-5 h-5 accent-emerald-600">
                         </label>
                         <label class="flex items-center justify-between gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200">
-                            <span><span class="block text-xs font-extrabold text-slate-800">الحماية من حذف البيانات</span><span class="block text-[10px] text-slate-500">طلب الرمز قبل التصفير الشامل لقاعدة البيانات</span></span>
+                            <span><span class="block text-xs font-extrabold text-slate-800">الحماية من حذف البيانات</span><span class="block text-[10px] text-slate-500">طلب الرمز أيضاً عند حذف السجلات الفردية. التصفير الكامل يتطلب الرمز دائماً.</span></span>
                             <input id="protectDeletion" type="checkbox" ${State.settings.appProtection?.protectDeletion ? 'checked' : ''} class="w-5 h-5 accent-emerald-600">
                         </label>
                         <div class="flex flex-wrap gap-2">
@@ -5204,7 +5247,8 @@
                     }
                     for (const [itemId, needed] of requested) {
                         const available = Accounting.getItemBaseStock(itemId, d.isEditing ? d.id : null, d.warehouseId||'wh_main');
-                        if (needed > available + 0.00001) {
+                        // Only regular sales may deliberately create negative stock; purchase returns remain protected.
+                        if (needed > available + 0.00001 && !(d.type === 'sale' && State.settings.allowNegativeStockSales === true)) {
                             const name = State.items.find(i=>i.id===itemId)?.name || 'المادة';
                             UI.toast(`الكمية المطلوبة للصنف "${AppEscape.text(name)}" تتجاوز رصيد المستودع (${available})`, 'error');
                             return false;
@@ -5679,6 +5723,10 @@
          * 10. SETTINGS & BACKUP CONTROLLER
          ********************************************************************/
         const SettingsController = {
+            async setAllowOutOfStockSales(checked) {
+                State.settings.allowNegativeStockSales = checked === true;
+                await StorageEngine.saveState();
+            },
             markSettingsDirty() {
                 AppNav.markDirty(async () => await this.saveSettings());
             },
@@ -5730,14 +5778,23 @@
                 reader.readAsDataURL(file);
             },
 
-            async removeLogo(fromModal = false) {
-                State.settings.companyLogo = '';
-                await StorageEngine.saveState();
-                UI.toast('تم حذف الشعار (اللوغو) من الفاتورة', 'info');
-                if (fromModal) {
-                    this.openPrintHeaderModal();
-                }
-                AppNav.renderCurrent();
+            removeLogo(fromModal = false) {
+                // Never modify persistent logo data without a verified, configured PIN.
+                ProtectionController.requirePinForDestructiveAction(
+                    'أدخل رمز الحماية لحذف شعار الشركة من الفواتير',
+                    async () => {
+                        try {
+                            State.settings.companyLogo = '';
+                            await StorageEngine.saveState();
+                            UI.toast('تم حذف الشعار (اللوغو) من الفاتورة', 'info');
+                            AppNav.renderCurrent();
+                            if (fromModal) this.openPrintHeaderModal();
+                        } catch (e) {
+                            UI.toast('تعذر حفظ حذف اللوغو؛ حاول مجدداً', 'error');
+                        }
+                    },
+                    'حذف اللوغو'
+                );
             },
 
             openPrintHeaderModal() {
@@ -5880,20 +5937,30 @@
             },
 
             confirmResetAll() {
-                const proceed = () => UI.showDeleteConfirm(
-                    'تصفير شامل للنظام',
-                    'سيتم مسح جميع الفواتير والمواد والحسابات والسندات والمستودعات والمناقلات والمصاريف نهائياً. احفظ نسخة احتياطية قبل المتابعة.',
-                    async () => {
-                        await StorageEngine.clearAll();
-                        UI.toast('تم تصفير قاعدة البيانات بالكامل', 'success');
-                        AppNav.navigate('dashboard', {}, true);
-                    }
+                // The optional protection toggle never disables PIN validation for a full reset.
+                // Without a configured PIN, show a setup-only prompt; NEVER call clearAll().
+                ProtectionController.requirePinForDestructiveAction(
+                    'أدخل رمز الحماية للسماح بتصفير قاعدة البيانات',
+                    () => UI.showDeleteConfirm(
+                        'تصفير شامل للنظام',
+                        'سيتم مسح جميع الفواتير والمواد والحسابات والسندات والمستودعات والمناقلات والمصاريف نهائياً. احفظ نسخة احتياطية قبل المتابعة.',
+                        async () => {
+                            // Recheck that a PIN still exists before the irreversible action.
+                            if (!State.settings.appProtection?.pinHash) {
+                                ProtectionController.promptPinSetup('تصفير قاعدة البيانات');
+                                return;
+                            }
+                            try {
+                                await StorageEngine.clearAll();
+                                UI.toast('تم تصفير قاعدة البيانات بالكامل', 'success');
+                                AppNav.navigate('dashboard', {}, true);
+                            } catch (e) {
+                                UI.toast('تعذر تصفير قاعدة البيانات', 'error');
+                            }
+                        }
+                    ),
+                    'تصفير قاعدة البيانات'
                 );
-                if (State.settings.appProtection?.protectDeletion) {
-                    ProtectionController.requestPin('أدخل رمز الحماية للسماح بتصفير قاعدة البيانات', proceed);
-                    return;
-                }
-                proceed();
             }
         };
 
@@ -6001,13 +6068,51 @@
                 if (!cfg.pinHash || !cfg.pinSalt) return false;
                 return (await this.hashPin(pin, cfg.pinSalt, cfg.pinAlgo || 'sha256-v1')) === cfg.pinHash;
             },
+            requirePinForDestructiveAction(message, onSuccess, actionName = 'هذه العملية') {
+                if (!State.settings.appProtection?.pinHash || !State.settings.appProtection?.pinSalt) {
+                    this.promptPinSetup(actionName);
+                    return false;
+                }
+                this.requestPin(message, onSuccess);
+                return true;
+            },
+            promptPinSetup(actionName = 'هذه العملية') {
+                this.pendingSuccess = null;
+                UI.openModal(`
+                    <div class="text-right space-y-3">
+                        <div class="flex items-center justify-between gap-2">
+                            <h3 class="font-extrabold text-base text-slate-900"><i class="fas fa-lock text-rose-600 ml-1"></i> يجب تعيين رمز الحماية أولاً</h3>
+                            <button type="button" onclick="UI.forceCloseModal()" class="text-slate-500 p-2" aria-label="إغلاق"><i class="fas fa-times"></i></button>
+                        </div>
+                        <p class="text-sm text-slate-600">لا يمكن تنفيذ ${AppEscape.text(actionName)} قبل إنشاء رمز حماية. لن تُحذف أي بيانات الآن.</p>
+                        <div class="flex flex-col gap-2">
+                            <button type="button" onclick="ProtectionController.goToPinSetup()" class="w-full bg-emerald-600 text-white rounded-xl py-3 font-extrabold"><i class="fas fa-key ml-1"></i> تعيين رمز الحماية</button>
+                            <button type="button" onclick="UI.forceCloseModal()" class="w-full bg-slate-100 text-slate-700 rounded-xl py-2.5 font-bold">إلغاء</button>
+                        </div>
+                    </div>`);
+            },
+            goToPinSetup() {
+                UI.forceCloseModal();
+                AppNav.navigate('settings');
+                requestAnimationFrame(() => {
+                    document.getElementById('appProtectionSettings')?.scrollIntoView({behavior:'smooth',block:'start'});
+                    document.getElementById('protectionPin')?.focus({preventScroll:true});
+                });
+            },
             requestPin(message, onSuccess) {
+                // Only display a verification screen if a PIN has actually been configured.
+                if (!State.settings.appProtection?.pinHash || !State.settings.appProtection?.pinSalt) {
+                    this.promptPinSetup('هذه العملية');
+                    return;
+                }
+                this.pendingSuccess = null;
                 UI.openModal(`
                     <div class="text-right">
                         <div class="flex items-center justify-between mb-3"><h3 class="font-extrabold text-base"><i class="fas fa-shield-halved text-emerald-600 ml-1"></i> التحقق من الحماية</h3><button onclick="UI.forceCloseModal()"><i class="fas fa-times text-slate-400"></i></button></div>
                         <p class="text-xs text-slate-500 mb-3">${message}</p>
                         <input id="protectionVerifyPin" type="password" inputmode="numeric" autocomplete="current-password" placeholder="أدخل رمز الحماية" class="w-full border border-slate-300 rounded-xl p-3 text-center text-lg tracking-widest mb-3">
                         <button onclick="ProtectionController.verifyPromptPin()" class="w-full bg-emerald-600 text-white rounded-xl py-3 font-extrabold">تحقق</button>
+                        <button type="button" onclick="ProtectionController.openRecovery()" class="w-full text-center text-xs font-bold text-indigo-700 underline mt-3">نسيت رمز الحماية؟</button>
                     </div>`);
                 this.pendingSuccess = onSuccess;
             },
@@ -6109,7 +6214,7 @@
                         if (success) resolve(true);
                         else reject(new Error(reason || 'فشل أو أُلغي التحقق بالبصمة'));
                     });
-                    try { window.NativeSecurity.authenticate(requestId); }
+                    try { window.NativeSecurity.authenticate(requestId, State.settings.language === 'en' ? 'en' : 'ar'); }
                     catch (e) {
                         clearTimeout(timeout);
                         this.nativeBiometricPending.delete(requestId);
@@ -6150,33 +6255,76 @@
             showAppLock() {
                 const cfg = State.settings.appProtection || {};
                 if (!cfg.lockApp || !cfg.pinHash || document.getElementById('appProtectionLock')) return;
+                const biometricReady = cfg.fingerprintEnabled === true && !!(window.NativeSecurity && typeof window.NativeSecurity.authenticate === 'function');
                 const overlay = document.createElement('div');
                 overlay.id = 'appProtectionLock';
                 overlay.className = 'fixed inset-0 z-[10000] bg-slate-950 flex items-center justify-center p-5';
                 overlay.innerHTML = `
                     <div class="w-full max-w-sm bg-white rounded-3xl p-6 text-center shadow-2xl">
-                        <div class="w-16 h-16 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-3xl mx-auto mb-4"><i class="fas fa-lock"></i></div>
+                        <div class="w-16 h-16 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-3xl mx-auto mb-4"><i class="fas ${biometricReady ? 'fa-fingerprint' : 'fa-lock'}"></i></div>
                         <h2 class="font-extrabold text-lg mb-1">التطبيق مقفل</h2>
-                        <p class="text-xs text-slate-500 mb-4">أدخل رمز الحماية للمتابعة</p>
-                        <input id="appUnlockPin" type="password" inputmode="numeric" autocomplete="current-password" placeholder="رمز الحماية" class="w-full border border-slate-300 rounded-xl p-3 text-center text-xl tracking-widest mb-3">
-                        <p id="appUnlockError" class="text-xs text-rose-600 mb-2"></p>
-                        <button onclick="ProtectionController.unlockApp()" class="w-full bg-emerald-600 text-white rounded-xl py-3 font-extrabold">فتح التطبيق</button>
-                        ${cfg.fingerprintEnabled ? '<button onclick="ProtectionController.unlockWithFingerprint()" class="w-full mt-2 bg-slate-100 text-slate-800 rounded-xl py-3 font-bold"><i class="fas fa-fingerprint ml-1"></i> فتح بالبصمة</button>' : ''}
+                        ${biometricReady ? `
+                            <p class="text-xs text-slate-500 mb-4">استخدم بصمة الإصبع لفتح التطبيق مباشرة</p>
+                            <p id="appUnlockError" class="text-xs text-rose-600 mb-2" role="alert"></p>
+                            <button type="button" id="retryAppBiometric" onclick="ProtectionController.unlockWithFingerprint()" class="w-full bg-emerald-600 text-white rounded-xl py-3 font-extrabold"><i class="fas fa-fingerprint ml-1"></i> التحقق بالبصمة</button>
+                            <button type="button" onclick="ProtectionController.showUnlockPin()" class="w-full mt-2 bg-slate-100 text-slate-800 rounded-xl py-3 font-bold">استخدام رمز الحماية</button>
+                        ` : `<p class="text-xs text-slate-500 mb-4">أدخل رمز الحماية للمتابعة</p><p id="appUnlockError" class="text-xs text-rose-600 mb-2" role="alert"></p>`}
+                        <div id="appUnlockPinPanel" class="${biometricReady ? 'hidden' : ''} mt-3">
+                            <input id="appUnlockPin" type="password" inputmode="numeric" autocomplete="current-password" onkeydown="if(event.key === 'Enter'){event.preventDefault();ProtectionController.unlockApp()}" placeholder="رمز الحماية" class="w-full border border-slate-300 rounded-xl p-3 text-center text-xl tracking-widest mb-3">
+                            <button type="button" onclick="ProtectionController.unlockApp()" class="w-full bg-slate-900 text-white rounded-xl py-3 font-extrabold">فتح التطبيق</button>
+                        </div>
                         <button type="button" onclick="ProtectionController.openRecovery()" class="block mx-auto mt-4 text-xs font-bold text-indigo-700 underline"><i class="fas fa-life-ring ml-1"></i> نسيت كلمة السر؟</button>
                     </div>`;
                 document.body.appendChild(overlay);
-                setTimeout(() => document.getElementById('appUnlockPin')?.focus(), 100);
+                if (biometricReady) {
+                    // Wait until the overlay is visible. Android presents its genuine biometric prompt.
+                    requestAnimationFrame(() => {
+                        if (document.getElementById('appProtectionLock') === overlay) this.unlockWithFingerprint();
+                    });
+                } else {
+                    requestAnimationFrame(() => document.getElementById('appUnlockPin')?.focus());
+                }
+            },
+            showUnlockPin() {
+                const panel = document.getElementById('appUnlockPinPanel');
+                if (!panel) return;
+                panel.classList.remove('hidden');
+                const error = document.getElementById('appUnlockError');
+                if (error) error.textContent = '';
+                document.getElementById('appUnlockPin')?.focus();
             },
             async unlockApp() {
                 const pin = document.getElementById('appUnlockPin')?.value || '';
                 try {
-                    if (await this.verifyPin(pin)) document.getElementById('appProtectionLock')?.remove();
-                    else document.getElementById('appUnlockError').textContent = 'رمز الحماية غير صحيح';
-                } catch (e) { document.getElementById('appUnlockError').textContent = e.message || 'تعذر التحقق'; }
+                    if (await this.verifyPin(pin)) {
+                        document.getElementById('appProtectionLock')?.remove();
+                    } else {
+                        const error = document.getElementById('appUnlockError');
+                        if (error) error.textContent = 'رمز الحماية غير صحيح';
+                    }
+                } catch (e) {
+                    const error = document.getElementById('appUnlockError');
+                    if (error) error.textContent = e.message || 'تعذر التحقق';
+                }
             },
+            biometricUnlockInProgress: false,
             async unlockWithFingerprint() {
-                if (await this.verifyFingerprint()) document.getElementById('appProtectionLock')?.remove();
-                else document.getElementById('appUnlockError').textContent = 'تعذر التحقق بالبصمة، استخدم رمز الحماية';
+                if (this.biometricUnlockInProgress || !document.getElementById('appProtectionLock')) return;
+                this.biometricUnlockInProgress = true;
+                const button = document.getElementById('retryAppBiometric');
+                if (button) button.disabled = true;
+                try {
+                    if (await this.verifyFingerprint()) {
+                        // Authentication is enough: no additional confirmation button.
+                        document.getElementById('appProtectionLock')?.remove();
+                    } else {
+                        const error = document.getElementById('appUnlockError');
+                        if (error && !error.textContent) error.textContent = 'تعذر التحقق بالبصمة، استخدم رمز الحماية';
+                    }
+                } finally {
+                    this.biometricUnlockInProgress = false;
+                    if (button) button.disabled = false;
+                }
             },
             lockOnReturn() {
                 document.addEventListener('visibilitychange', () => {
@@ -6231,7 +6379,9 @@
                 history.replaceState({ appGuard: true, depth: 1 }, '');
                 history.pushState({ appGuard: true, depth: 1 }, '');
             } catch (e) {}
+            I18n.install();
             AppNav.renderCurrent();
+            I18n.apply(document);
             ProtectionController.showAppLock();
             ProtectionController.lockOnReturn();
         };

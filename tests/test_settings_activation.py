@@ -11,7 +11,7 @@ assert '<span class="text-[11px] font-bold text-slate-700">الطابعة وال
 assert html.index('<!-- License and activation are accessible from Settings only. -->') < html.index('<!-- Compact Bluetooth Printer Card -->')
 assert 'id="settingsLicenseStatus"' in html
 assert 'State.license.isActivated' in html and 'LicenseManager.activateNow()' in html
-assert "versionCode 11" in gradle and "versionName '3.5.3-settings-activation'" in gradle
+assert "versionCode 13" in gradle and "versionName '3.5.5-security-biometric'" in gradle
 assert 'AlRaedAccountingERP_v2' in html
 assert 'onchange="SettingsController.importBackup(event)"' in html
 assert 'ThermalPrinter.openQuickModal()' in html

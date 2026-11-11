@@ -403,32 +403,33 @@ public final class MainActivity extends FragmentActivity {
 
     private final class SecurityBridge {
         @JavascriptInterface
-        public void authenticate(String requestId) {
+        public void authenticate(String requestId, String language) {
             if (requestId == null || !requestId.matches("[A-Za-z0-9]{6,40}")) return;
+            final boolean useEnglish = "en".equals(language);
             runOnUiThread(() -> {
                 if (!isLocalPage()) return;
                 if (pendingBiometricId != null) {
-                    replyBiometric(requestId, false, "يوجد تحقق آخر قيد التنفيذ");
+                    replyBiometric(requestId, false, useEnglish ? "Another verification is in progress" : "يوجد تحقق آخر قيد التنفيذ");
                     return;
                 }
                 int available = BiometricManager.from(MainActivity.this)
                         .canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_WEAK);
                 if (available != BiometricManager.BIOMETRIC_SUCCESS) {
-                    replyBiometric(requestId, false, "البصمة غير متاحة: تأكد من إعداد بصمة أو قفل حيوي في الهاتف");
+                    replyBiometric(requestId, false, useEnglish ? "Biometrics unavailable. Set up fingerprint or biometric unlock in Android settings" : "البصمة غير متاحة: تأكد من إعداد بصمة أو قفل حيوي في الهاتف");
                     return;
                 }
                 pendingBiometricId = requestId;
                 BiometricPrompt.PromptInfo promptInfo = new BiometricPrompt.PromptInfo.Builder()
-                        .setTitle("تأكيد الهوية - المحاسب التقني")
-                        .setSubtitle("استخدم بصمة الإصبع أو وسيلة التحقق الحيوية في الهاتف")
-                        .setNegativeButtonText("إلغاء - استخدم كلمة السر")
+                        .setTitle(useEnglish ? "Verify identity - Technical Accountant" : "تأكيد الهوية - المحاسب التقني")
+                        .setSubtitle(useEnglish ? "Use your fingerprint or other biometric authentication" : "استخدم بصمة الإصبع أو وسيلة التحقق الحيوية في الهاتف")
+                        .setNegativeButtonText(useEnglish ? "Cancel - use PIN" : "إلغاء - استخدم كلمة السر")
                         .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_WEAK)
                         .build();
                 try {
                     biometricPrompt.authenticate(promptInfo);
                 } catch (Exception e) {
                     pendingBiometricId = null;
-                    replyBiometric(requestId, false, "لا يمكن تشغيل نافذة البصمة");
+                    replyBiometric(requestId, false, useEnglish ? "Could not open biometric prompt" : "لا يمكن تشغيل نافذة البصمة");
                 }
             });
         }
