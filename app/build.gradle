@@ -7,11 +7,11 @@ android {
     compileSdk 35
 
     defaultConfig {
-        applicationId 'com.sunshine.accounting'
+        applicationId 'com.sunshine.technicalaccountant'
         minSdk 26
         targetSdk 35
-        versionCode 3
-        versionName '3.0-signed-licenses'
+        versionCode 4
+        versionName '3.1.0'
     }
 
     buildTypes {
@@ -40,6 +40,7 @@ dependencies {
     implementation 'androidx.fragment:fragment:1.6.2'
 }
 
+// Keep transitive Kotlin stdlib versions consistent across AndroidX dependencies.
 configurations.configureEach {
     resolutionStrategy.eachDependency { details ->
         if (details.requested.group == 'org.jetbrains.kotlin'

@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#0f172a">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <title>مؤسسة الرائد التجارية</title>
+    <title>المحاسب التقني</title>
     <!-- Tailwind CSS -->
     <link rel="stylesheet" href="static/tailwind.css">
     <!-- Google Fonts: Cairo -->
@@ -116,7 +116,7 @@
                 <div class="min-w-0 flex-1">
                     <h1 id="screenTitle" class="font-bold text-sm sm:text-lg leading-tight flex items-center gap-1.5 truncate">
                         <i class="fas fa-calculator text-emerald-400 shrink-0"></i>
-                        <span class="truncate" id="brandCompanyName">مؤسسة الرائد التجارية</span>
+                        <span class="truncate" id="brandCompanyName">المحاسب التقني</span>
                     </h1>
                     <p id="screenSubtitle" class="text-[10px] sm:text-[11px] text-slate-400 truncate">نظام محاسبة ومستودعات (Offline-First)</p>
                 </div>
@@ -215,7 +215,7 @@
                 footerNote: 'شكراً لتعاملكم معنا - البضاعة المباعة ترد أو تستبدل خلال 3 أيام مع الفاتورة',
                 exchangeRate: 15000, // 1 USD = X SYP
                 printerWidth: 80,    // 80mm or 58mm
-                btPrintMode: 'auto', // 'auto' | 'web' | 'rawbt' | 'system'
+                btPrintMode: 'auto', // 'auto' | 'native' | 'web' | 'rawbt' | 'system'
                 btMacAddress: '',    // Optional MAC address for direct Cordova/Capacitor connection
                 printFontScale: 0.75, // 0.75 = أصغر (الافتراضي)، 0.85 = صغير، 1.0 = متوسط، 1.2 = كبير، 1.4 = عريض
                 defaultCurrency: 'USD',
@@ -960,9 +960,9 @@
                     return;
                 }
 
-                // Exit immediately on the dashboard; keep unsaved-operation protection elsewhere.
+                // On the home screen, Android Back must require an explicit confirmation.
                 if (this.current().screen === 'dashboard') {
-                    if (window.Android && typeof window.Android.exitApp === 'function') window.Android.exitApp();
+                    UI.showExitAppDialog();
                     return;
                 }
 
@@ -1021,6 +1021,34 @@
                     }
                 }
             }
+        };
+
+        // Native Android printer bridge events: connection and print completion are
+        // reported asynchronously by the actual Bluetooth socket, not guessed by JS.
+        window.__nativePrinterEvent = (event) => {
+            try {
+                const printer = ThermalPrinter;
+                if (event.state === 'connected' || event.state === 'printed') {
+                    printer.isConnected = true;
+                    printer.activeBridge = 'android_spp';
+                    if (event.address) State.settings.btMacAddress = event.address;
+                    if (event.state === 'connected') {
+                        printer.device = { name: event.message || 'طابعة بلوتوث', address: event.address };
+                        UI.toast('تم الاتصال المباشر: ' + (event.message || 'الطابعة'), 'success');
+                    } else {
+                        UI.toast(event.message || 'تم إرسال الفاتورة', 'success');
+                    }
+                } else if (event.state === 'disconnected' || event.state === 'error') {
+                    printer.isConnected = false;
+                    printer.activeBridge = 'none';
+                    if (event.state === 'error') UI.toast(event.message || 'تعذر الاتصال أو الطباعة', 'error');
+                } else if (event.state === 'connecting' || event.state === 'printing') {
+                    UI.toast(event.message || 'جارٍ الاتصال...', 'info');
+                }
+                printer.updateStatusUI();
+                const box = document.getElementById('nativePrinterStatus');
+                if (box) box.textContent = event.message || '';
+            } catch (e) { console.error('Printer callback:', e); }
         };
 
         // Android / WebView / browser Back-button bridge.
@@ -1105,7 +1133,7 @@
                 const badge = document.getElementById('btStatusBadge');
                 if (!dot || !badge) return;
                 const mode = State.settings.btPrintMode || 'auto';
-                if (this.isConnected || mode === 'rawbt') {
+                if (this.isConnected) {
                     dot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 absolute -top-0.5 -right-0.5 border-2 border-slate-900';
                     badge.classList.replace('text-slate-400', 'text-emerald-400');
                 } else {
@@ -1134,31 +1162,36 @@
                         <div class="bg-slate-900 text-white p-3 rounded-xl flex items-center justify-between">
                             <div>
                                 <div class="text-[11px] text-slate-400">حالة الطابعة الحرارية (الافتراضية):</div>
-                                <div class="font-extrabold text-xs ${this.isConnected || mode === 'rawbt' ? 'text-emerald-400' : 'text-amber-300'} mt-0.5">
-                                    ${this.isConnected ? 'متصل: ' + devName : mode === 'rawbt' ? 'وضع جسر APK المباشر (RawBT جاهز)' : 'جاهز للاقتران السريع عند الطباعة'}
+                                <div class="font-extrabold text-xs ${this.isConnected ? 'text-emerald-400' : 'text-amber-300'} mt-0.5">
+                                    ${this.isConnected ? 'متصل: ' + devName : mode === 'rawbt' ? 'RawBT خارجي - ليس اتصالاً مباشراً' : 'اختر طابعة مقترنة للاتصال المباشر'}
                                 </div>
                             </div>
-                            <button onclick="ThermalPrinter.connect(true)" class="bg-blue-600 hover:bg-blue-700 text-white font-extrabold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-sm active:scale-95 transition">
+                            <button onclick="ThermalPrinter.connectNative()" class="bg-blue-600 hover:bg-blue-700 text-white font-extrabold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-sm active:scale-95 transition">
                                 <i class="fab fa-bluetooth-b"></i>
-                                <span>بحث واقتران</span>
+                                <span>اختيار الطابعة</span>
                             </button>
                         </div>
 
                         <!-- Compact Mode Selector for APK Compatibility -->
                         <div>
                             <label class="block font-extrabold text-slate-700 mb-1.5">طريقة الاتصال بالطابعة (داخل تطبيق APK):</label>
-                            <div class="grid grid-cols-3 gap-1.5">
+                            <div class="grid grid-cols-2 gap-1.5">
                                 <button type="button" onclick="ThermalPrinter.setQuickOption('btPrintMode', 'auto')" class="p-2 rounded-xl border text-center font-bold transition ${mode === 'auto' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-slate-50 text-slate-700 border-slate-200'}">
                                     <i class="fas fa-bolt block mb-0.5"></i> تلقائي ذكي
                                 </button>
+                                <button type="button" onclick="ThermalPrinter.setQuickOption('btPrintMode', 'native')" class="p-2 rounded-xl border text-center font-bold transition ${mode === 'native' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-slate-50 text-slate-700 border-slate-200'}">
+                                    <i class="fas fa-print block mb-0.5"></i> مباشر داخل التطبيق
+                                </button>
                                 <button type="button" onclick="ThermalPrinter.setQuickOption('btPrintMode', 'rawbt')" class="p-2 rounded-xl border text-center font-bold transition ${mode === 'rawbt' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-slate-50 text-slate-700 border-slate-200'}">
-                                    <i class="fas fa-mobile-screen block mb-0.5"></i> جسر APK مباشر
+                                    <i class="fas fa-mobile-screen block mb-0.5"></i> تطبيق RawBT خارجي
                                 </button>
                                 <button type="button" onclick="ThermalPrinter.setQuickOption('btPrintMode', 'web')" class="p-2 rounded-xl border text-center font-bold transition ${mode === 'web' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-slate-50 text-slate-700 border-slate-200'}">
-                                    <i class="fab fa-bluetooth-b block mb-0.5"></i> بلوتوث مباشر
+                                    <i class="fab fa-bluetooth-b block mb-0.5"></i> بلوتوث الويب (BLE)
                                 </button>
                             </div>
                         </div>
+
+                        <p id="nativePrinterStatus" class="text-[11px] text-slate-500 bg-blue-50 p-2 rounded-lg">لطابعة Xprinter: اقترن بها من إعدادات بلوتوث الهاتف، ثم اختر «مباشر داخل التطبيق» واضغط «اختيار الطابعة».</p>
 
                         <!-- Paper Width Selector (80mm / 58mm) -->
                         <div class="flex items-center justify-between bg-slate-50 p-2.5 rounded-xl border border-slate-200">
@@ -1189,7 +1222,34 @@
                 }
             },
 
+            async connectNative() {
+                if (!window.AndroidPrinter || typeof window.AndroidPrinter.choosePrinter !== 'function') {
+                    UI.toast('الاتصال المباشر يحتاج النسخة الحديثة من تطبيق أندرويد APK', 'error');
+                    return false;
+                }
+                State.settings.btPrintMode = 'native';
+                await StorageEngine.saveState();
+                this.updateStatusUI();
+                if (!document.getElementById('modalContainer')?.classList.contains('hidden')) this.openQuickModal();
+                window.AndroidPrinter.choosePrinter();
+                UI.toast('اختر طابعتك من قائمة أجهزة البلوتوث المقترنة', 'info');
+                return true;
+            },
+
             async connect(fromModal = false) {
+                // Android native RFCOMM pairing/connection is available in our APK.
+                // User picks one of the devices already paired in Android Settings.
+                if (window.AndroidPrinter && typeof window.AndroidPrinter.choosePrinter === 'function'
+                        && State.settings.btPrintMode !== 'rawbt' && State.settings.btPrintMode !== 'web') {
+                    try {
+                        window.AndroidPrinter.choosePrinter();
+                        UI.toast('اختر الطابعة المقترنة من القائمة؛ يلزم سماح الأجهزة المجاورة', 'info');
+                        return 'native_pending';
+                    } catch (e) {
+                        UI.toast('تعذر فتح اختيار الطابعة: ' + e.message, 'error');
+                        return false;
+                    }
+                }
                 // 1. Check Native Cordova/Capacitor Bluetooth Serial Plugin (if compiled inside APK with bluetoothSerial)
                 if (window.bluetoothSerial) {
                     return new Promise((resolve) => {
@@ -1275,7 +1335,7 @@
                             await StorageEngine.saveState();
                             this.updateStatusUI();
                             if (fromModal) this.openQuickModal();
-                            UI.toast('تم تفعيل جسر طباعة البلوتوث المباشر لتطبيق الـ APK تلقائياً', 'info');
+                            UI.toast('تم اختيار RawBT الخارجي كخيار احتياطي', 'info');
                             return 'rawbt';
                         }
                         UI.toast('تعذر الاتصال بالطابعة: ' + err.message, 'error');
@@ -1288,7 +1348,7 @@
                 await StorageEngine.saveState();
                 this.updateStatusUI();
                 if (fromModal) this.openQuickModal();
-                UI.toast('تم تفعيل وضع طباعة البلوتوث المباشر للـ APK', 'success');
+                UI.toast('تم اختيار تطبيق RawBT الخارجي؛ يحتاج إلى تثبيت منفصل', 'info');
                 return 'rawbt';
             },
 
@@ -1304,9 +1364,9 @@
             sendViaApkBridge(escposBytes) {
                 const b64 = this.uint8ToBase64(escposBytes);
                 // 1. If Android native JS interface is injected in custom WebView
-                if (window.AndroidPrinter && typeof window.AndroidPrinter.printBase64 === 'function') {
+                if (State.settings.btPrintMode !== 'rawbt' && window.AndroidPrinter && typeof window.AndroidPrinter.printBase64 === 'function') {
                     window.AndroidPrinter.printBase64(b64);
-                    UI.toast('تم إرسال الفاتورة لطابعة البلوتوث بنجاح!', 'success');
+                    UI.toast('جارٍ إرسال الفاتورة عبر اتصال أندرويد المباشر...', 'info');
                     return;
                 }
                 // 2. Direct Android Bluetooth Print URI (RawBT scheme works seamlessly inside any converted APK without permissions)
@@ -1317,13 +1377,20 @@
                 document.body.appendChild(a);
                 a.click();
                 setTimeout(() => a.remove(), 400);
-                UI.toast('تم إرسال أمر الطباعة الحرارية عبر بلوتوث الهاتف', 'success');
+                UI.toast('تم تمرير أمر الطباعة لتطبيق RawBT الخارجي', 'info');
             },
 
             async sendRawEscPosBytes(escposBytes) {
                 const mode = State.settings.btPrintMode || 'auto';
 
-                // Direct APK Bridge mode
+                // Use the native Classic Bluetooth ESC/POS bridge for paired devices.
+                if ((mode === 'auto' || mode === 'native')
+                    && window.AndroidPrinter && typeof window.AndroidPrinter.printBase64 === 'function') {
+                    this.sendViaApkBridge(escposBytes);
+                    return;
+                }
+
+                // Optional external RawBT fallback, only when explicitly selected.
                 if (mode === 'rawbt') {
                     this.sendViaApkBridge(escposBytes);
                     return;
@@ -1840,7 +1907,7 @@
                         <i class="fas fa-power-off"></i>
                     </div>
                     <h3 class="font-extrabold text-base text-slate-900 mb-1">تأكيد الخروج من التطبيق</h3>
-                    <p class="text-xs text-slate-600 mb-5 leading-relaxed">هل تريد بالتأكيد الخروج من تطبيق ${State.settings.companyName || 'الشركة'}؟ جميع بياناتك وعملياتك محفوظة بأمان.</p>
+                    <p class="text-xs text-slate-600 mb-5 leading-relaxed">هل تريد الخروج من تطبيق المحاسب التقني؟ سيتم حفظ الحالة الحالية قبل الإغلاق.</p>
                     <div class="grid grid-cols-2 gap-2.5">
                         <button onclick="UI.closeExitDialog()" class="py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold text-sm transition">
                             البقاء في التطبيق
@@ -2040,8 +2107,8 @@
 
             // ==================== 6.1 DASHBOARD ====================
             renderDashboard(main) {
-                UI.setHeader('<i class="fas fa-calculator text-emerald-400"></i> <span>' + (State.settings.companyName || 'اسم الشركة') + '</span>', '');
-                document.title = State.settings.companyName || 'إدارة الشركة';
+                UI.setHeader('<i class="fas fa-calculator text-emerald-400"></i> <span>المحاسب التقني</span>', 'نظام المحاسبة والمستودعات');
+                document.title = 'المحاسب التقني';
 
                 const cash = Accounting.getCashboxSummary();
                 let totalReceivablesSyp = 0, totalReceivablesUsd = 0;
@@ -3015,12 +3082,12 @@
                                 <i class="fab fa-bluetooth text-blue-600 text-lg"></i>
                                 <span>طابعة البلوتوث الحرارية (الخيار الافتراضي)</span>
                             </h3>
-                            <span class="text-[11px] font-extrabold px-2.5 py-0.5 rounded-lg ${ThermalPrinter.isConnected || mode === 'rawbt' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}">
-                                ${ThermalPrinter.isConnected ? 'متصل الآن' : mode === 'rawbt' ? 'جسر APK مفعل' : 'تلقائي'}
+                            <span class="text-[11px] font-extrabold px-2.5 py-0.5 rounded-lg ${ThermalPrinter.isConnected ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}">
+                                ${ThermalPrinter.isConnected ? 'متصل الآن' : mode === 'rawbt' ? 'RawBT خارجي' : 'غير متصل'}
                             </span>
                         </div>
                         <div class="flex flex-wrap items-center gap-2">
-                            <button onclick="ThermalPrinter.connect()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5">
+                            <button onclick="ThermalPrinter.connectNative()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5">
                                 <i class="fab fa-bluetooth-b"></i>
                                 <span>بحث واقتران سريع</span>
                             </button>
@@ -5114,7 +5181,7 @@
                     data: State
                 };
                 if (window.AndroidFiles && typeof window.AndroidFiles.saveBackup === 'function') {
-                    window.AndroidFiles.saveBackup(JSON.stringify(payload, null, 2), `SAN_SHINE_Backup_${new Date().toISOString().slice(0, 10)}.json`);
+                    window.AndroidFiles.saveBackup(JSON.stringify(payload, null, 2), `AlMohaseb_AlTaqni_Backup_${new Date().toISOString().slice(0, 10)}.json`);
                     return;
                 }
                 const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
