@@ -235,6 +235,7 @@
                 btMacAddress: '',    // Optional MAC address for direct Cordova/Capacitor connection
                 printFontScale: 0.75, // 0.75 = أصغر (الافتراضي)، 0.85 = صغير، 1.0 = متوسط، 1.2 = كبير، 1.4 = عريض
                 defaultCurrency: 'USD',
+                selectedWarehouseId: 'wh_main',
                 appProtection: { pinSalt: '', pinHash: '', pinAlgo: 'sha256-v1', securityQuestions: [], recoveryFailures: 0, recoveryLockedUntil: 0, lockApp: false, protectDeletion: false, fingerprintEnabled: false, fingerprintCredentialId: '' }
             },
             license: {
@@ -248,7 +249,10 @@
             items: [],      // 100% Clean - Zero demo items
             accounts: [],   // 100% Clean - Zero demo customers/suppliers
             invoices: [],   // 100% Clean - Zero demo invoices
-            vouchers: []    // 100% Clean - Zero demo vouchers
+            vouchers: [],   // 100% Clean - Zero demo vouchers
+            warehouses: [{ id: 'wh_main', name: 'المستودع الرئيسي' }],
+            transfers: [],
+            expenses: []
         };
 
         const StorageEngine = {
@@ -284,7 +288,16 @@
                             State.items = d.items || [];
                             State.accounts = d.accounts || [];
                             State.invoices = d.invoices || [];
-                            State.vouchers = d.vouchers || [];
+                            State.vouchers = Array.isArray(d.vouchers) ? d.vouchers : [];
+                            State.warehouses = Array.isArray(d.warehouses) && d.warehouses.length
+                                ? d.warehouses : [{ id: 'wh_main', name: 'المستودع الرئيسي' }];
+                            if (!State.warehouses.some(w => w.id === 'wh_main')) {
+                                State.warehouses.unshift({ id: 'wh_main', name: 'المستودع الرئيسي' });
+                            }
+                            State.transfers = Array.isArray(d.transfers) ? d.transfers : [];
+                            State.expenses = Array.isArray(d.expenses) ? d.expenses : [];
+                            if (!State.warehouses.some(w => w.id === State.settings.selectedWarehouseId))
+                                State.settings.selectedWarehouseId = 'wh_main';
                         }
                         await LicenseManager.syncFallbackStorage();
                         ThermalPrinter.updateStatusUI();
@@ -313,7 +326,10 @@
                             items: State.items,
                             accounts: State.accounts,
                             invoices: State.invoices,
-                            vouchers: State.vouchers
+                            vouchers: State.vouchers,
+                            warehouses: State.warehouses,
+                            transfers: State.transfers,
+                            expenses: State.expenses
                         }
                     });
                     tx.oncomplete = () => resolve();
@@ -325,6 +341,10 @@
                 State.accounts = [];
                 State.invoices = [];
                 State.vouchers = [];
+                State.warehouses = [{ id: 'wh_main', name: 'المستودع الرئيسي' }];
+                State.transfers = [];
+                State.expenses = [];
+                State.settings.selectedWarehouseId = 'wh_main';
                 await this.saveState();
             }
         };
@@ -574,25 +594,30 @@
                 }
                 return amount;
             },
-            // Real-time stock in Base Unit (Major Unit) for an item (supports excluding an invoice when editing)
-            getItemBaseStock(itemId, excludeInvoiceId = null) {
+            // Legacy stock and invoices belong to the main warehouse. Null warehouseId = total.
+            getItemBaseStock(itemId, excludeInvoiceId = null, warehouseId = null) {
                 const item = State.items.find(i => i.id === itemId);
                 if (!item) return 0;
-                let stock = Number(item.openingStockBase) || 0;
-
+                const wanted = warehouseId || null;
+                let stock = (wanted === null || wanted === 'wh_main')
+                    ? (Number(item.openingStockBase) || 0) : 0;
                 for (const inv of State.invoices) {
                     if (excludeInvoiceId && inv.id === excludeInvoiceId) continue;
-                    for (const row of inv.rows) {
+                    if (wanted && (inv.warehouseId || 'wh_main') !== wanted) continue;
+                    for (const row of (Array.isArray(inv.rows) ? inv.rows : [])) {
                         if (row.itemId !== itemId) continue;
-                        // unitFactor represents how many of this unit are inside 1 Major Unit (1 for Major unit, e.g. 12 for sub-unit)
-                        const factor = Number(row.unitFactor) || 1;
-                        const baseQty = Number(row.qty) / factor;
-                        if (inv.type === 'purchase' || inv.type === 'sale_return') {
-                            stock += baseQty;
-                        } else if (inv.type === 'sale' || inv.type === 'purchase_return') {
-                            stock -= baseQty;
-                        }
+                        const factor = Number(row.unitFactor) > 0 ? Number(row.unitFactor) : 1;
+                        const baseQty = (Number(row.qty) || 0) / factor;
+                        if (inv.type === 'purchase' || inv.type === 'sale_return') stock += baseQty;
+                        if (inv.type === 'sale' || inv.type === 'purchase_return') stock -= baseQty;
                     }
+                }
+                for (const move of (State.transfers || [])) {
+                    if (move.itemId !== itemId) continue;
+                    const qty = Number(move.quantityBase) || 0;
+                    if (wanted === null) continue; // Internal transfers do not change global stock.
+                    if (move.fromWarehouseId === wanted) stock -= qty;
+                    if (move.toWarehouseId === wanted) stock += qty;
                 }
                 return Math.round((stock + Number.EPSILON) * 10000) / 10000;
             },
@@ -805,6 +830,18 @@
                     });
                 }
 
+                for (const exp of (State.expenses || [])) {
+                    const amt = Number(exp.amount) || 0;
+                    if (!(amt > 0)) continue;
+                    if (exp.currency === 'USD') usdCash = this.round(usdCash - amt, 'USD');
+                    else sypCash = this.round(sypCash - amt, 'SYP');
+                    movements.push({
+                        id: exp.id, docType: 'expense', date: exp.date,
+                        ref: 'مصروف', party: exp.category || 'مصاريف',
+                        desc: exp.note || 'مصروف نقدي', currency: exp.currency,
+                        inflow: 0, outflow: amt
+                    });
+                }
                 movements.sort((a, b) => (new Date(b.date).getTime() || 0) - (new Date(a.date).getTime() || 0));
                 return { sypCash, usdCash, movements };
             },
@@ -2130,6 +2167,8 @@
                 switch (screen) {
                     case 'dashboard': return this.renderDashboard(main);
                     case 'items': return this.renderItems(main, params);
+                    case 'warehouses': return this.renderWarehouses(main, params);
+                    case 'expenses': return this.renderExpenses(main, params);
                     case 'invoices_list': return this.renderInvoicesList(main, params);
                     case 'invoice_form': return InvoiceController.renderForm(main, params);
                     case 'invoice_print': return this.renderInvoicePrint(main, params);
@@ -2242,6 +2281,14 @@
                             <i class="fas fa-sliders text-slate-700 text-base"></i>
                             <span class="text-[11px] font-bold text-slate-700">الطابعة والنسخ</span>
                         </button>
+                        <button onclick="AppNav.navigate('warehouses')" class="bg-sky-50 border border-sky-200 p-2.5 rounded-xl flex flex-col items-center gap-1 hover:bg-sky-100 active:scale-95">
+                            <i class="fas fa-warehouse text-sky-700"></i>
+                            <span class="text-[11px] font-bold text-sky-900">المستودعات والمناقلات</span>
+                        </button>
+                        <button onclick="AppNav.navigate('expenses')" class="bg-orange-50 border border-orange-200 p-2.5 rounded-xl flex flex-col items-center gap-1 hover:bg-orange-100 active:scale-95">
+                            <i class="fas fa-file-invoice-dollar text-orange-700"></i>
+                            <span class="text-[11px] font-bold text-orange-900">المصاريف</span>
+                        </button>
                     </div>
 
 
@@ -2273,6 +2320,13 @@
                         </button>
                     </div>
 
+                    <div class="rounded-xl bg-sky-50 border border-sky-200 p-3 mb-3">
+                        <label class="text-xs font-bold text-sky-900 block mb-1">المستودع المعروض</label>
+                        <select onchange="WarehouseController.selectWarehouse(this.value)" class="w-full rounded-lg border border-sky-300 p-2 text-xs bg-white">
+                            ${WarehouseController.options(State.settings.selectedWarehouseId)}
+                        </select>
+                        <button onclick="AppNav.navigate('warehouses')" class="text-xs font-bold text-sky-700 mt-2">إدارة المستودعات والمناقلات</button>
+                    </div>
                     <div class="bg-white p-2.5 rounded-2xl border border-slate-200 mb-3 flex flex-col sm:flex-row gap-2">
                         <div class="relative flex-1">
                             <i class="fas fa-barcode absolute right-3 top-3 text-slate-400"></i>
@@ -2292,11 +2346,12 @@
                                 <p class="text-xs text-slate-400 mt-1">اضغط على "إضافة صنف جديد" لتعريف المواد وتحديد عملتها المعتمدة (SYP أو USD) ووحداتها</p>
                             </div>
                         ` : filtered.map(item => {
-                            const baseStock = Accounting.getItemBaseStock(item.id);
+                            const baseStock = Accounting.getItemBaseStock(item.id, null, State.settings.selectedWarehouseId || 'wh_main');
                             const baseStockDisp = Math.round((baseStock + Number.EPSILON) * 100) / 100;
                             const baseUnit = item.units[0] || { name: 'كرتونة', factor: 1, salePrice: 0 };
                             const isLow = baseStock <= (Number(item.minStockBase) || 0);
-                            const linkedInvoicesCount = State.invoices.filter(inv => inv.rows.some(r => r.itemId === item.id)).length;
+                            const linkedInvoicesCount = State.invoices.filter(inv => Array.isArray(inv.rows) && inv.rows.some(r => r.itemId === item.id)).length;
+                            const linkedTransfersCount = (State.transfers || []).filter(tr => tr.itemId === item.id).length;
 
                             const unitBadges = item.units.map((u, uIdx) => {
                                 const factor = Number(u.factor) || 1;
@@ -2324,7 +2379,8 @@
                                         </div>
                                         <div class="text-left shrink-0">
                                             <div class="text-xs font-extrabold ${isLow ? 'text-rose-600' : 'text-emerald-700'}">
-                                                المخزون: ${baseStockDisp} ${baseUnit.name}
+                                                رصيد المستودع: ${baseStockDisp} ${baseUnit.name}
+                                                 <div class="text-[10px] text-slate-500 font-medium">جميع المستودعات: ${Accounting.getItemBaseStock(item.id)} ${baseUnit.name}</div>
                                             </div>
                                             ${isLow ? `<div class="text-[10px] text-rose-500 font-bold"><i class="fas fa-bell"></i> دون الحد الأدنى (${item.minStockBase})</div>` : ''}
                                             <div class="flex items-center justify-end gap-1.5 mt-2">
@@ -2345,6 +2401,132 @@
                             <p class="font-bold">لا توجد أصناف مطابقة للبحث</p>
                             <p class="text-xs text-slate-400 mt-1">جرّب اسماً آخر أو رقم باركود مختلفاً</p>
                         </div>
+                    </div>
+                `;
+            },
+
+
+            // ==================== WAREHOUSES & INTERNAL TRANSFERS ====================
+            renderWarehouses(main) {
+                UI.setHeader('<i class="fas fa-warehouse text-sky-400"></i> <span>المستودعات والمناقلات</span>',
+                             'أرصدة مستقلة لكل مستودع ومناقلة لا تؤثر على المبيعات أو الأرباح');
+                const wopts = WarehouseController.options(State.settings.selectedWarehouseId);
+                const warehouseName = id => WarehouseController.name(id);
+                main.innerHTML = `
+                    <div class="rounded-2xl border border-sky-200 bg-sky-50 p-3 mb-3">
+                        <div class="text-xs font-extrabold text-sky-900 mb-2">المستودع المعتمد للعرض والفواتير الجديدة</div>
+                        <select onchange="WarehouseController.selectWarehouse(this.value)" class="w-full rounded-xl border border-sky-300 bg-white p-3 text-sm">${wopts}</select>
+                        <div class="text-[11px] text-sky-700 mt-2">المستودع الرئيسي يحتفظ بكل أرصدة الفواتير القديمة تلقائياً.</div>
+                    </div>
+                    <div class="rounded-2xl bg-white p-3 border mb-3">
+                        <h3 class="text-sm font-extrabold mb-2">تعريف مستودع جديد</h3>
+                        <div class="flex gap-2">
+                            <input id="newWarehouseName" maxlength="80" class="w-full rounded-xl border p-2.5 text-sm" placeholder="اسم المستودع الجديد">
+                            <button onclick="WarehouseController.addWarehouse()" class="shrink-0 rounded-xl bg-sky-600 px-4 text-white font-bold">إضافة</button>
+                        </div>
+                        <div class="mt-3 space-y-2">
+                            ${(State.warehouses||[]).map(wh=>`
+                                <div class="rounded-xl border border-slate-200 p-3 flex items-center justify-between gap-2">
+                                    <div><b class="text-sm">${AppEscape.text(wh.name)}</b><div class="text-[10px] text-slate-500">${State.items.length} صنف معرّف · ${State.items.filter(it=>Accounting.getItemBaseStock(it.id,null,wh.id) !== 0).length} صنف برصيد</div></div>
+                                    <div class="text-left flex items-center gap-1">
+                                        <button onclick="WarehouseController.renameWarehouse('${wh.id}')" class="rounded-lg bg-slate-100 p-2 text-xs" title="إعادة تسمية">تسمية</button>
+                                        ${wh.id !== 'wh_main' ? `<button onclick="WarehouseController.deleteWarehouse('${wh.id}')" class="rounded-lg bg-rose-50 text-rose-700 p-2 text-xs">حذف</button>` : ''}
+                                    </div>
+                                </div>`).join('')}
+                        </div>
+                    </div>
+                    <div class="rounded-2xl bg-white p-3 border mb-3">
+                        <h3 class="text-sm font-extrabold mb-3">مناقلة مادة بين مستودعين</h3>
+                        <div class="grid grid-cols-2 gap-2 mb-2">
+                            <div><label class="block text-xs font-bold mb-1">من المستودع</label>
+                                <select id="transferFrom" onchange="WarehouseController.refreshTransferAvailability()" class="w-full border rounded-xl p-2.5 text-xs">${WarehouseController.options(State.settings.selectedWarehouseId)}</select></div>
+                            <div><label class="block text-xs font-bold mb-1">إلى المستودع</label>
+                                <select id="transferTo" class="w-full border rounded-xl p-2.5 text-xs">${WarehouseController.options((State.warehouses||[]).find(w=>w.id !== (State.settings.selectedWarehouseId||'wh_main'))?.id || 'wh_main')}</select></div>
+                        </div>
+                        <label class="text-xs font-bold block mb-1">المادة</label>
+                        <select id="transferItem" onchange="WarehouseController.updateTransferUnits()" class="w-full rounded-xl border p-2.5 text-xs mb-2">
+                            <option value="">اختر المادة</option>
+                            ${State.items.map(it=>`<option value="${it.id}">${AppEscape.text(it.name)}</option>`).join('')}
+                        </select>
+                        <div id="transferAvailability" class="text-[11px] text-sky-700 mb-2"></div>
+                        <label class="block text-xs font-bold mb-1">الوحدة المستخدمة بالمناقلة</label>
+                        <select id="transferUnit" onchange="WarehouseController.refreshTransferAvailability()" class="w-full border rounded-xl p-2.5 text-xs mb-2"></select>
+                        <div class="grid grid-cols-2 gap-2 mb-2">
+                            <div><label class="block text-xs font-bold mb-1">الكمية بحسب الوحدة المختارة</label><input id="transferQty" type="number" min="0.0001" step="any" inputmode="decimal" class="w-full border rounded-xl p-2.5 text-sm" placeholder="مثلاً 5"></div>
+                            <div><label class="block text-xs font-bold mb-1">التاريخ</label><input id="transferDate" type="date" value="${new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10)}" class="w-full border rounded-xl p-2.5 text-sm"></div>
+                        </div>
+                        <input id="transferNote" maxlength="200" class="w-full border rounded-xl p-2.5 text-sm mb-3" placeholder="ملاحظة المناقلة (اختياري)">
+                        <button onclick="WarehouseController.saveTransfer()" class="w-full rounded-xl bg-sky-700 py-3 text-white font-extrabold text-sm">حفظ المناقلة وتحديث أرصدة المستودعين</button>
+                    </div>
+                    <div class="rounded-2xl bg-white border p-3">
+                        <h3 class="font-extrabold text-sm mb-2">سجل المناقلات (${(State.transfers||[]).length})</h3>
+                        ${(State.transfers||[]).length ? [...State.transfers].reverse().map(t=>`
+                            <div class="p-2.5 border-b text-xs flex justify-between gap-2">
+                                <div class="min-w-0">
+                                    <b>${AppEscape.text(State.items.find(i=>i.id===t.itemId)?.name || 'مادة محذوفة')}</b>
+                                    <div class="text-slate-500">${AppEscape.text(warehouseName(t.fromWarehouseId))} ← ${AppEscape.text(warehouseName(t.toWarehouseId))}</div>
+                                    <div class="text-slate-400">${AppEscape.text(t.date)} ${AppEscape.text(t.note||'')}</div>
+                                </div>
+                                <div class="text-left shrink-0">
+                                    <strong>${t.quantity && t.unitName ? `${Number(t.quantity).toLocaleString('en-US')} ${AppEscape.text(t.unitName)}` : `${Number(t.quantityBase).toLocaleString('en-US')} وحدة كبرى`}</strong>
+                                    <button class="block text-rose-600 mt-1" onclick="WarehouseController.deleteTransfer('${t.id}')">إلغاء المناقلة</button>
+                                </div>
+                            </div>`).join('') : '<p class="text-xs text-slate-400">لا توجد مناقلات بعد.</p>'}
+                    </div>
+                `;
+                WarehouseController.updateTransferUnits();
+            },
+
+            // ==================== EXPENSE ACCOUNT & REGISTER ====================
+            renderExpenses(main) {
+                UI.setHeader('<i class="fas fa-receipt text-orange-400"></i> <span>حساب المصاريف</span>',
+                             'مصاريف نقدية تُخصم من صافي الأرباح ومن رصيد الصندوق');
+                const list = (State.expenses||[]).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+                const rate = Number(State.settings.exchangeRate) || 1;
+                const sumUsd = list.reduce((acc,e)=>acc + (e.currency === 'USD' ? Number(e.amount)||0 : (Number(e.amount)||0)/(Number(e.exchangeRate)||rate)),0);
+                main.innerHTML = `
+                    <div class="grid grid-cols-2 gap-2 mb-3">
+                        <div class="rounded-2xl bg-orange-50 border border-orange-200 p-3">
+                            <div class="text-xs text-orange-800">المصاريف الإجمالية بالدولار</div>
+                            <strong class="text-base text-orange-900">${Accounting.format(sumUsd,'USD')}</strong>
+                        </div>
+                        <div class="rounded-2xl bg-white border p-3">
+                            <div class="text-xs text-slate-600">ما يعادلها بسعر الصرف الحالي</div>
+                            <strong class="text-base">${Accounting.format(sumUsd*rate,'SYP')}</strong>
+                        </div>
+                    </div>
+                    <div class="rounded-2xl bg-white border p-3 mb-3">
+                        <h3 class="font-extrabold text-sm mb-3" id="expenseFormTitle">إضافة مصروف جديد</h3>
+                        <input type="hidden" id="expenseId" value="">
+                        <div class="grid grid-cols-2 gap-2 mb-2">
+                            <div><label class="block text-xs font-bold mb-1">قيمة المصروف</label><input id="expenseAmount" type="number" inputmode="decimal" min="0.01" step="any" class="w-full border rounded-xl p-2.5" placeholder="المبلغ"></div>
+                            <div><label class="block text-xs font-bold mb-1">العملة</label>
+                                <select id="expenseCurrency" class="w-full border rounded-xl p-2.5"><option value="SYP">ليرة سورية</option><option value="USD">دولار أمريكي</option></select></div>
+                            <div><label class="block text-xs font-bold mb-1">فئة المصروف</label>
+                                <select id="expenseCategory" class="w-full border rounded-xl p-2.5">
+                                    ${['نقل ومحروقات','رواتب وأجور','إيجار','كهرباء ومياه','صيانة','تسويق','مصاريف إدارية','أخرى'].map(c=>`<option>${c}</option>`).join('')}
+                                </select></div>
+                            <div><label class="block text-xs font-bold mb-1">التاريخ</label><input id="expenseDate" type="date" value="${new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10)}" class="w-full border rounded-xl p-2.5"></div>
+                            <div class="col-span-2"><label class="block text-xs font-bold mb-1">سعر الصرف لهذه العملية (1$ = ل.س)</label><input id="expenseRate" type="number" min="0.0001" step="any" value="${rate}" class="w-full border rounded-xl p-2.5"></div>
+                        </div>
+                        <input id="expenseNote" maxlength="250" class="w-full border rounded-xl p-2.5 text-sm mb-3" placeholder="البيان / الملاحظات">
+                        <button onclick="ExpenseController.saveExpense()" class="w-full bg-orange-600 text-white rounded-xl py-3 font-extrabold">حفظ المصروف وخصمه من صافي الربح</button>
+                    </div>
+                    <div class="rounded-2xl bg-white border p-3">
+                        <div class="font-extrabold text-sm mb-2">سجل المصاريف (${list.length})</div>
+                        ${list.length ? list.map(e=>`
+                            <div class="border-b py-2.5 text-xs flex items-center justify-between gap-2">
+                                <div class="min-w-0">
+                                    <b>${AppEscape.text(e.category)}</b>
+                                    <div class="text-slate-500">${AppEscape.text(e.note||'')} · ${AppEscape.text(e.date||'')}</div>
+                                    <div class="text-[10px] text-slate-400">سعر صرف العملية: ${Number(e.exchangeRate||1).toLocaleString('en-US')}</div>
+                                </div>
+                                <div class="text-left shrink-0">
+                                    <div class="font-extrabold text-orange-700">${Accounting.format(e.amount,e.currency)}</div>
+                                    <button onclick="ExpenseController.editExpense('${e.id}')" class="text-sky-700 ml-3">تعديل</button>
+                                    <button onclick="ExpenseController.deleteExpense('${e.id}')" class="text-rose-600">حذف</button>
+                                </div>
+                            </div>`).join('') : '<p class="text-slate-400 text-xs">لا توجد مصاريف مسجلة.</p>'}
                     </div>
                 `;
             },
@@ -3000,6 +3182,7 @@
                 const period = params.period || 'all';
                 const selectedDate = params.date || new Date().toISOString().slice(0, 10);
                 const profitView = params.view || 'invoices';
+                const inventoryWarehouseId = params.warehouseId || State.settings.selectedWarehouseId || 'wh_main';
                 const revealProfits = params.reveal === true || params.reveal === 'true';
                 const asLocalDate = d => { const x = new Date(d.getTime() - d.getTimezoneOffset() * 60000); return x.toISOString().slice(0, 10); };
                 const today = asLocalDate(new Date());
@@ -3056,6 +3239,28 @@
                         purchasesSyp += netSyp; purchasesUsd += netUsd;
                     }
                 }
+                const reportExpenses = (Array.isArray(State.expenses) ? State.expenses : []).filter(exp => {
+                    if (!exp || typeof exp !== 'object') return false;
+                    if (period === 'today') return String(exp.date || '').slice(0, 10) === today;
+                    if (period === 'yesterday') return String(exp.date || '').slice(0, 10) === yesterday;
+                    if (period === 'custom') return String(exp.date || '').slice(0, 10) === selectedDate;
+                    return true;
+                });
+                const expenseTotalUsd = reportExpenses.reduce((total, exp) => {
+                    const amount = Number(exp.amount) || 0;
+                    const originalRate = Number(exp.exchangeRate) > 0
+                        ? Number(exp.exchangeRate) : (Number(State.settings.exchangeRate) || 1);
+                    return total + (exp.currency === 'USD' ? amount : amount / originalRate);
+                }, 0);
+                const netProfitUsd = estimatedProfitUsd - expenseTotalUsd;
+                const expenseByCategory = {};
+                reportExpenses.forEach(exp => {
+                    const category = exp.category || 'أخرى';
+                    const originalRate = Number(exp.exchangeRate) > 0
+                        ? Number(exp.exchangeRate) : (Number(State.settings.exchangeRate) || 1);
+                    const usd = exp.currency === 'USD' ? (Number(exp.amount)||0) : (Number(exp.amount)||0)/originalRate;
+                    expenseByCategory[category] = (expenseByCategory[category] || 0) + usd;
+                });
                 const reportExchangeRate = Number(State.settings && State.settings.exchangeRate) || 1;
                 const moneyDual = usd => `<div class="font-extrabold text-emerald-700">${Accounting.format(usd, 'USD')}</div><div class="text-[10px] text-slate-500">${Accounting.format(usd * reportExchangeRate, 'SYP')}</div>`;
                 const active = (v, label) => `<button onclick="AppNav.navigate('reports',{tab:'pnl',period:'${period}',date:'${selectedDate}',view:'${v}',reveal:${revealProfits}},true)" class="px-3 py-2 rounded-xl text-xs font-bold ${profitView === v ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 border'}">${label}</button>`;
@@ -3074,8 +3279,15 @@
                         <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden"><div class="p-3 font-bold text-xs border-b border-slate-100">سجل المقبوضات والمدفوعات النقدية</div>
                         ${cash.movements.length === 0 ? `<div class="p-6 text-center text-xs text-slate-400">لا توجد حركات صندوق مسجلة</div>` : `<div class="divide-y divide-slate-100 text-xs">${cash.movements.map(m => `<div class="p-3 flex items-center justify-between"><div><div class="font-bold text-slate-800">${m.ref} - ${m.party}</div><div class="text-[11px] text-slate-500">${m.desc} | ${m.date.replace('T', ' ')}</div></div><div class="font-extrabold ${m.inflow > 0 ? 'text-emerald-600' : 'text-rose-600'}">${m.inflow > 0 ? '+ ' + Accounting.format(m.inflow, m.currency) : '- ' + Accounting.format(m.outflow, m.currency)}</div></div>`).join('')}</div>`}</div>
                     ` : tab === 'inventory' ? `
+                        <div class="bg-sky-50 border border-sky-200 rounded-xl p-3 mb-3">
+                            <label class="text-xs font-bold text-sky-900 block mb-1">عرض جرد مستودع محدد أو جميع المستودعات</label>
+                            <select onchange="AppNav.navigate('reports',{tab:'inventory',warehouseId:this.value},true)" class="w-full bg-white border rounded-xl p-2.5 text-xs">
+                                <option value="all" ${inventoryWarehouseId === 'all' ? 'selected' : ''}>إجمالي جميع المستودعات</option>
+                                ${WarehouseController.options(inventoryWarehouseId)}
+                            </select>
+                        </div>
                         <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden"><div class="p-3 font-bold text-xs border-b border-slate-100 flex justify-between"><span>تقرير الجرد الفعلي للأصناف</span><span>عدد المواد: ${State.items.length}</span></div>
-                        ${(Array.isArray(State.items) ? State.items : []).length === 0 ? `<div class="p-6 text-center text-xs text-slate-400">المستودع فارغ حالياً</div>` : `<table class="w-full text-right text-xs"><thead class="bg-slate-50 text-slate-600 font-bold border-b"><tr><th class="p-2.5">المادة (عملتها)</th><th class="p-2.5 text-center">الرصيد بالوحدة الكبرى الأساسية</th><th class="p-2.5 text-left">تقييم التكلفة</th></tr></thead><tbody class="divide-y divide-slate-100">${State.items.map(item => { const st = Accounting.getItemBaseStock(item.id); const stDisp = Math.round((st + Number.EPSILON) * 100) / 100; const u0 = item.units[0] || { name: 'كرتونة', costPrice: 0 }; const val = st * (Number(u0.costPrice) || 0); return `<tr><td class="p-2.5 font-bold">${item.name} <span class="text-[10px] text-slate-400">(${item.currency})</span></td><td class="p-2.5 text-center font-bold ${st <= item.minStockBase ? 'text-rose-600' : 'text-emerald-700'}">${stDisp} ${u0.name}</td><td class="p-2.5 text-left font-bold">${Accounting.format(val, item.currency)}</td></tr>`; }).join('')}</tbody></table>`}</div>
+                        ${(Array.isArray(State.items) ? State.items : []).length === 0 ? `<div class="p-6 text-center text-xs text-slate-400">المستودع فارغ حالياً</div>` : `<table class="w-full text-right text-xs"><thead class="bg-slate-50 text-slate-600 font-bold border-b"><tr><th class="p-2.5">المادة (عملتها)</th><th class="p-2.5 text-center">الرصيد بالوحدة الكبرى الأساسية</th><th class="p-2.5 text-left">تقييم التكلفة</th></tr></thead><tbody class="divide-y divide-slate-100">${State.items.map(item => { const st = Accounting.getItemBaseStock(item.id, null, inventoryWarehouseId === 'all' ? null : inventoryWarehouseId); const stDisp = Math.round((st + Number.EPSILON) * 100) / 100; const u0 = item.units[0] || { name: 'كرتونة', costPrice: 0 }; const val = st * (Number(u0.costPrice) || 0); return `<tr><td class="p-2.5 font-bold">${item.name} <span class="text-[10px] text-slate-400">(${item.currency})</span></td><td class="p-2.5 text-center font-bold ${st <= item.minStockBase ? 'text-rose-600' : 'text-emerald-700'}">${stDisp} ${u0.name}</td><td class="p-2.5 text-left font-bold">${Accounting.format(val, item.currency)}</td></tr>`; }).join('')}</tbody></table>`}</div>
                     ` : `
                         <div class="bg-white border border-slate-200 rounded-2xl p-3 mb-3 space-y-3">
                             <div class="flex items-center justify-between gap-2">
@@ -3098,10 +3310,32 @@
                             <div class="bg-white p-3 rounded-2xl border"><div class="text-[11px] text-slate-500">إجمالي المبيعات</div><div class="font-extrabold text-emerald-700">${Accounting.format(salesUsd,'USD')}</div><div class="text-[10px] text-slate-500">${Accounting.format(salesSyp,'SYP')}</div></div>
                             <div class="bg-slate-900 text-white p-3 rounded-2xl"><div class="text-[11px] text-slate-300">إجمالي الربح التقديري</div>${revealProfits ? `<div class="font-extrabold text-amber-300">${Accounting.format(estimatedProfitUsd,'USD')}</div><div class="text-[10px] text-emerald-300">${Accounting.format(estimatedProfitUsd * (Number(State.settings && State.settings.exchangeRate)||1),'SYP')}</div>` : `<div class="font-extrabold text-amber-300/80 mt-1 tracking-widest">••••••</div><div class="text-[10px] text-slate-300 mt-1">اضغط إظهار الأرباح</div>`}</div>
                         </div>
+                        <div class="grid grid-cols-2 gap-2 mb-3">
+                            <div class="bg-orange-50 border border-orange-200 rounded-2xl p-3">
+                                <div class="text-[11px] font-bold text-orange-800">مصاريف الفترة (${reportExpenses.length})</div>
+                                <div class="font-extrabold text-orange-800">${Accounting.format(expenseTotalUsd,'USD')}</div>
+                                <div class="text-[10px] text-orange-700">${Accounting.format(expenseTotalUsd*reportExchangeRate,'SYP')}</div>
+                                <button onclick="AppNav.navigate('expenses')" class="text-[10px] font-bold text-orange-800 underline">حساب المصاريف</button>
+                            </div>
+                            <div class="bg-slate-900 rounded-2xl p-3 text-white">
+                                <div class="text-[11px] text-slate-300">صافي الربح بعد المصاريف</div>
+                                ${revealProfits ? `<div class="font-extrabold ${netProfitUsd>=0?'text-emerald-300':'text-rose-300'}">${Accounting.format(netProfitUsd,'USD')}</div><div class="text-[10px] text-slate-300">${Accounting.format(netProfitUsd*reportExchangeRate,'SYP')}</div>` : `<div class="font-extrabold text-slate-300 tracking-widest mt-1">••••••</div>`}
+                            </div>
+                        </div>
+                        <div class="bg-white border border-slate-200 rounded-2xl p-3 mb-3">
+                            <div class="flex items-center justify-between mb-2">
+                                <strong class="text-xs text-orange-900">تفاصيل المصاريف خلال الفترة</strong>
+                                <button onclick="AppNav.navigate('expenses')" class="text-xs text-orange-700 font-bold">إضافة مصروف</button>
+                            </div>
+                            ${Object.keys(expenseByCategory).length ? Object.entries(expenseByCategory).sort((a,b)=>b[1]-a[1]).map(([cat,usd])=>`
+                                <div class="py-1.5 flex justify-between text-xs border-b border-slate-100">
+                                    <span>${AppEscape.text(cat)}</span><b class="text-orange-700">${Accounting.format(usd,'USD')}</b>
+                                </div>`).join('') : `<div class="text-xs text-slate-400">لا توجد مصاريف خلال هذه الفترة.</div>`}
+                        </div>
                         <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
                             ${!revealProfits ? `<div class="p-8 text-center"><i class="fas fa-eye-slash text-2xl text-slate-300 mb-3"></i><p class="font-extrabold text-sm text-slate-700">تفاصيل الأرباح مخفية</p><p class="text-xs text-slate-500 mt-1">اختر الفترة المطلوبة ثم اضغط زر إظهار الأرباح بالأعلى.</p></div>` : profitView==='invoices' ? `<div class="p-3 border-b font-bold text-xs">ربح كل فاتورة على حدة</div>${invoiceProfits.length ? `<div class="divide-y">${invoiceProfits.map(x=>`<div class="p-3 flex items-center justify-between gap-2"><div class="min-w-0"><div class="font-bold text-xs">${x.ref} ${x.party ? ' - '+x.party : ''}</div><div class="text-[10px] text-slate-400">${String(x.date).replace('T',' ').slice(0,16)}</div></div><div class="text-left shrink-0">${moneyDual(x.profit)}</div></div>`).join('')}</div>` : `<div class="p-5 text-center text-xs text-slate-400">لا توجد فواتير مبيع ضمن الفترة المحددة</div>`}` : profitView==='groups' ? `<div class="p-3 border-b font-bold text-xs">الأرباح حسب مجموعات الأصناف</div>${Object.keys(groupProfits).length ? `<div class="divide-y">${Object.entries(groupProfits).sort((a,b)=>b[1]-a[1]).map(([name,val])=>`<div class="p-3 flex items-center justify-between"><span class="font-bold text-xs">${name}</span><div class="text-left">${moneyDual(val)}</div></div>`).join('')}</div>` : `<div class="p-5 text-center text-xs text-slate-400">لا توجد بيانات مجموعات ضمن الفترة المحددة</div>`}` : `<div class="p-3 border-b font-bold text-xs">الأرباح حسب المواد</div>${Object.keys(itemProfits).length ? `<div class="divide-y">${Object.values(itemProfits).sort((a,b)=>b.profit-a.profit).map(x=>`<div class="p-3 flex items-center justify-between gap-2"><div><div class="font-bold text-xs">${x.name}</div><div class="text-[10px] text-slate-400">الكمية المباعة: ${x.qty}</div></div><div class="text-left">${moneyDual(x.profit)}</div></div>`).join('')}</div>` : `<div class="p-5 text-center text-xs text-slate-400">لا توجد بيانات مواد ضمن الفترة المحددة</div>`}`}
                         </div>
-                        <p class="text-[10px] text-slate-400 mt-2">الأرباح تقديرية ومحسوبة من سعر بيع بنود الفاتورة مطروحاً منه تكلفة المادة المسجلة في بطاقة الصنف، وتحويل العملة وفق سعر الصرف المسجل للفاتورة.</p>
+                        <p class="text-[10px] text-slate-400 mt-2">صافي الربح التقديري = أرباح المبيعات التقديرية − المصاريف النقدية المسجلة للفترة. تُحوّل المصاريف بسعر صرف تاريخ العملية، بينما يُعرض المقابل بالليرة بسعر الصرف الحالي. تكلفة البضاعة مبنية على أسعار التكلفة المسجلة بالأصناف وليست تكلفة متحركة دقيقة.</p>
                     `}
                 `;
             },
@@ -3767,8 +4001,9 @@
 
                 const linkedInvoices = State.invoices.filter(inv => inv.rows.some(r => r.itemId === itemId));
                 const usedInDraft = InvoiceController.draft && InvoiceController.draft.rows && InvoiceController.draft.rows.some(r => r.itemId === itemId);
+                const linkedTransfers = (State.transfers || []).some(tr => tr.itemId === itemId);
 
-                if (linkedInvoices.length > 0 || usedInDraft) {
+                if (linkedInvoices.length > 0 || usedInDraft || linkedTransfers) {
                     const invNums = linkedInvoices.map(i => `#${i.number} (${Accounting.getInvoiceTypeAr(i.type)})`).slice(0, 6).join(' ، ');
                     UI.showProtectionAlert(
                         'منع حذف الصنف (حماية العمليات المرتبطة)',
@@ -3782,6 +4017,210 @@
                     State.items = State.items.filter(i => i.id !== itemId);
                     await StorageEngine.saveState();
                     UI.toast('تم حذف المادة بنجاح', 'success');
+                    AppNav.renderCurrent();
+                });
+            }
+        };
+
+
+        /********************************************************************
+         * MULTI-WAREHOUSE & CASH EXPENSES – persisted with legacy accounting.
+         ********************************************************************/
+        const AppEscape = {
+            text(value) {
+                return String(value ?? '').replace(/[&<>"']/g, char => ({
+                    '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
+                })[char]);
+            }
+        };
+
+        const WarehouseController = {
+            name(id) {
+                return (State.warehouses || []).find(w => w.id === (id || 'wh_main'))?.name || 'المستودع الرئيسي';
+            },
+            options(selected) {
+                return (State.warehouses || []).map(w =>
+                    `<option value="${w.id}" ${selected === w.id ? 'selected' : ''}>${AppEscape.text(w.name)}</option>`
+                ).join('');
+            },
+            async selectWarehouse(id) {
+                if (!(State.warehouses||[]).some(w => w.id === id)) return;
+                State.settings.selectedWarehouseId = id;
+                await StorageEngine.saveState();
+                AppNav.renderCurrent();
+            },
+            async addWarehouse() {
+                const name = document.getElementById('newWarehouseName')?.value.trim();
+                if (!name || name.length < 2 || name.length > 80) return UI.toast('اسم المستودع يجب أن يكون بين حرفين و80 حرفاً', 'error');
+                if ((State.warehouses||[]).some(w => w.name.trim().toLowerCase() === name.toLowerCase()))
+                    return UI.toast('يوجد مستودع بالاسم نفسه', 'error');
+                State.warehouses.push({ id: 'wh_' + Date.now() + '_' + Math.random().toString(36).slice(2,7), name });
+                await StorageEngine.saveState();
+                UI.toast('تم إنشاء المستودع بنجاح', 'success');
+                AppNav.renderCurrent();
+            },
+            renameWarehouse(id) {
+                const wh = State.warehouses.find(w => w.id === id);
+                if (!wh) return;
+                UI.openModal(`
+                    <h3 class="font-extrabold text-sm mb-3">إعادة تسمية مستودع</h3>
+                    <input id="renameWarehouseInput" maxlength="80" class="w-full p-3 border rounded-xl" value="${AppEscape.text(wh.name)}">
+                    <div class="flex gap-2 mt-3">
+                        <button onclick="WarehouseController.saveWarehouseName('${wh.id}')" class="flex-1 bg-sky-700 text-white p-3 rounded-xl font-bold">حفظ الاسم</button>
+                        <button onclick="UI.forceCloseModal()" class="bg-slate-100 p-3 rounded-xl">إلغاء</button>
+                    </div>`);
+            },
+            async saveWarehouseName(id) {
+                const wh = State.warehouses.find(w=>w.id===id);
+                const name = document.getElementById('renameWarehouseInput')?.value.trim();
+                if (!wh || !name || name.length < 2 || name.length > 80 ||
+                    State.warehouses.some(w=>w.id!==id && w.name.toLowerCase()===name.toLowerCase()))
+                    return UI.toast('اسم المستودع غير صالح أو مكرر', 'error');
+                wh.name = name;
+                await StorageEngine.saveState();
+                UI.forceCloseModal();
+                AppNav.renderCurrent();
+            },
+            deleteWarehouse(id) {
+                if (id === 'wh_main') return UI.toast('لا يمكن حذف المستودع الرئيسي', 'error');
+                const wh = State.warehouses.find(w=>w.id===id);
+                if (!wh) return;
+                const used = State.invoices.some(inv => (inv.warehouseId||'wh_main') === id)
+                    || (State.transfers||[]).some(t=>t.fromWarehouseId===id||t.toWarehouseId===id)
+                    || State.items.some(it=>Math.abs(Accounting.getItemBaseStock(it.id,null,id))>0.00001);
+                if (used) return UI.toast('لا يمكن حذف مستودع له حركات أو أرصدة. يمكن إعادة تسميته.', 'error');
+                UI.showDeleteConfirm('حذف مستودع فارغ', `هل تريد حذف المستودع "${AppEscape.text(wh.name)}"؟`, async () => {
+                    State.warehouses = State.warehouses.filter(w=>w.id!==id);
+                    if (State.settings.selectedWarehouseId === id) State.settings.selectedWarehouseId='wh_main';
+                    await StorageEngine.saveState();
+                    AppNav.renderCurrent();
+                });
+            },
+            updateTransferUnits() {
+                const itemId=document.getElementById('transferItem')?.value;
+                const el=document.getElementById('transferUnit');
+                if (!el) return;
+                const item=State.items.find(i=>i.id===itemId);
+                const units=Array.isArray(item?.units) && item.units.length ? item.units : [{name:'وحدة كبرى',factor:1}];
+                el.innerHTML=units.map(u=>`<option value="${Number(u.factor)||1}">${AppEscape.text(u.name)} (${Number(u.factor)||1} / وحدة كبرى)</option>`).join('');
+                this.refreshTransferAvailability();
+            },
+            refreshTransferAvailability() {
+                const itemId = document.getElementById('transferItem')?.value;
+                const from = document.getElementById('transferFrom')?.value;
+                const el = document.getElementById('transferAvailability');
+                if (!el) return;
+                if (!itemId || !from) { el.textContent = 'اختر المادة والمستودع المصدر لعرض الرصيد'; return; }
+                const item = State.items.find(i=>i.id===itemId);
+                const factor=Number(document.getElementById('transferUnit')?.value)||1;
+                const base=Accounting.getItemBaseStock(itemId,null,from);
+                el.textContent = `المتوفر في المصدر: ${base} ${item?.units?.[0]?.name || 'وحدة كبرى'} (ما يعادل ${Math.round(base*factor*100)/100} من الوحدة المختارة)`;
+            },
+            async saveTransfer() {
+                if (this.saving) return;
+                this.saving = true;
+                try {
+                const from = document.getElementById('transferFrom')?.value;
+                const to = document.getElementById('transferTo')?.value;
+                const itemId = document.getElementById('transferItem')?.value;
+                const qty = Accounting.parseNum(document.getElementById('transferQty')?.value);
+                const factor = Number(document.getElementById('transferUnit')?.value) || 1;
+                const quantityBase = qty / factor;
+                const itemUnits=State.items.find(i=>i.id===itemId)?.units || [];
+                const unitName=itemUnits.find(u=>Number(u.factor||1)===factor)?.name || 'وحدة كبرى';
+                const date = document.getElementById('transferDate')?.value;
+                const note = document.getElementById('transferNote')?.value.trim().slice(0,200) || '';
+                if (!from || !to || from === to) return UI.toast('اختر مستودعين مختلفين', 'error');
+                if (!(State.warehouses||[]).some(w=>w.id===from) || !(State.warehouses||[]).some(w=>w.id===to))
+                    return UI.toast('المستودع المختار غير موجود', 'error');
+                if (!State.items.some(i=>i.id===itemId)) return UI.toast('اختر مادة موجودة', 'error');
+                if (!Number.isFinite(qty) || qty<=0 || Math.abs(Math.round(qty*10000)-qty*10000)>0.000001)
+                    return UI.toast('الكمية يجب أن تكون موجبة بدقة أربع خانات عشرية كحد أقصى', 'error');
+                if (!/^\d{4}-\d{2}-\d{2}$/.test(date||'')) return UI.toast('تاريخ المناقلة غير صحيح', 'error');
+                if (!(factor > 0) || !Number.isFinite(quantityBase)) return UI.toast('وحدة قياس غير صالحة', 'error');
+                const available = Accounting.getItemBaseStock(itemId,null,from);
+                if (quantityBase > available + 0.00001) return UI.toast(`الكمية تتجاوز الرصيد المتاح (${available} وحدة كبرى)`, 'error');
+                if (!LicenseManager.canPerformOperation()) return;
+                const transfer = { id: 'tr_' + Date.now() + '_' + Math.random().toString(36).slice(2,8),
+                    itemId, fromWarehouseId:from, toWarehouseId:to, quantityBase, quantity:qty, unitName, date, note,
+                    createdAt:new Date().toISOString() };
+                State.transfers.push(transfer);
+                await LicenseManager.recordNewOperation();
+                await StorageEngine.saveState();
+                UI.toast('تم ترحيل المادة بين المستودعين دون تغيير المخزون الإجمالي', 'success');
+                AppNav.renderCurrent();
+                } finally { this.saving = false; }
+            },
+            deleteTransfer(id) {
+                const t = (State.transfers||[]).find(x=>x.id===id);
+                if (!t) return;
+                if (Accounting.getItemBaseStock(t.itemId,null,t.toWarehouseId) + 0.00001 < Number(t.quantityBase))
+                    return UI.toast('لا يمكن عكس المناقلة لأن الرصيد في المستودع المستلم لم يعد كافياً', 'error');
+                UI.showDeleteConfirm('إلغاء المناقلة', 'سيعاد الرصيد من المستودع المستلم إلى المصدر. هل تريد المتابعة؟', async()=>{
+                    State.transfers=State.transfers.filter(x=>x.id!==id);
+                    await StorageEngine.saveState();
+                    UI.toast('تم إلغاء المناقلة وعكس أثرها', 'success');
+                    AppNav.renderCurrent();
+                });
+            }
+        };
+
+        const ExpenseController = {
+            async saveExpense() {
+                if (this.saving) return;
+                this.saving = true;
+                try {
+                const id = document.getElementById('expenseId')?.value;
+                const amount = Accounting.parseNum(document.getElementById('expenseAmount')?.value);
+                const currency = document.getElementById('expenseCurrency')?.value;
+                const category = document.getElementById('expenseCategory')?.value;
+                const date = document.getElementById('expenseDate')?.value;
+                const note = document.getElementById('expenseNote')?.value.trim().slice(0,250) || '';
+                const exchangeRate = Accounting.parseNum(document.getElementById('expenseRate')?.value);
+                if (!Number.isFinite(amount) || amount <= 0 || amount > 1e15)
+                    return UI.toast('أدخل قيمة مصروف موجبة وصحيحة', 'error');
+                if (currency !== 'SYP' && currency !== 'USD') return UI.toast('اختر العملة الصحيحة', 'error');
+                if (!category || !/^\d{4}-\d{2}-\d{2}$/.test(date||''))
+                    return UI.toast('فئة المصروف أو تاريخه غير صحيح', 'error');
+                if (!(exchangeRate > 0) || !Number.isFinite(exchangeRate)) return UI.toast('أدخل سعر صرف صحيحاً', 'error');
+                const safeAmount = Accounting.round(amount,currency);
+                if (!(safeAmount > 0)) return UI.toast('القيمة بعد التقريب يجب أن تكون أكبر من صفر', 'error');
+                const idx = (State.expenses||[]).findIndex(e=>e.id===id);
+                if (idx < 0 && !LicenseManager.canPerformOperation()) return;
+                const expense = { id: idx>=0 ? id : 'exp_' + Date.now() + '_' + Math.random().toString(36).slice(2,8),
+                    amount:safeAmount, currency, category, date, note, exchangeRate,
+                    updatedAt:new Date().toISOString() };
+                if (idx>=0) State.expenses[idx] = {...State.expenses[idx], ...expense};
+                else {
+                    State.expenses.push(expense);
+                    await LicenseManager.recordNewOperation();
+                }
+                await StorageEngine.saveState();
+                UI.toast(idx>=0?'تم تعديل المصروف':'تم تسجيل المصروف وخصمه من صافي الأرباح', 'success');
+                AppNav.renderCurrent();
+                } finally { this.saving = false; }
+            },
+            editExpense(id) {
+                const exp = (State.expenses||[]).find(e=>e.id===id);
+                if (!exp) return;
+                const put=(elementId,value)=>{const el=document.getElementById(elementId);if(el)el.value=value;};
+                put('expenseId',exp.id);
+                put('expenseAmount',exp.amount);
+                put('expenseCurrency',exp.currency);
+                put('expenseCategory',exp.category);
+                put('expenseDate',exp.date);
+                put('expenseNote',exp.note || '');
+                put('expenseRate',exp.exchangeRate);
+                const title=document.getElementById('expenseFormTitle');
+                if(title) title.textContent = 'تعديل مصروف مسجل';
+                document.getElementById('expenseAmount')?.focus();
+            },
+            deleteExpense(id) {
+                const exp = (State.expenses||[]).find(e=>e.id===id);
+                if (!exp) return;
+                UI.showDeleteConfirm('حذف المصروف', 'سيُحذف المصروف ويُعاد أثره على صافي الربح والصندوق. هل تريد المتابعة؟', async()=>{
+                    State.expenses=State.expenses.filter(e=>e.id!==id);
+                    await StorageEngine.saveState();
                     AppNav.renderCurrent();
                 });
             }
@@ -3899,6 +4338,7 @@
                     const existing = State.invoices.find(i => i.id === params.id);
                     if (!existing) return AppNav.navigate('invoices_list');
                     this.draft = JSON.parse(JSON.stringify(existing));
+                    this.draft.warehouseId = existing.warehouseId || 'wh_main';
                     this.draft.isEditing = true;
                 } else {
                     const nextNum = State.invoices.length > 0 ? Math.max(...State.invoices.map(i => Number(i.number) || 0)) + 1 : 1;
@@ -3907,6 +4347,7 @@
                         id: 'inv_' + Date.now(),
                         number: nextNum,
                         type: params.type || 'sale',
+                        warehouseId: State.settings.selectedWarehouseId || 'wh_main',
                         date: nowIso,
                         accountId: '',
                         currency: State.settings.defaultCurrency || 'SYP',
@@ -3942,6 +4383,13 @@
                 AppNav.markDirty(async () => {
                     return await this.saveInvoice(false);
                 });
+            },
+
+            changeWarehouse(id) {
+                if (!(State.warehouses||[]).some(w => w.id === id)) return;
+                this.draft.warehouseId = id;
+                this.markModified();
+                this.paintForm(document.getElementById('mainContent'));
             },
 
             changeInvoiceType(newType) {
@@ -4146,7 +4594,7 @@
                     const u0 = itm.units[0] || { name: 'كرتونة', factor: 1, salePrice: 0, costPrice: 0 };
                     const rawPrice = isPurchase ? Number(u0.costPrice) : Number(u0.salePrice);
                     const priceInInvCurr = Accounting.convert(rawPrice, itm.currency, d.currency, d.exchangeRate);
-                    const availStock = Math.round((Accounting.getItemBaseStock(itm.id, d.isEditing ? d.id : null) + Number.EPSILON) * 100) / 100;
+                    const availStock = Math.round((Accounting.getItemBaseStock(itm.id, d.isEditing ? d.id : null, d.warehouseId || 'wh_main') + Number.EPSILON) * 100) / 100;
                     const inCartRow = d.rows.find(r => r.itemId === itm.id);
                     const inCartQty = inCartRow ? inCartRow.qty : 0;
 
@@ -4460,6 +4908,12 @@
                             </button>
                         </div>
 
+                        <div class="mb-1.5 rounded-lg bg-sky-50 border border-sky-200 px-2 py-1.5">
+                            <label class="block text-[10px] font-extrabold text-sky-900 mb-1">المستودع الذي تتأثر به هذه الفاتورة</label>
+                            <select onchange="InvoiceController.changeWarehouse(this.value)" class="w-full bg-white rounded-lg p-2 border border-sky-300 text-xs">
+                                ${WarehouseController.options(d.warehouseId || 'wh_main')}
+                            </select>
+                        </div>
                         <div class="grid grid-cols-2 gap-1.5 text-[10px]">
                             <div class="min-w-0">
                                 <div class="flex items-center justify-between mb-0.5 gap-1">
@@ -4521,7 +4975,7 @@
                             <div class="divide-y divide-slate-100">
                                 ${d.rows.map((r, idx) => {
                                     const itemObj = State.items.find(i => i.id === r.itemId);
-                                    const availBase = itemObj ? Accounting.getItemBaseStock(itemObj.id, d.isEditing ? d.id : null) : 0;
+                                    const availBase = itemObj ? Accounting.getItemBaseStock(itemObj.id, d.isEditing ? d.id : null, d.warehouseId || 'wh_main') : 0;
                                     const availInSelectedUnit = Math.round(((availBase * (Number(r.unitFactor) || 1)) + Number.EPSILON) * 100) / 100;
                                     const baseCurr = r.baseCurrency || (itemObj ? itemObj.currency : cur);
 
@@ -4660,6 +5114,31 @@
                 if (d.remainingAmount !== 0 && !d.accountId) {
                     UI.toast(isPurchase ? 'يرجى اختيار حساب المورد لأن الفاتورة آجلة أو تحتوي على مبلغ متبقٍ بالذمة' : 'يرجى اختيار حساب العميل لأن الفاتورة آجلة أو تحتوي على مبلغ متبقٍ بالذمة', 'error');
                     return false;
+                }
+                if (!(State.warehouses||[]).some(w => w.id === (d.warehouseId||'wh_main'))) {
+                    UI.toast('المستودع المحدد غير موجود', 'error');
+                    return false;
+                }
+                const isOutbound = d.type === 'sale' || d.type === 'purchase_return';
+                if (isOutbound) {
+                    const requested = new Map();
+                    for (const row of d.rows) {
+                        const factor = Number(row.unitFactor) > 0 ? Number(row.unitFactor) : 1;
+                        const qty = Number(row.qty) || 0;
+                        if (!(qty > 0)) {
+                            UI.toast('كمية المادة يجب أن تكون أكبر من صفر', 'error');
+                            return false;
+                        }
+                        requested.set(row.itemId, (requested.get(row.itemId)||0) + qty / factor);
+                    }
+                    for (const [itemId, needed] of requested) {
+                        const available = Accounting.getItemBaseStock(itemId, d.isEditing ? d.id : null, d.warehouseId||'wh_main');
+                        if (needed > available + 0.00001) {
+                            const name = State.items.find(i=>i.id===itemId)?.name || 'المادة';
+                            UI.toast(`الكمية المطلوبة للصنف "${AppEscape.text(name)}" تتجاوز رصيد المستودع (${available})`, 'error');
+                            return false;
+                        }
+                    }
                 }
 
                 const cleanDoc = { ...d };
@@ -5303,12 +5782,22 @@
                     try {
                         const parsed = JSON.parse(e.target.result);
                         const d = parsed.data || parsed;
+                        if (!d || !['categories','items','accounts','invoices','vouchers'].every(k => Array.isArray(d[k]))) {
+                            throw new Error('نسخة احتياطية ناقصة');
+                        }
                         if (d.settings) State.settings = { ...State.settings, ...d.settings };
-                        State.categories = d.categories || [];
-                        State.items = d.items || [];
-                        State.accounts = d.accounts || [];
-                        State.invoices = d.invoices || [];
-                        State.vouchers = d.vouchers || [];
+                        State.categories = d.categories;
+                        State.items = d.items;
+                        State.accounts = d.accounts;
+                        State.invoices = d.invoices;
+                        State.vouchers = d.vouchers;
+                        State.warehouses = Array.isArray(d.warehouses) && d.warehouses.length
+                            ? d.warehouses : [{ id:'wh_main', name:'المستودع الرئيسي' }];
+                        if (!State.warehouses.some(w=>w.id==='wh_main')) State.warehouses.unshift({id:'wh_main',name:'المستودع الرئيسي'});
+                        State.transfers = Array.isArray(d.transfers) ? d.transfers : [];
+                        State.expenses = Array.isArray(d.expenses) ? d.expenses : [];
+                        if (!State.warehouses.some(w=>w.id===State.settings.selectedWarehouseId))
+                            State.settings.selectedWarehouseId='wh_main';
                         await StorageEngine.saveState();
                         UI.toast('تمت استعادة النسخة الاحتياطية بنجاح!', 'success');
                         AppNav.navigate('dashboard', {}, true);
@@ -5322,7 +5811,7 @@
             confirmResetAll() {
                 const proceed = () => UI.showDeleteConfirm(
                     'تصفير شامل للنظام',
-                    'سيتم مسح جميع الفواتير والمواد والحسابات والسندات نهائياً وإعادة التطبيق فارغاً بالكامل. هل أنت متأكد؟',
+                    'سيتم مسح جميع الفواتير والمواد والحسابات والسندات والمستودعات والمناقلات والمصاريف نهائياً. احفظ نسخة احتياطية قبل المتابعة.',
                     async () => {
                         await StorageEngine.clearAll();
                         UI.toast('تم تصفير قاعدة البيانات بالكامل', 'success');
