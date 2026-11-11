@@ -47,6 +47,22 @@
         .animate-slide-up {
             animation: slideUp 0.2s ease-out forwards;
         }
+        /* Highlight scanned/selected invoice products, in both sale and purchase forms. */
+        .invoice-added-items {
+            background: #e0f2fe !important;
+            border: 1px solid #7dd3fc !important;
+        }
+        .invoice-added-items .invoice-added-row {
+            background: #e0f2fe;
+            border-bottom: 1px solid #bae6fd;
+        }
+        .invoice-added-items .invoice-added-row:hover { background: #bae6fd; }
+        .invoice-added-items .invoice-added-title {
+            background: #bae6fd;
+            color: #075985;
+            border-bottom: 1px solid #7dd3fc;
+        }
+
         /* Thermal & PDF Receipt Preview Styling */
         .receipt-paper {
             background: #fff;
@@ -1855,6 +1871,11 @@
             },
 
             requestCloseModal() {
+                if (typeof InvoiceController !== 'undefined' && InvoiceController.barcodeScanActive
+                        && document.getElementById('invoiceBarcodeVideo')) {
+                    UI.toast('اضغط زر × للخروج من كاميرا الباركود', 'info');
+                    return;
+                }
                 if (AppNav.isModalDirty) {
                     this.showUnsavedDialog(
                         async () => {
@@ -1871,6 +1892,9 @@
             },
 
             forceCloseModal() {
+                if (typeof InvoiceController !== 'undefined' && InvoiceController.barcodeScanActive) {
+                    InvoiceController.stopBarcodeScanner();
+                }
                 AppNav.clearModalDirty();
                 document.getElementById('modalContainer').classList.add('hidden');
                 document.getElementById('modalBox').innerHTML = '';
@@ -3947,6 +3971,38 @@
                 if (input) { input.value = ''; input.focus(); }
             },
 
+            addItemsByBarcodeBatch(codes) {
+                if (!Array.isArray(codes) || !codes.length) return;
+                // Do not mutate another screen after the scanner Activity returns.
+                if (AppNav.current().screen !== 'invoice_form' || !this.draft) {
+                    UI.toast('افتح فاتورة بيع أو شراء ثم أعد المسح', 'error');
+                    return;
+                }
+                const byBarcode = new Map(State.items
+                    .filter(itm => itm.barcode)
+                    .map(itm => [String(itm.barcode).trim().toLowerCase(), itm]));
+                let added = 0;
+                const missing = [];
+                for (const raw of codes.slice(0, 500)) {
+                    const code = String(raw || '').trim().toLowerCase();
+                    if (!code) continue;
+                    const item = byBarcode.get(code);
+                    if (!item) { missing.push(code); continue; }
+                    // Repeated reads of the same item increment its invoice quantity.
+                    this.addItemToInvoice(item.id, false);
+                    added += 1;
+                }
+                if (added) {
+                    this.markModified();
+                    this.recalculate();
+                    this.paintForm(document.getElementById('mainContent'));
+                    UI.toast(`تمت إضافة ${added} قراءة باركود إلى الفاتورة`, 'success');
+                }
+                if (missing.length) {
+                    UI.toast(`لم يتم العثور على ${missing.length} باركود في المواد المسجلة`, 'warn');
+                }
+            },
+
             async openBarcodeScanner() {
                 if (window.NativeBarcode && typeof window.NativeBarcode.scan === 'function') {
                     window.NativeBarcode.scan('invoice');
@@ -3967,8 +4023,7 @@
                             <button type="button" onclick="InvoiceController.stopBarcodeScanner();UI.forceCloseModal()" class="w-8 h-8 rounded-full bg-slate-100"><i class="fas fa-times"></i></button>
                         </div>
                         <video id="invoiceBarcodeVideo" autoplay muted playsinline class="w-full rounded-xl bg-black max-h-[55vh] object-contain"></video>
-                        <p id="barcodeScanStatus" class="text-center text-xs font-bold text-slate-600">وجّه الكاميرا نحو الباركود حتى تتم قراءته تلقائياً</p>
-                        <button type="button" onclick="InvoiceController.stopBarcodeScanner();UI.forceCloseModal()" class="w-full bg-slate-100 text-slate-700 rounded-xl py-2 font-bold text-sm">إلغاء</button>
+                        <p id="barcodeScanStatus" class="text-center text-xs font-bold text-slate-600">امسح أكثر من صنف؛ الكاميرا لا تغلق حتى تضغط ×</p>
                     </div>
                 `);
                 try {
@@ -3979,16 +4034,24 @@
                     video.srcObject = this.barcodeScanStream;
                     await video.play();
                     this.barcodeScanActive = true;
+                    const lastSeenAt = new Map();
+                    let lastAcceptedAt = 0;
                     const scanFrame = async () => {
                         if (!this.barcodeScanActive || !document.getElementById('invoiceBarcodeVideo')) return;
                         try {
                             const codes = await detector.detect(video);
                             if (codes.length && codes[0].rawValue) {
-                                const value = codes[0].rawValue;
-                                this.stopBarcodeScanner();
-                                UI.forceCloseModal();
-                                this.addItemByBarcode(value);
-                                return;
+                                const value = String(codes[0].rawValue).trim();
+                                const now = Date.now();
+                                const lastForCode = lastSeenAt.get(value) || 0;
+                                const delay = lastForCode ? 3500 : 450;
+                                if (now - lastForCode >= delay && now - lastAcceptedAt >= 450) {
+                                    lastSeenAt.set(value, now);
+                                    lastAcceptedAt = now;
+                                    this.addItemByBarcode(value);
+                                    const status = document.getElementById('barcodeScanStatus');
+                                    if (status) status.textContent = `تمت قراءة ${value}؛ استمر بالمسح أو اضغط ×`;
+                                }
                             }
                         } catch (scanError) {}
                         if (this.barcodeScanActive) setTimeout(scanFrame, 220);
@@ -4237,7 +4300,7 @@
                 this.paintForm(document.getElementById('mainContent'));
             },
 
-            addItemToInvoice(itemId) {
+            addItemToInvoice(itemId, repaint = true) {
                 const item = State.items.find(i => i.id === itemId);
                 if (!item) return;
 
@@ -4265,9 +4328,11 @@
                     });
                 }
 
-                this.markModified();
-                this.recalculate();
-                this.paintForm(document.getElementById('mainContent'));
+                if (repaint) {
+                    this.markModified();
+                    this.recalculate();
+                    this.paintForm(document.getElementById('mainContent'));
+                }
             },
 
             changeRowUnit(rowIdx, newUnitName) {
@@ -4442,7 +4507,11 @@
                         </div>
                     </div>
 
-                    <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden mb-3 shadow-xs">
+                    <div class="invoice-added-items rounded-2xl overflow-hidden mb-3 shadow-xs">
+                        <div class="invoice-added-title px-3 py-2 text-xs font-extrabold flex items-center justify-between">
+                            <span><i class="fas fa-boxes-stacked ml-1"></i>الأصناف المضافة إلى الفاتورة</span>
+                            <span>${d.rows.length} صنف</span>
+                        </div>
                         ${d.rows.length === 0 ? `
                             <div onclick="InvoiceController.openItemGridModal()" class="p-6 text-center text-slate-400 text-xs cursor-pointer hover:bg-slate-50 transition">
                                 <i class="fas fa-table-cells-large text-2xl mb-1 text-emerald-500 opacity-80"></i>
@@ -4457,7 +4526,7 @@
                                     const baseCurr = r.baseCurrency || (itemObj ? itemObj.currency : cur);
 
                                     return `
-                                        <div class="p-3 hover:bg-slate-50">
+                                        <div class="invoice-added-row p-3">
                                             <div class="flex items-center justify-between mb-2">
                                                 <div class="flex items-center gap-1.5 flex-wrap">
                                                     <span class="font-extrabold text-xs sm:text-sm text-slate-900">${idx + 1}. ${r.itemName}</span>
@@ -5605,6 +5674,10 @@
             AppNav.renderCurrent();
             ProtectionController.showAppLock();
             ProtectionController.lockOnReturn();
+        };
+        // Scanner stays open and batches all invoice barcodes until pressing ×.
+        window.__nativeBarcodeBatchResult = function (codes) {
+            InvoiceController.addItemsByBarcodeBatch(codes);
         };
         // Native offline barcode decoder callback, dispatched by Android after scanning.
         window.__nativeBarcodeResult = function (target, code, message) {

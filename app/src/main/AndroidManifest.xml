@@ -22,6 +22,10 @@
         android:hardwareAccelerated="true"
         android:supportsRtl="true">
         <activity
+            android:name=".ContinuousBarcodeActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+        <activity
             android:name=".MainActivity"
             android:exported="true"
             android:windowSoftInputMode="adjustResize"

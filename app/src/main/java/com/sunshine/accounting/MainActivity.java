@@ -6,6 +6,7 @@ import android.content.pm.PackageManager;
 import android.webkit.PermissionRequest;
 
 import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.core.content.ContextCompat;
 
 import com.journeyapps.barcodescanner.ScanContract;
@@ -39,6 +40,9 @@ import androidx.core.view.WindowInsetsCompat;
 import androidx.webkit.WebViewAssetLoader;
 
 import org.json.JSONObject;
+import org.json.JSONArray;
+
+import java.util.ArrayList;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -74,6 +78,23 @@ public final class MainActivity extends FragmentActivity {
                                 "com.google.zxing.client.android.SCAN_MISSING_CAMERA_PERMISSION", false)) {
                     replyBarcode(target, "", "إذن الكاميرا غير متاح. اسمح به من إعدادات التطبيق.");
                 }
+            });
+
+    // Invoice scanning remains in the camera until the user presses ×.
+    // Codes are delivered in one batch when the camera closes, preserving the
+    // active sale/purchase invoice draft without exiting the invoice form.
+    private final ActivityResultLauncher<Intent> invoiceBarcodeLauncher =
+            registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
+                final String target = pendingNativeBarcodeTarget;
+                pendingNativeBarcodeTarget = null;
+                if (!"invoice".equals(target)) return;
+                Intent data = result.getData();
+                if (data == null) return;
+                ArrayList<String> codes = data.getStringArrayListExtra(
+                        ContinuousBarcodeActivity.EXTRA_CODES);
+                if (codes != null && !codes.isEmpty()) replyBarcodeBatch(codes);
+                String error = data.getStringExtra(ContinuousBarcodeActivity.EXTRA_ERROR);
+                if (error != null && !error.isEmpty()) replyBarcode("invoice", "", error);
             });
 
     @Override
@@ -262,6 +283,18 @@ public final class MainActivity extends FragmentActivity {
         });
     }
 
+    private void replyBarcodeBatch(ArrayList<String> codes) {
+        runOnUiThread(() -> {
+            if (!isLocalPage() || codes == null || codes.isEmpty()) return;
+            JSONArray jsonCodes = new JSONArray();
+            // Build JSON safely: barcode values are never interpolated as JS code.
+            for (String value : codes) jsonCodes.put(value);
+            webView.evaluateJavascript(
+                    "window.__nativeBarcodeBatchResult && window.__nativeBarcodeBatchResult("
+                            + jsonCodes.toString() + ")", null);
+        });
+    }
+
     private final class NativeBarcodeBridge {
         @JavascriptInterface
         public void scan(String target) {
@@ -280,7 +313,13 @@ public final class MainActivity extends FragmentActivity {
                 options.setBeepEnabled(true);
                 options.setBarcodeImageEnabled(false);
                 try {
-                    barcodeLauncher.launch(options);
+                    if ("invoice".equals(target)) {
+                        invoiceBarcodeLauncher.launch(new Intent(MainActivity.this,
+                                ContinuousBarcodeActivity.class));
+                    } else {
+                        // Creating an item still scans only one barcode for its field.
+                        barcodeLauncher.launch(options);
+                    }
                 } catch (Exception ex) {
                     pendingNativeBarcodeTarget = null;
                     replyBarcode(target, "", "تعذر فتح ماسح الباركود على هذا الهاتف");
