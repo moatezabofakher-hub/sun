@@ -7,6 +7,12 @@ import android.webkit.PermissionRequest;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.activity.result.IntentSenderRequest;
+import com.google.android.gms.auth.api.identity.AuthorizationRequest;
+import com.google.android.gms.auth.api.identity.AuthorizationResult;
+import com.google.android.gms.auth.api.identity.Identity;
+import com.google.android.gms.common.api.Scope;
+import java.util.Collections;
 import androidx.core.content.ContextCompat;
 
 import com.journeyapps.barcodescanner.ScanContract;
@@ -59,6 +65,41 @@ public final class MainActivity extends FragmentActivity {
     private BiometricPrompt biometricPrompt;
     private ValueCallback<Uri[]> pendingFileChooser;
     private String pendingBackupJson;
+
+    // Local Storage Access Framework folder (persisted permission) and Drive authorization.
+    private final ActivityResultLauncher<Intent> folderLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(), result -> {
+                if (result.getResultCode() != Activity.RESULT_OK || result.getData() == null
+                        || result.getData().getData() == null) { pushBackupStatus(); return; }
+                Uri uri = result.getData().getData();
+                try {
+                    getContentResolver().takePersistableUriPermission(uri,
+                            Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+                    AutoBackupManager.folderSelected(this, uri);
+                } catch (Exception e) {
+                    AutoBackupManager.saveResult(this, "local", "تعذر حفظ صلاحية المجلد؛ اختر مجلداً آخر");
+                }
+                pushBackupStatus();
+            });
+
+    private final ActivityResultLauncher<IntentSenderRequest> driveAuthLauncher =
+            registerForActivityResult(new ActivityResultContracts.StartIntentSenderForResult(), result -> {
+                if (result.getResultCode() != Activity.RESULT_OK || result.getData() == null) {
+                    AutoBackupManager.driveConnectionFailed(this, "لم يتم منح إذن Google Drive");
+                } else {
+                    try {
+                        AuthorizationResult token = Identity.getAuthorizationClient(this)
+                                .getAuthorizationResultFromIntent(result.getData());
+                        if (token.getAccessToken() != null && !token.getAccessToken().isEmpty())
+                            AutoBackupManager.driveConnected(this);
+                        else AutoBackupManager.driveConnectionFailed(this, "لم يتم منح إذن Google Drive");
+                    } catch (Exception e) {
+                        AutoBackupManager.driveConnectionFailed(this, "فشل ربط Google Drive؛ تحقق من إعداد OAuth");
+                    }
+                }
+                pushBackupStatus();
+            });
+
     private static final int REQUEST_WEB_CAMERA = 2403;
     private PermissionRequest pendingWebCameraPermission;
     private String pendingNativeBarcodeTarget;
@@ -210,6 +251,7 @@ public final class MainActivity extends FragmentActivity {
         webView.addJavascriptInterface(new SecurityBridge(), "NativeSecurity");
         webView.addJavascriptInterface(new ExitBridge(), "Android");
         webView.addJavascriptInterface(new BackupBridge(), "AndroidFiles");
+        webView.addJavascriptInterface(new AutoBackupBridge(), "AndroidAutoBackup");
         bluetoothPrinter = new NativeBluetoothPrinter(this, webView);
         webView.addJavascriptInterface(bluetoothPrinter, "AndroidPrinter");
 
@@ -442,6 +484,96 @@ public final class MainActivity extends FragmentActivity {
         }
     }
 
+    private void pushBackupStatus() {
+        runOnUiThread(() -> {
+            if (webView == null || !isLocalPage()) return;
+            String status = AutoBackupManager.status(this).toString();
+            webView.evaluateJavascript("window.__nativeBackupStatus && window.__nativeBackupStatus("
+                    + JSONObject.quote(status) + ")", null);
+        });
+    }
+
+    private final class AutoBackupBridge {
+        @JavascriptInterface public String getStatus() {
+            return AutoBackupManager.status(MainActivity.this).toString();
+        }
+
+        @JavascriptInterface public void stageSnapshot(String json) {
+            runOnUiThread(() -> {
+                if (isLocalPage()) AutoBackupManager.stageSnapshot(MainActivity.this, json);
+            });
+        }
+
+        @JavascriptInterface public String configure(String kind, boolean enabled, int hours) {
+            // Android work/prefs can be changed off the UI thread; callback is only for UI refresh.
+            String error = AutoBackupManager.configure(MainActivity.this, kind, enabled, hours);
+            pushBackupStatus();
+            return error;
+        }
+
+        @JavascriptInterface public void chooseLocalFolder() {
+            runOnUiThread(() -> {
+                if (!isLocalPage()) return;
+                Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION |
+                        Intent.FLAG_GRANT_WRITE_URI_PERMISSION |
+                        Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+                try { folderLauncher.launch(intent); }
+                catch (Exception e) {
+                    AutoBackupManager.saveResult(MainActivity.this, "local", "تعذر فتح اختيار المجلد");
+                    pushBackupStatus();
+                }
+            });
+        }
+
+        @JavascriptInterface public void connectDrive() {
+            runOnUiThread(() -> {
+                if (!isLocalPage()) return;
+                AuthorizationRequest request = AuthorizationRequest.builder()
+                        .setRequestedScopes(Collections.singletonList(
+                                new Scope("https://www.googleapis.com/auth/drive.file")))
+                        .build();
+                try {
+                    Identity.getAuthorizationClient(MainActivity.this).authorize(request)
+                            .addOnSuccessListener(result -> {
+                                try {
+                                    if (result.hasResolution() && result.getPendingIntent() != null) {
+                                        driveAuthLauncher.launch(new IntentSenderRequest.Builder(
+                                                result.getPendingIntent()).build());
+                                    } else if (result.getAccessToken() != null
+                                            && !result.getAccessToken().isEmpty()) {
+                                        AutoBackupManager.driveConnected(MainActivity.this);
+                                        pushBackupStatus();
+                                    } else {
+                                        AutoBackupManager.driveConnectionFailed(MainActivity.this,
+                                                "لم يتم منح صلاحية Google Drive");
+                                        pushBackupStatus();
+                                    }
+                                } catch (Exception e) {
+                                    AutoBackupManager.driveConnectionFailed(MainActivity.this,
+                                            "فشل فتح شاشة منح إذن Google Drive");
+                                    pushBackupStatus();
+                                }
+                            })
+                            .addOnFailureListener(e -> {
+                                AutoBackupManager.driveConnectionFailed(MainActivity.this,
+                                        "تعذر الاتصال بحساب Google؛ تحقق من Google Cloud OAuth وخدمات Google Play");
+                                pushBackupStatus();
+                            });
+                } catch (Exception e) {
+                    AutoBackupManager.driveConnectionFailed(MainActivity.this,
+                            "خدمات Google Play غير متوفرة");
+                    pushBackupStatus();
+                }
+            });
+        }
+
+        @JavascriptInterface public void runNow(String kind) {
+            AutoBackupManager.runNow(MainActivity.this, kind);
+            pushBackupStatus();
+        }
+    }
+
     private final class BackupBridge {
         @JavascriptInterface
         public void saveBackup(String json, String filename) {
@@ -517,6 +649,7 @@ public final class MainActivity extends FragmentActivity {
         if (bluetoothPrinter != null) bluetoothPrinter.destroy();
         if (pendingFileChooser != null) pendingFileChooser.onReceiveValue(null);
         if (webView != null) {
+            webView.removeJavascriptInterface("AndroidAutoBackup");
             webView.removeJavascriptInterface("NativeBarcode");
             webView.removeJavascriptInterface("NativeSecurity");
             webView.removeJavascriptInterface("Android");

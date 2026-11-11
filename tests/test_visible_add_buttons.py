@@ -4,8 +4,8 @@ import re
 root = Path(__file__).resolve().parents[1]
 html = (root/'app/src/main/assets/www/index.html').read_text()
 build = (root/'app/build.gradle').read_text()
-assert 'versionCode 13' in build
-assert "versionName '3.5.5-security-biometric'" in build
+assert 'versionCode 15' in build
+assert "versionName '3.5.7-categorized-settings'" in build
 assert 'AlRaedAccountingERP_v2' in html
 for selector, color in [('ta-action-warehouse','#0284c7'),('ta-action-expense','#c2410c'),('ta-action-transfer','#1e293b')]:
     assert f'button.ta-solid-action.{selector}' in html

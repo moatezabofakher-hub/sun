@@ -109,6 +109,23 @@
             outline-offset: 2px;
         }
 
+
+        /* v3.5.7 — collapsible Settings categories. Native details: keyboard & touch accessible. */
+        #mainContent .settings-section { border: 1px solid #cbd5e1; border-radius: 16px; background:#fff; margin-bottom: 11px; overflow: hidden; box-shadow: 0 2px 4px rgba(15,23,42,.035); }
+        #mainContent .settings-section-heading { display:flex; align-items:center; justify-content:space-between; gap:10px; cursor:pointer; padding:14px; min-height:66px; list-style:none; -webkit-tap-highlight-color:transparent; }
+        #mainContent .settings-section-heading::-webkit-details-marker { display:none; }
+        #mainContent .settings-section-heading::marker { content:''; }
+        #mainContent .settings-section-heading:focus-visible { outline:3px solid #0ea5e9; outline-offset:-3px; }
+        #mainContent .settings-section-leading { display:flex; align-items:center; gap:12px; min-width:0; }
+        #mainContent .settings-section-leading > i { display:flex; align-items:center; justify-content:center; width:40px; height:40px; min-width:40px; border-radius:12px; background:#ecfdf5; font-size:17px; }
+        #mainContent .settings-section-name { display:block; color:#0f172a; font-size:14px; font-weight:800; line-height:1.4; }
+        #mainContent .settings-section-note { display:block; color:#64748b; font-size:11px; font-weight:500; margin-top:3px; line-height:1.45; }
+        #mainContent .settings-section-arrow { transition:transform .15s; }
+        #mainContent .settings-section[open] .settings-section-arrow { transform:rotate(180deg); }
+        #mainContent .settings-section[open] { border-color:#6ee7b7; }
+        #mainContent .settings-section-body { padding:12px; border-top:1px solid #e2e8f0; background:#f8fafc; }
+        #mainContent .settings-section-body > div { margin-bottom:0 !important; }
+
         /* Thermal & PDF Receipt Preview Styling */
         /* English layout follows the selected application direction; currency values keep their own notation. */
         html[lang="en"] #mainContent .text-right,
@@ -283,6 +300,8 @@
                 language: 'ar',          // Persisted UI language: 'ar' or 'en'
                 allowNegativeStockSales: false, // Safety default: no sale beyond available inventory
                 defaultCurrency: 'USD',
+                defaultInvoiceListType: 'sale',
+                itemQuantityDecimals: 2,
                 selectedWarehouseId: 'wh_main',
                 appProtection: { pinSalt: '', pinHash: '', pinAlgo: 'sha256-v1', securityQuestions: [], recoveryFailures: 0, recoveryLockedUntil: 0, lockApp: false, protectDeletion: false, fingerprintEnabled: false, fingerprintCredentialId: '' }
             },
@@ -380,7 +399,12 @@
                             expenses: State.expenses
                         }
                     });
-                    tx.oncomplete = () => resolve();
+                    tx.oncomplete = () => {
+                        // Only snapshot successful IndexedDB commits; background workers never
+                        // touch the live accounting database or read an unfinished invoice.
+                        try { BackupController.stageLatest(); } catch (_) {}
+                        resolve();
+                    };
                 });
             },
             async clearAll() {
@@ -607,6 +631,15 @@
                     return Math.round((num + Number.EPSILON) * 100) / 100;
                 }
                 return Math.round(num);
+            },
+
+            // Visual formatting only. Never round stock, quantity inputs or monetary calculations in storage.
+            formatItemQuantity(value) {
+                const valueNum = Number(value);
+                if (!Number.isFinite(valueNum)) return '0';
+                const count = Number(State.settings.itemQuantityDecimals ?? 2);
+                const decimals = Number.isInteger(count) && count >= 0 && count <= 4 ? count : 2;
+                return valueNum.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: decimals });
             },
 
             format(val, currency = 'SYP') {
@@ -1794,7 +1827,7 @@
 
                     ctx.textAlign = 'center';
                     ctx.fillText(String(r.unitName || ''), xUnit, y);
-                    ctx.fillText(String(r.qty), xQty, y);
+                    ctx.fillText(Accounting.formatItemQuantity(r.qty), xQty, y);
                     ctx.fillText(Accounting.formatNumberOnly(r.price, inv.currency), xPrice, y);
 
                     ctx.font = `900 ${fItem}px Cairo, sans-serif`;
@@ -2417,7 +2450,7 @@
                             </div>
                         ` : filtered.map(item => {
                             const baseStock = Accounting.getItemBaseStock(item.id, null, State.settings.selectedWarehouseId || 'wh_main');
-                            const baseStockDisp = Math.round((baseStock + Number.EPSILON) * 100) / 100;
+                            const baseStockDisp = Accounting.formatItemQuantity(baseStock);
                             const baseUnit = item.units[0] || { name: 'كرتونة', factor: 1, salePrice: 0 };
                             const isLow = baseStock <= (Number(item.minStockBase) || 0);
                             const linkedInvoicesCount = State.invoices.filter(inv => Array.isArray(inv.rows) && inv.rows.some(r => r.itemId === item.id)).length;
@@ -2425,7 +2458,7 @@
 
                             const unitBadges = item.units.map((u, uIdx) => {
                                 const factor = Number(u.factor) || 1;
-                                const qtyInUnit = Math.round(((baseStock * factor) + Number.EPSILON) * 100) / 100;
+                                const qtyInUnit = Accounting.formatItemQuantity(baseStock * factor);
                                 const unitTypeLabel = uIdx === 0 ? 'كبرى أساسية' : `تعبئة ${factor}`;
                                 return `<span class="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md text-[10px] font-bold">${u.name} (${unitTypeLabel}): ${Accounting.format(u.salePrice, item.currency)} | متاح: ${qtyInUnit}</span>`;
                             }).join(' ');
@@ -2450,9 +2483,9 @@
                                         <div class="text-left shrink-0">
                                             <div class="text-xs font-extrabold ${isLow ? 'text-rose-600' : 'text-emerald-700'}">
                                                 رصيد المستودع: ${baseStockDisp} ${baseUnit.name}
-                                                 <div class="text-[10px] text-slate-500 font-medium">جميع المستودعات: ${Accounting.getItemBaseStock(item.id)} ${baseUnit.name}</div>
+                                                 <div class="text-[10px] text-slate-500 font-medium">جميع المستودعات: ${Accounting.formatItemQuantity(Accounting.getItemBaseStock(item.id))} ${baseUnit.name}</div>
                                             </div>
-                                            ${isLow ? `<div class="text-[10px] text-rose-500 font-bold"><i class="fas fa-bell"></i> دون الحد الأدنى (${item.minStockBase})</div>` : ''}
+                                            ${isLow ? `<div class="text-[10px] text-rose-500 font-bold"><i class="fas fa-bell"></i> دون الحد الأدنى (${Accounting.formatItemQuantity(item.minStockBase)})</div>` : ''}
                                             <div class="flex items-center justify-end gap-1.5 mt-2">
                                                 <button onclick="ItemController.openItemModal('${item.id}')" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold">
                                                     <i class="fas fa-pen"></i> تعديل
@@ -2546,7 +2579,7 @@
                                     <div class="text-slate-400">${AppEscape.text(t.date)} ${AppEscape.text(t.note||'')}</div>
                                 </div>
                                 <div class="text-left shrink-0">
-                                    <strong>${t.quantity && t.unitName ? `${Number(t.quantity).toLocaleString('en-US')} ${AppEscape.text(t.unitName)}` : `${Number(t.quantityBase).toLocaleString('en-US')} وحدة كبرى`}</strong>
+                                    <strong>${t.quantity && t.unitName ? `${Accounting.formatItemQuantity(t.quantity)} ${AppEscape.text(t.unitName)}` : `${Accounting.formatItemQuantity(t.quantityBase)} وحدة كبرى`}</strong>
                                     <button class="block text-rose-600 mt-1" onclick="WarehouseController.deleteTransfer('${t.id}')">إلغاء المناقلة</button>
                                 </div>
                             </div>`).join('') : '<p class="text-xs text-slate-400">لا توجد مناقلات بعد.</p>'}
@@ -2619,7 +2652,7 @@
             renderInvoicesList(main, params = {}) {
                 UI.setHeader('<i class="fas fa-file-invoice-dollar text-emerald-400"></i> <span>سجل الفواتير الشامل</span>', 'عرض فواتير المبيعات والمشتريات حسب النوع والتاريخ');
 
-                const filterType = ['all', 'sale', 'purchase', 'sale_return', 'purchase_return'].includes(params.type) ? params.type : 'sale';
+                const filterType = ['all', 'sale', 'purchase', 'sale_return', 'purchase_return'].includes(params.type) ? params.type : (['sale','purchase','all'].includes(State.settings.defaultInvoiceListType) ? State.settings.defaultInvoiceListType : 'sale');
                 const localToday = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
                 const dateMode = ['today', 'yesterday', 'custom', 'all'].includes(params.dateMode) ? params.dateMode : 'today';
                 const customDate = params.dateValue || localToday;
@@ -2853,7 +2886,7 @@
                                             <td class="py-1 text-right">${idx + 1}</td>
                                             <td class="py-1 text-right pl-1 break-words">${r.itemName}</td>
                                             <td class="py-1 text-center">${r.unitName}</td>
-                                            <td class="py-1 text-center">${r.qty}</td>
+                                            <td class="py-1 text-center">${Accounting.formatItemQuantity(r.qty)}</td>
                                             <td class="py-1 text-center" dir="ltr">${Accounting.formatNumberOnly(r.price, inv.currency)}</td>
                                             <td class="py-1 text-left font-black" dir="ltr">${Accounting.formatNumberOnly(r.total, inv.currency)}</td>
                                         </tr>
@@ -3371,7 +3404,7 @@
                             </select>
                         </div>
                         <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden"><div class="p-3 font-bold text-xs border-b border-slate-100 flex justify-between"><span>تقرير الجرد الفعلي للأصناف</span><span>عدد المواد: ${State.items.length}</span></div>
-                        ${(Array.isArray(State.items) ? State.items : []).length === 0 ? `<div class="p-6 text-center text-xs text-slate-400">المستودع فارغ حالياً</div>` : `<table class="w-full text-right text-xs"><thead class="bg-slate-50 text-slate-600 font-bold border-b"><tr><th class="p-2.5">المادة (عملتها)</th><th class="p-2.5 text-center">الرصيد بالوحدة الكبرى الأساسية</th><th class="p-2.5 text-left">تقييم التكلفة</th></tr></thead><tbody class="divide-y divide-slate-100">${State.items.map(item => { const st = Accounting.getItemBaseStock(item.id, null, inventoryWarehouseId === 'all' ? null : inventoryWarehouseId); const stDisp = Math.round((st + Number.EPSILON) * 100) / 100; const u0 = item.units[0] || { name: 'كرتونة', costPrice: 0 }; const val = st * (Number(u0.costPrice) || 0); return `<tr><td class="p-2.5 font-bold">${item.name} <span class="text-[10px] text-slate-400">(${item.currency})</span></td><td class="p-2.5 text-center font-bold ${st <= item.minStockBase ? 'text-rose-600' : 'text-emerald-700'}">${stDisp} ${u0.name}</td><td class="p-2.5 text-left font-bold">${Accounting.format(val, item.currency)}</td></tr>`; }).join('')}</tbody></table>`}</div>
+                        ${(Array.isArray(State.items) ? State.items : []).length === 0 ? `<div class="p-6 text-center text-xs text-slate-400">المستودع فارغ حالياً</div>` : `<table class="w-full text-right text-xs"><thead class="bg-slate-50 text-slate-600 font-bold border-b"><tr><th class="p-2.5">المادة (عملتها)</th><th class="p-2.5 text-center">الرصيد بالوحدة الكبرى الأساسية</th><th class="p-2.5 text-left">تقييم التكلفة</th></tr></thead><tbody class="divide-y divide-slate-100">${State.items.map(item => { const st = Accounting.getItemBaseStock(item.id, null, inventoryWarehouseId === 'all' ? null : inventoryWarehouseId); const stDisp = Accounting.formatItemQuantity(st); const u0 = item.units[0] || { name: 'كرتونة', costPrice: 0 }; const val = st * (Number(u0.costPrice) || 0); return `<tr><td class="p-2.5 font-bold">${item.name} <span class="text-[10px] text-slate-400">(${item.currency})</span></td><td class="p-2.5 text-center font-bold ${st <= item.minStockBase ? 'text-rose-600' : 'text-emerald-700'}">${stDisp} ${u0.name}</td><td class="p-2.5 text-left font-bold">${Accounting.format(val, item.currency)}</td></tr>`; }).join('')}</tbody></table>`}</div>
                     ` : `
                         <div class="bg-white border border-slate-200 rounded-2xl p-3 mb-3 space-y-3">
                             <div class="flex items-center justify-between gap-2">
@@ -3426,11 +3459,16 @@
 
             // ==================== 6.9 SETTINGS, PRINTER & BACKUP/RESTORE ====================
             renderSettings(main) {
-                UI.setHeader('<i class="fas fa-sliders text-emerald-400"></i> <span>الضبط</span>', 'التفعيل، إعدادات الطباعة، النسخ الاحتياطي، والحماية');
-
+                UI.setHeader('<i class="fas fa-sliders text-emerald-400"></i> <span>الضبط</span>', 'اضغط على القسم المطلوب لعرض خياراته');
                 const mode = State.settings.btPrintMode || 'auto';
-
                 main.innerHTML = `
+                    <div class="mb-3 text-[11px] text-slate-500 font-semibold px-1">جميع خيارات التطبيق مرتبة ضمن فئات. اضغط على اسم أي فئة لفتحها أو إغلاقها.</div>
+                    <details class="settings-section" data-settings-section="language" ontoggle="SettingsController.onSectionToggle(this)" ${SettingsController.expandedSections.has('language') ? 'open' : ''}>
+                        <summary class="settings-section-heading" aria-label="اللغة">
+                            <span class="settings-section-leading"><i class="fas fa-globe text-emerald-600" aria-hidden="true"></i><span><span class="settings-section-name">اللغة</span><span class="settings-section-note">العربية / English</span></span></span>
+                            <i class="fas fa-chevron-down settings-section-arrow text-slate-400" aria-hidden="true"></i>
+                        </summary>
+                        <div class="settings-section-body">
                     <!-- Persisted interface language and sales stock policy. -->
                     <div class="bg-white rounded-2xl border border-slate-200 p-4 mb-4 shadow-xs space-y-3">
                         <h3 class="font-bold text-sm text-slate-900 flex items-center gap-2">
@@ -3442,6 +3480,40 @@
                             <option value="en" ${State.settings.language === 'en' ? 'selected' : ''}>English</option>
                         </select>
                     </div>
+                        </div>
+                    </details>
+                    <details class="settings-section" data-settings-section="invoices" ontoggle="SettingsController.onSectionToggle(this)" ${SettingsController.expandedSections.has('invoices') ? 'open' : ''}>
+                        <summary class="settings-section-heading" aria-label="الفواتير">
+                            <span class="settings-section-leading"><i class="fas fa-file-invoice text-emerald-600" aria-hidden="true"></i><span><span class="settings-section-name">الفواتير</span><span class="settings-section-note">العملة والفواتير المعروضة</span></span></span>
+                            <i class="fas fa-chevron-down settings-section-arrow text-slate-400" aria-hidden="true"></i>
+                        </summary>
+                        <div class="settings-section-body">
+                    <div class="bg-white border border-slate-200 rounded-xl p-3 space-y-3">
+                        <div>
+                            <label for="setDefaultInvoiceCurrency" class="block text-xs font-extrabold text-slate-800 mb-1">العملة الافتراضية للفاتورة الجديدة</label>
+                            <select id="setDefaultInvoiceCurrency" onchange="SettingsController.setDefaultInvoiceCurrency(this.value)" class="w-full bg-white border border-slate-300 rounded-xl p-2.5 text-xs font-bold">
+                                <option value="USD" ${State.settings.defaultCurrency !== 'SYP' ? 'selected' : ''}>دولار أمريكي USD</option>
+                                <option value="SYP" ${State.settings.defaultCurrency === 'SYP' ? 'selected' : ''}>ليرة سورية SYP</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="setDefaultInvoiceListType" class="block text-xs font-extrabold text-slate-800 mb-1">النوع الافتراضي في سجل الفواتير</label>
+                            <select id="setDefaultInvoiceListType" onchange="SettingsController.setDefaultInvoiceListType(this.value)" class="w-full bg-white border border-slate-300 rounded-xl p-2.5 text-xs font-bold">
+                                <option value="sale" ${State.settings.defaultInvoiceListType !== 'purchase' && State.settings.defaultInvoiceListType !== 'all' ? 'selected' : ''}>فواتير المبيع</option>
+                                <option value="purchase" ${State.settings.defaultInvoiceListType === 'purchase' ? 'selected' : ''}>فواتير الشراء</option>
+                                <option value="all" ${State.settings.defaultInvoiceListType === 'all' ? 'selected' : ''}>المبيعات والمشتريات معاً</option>
+                            </select>
+                            <p class="text-[11px] text-slate-500 mt-1">يُعرض سجل الفواتير افتراضياً بتاريخ اليوم، ويمكن تغيير الفلتر داخل السجل في أي وقت.</p>
+                        </div>
+                    </div>
+                        </div>
+                    </details>
+                    <details class="settings-section" data-settings-section="items" ontoggle="SettingsController.onSectionToggle(this)" ${SettingsController.expandedSections.has('items') ? 'open' : ''}>
+                        <summary class="settings-section-heading" aria-label="المواد">
+                            <span class="settings-section-leading"><i class="fas fa-boxes-stacked text-emerald-600" aria-hidden="true"></i><span><span class="settings-section-name">المواد</span><span class="settings-section-note">المخزون والمنازل العشرية</span></span></span>
+                            <i class="fas fa-chevron-down settings-section-arrow text-slate-400" aria-hidden="true"></i>
+                        </summary>
+                        <div class="settings-section-body">
                     <div class="bg-white rounded-2xl border border-slate-200 p-4 mb-4 shadow-xs space-y-3">
                         <h3 class="font-bold text-sm text-slate-900 flex items-center gap-2">
                             <i class="fas fa-boxes-stacked text-emerald-600"></i><span>إعدادات المخزون</span>
@@ -3453,28 +3525,26 @@
                             </span>
                             <input type="checkbox" id="allowOutOfStockSales" onchange="SettingsController.setAllowOutOfStockSales(this.checked)" ${State.settings.allowNegativeStockSales === true ? 'checked' : ''} class="w-5 h-5 shrink-0 accent-emerald-600" />
                         </label>
-                    </div>
-                    <!-- License and activation are accessible from Settings only. -->
-                    <div class="bg-white rounded-2xl border border-slate-200 p-4 mb-4 shadow-xs space-y-3">
-                        <h3 class="font-bold text-sm text-slate-900 flex items-center gap-2">
-                            <i class="fas fa-key text-emerald-600"></i>
-                            <span>تفعيل البرنامج والترخيص</span>
-                        </h3>
-                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs">
-                            <div>
-                                <div class="font-bold text-slate-800">رقم الجهاز: <span dir="ltr" class="font-mono text-indigo-700 break-all">${State.license.deviceId}</span></div>
-                                <div id="settingsLicenseStatus" class="text-slate-500 mt-0.5">
-                                    ${State.license.isActivated
-                                        ? '<span class="text-emerald-600 font-extrabold">النسخة مفعّلة بالكامل مدى الحياة</span>'
-                                        : `نسخة تجريبية: استهلكت ${LicenseManager.getTotalOpsUsed()} من أصل ${LicenseManager.MAX_TRIAL_OPS} عملية`}
-                                </div>
+                        <div class="border-t border-slate-100 pt-3">
+                            <label for="setItemQuantityDecimals" class="block text-xs font-extrabold text-slate-800 mb-1">عدد الخانات بعد الفاصلة العشرية للمواد</label>
+                            <select id="setItemQuantityDecimals" onchange="SettingsController.setItemQuantityDecimals(this.value)" class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-xs font-bold">
+                                ${[0,1,2,3,4].map(n => `<option value="${n}" ${Number(State.settings.itemQuantityDecimals ?? 2) === n ? 'selected' : ''}>${n} ${n===1?'خانة':'خانات'}</option>`).join('')}
+                            </select>
+                            <p class="text-[11px] text-slate-500 mt-1">يتحكم في عرض كميات المواد والأرصدة على الشاشة والفواتير المطبوعة، ولا يغيّر الأرقام المحفوظة أو حسابات المخزون.</p>
+                            <div class="rounded-lg mt-2 px-3 py-2 bg-sky-50 border border-sky-100 flex items-center justify-between text-xs font-semibold text-sky-900">
+                                <span>مثال لعرض الكمية</span>
+                                <span dir="ltr">${Accounting.formatItemQuantity(12.3456)}</span>
                             </div>
-                            <button onclick="LicenseManager.openActivationModal()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3.5 py-2 rounded-xl text-xs shrink-0">
-                                ${State.license.isActivated ? 'تفاصيل التفعيل' : 'إدخال كود التفعيل'}
-                            </button>
                         </div>
                     </div>
-
+                        </div>
+                    </details>
+                    <details class="settings-section" data-settings-section="printing" ontoggle="SettingsController.onSectionToggle(this)" ${SettingsController.expandedSections.has('printing') ? 'open' : ''}>
+                        <summary class="settings-section-heading" aria-label="الطباعة">
+                            <span class="settings-section-leading"><i class="fas fa-print text-emerald-600" aria-hidden="true"></i><span><span class="settings-section-name">الطباعة</span><span class="settings-section-note">البلوتوث، الورق، الخط</span></span></span>
+                            <i class="fas fa-chevron-down settings-section-arrow text-slate-400" aria-hidden="true"></i>
+                        </summary>
+                        <div class="settings-section-body">
                     <!-- Compact Bluetooth Printer Card -->
                     <div class="bg-white rounded-2xl border border-slate-200 p-4 mb-4 shadow-xs">
                         <div class="flex items-center justify-between mb-2">
@@ -3500,8 +3570,21 @@
                                 <option value="58" ${State.settings.printerWidth === 58 ? 'selected' : ''}>ورق: 58mm</option>
                             </select>
                         </div>
+                        <div class="border-t border-slate-100 mt-3 pt-3">
+                            <label for="setPrinterFontScale" class="block text-xs font-extrabold text-slate-800 mb-1">حجم خط الفاتورة المطبوعة</label>
+                            <select id="setPrinterFontScale" onchange="SettingsController.setPrintFontScale(this.value)" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold">
+                                ${[{v:0.75,t:'أصغر'},{v:0.85,t:'صغير'},{v:1,t:'متوسط'},{v:1.2,t:'كبير'},{v:1.4,t:'عريض'}].map(o => `<option value="${o.v}" ${Math.abs((Number(State.settings.printFontScale)||0.75)-o.v)<0.001?'selected':''}>${o.t}</option>`).join('')}
+                            </select>
+                        </div>
                     </div>
-
+                        </div>
+                    </details>
+                    <details class="settings-section" data-settings-section="company" ontoggle="SettingsController.onSectionToggle(this)" ${SettingsController.expandedSections.has('company') ? 'open' : ''}>
+                        <summary class="settings-section-heading" aria-label="إعدادات الشركة">
+                            <span class="settings-section-leading"><i class="fas fa-building text-emerald-600" aria-hidden="true"></i><span><span class="settings-section-name">إعدادات الشركة</span><span class="settings-section-note">اللوغو والاسم والهاتف والعنوان</span></span></span>
+                            <i class="fas fa-chevron-down settings-section-arrow text-slate-400" aria-hidden="true"></i>
+                        </summary>
+                        <div class="settings-section-body">
                     <!-- Print Customization Section (Logo from mobile gallery, Company Name, Phone, Notes) -->
                     <div class="bg-white rounded-2xl border border-slate-200 p-4 mb-4 shadow-xs space-y-3">
                         <h3 class="font-bold text-sm text-slate-900 flex items-center gap-2">
@@ -3559,7 +3642,14 @@
                             <i class="fas fa-check ml-1"></i> حفظ إعدادات الطباعة والترويسة
                         </button>
                     </div>
-
+                        </div>
+                    </details>
+                    <details class="settings-section" data-settings-section="security" ontoggle="SettingsController.onSectionToggle(this)" ${SettingsController.expandedSections.has('security') ? 'open' : ''}>
+                        <summary class="settings-section-heading" aria-label="الحماية">
+                            <span class="settings-section-leading"><i class="fas fa-shield-halved text-emerald-600" aria-hidden="true"></i><span><span class="settings-section-name">الحماية</span><span class="settings-section-note">الرمز والبصمة وحماية الحذف</span></span></span>
+                            <i class="fas fa-chevron-down settings-section-arrow text-slate-400" aria-hidden="true"></i>
+                        </summary>
+                        <div class="settings-section-body">
                     <div id="appProtectionSettings" class="bg-white rounded-2xl border border-slate-200 p-4 mb-4 shadow-xs space-y-3">
                         <h3 class="font-bold text-sm text-slate-900 flex items-center gap-2">
                             <i class="fas fa-shield-halved text-emerald-600"></i>
@@ -3614,7 +3704,14 @@
                         </div>
                         <div class="text-[10px] text-slate-400">${State.settings.appProtection?.fingerprintEnabled ? 'بصمة الجهاز مفعّلة' : 'بصمة الجهاز غير مفعّلة'} · ${State.settings.appProtection?.pinHash ? 'تم تعيين رمز حماية' : 'لم يتم تعيين رمز بعد'}</div>
                     </div>
-
+                        </div>
+                    </details>
+                    <details class="settings-section" data-settings-section="backup" ontoggle="SettingsController.onSectionToggle(this)" ${SettingsController.expandedSections.has('backup') ? 'open' : ''}>
+                        <summary class="settings-section-heading" aria-label="النسخ الاحتياطي">
+                            <span class="settings-section-leading"><i class="fas fa-database text-emerald-600" aria-hidden="true"></i><span><span class="settings-section-name">النسخ الاحتياطي</span><span class="settings-section-note">النسخ المحلي وGoogle Drive والاستعادة</span></span></span>
+                            <i class="fas fa-chevron-down settings-section-arrow text-slate-400" aria-hidden="true"></i>
+                        </summary>
+                        <div class="settings-section-body">
                     <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs space-y-3">
                         <h3 class="font-bold text-sm text-slate-900 flex items-center gap-2">
                             <i class="fas fa-database text-amber-600"></i>
@@ -3629,12 +3726,75 @@
                                 <input type="file" accept=".json" onchange="SettingsController.importBackup(event)" class="hidden">
                             </label>
                         </div>
+                        <div class="border-t border-slate-100 pt-3 space-y-3">
+                            <h4 class="font-extrabold text-slate-800 text-xs">النسخ الاحتياطي التلقائي</h4>
+                            ${BackupController.card('local','النسخ الاحتياطي المحلي','fa-folder-open',
+                                BackupController.status(), 'اختَر مجلداً على الهاتف؛ يمكن للنسخ أن تستمر عند إغلاق التطبيق.')}
+                            ${BackupController.card('drive','النسخ الاحتياطي إلى Google Drive','fa-cloud-arrow-up',
+                                BackupController.status(), 'يتطلب حساب Google واتصالاً بالإنترنت. تُحفظ الملفات داخل مجلد AlMohaseb_AlTaqni_Backups في Drive.')}
+                            <p class="text-[10px] text-slate-500 leading-relaxed">توقيت النسخ تقريبي وقد يتأخر بسبب توفير البطارية أو انقطاع الإنترنت. لا تغني النسخ الآلية عن حفظ نسخة يدوية قبل تحديث التطبيق أو حذفه.</p>
+                            ${!BackupController.status().supported?`<p class="text-xs font-bold text-rose-700">النسخ التلقائي يعمل داخل تطبيق أندرويد APK المحدّث فقط.</p>`:''}
+                            ${BackupController.status().snapshotError?`<p class="text-xs text-rose-600">${BackupController.status().snapshotError}</p>`:''}
+                        </div>
+                    </div>
+                        </div>
+                    </details>
+                    <details class="settings-section" data-settings-section="currency" ontoggle="SettingsController.onSectionToggle(this)" ${SettingsController.expandedSections.has('currency') ? 'open' : ''}>
+                        <summary class="settings-section-heading" aria-label="العملة وسعر الصرف">
+                            <span class="settings-section-leading"><i class="fas fa-coins text-emerald-600" aria-hidden="true"></i><span><span class="settings-section-name">العملة وسعر الصرف</span><span class="settings-section-note">سعر الصرف العام للتطبيق</span></span></span>
+                            <i class="fas fa-chevron-down settings-section-arrow text-slate-400" aria-hidden="true"></i>
+                        </summary>
+                        <div class="settings-section-body">
+                    <div class="bg-white rounded-xl border border-slate-200 p-3 space-y-2">
+                        <div class="text-xs font-bold text-slate-800">سعر صرف الدولار الحالي: <span dir="ltr" class="font-mono">${Number(State.settings.exchangeRate||0).toLocaleString('en-US')}</span> ل.س</div>
+                        <button type="button" onclick="UI.openRateModal()" class="bg-slate-900 text-white text-xs font-bold rounded-xl px-4 py-2.5"><i class="fas fa-coins ml-1"></i> تعديل سعر الصرف</button>
+                    </div>
+                        </div>
+                    </details>
+                    <details class="settings-section" data-settings-section="activation" ontoggle="SettingsController.onSectionToggle(this)" ${SettingsController.expandedSections.has('activation') ? 'open' : ''}>
+                        <summary class="settings-section-heading" aria-label="التفعيل والترخيص">
+                            <span class="settings-section-leading"><i class="fas fa-key text-emerald-600" aria-hidden="true"></i><span><span class="settings-section-name">التفعيل والترخيص</span><span class="settings-section-note">الترخيص ومعرّف الجهاز</span></span></span>
+                            <i class="fas fa-chevron-down settings-section-arrow text-slate-400" aria-hidden="true"></i>
+                        </summary>
+                        <div class="settings-section-body">
+                    <!-- License and activation are accessible from Settings only. -->
+                    <div class="bg-white rounded-2xl border border-slate-200 p-4 mb-4 shadow-xs space-y-3">
+                        <h3 class="font-bold text-sm text-slate-900 flex items-center gap-2">
+                            <i class="fas fa-key text-emerald-600"></i>
+                            <span>تفعيل البرنامج والترخيص</span>
+                        </h3>
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs">
+                            <div>
+                                <div class="font-bold text-slate-800">رقم الجهاز: <span dir="ltr" class="font-mono text-indigo-700 break-all">${State.license.deviceId}</span></div>
+                                <div id="settingsLicenseStatus" class="text-slate-500 mt-0.5">
+                                    ${State.license.isActivated
+                                        ? '<span class="text-emerald-600 font-extrabold">النسخة مفعّلة بالكامل مدى الحياة</span>'
+                                        : `نسخة تجريبية: استهلكت ${LicenseManager.getTotalOpsUsed()} من أصل ${LicenseManager.MAX_TRIAL_OPS} عملية`}
+                                </div>
+                            </div>
+                            <button onclick="LicenseManager.openActivationModal()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3.5 py-2 rounded-xl text-xs shrink-0">
+                                ${State.license.isActivated ? 'تفاصيل التفعيل' : 'إدخال كود التفعيل'}
+                            </button>
+                        </div>
+                    </div>
+                        </div>
+                    </details>
+                    <details class="settings-section" data-settings-section="data" ontoggle="SettingsController.onSectionToggle(this)" ${SettingsController.expandedSections.has('data') ? 'open' : ''}>
+                        <summary class="settings-section-heading" aria-label="إدارة البيانات">
+                            <span class="settings-section-leading"><i class="fas fa-triangle-exclamation text-emerald-600" aria-hidden="true"></i><span><span class="settings-section-name">إدارة البيانات</span><span class="settings-section-note">تصفير قاعدة البيانات</span></span></span>
+                            <i class="fas fa-chevron-down settings-section-arrow text-slate-400" aria-hidden="true"></i>
+                        </summary>
+                        <div class="settings-section-body">
+                    <div class="border border-rose-100 rounded-xl p-3 bg-white">
+                        <p class="text-[11px] font-semibold text-rose-700 mb-2">حذف جميع البيانات عملية لا يمكن التراجع عنها، ويتطلب إدخال رمز الحماية قبل التنفيذ.</p>
                         <div class="pt-2 border-t border-slate-100">
                             <button onclick="SettingsController.confirmResetAll()" class="w-full py-2 text-rose-600 hover:bg-rose-50 rounded-xl text-xs font-bold">
                                 <i class="fas fa-trash-can ml-1"></i> تصفير شامل لقاعدة البيانات (حذف جميع البيانات)
                             </button>
                         </div>
                     </div>
+                        </div>
+                    </details>
                 `;
             }
         };
@@ -4736,7 +4896,7 @@
                                 </div>
                                 <div class="flex items-center justify-between text-[10px] mt-0.5">
                                     <span class="${availStock <= (itm.minStockBase || 0) ? 'text-rose-600 font-bold' : 'text-slate-500'}">
-                                        المتاح: ${availStock} ${u0.name}
+                                        المتاح: ${Accounting.formatItemQuantity(availStock)} ${u0.name}
                                     </span>
                                     <span class="text-emerald-600 font-bold"><i class="fas fa-plus-circle"></i> إضافة</span>
                                 </div>
@@ -5722,7 +5882,144 @@
         /********************************************************************
          * 10. SETTINGS & BACKUP CONTROLLER
          ********************************************************************/
+        /********************************************************************
+         * NATIVE AUTO BACKUP (WorkManager + user-chosen SAF folder + Google Drive).
+         * Android keeps scheduling when the WebView is closed.
+         ********************************************************************/
+        const BackupController = {
+            defaultStatus: { supported:false, localEnabled:false, localHours:24,
+                localFolderConfigured:false, driveEnabled:false, driveHours:24,
+                driveConnected:false, localLast:0, driveLast:0, localError:'', driveError:'',
+                snapshotAt:0, snapshotError:'' },
+            status() {
+                try {
+                    if (!window.AndroidAutoBackup || typeof window.AndroidAutoBackup.getStatus !== 'function')
+                        return this.defaultStatus;
+                    return { ...this.defaultStatus, ...JSON.parse(window.AndroidAutoBackup.getStatus()) };
+                } catch (_) { return this.defaultStatus; }
+            },
+            stageLatest() {
+                try {
+                    if (window.AndroidAutoBackup?.stageSnapshot)
+                        window.AndroidAutoBackup.stageSnapshot(JSON.stringify({
+                            app: 'AlRaedAccountingERP', exportedAt: new Date().toISOString(),
+                            data: State
+                        }));
+                } catch (e) { console.warn('Automatic backup snapshot failed', e); }
+            },
+            setEnabled(kind, enabled) {
+                if (!window.AndroidAutoBackup) return;
+                const status = this.status();
+                const hours = status[kind + 'Hours'] || 24;
+                const error = window.AndroidAutoBackup.configure(kind, !!enabled, hours);
+                if (error) UI.toast(error, 'warn');
+                this.refresh();
+            },
+            setHours(kind, value) {
+                if (!window.AndroidAutoBackup) return;
+                const hours = Number(value);
+                const status = this.status();
+                const error = window.AndroidAutoBackup.configure(kind,
+                    status[kind + 'Enabled'] === true, hours);
+                if (error) UI.toast(error, 'warn');
+                this.refresh();
+            },
+            chooseLocalFolder() {
+                if (window.AndroidAutoBackup?.chooseLocalFolder)
+                    window.AndroidAutoBackup.chooseLocalFolder();
+            },
+            connectDrive() {
+                if (window.AndroidAutoBackup?.connectDrive)
+                    window.AndroidAutoBackup.connectDrive();
+            },
+            runNow(kind) {
+                if (!window.AndroidAutoBackup) return;
+                const status = this.status();
+                if (!status[kind + 'Enabled']) {
+                    UI.toast('فعّل النسخ الاحتياطي أولاً', 'warn'); return;
+                }
+                this.stageLatest();
+                window.AndroidAutoBackup.runNow(kind);
+                UI.toast('تم طلب النسخ؛ راجع آخر وقت نجاح لمعرفة النتيجة', 'info');
+            },
+            prettyDate(timestamp) {
+                if (!timestamp) return 'لم تُنشأ نسخة بعد';
+                try { return new Date(timestamp).toLocaleString(State.settings.language === 'en' ? 'en-US' : 'ar-SY'); }
+                catch(_) { return 'لم تُنشأ نسخة بعد'; }
+            },
+            refresh() {
+                if (AppNav.current().screen !== 'settings') return;
+                const scroll = document.getElementById('mainContent')?.scrollTop;
+                AppNav.renderCurrent();
+                if (typeof scroll === 'number') document.getElementById('mainContent').scrollTop = scroll;
+                I18n.apply(document);
+            },
+            card(kind, heading, iconClass, status, description) {
+                const enabled = status[kind+'Enabled'] === true;
+                const hours = status[kind+'Hours'] || 24;
+                const ready = kind === 'local' ? status.localFolderConfigured : status.driveConnected;
+                const connectionLabel = kind === 'local' ? 'اختيار مجلد النسخ' : 'ربط Google Drive';
+                const connectionAction = kind === 'local'
+                    ? 'BackupController.chooseLocalFolder()' : 'BackupController.connectDrive()';
+                const error = status[kind+'Error'] || '';
+                const last = this.prettyDate(status[kind+'Last']);
+                return `<div class="border border-slate-200 rounded-xl p-3 space-y-3 bg-slate-50">
+                    <div class="flex items-center justify-between gap-2">
+                        <div class="font-extrabold text-sm text-slate-800"><i class="fas ${iconClass} text-emerald-600 ml-1"></i>${heading}</div>
+                        <label class="flex items-center gap-2 font-bold text-xs text-slate-700 cursor-pointer">
+                            <span>${enabled ? 'مفعّل' : 'متوقف'}</span>
+                            <input type="checkbox" aria-label="${heading}" ${enabled?'checked':''} ${status.supported?'':'disabled'}
+                                onchange="BackupController.setEnabled('${kind}', this.checked)" class="w-5 h-5 accent-emerald-600">
+                        </label>
+                    </div>
+                    <p class="text-[11px] text-slate-600">${description}</p>
+                    <label class="block text-xs font-bold text-slate-700">تكرار النسخ الاحتياطي</label>
+                    <select aria-label="تكرار النسخ الاحتياطي" class="w-full border border-slate-300 rounded-lg p-2.5 font-bold text-xs bg-white"
+                        ${status.supported?'':'disabled'} onchange="BackupController.setHours('${kind}', this.value)">
+                        <option value="6" ${hours===6?'selected':''}>كل 6 ساعات</option>
+                        <option value="12" ${hours===12?'selected':''}>كل 12 ساعة</option>
+                        <option value="24" ${hours===24?'selected':''}>كل 24 ساعة</option>
+                    </select>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button onclick="${connectionAction}" ${status.supported?'':'disabled'} class="bg-indigo-600 text-white rounded-lg px-3 py-2 text-xs font-bold">${connectionLabel}</button>
+                        <button onclick="BackupController.runNow('${kind}')" ${enabled?'':'disabled'} class="bg-emerald-600 disabled:bg-slate-300 text-white rounded-lg px-3 py-2 text-xs font-bold">نسخ الآن</button>
+                    </div>
+                    <div class="text-[11px] font-semibold ${ready?'text-emerald-700':'text-amber-700'}">${ready?'جاهز للنسخ':'يلزم اختيار الوجهة أو ربط الحساب'}</div>
+                    <div class="text-[11px] text-slate-600">آخر نسخة ناجحة: <span dir="auto" class="font-bold">${last}</span></div>
+                    ${error?`<p class="text-[11px] bg-rose-50 border border-rose-100 rounded-lg text-rose-700 p-2">${error}</p>`:''}
+                </div>`;
+            }
+        };
+        window.__nativeBackupStatus = function(_) { BackupController.refresh(); };
+
         const SettingsController = {
+            expandedSections: new Set(),
+            onSectionToggle(details) {
+                const key = details?.dataset?.settingsSection;
+                if (!key) return;
+                if (details.open) this.expandedSections.add(key);
+                else this.expandedSections.delete(key);
+            },
+            async setItemQuantityDecimals(value) {
+                const decimals = Number(value);
+                if (!Number.isInteger(decimals) || decimals < 0 || decimals > 4) return;
+                State.settings.itemQuantityDecimals = decimals;
+                await StorageEngine.saveState();
+                AppNav.renderCurrent();
+                UI.toast('تم حفظ عدد المنازل العشرية لعرض كميات المواد', 'success');
+            },
+            async setDefaultInvoiceCurrency(value) {
+                if (value !== 'USD' && value !== 'SYP') return;
+                State.settings.defaultCurrency = value;
+                await StorageEngine.saveState();
+                UI.toast('تم تحديث العملة الافتراضية للفواتير الجديدة', 'success');
+            },
+            async setDefaultInvoiceListType(value) {
+                if (!['sale','purchase','all'].includes(value)) return;
+                State.settings.defaultInvoiceListType = value;
+                await StorageEngine.saveState();
+                UI.toast('تم حفظ النوع الافتراضي لسجل الفواتير', 'success');
+            },
             async setAllowOutOfStockSales(checked) {
                 State.settings.allowNegativeStockSales = checked === true;
                 await StorageEngine.saveState();
@@ -6093,9 +6390,12 @@
             },
             goToPinSetup() {
                 UI.forceCloseModal();
+                SettingsController.expandedSections.add('security');
                 AppNav.navigate('settings');
                 requestAnimationFrame(() => {
-                    document.getElementById('appProtectionSettings')?.scrollIntoView({behavior:'smooth',block:'start'});
+                    const section = document.querySelector('[data-settings-section="security"]');
+                    if (section) section.open = true;
+                    section?.scrollIntoView({behavior:'smooth',block:'start'});
                     document.getElementById('protectionPin')?.focus({preventScroll:true});
                 });
             },
@@ -6379,6 +6679,7 @@
                 history.replaceState({ appGuard: true, depth: 1 }, '');
                 history.pushState({ appGuard: true, depth: 1 }, '');
             } catch (e) {}
+            BackupController.stageLatest(); // Stage existing IndexedDB data after first launch.
             I18n.install();
             AppNav.renderCurrent();
             I18n.apply(document);

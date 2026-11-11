@@ -17,6 +17,7 @@ let pendingRAF=[];
 const makeElement=(id,extra={})=>Object.assign({id,value:'',disabled:false,textContent:'',classList:{remove:()=>{},add:()=>{},contains:()=>false},focus:()=>{},scrollIntoView:()=>{}},extra);
 const document={
   getElementById:id=>els[id] || null,
+  querySelector:selector => selector === '[data-settings-section="security"]' ? {open:false,scrollIntoView:()=>{}} : null,
   createElement:tag=>{
     const element=makeElement('new',{
       className:'',innerHTML:'',remove(){if(els.appProtectionLock===this){delete els.appProtectionLock;delete els.appUnlockPinPanel;delete els.appUnlockPin;delete els.appUnlockError;delete els.retryAppBiometric;}}
