@@ -1,6 +1,15 @@
 package com.sunshine.accounting;
 
 import android.app.Activity;
+import android.Manifest;
+import android.content.pm.PackageManager;
+import android.webkit.PermissionRequest;
+
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.core.content.ContextCompat;
+
+import com.journeyapps.barcodescanner.ScanContract;
+import com.journeyapps.barcodescanner.ScanOptions;
 import android.app.AlertDialog;
 import android.graphics.Color;
 import android.view.View;
@@ -46,6 +55,26 @@ public final class MainActivity extends FragmentActivity {
     private BiometricPrompt biometricPrompt;
     private ValueCallback<Uri[]> pendingFileChooser;
     private String pendingBackupJson;
+    private static final int REQUEST_WEB_CAMERA = 2403;
+    private PermissionRequest pendingWebCameraPermission;
+    private String pendingNativeBarcodeTarget;
+
+    // Offline barcode reader (ZXing). Its own camera Activity requests CAMERA on first use.
+    private final ActivityResultLauncher<ScanOptions> barcodeLauncher =
+            registerForActivityResult(new ScanContract(), result -> {
+                final String target = pendingNativeBarcodeTarget;
+                pendingNativeBarcodeTarget = null;
+                if (target == null) return;
+                final String code = result.getContents();
+                // Cancellation is not an error: keep existing invoice or item open.
+                if (code != null && !code.isEmpty()) {
+                    replyBarcode(target, code, "");
+                } else if (result.getOriginalIntent() != null &&
+                        result.getOriginalIntent().getBooleanExtra(
+                                "com.google.zxing.client.android.SCAN_MISSING_CAMERA_PERMISSION", false)) {
+                    replyBarcode(target, "", "إذن الكاميرا غير متاح. اسمح به من إعدادات التطبيق.");
+                }
+            });
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -126,6 +155,21 @@ public final class MainActivity extends FragmentActivity {
 
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
+            public void onPermissionRequest(PermissionRequest request) {
+                // Restrict WebView capture to this app's HTTPS assets origin, and VIDEO only.
+                runOnUiThread(() -> handleWebCameraPermission(request));
+            }
+
+            @Override
+            public void onPermissionRequestCanceled(PermissionRequest request) {
+                runOnUiThread(() -> {
+                    if (pendingWebCameraPermission == request) {
+                        pendingWebCameraPermission = null;
+                    }
+                });
+            }
+
+            @Override
             public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback,
                                              FileChooserParams params) {
                 if (pendingFileChooser != null) pendingFileChooser.onReceiveValue(null);
@@ -141,6 +185,7 @@ public final class MainActivity extends FragmentActivity {
             }
         });
 
+        webView.addJavascriptInterface(new NativeBarcodeBridge(), "NativeBarcode");
         webView.addJavascriptInterface(new SecurityBridge(), "NativeSecurity");
         webView.addJavascriptInterface(new ExitBridge(), "Android");
         webView.addJavascriptInterface(new BackupBridge(), "AndroidFiles");
@@ -179,6 +224,71 @@ public final class MainActivity extends FragmentActivity {
         webView.loadUrl(APP_URL);
     }
 
+    private void handleWebCameraPermission(PermissionRequest request) {
+        if (request == null) return;
+        if (!isLocalPage() || request.getOrigin() == null ||
+                !"https".equals(request.getOrigin().getScheme()) ||
+                !HOST.equals(request.getOrigin().getHost())) {
+            request.deny();
+            return;
+        }
+        String[] wanted = request.getResources();
+        // Do not grant audio, protected media IDs, or future unexpected permission types.
+        if (wanted == null || wanted.length != 1 ||
+                !PermissionRequest.RESOURCE_VIDEO_CAPTURE.equals(wanted[0])) {
+            request.deny();
+            return;
+        }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
+                == PackageManager.PERMISSION_GRANTED) {
+            request.grant(new String[]{PermissionRequest.RESOURCE_VIDEO_CAPTURE});
+        } else {
+            if (pendingWebCameraPermission != null) {
+                request.deny();
+                return;
+            }
+            pendingWebCameraPermission = request;
+            requestPermissions(new String[]{Manifest.permission.CAMERA}, REQUEST_WEB_CAMERA);
+        }
+    }
+
+    private void replyBarcode(String target, String barcode, String message) {
+        runOnUiThread(() -> {
+            if (!isLocalPage()) return;
+            webView.evaluateJavascript(
+                    "window.__nativeBarcodeResult && window.__nativeBarcodeResult("
+                            + JSONObject.quote(target) + "," + JSONObject.quote(barcode)
+                            + "," + JSONObject.quote(message) + ")", null);
+        });
+    }
+
+    private final class NativeBarcodeBridge {
+        @JavascriptInterface
+        public void scan(String target) {
+            if (!"invoice".equals(target) && !"item".equals(target)) return;
+            runOnUiThread(() -> {
+                if (!isLocalPage()) return;
+                if (pendingNativeBarcodeTarget != null) {
+                    replyBarcode(target, "", "الماسح مفتوح بالفعل");
+                    return;
+                }
+                pendingNativeBarcodeTarget = target;
+                ScanOptions options = new ScanOptions();
+                options.setDesiredBarcodeFormats(ScanOptions.ALL_CODE_TYPES);
+                options.setPrompt("وجّه الكاميرا نحو الباركود أو رمز QR");
+                options.setOrientationLocked(false);
+                options.setBeepEnabled(true);
+                options.setBarcodeImageEnabled(false);
+                try {
+                    barcodeLauncher.launch(options);
+                } catch (Exception ex) {
+                    pendingNativeBarcodeTarget = null;
+                    replyBarcode(target, "", "تعذر فتح ماسح الباركود على هذا الهاتف");
+                }
+            });
+        }
+    }
+
     private void showNativeExitConfirmation() {
         new AlertDialog.Builder(this)
                 .setTitle("المحاسب التقني")
@@ -191,6 +301,20 @@ public final class MainActivity extends FragmentActivity {
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == REQUEST_WEB_CAMERA) {
+            PermissionRequest request = pendingWebCameraPermission;
+            pendingWebCameraPermission = null;
+            if (request != null) {
+                if (grantResults.length > 0 &&
+                        grantResults[0] == PackageManager.PERMISSION_GRANTED && isLocalPage()) {
+                    request.grant(new String[]{PermissionRequest.RESOURCE_VIDEO_CAPTURE});
+                } else {
+                    request.deny();
+                    Toast.makeText(this, "اسمح بالكاميرا لمسح الباركود", Toast.LENGTH_LONG).show();
+                }
+            }
+            return;
+        }
         if (bluetoothPrinter != null) bluetoothPrinter.onPermissionResult(requestCode, grantResults);
     }
 
@@ -332,9 +456,14 @@ public final class MainActivity extends FragmentActivity {
 
     @Override
     protected void onDestroy() {
+        if (pendingWebCameraPermission != null) {
+            pendingWebCameraPermission.deny();
+            pendingWebCameraPermission = null;
+        }
         if (bluetoothPrinter != null) bluetoothPrinter.destroy();
         if (pendingFileChooser != null) pendingFileChooser.onReceiveValue(null);
         if (webView != null) {
+            webView.removeJavascriptInterface("NativeBarcode");
             webView.removeJavascriptInterface("NativeSecurity");
             webView.removeJavascriptInterface("Android");
             webView.removeJavascriptInterface("AndroidFiles");

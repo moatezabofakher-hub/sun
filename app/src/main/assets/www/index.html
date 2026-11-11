@@ -3594,6 +3594,11 @@
             },
 
             async openItemBarcodeScanner() {
+                // Native APK scanner decodes reliably even without WebView BarcodeDetector.
+                if (window.NativeBarcode && typeof window.NativeBarcode.scan === 'function') {
+                    window.NativeBarcode.scan('item');
+                    return;
+                }
                 if (!navigator.mediaDevices?.getUserMedia) {
                     UI.toast('الكاميرا غير مدعومة. افتح النظام عبر HTTPS أو أدخل الباركود يدوياً', 'error');
                     return;
@@ -3929,6 +3934,10 @@
             },
 
             async openBarcodeScanner() {
+                if (window.NativeBarcode && typeof window.NativeBarcode.scan === 'function') {
+                    window.NativeBarcode.scan('invoice');
+                    return;
+                }
                 if (!navigator.mediaDevices?.getUserMedia) {
                     UI.toast('الكاميرا غير مدعومة. افتح النظام عبر HTTPS أو أدخل الباركود يدوياً', 'error');
                     return;
@@ -5573,6 +5582,27 @@
             AppNav.renderCurrent();
             ProtectionController.showAppLock();
             ProtectionController.lockOnReturn();
+        };
+        // Native offline barcode decoder callback, dispatched by Android after scanning.
+        window.__nativeBarcodeResult = function (target, code, message) {
+            if (message) {
+                UI.toast(message, 'error');
+                return;
+            }
+            const value = String(code || '').trim();
+            if (!value) return; // User cancelled scanner; don't change invoice or item.
+            if (target === 'item') {
+                const field = document.getElementById('itmBarcode');
+                if (!field) {
+                    UI.toast('ارجع إلى بطاقة المادة ثم أعد مسح الباركود', 'warn');
+                    return;
+                }
+                field.value = value;
+                ItemController.markItemDirty();
+                UI.toast('تمت قراءة الباركود؛ احفظ بطاقة المادة', 'success');
+            } else if (target === 'invoice') {
+                InvoiceController.addItemByBarcode(value);
+            }
         };
     </script>
 </body>
