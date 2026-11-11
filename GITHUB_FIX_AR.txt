@@ -1,0 +1,12 @@
+إصلاح خطأ GitHub Actions عند إنشاء SAN SHINE APK
+
+السبب المؤكد في التشغيل 43042593905: خطوة android-actions/setup-android@v3 حاولت تثبيت الحزمة المحذوفة tools.
+كما أظهر المستودع moatezabofakher-hub/sun أن الملفات مرفوعة في الجذر بدلاً من المسارات Android القياسية.
+
+الحل السريع: افتح .github/workflows/build-apk.yml في فرع main، استبدل محتواه بالكامل بمحتوى SAN-SHINE-FIX-build-apk.yml ثم Commit changes.
+الكود الجديد يستخدم setup-android@v4، ويعيد ترتيب الملفات المرفوعة في الجذر أثناء البناء دون تغييرها داخل المستودع.
+ثم شغّل Actions > Build SAN SHINE Android APK > Run workflow.
+إذا ظهر خطأ جديد، افتح خطوة الفشل وأرسل نصها، لأن نجاح البناء الفعلي لا يُعرف قبل تشغيل GitHub.
+
+الحل الأفضل على المدى الطويل: رفع الملفات بمجلداتها الأصلية كما هي داخل SAN-SHINE-GitHub-Fixed.zip.
+لا ترفع مولّد التراخيص الخاص أو المفتاح الخاص إلى المستودع.
