@@ -1,0 +1,15 @@
+.gradle/
+**/build/
+*.iml
+local.properties
+.idea/
+.DS_Store
+*.keystore
+*.jks
+*.apk
+
+# OWNER PRIVATE MATERIAL -- NEVER COMMIT
+*private*key*
+*.pem
+**/OWNER-PRIVATE*/
+SAN-SHINE-OWNER-PRIVATE-Generator/
