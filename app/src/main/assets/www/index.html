@@ -2162,6 +2162,17 @@
          * 6. APPLICATION VIEWS & CONTROLLERS
          ********************************************************************/
         const Views = {
+            jumpToEntry(panelId, fieldId) {
+                const panel = document.getElementById(panelId);
+                if (!panel) return;
+                panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                const field = document.getElementById(fieldId);
+                if (field) {
+                    try { field.focus({ preventScroll: true }); }
+                    catch (_) { field.focus(); }
+                }
+            },
+
             render(screen, params = {}) {
                 const main = document.getElementById('mainContent');
                 switch (screen) {
@@ -2281,17 +2292,23 @@
                             <i class="fas fa-sliders text-slate-700 text-base"></i>
                             <span class="text-[11px] font-bold text-slate-700">الطابعة والنسخ</span>
                         </button>
-                        <button onclick="AppNav.navigate('warehouses')" class="bg-sky-50 border border-sky-200 p-2.5 rounded-xl flex flex-col items-center gap-1 hover:bg-sky-100 active:scale-95">
-                            <i class="fas fa-warehouse text-sky-700"></i>
-                            <span class="text-[11px] font-bold text-sky-900">المستودعات والمناقلات</span>
+                        <button onclick="AppNav.navigate('warehouses')" class="bg-white border border-slate-200 p-2.5 rounded-xl flex flex-col items-center gap-1 hover:bg-slate-50 active:scale-95">
+                            <i class="fas fa-box-open text-sky-600 text-base"></i>
+                            <span class="text-[11px] font-bold text-slate-700">المستودعات والمناقلات</span>
                         </button>
-                        <button onclick="AppNav.navigate('expenses')" class="bg-orange-50 border border-orange-200 p-2.5 rounded-xl flex flex-col items-center gap-1 hover:bg-orange-100 active:scale-95">
-                            <i class="fas fa-file-invoice-dollar text-orange-700"></i>
-                            <span class="text-[11px] font-bold text-orange-900">المصاريف</span>
+                        <button onclick="AppNav.navigate('expenses')" class="bg-white border border-slate-200 p-2.5 rounded-xl flex flex-col items-center gap-1 hover:bg-slate-50 active:scale-95">
+                            <i class="fas fa-receipt text-orange-600 text-base"></i>
+                            <span class="text-[11px] font-bold text-slate-700">المصاريف</span>
                         </button>
                     </div>
-
-
+                    <div class="grid grid-cols-2 gap-2 mb-5" aria-label="إضافات سريعة">
+                        <button type="button" onclick="AppNav.navigate('warehouses', { action: 'add' })" class="flex items-center justify-center gap-2 bg-sky-600 hover:bg-sky-700 active:scale-95 text-white px-2 py-3 rounded-xl text-xs font-extrabold shadow-sm">
+                            <i class="fas fa-plus text-sm"></i><span>إضافة مستودع</span>
+                        </button>
+                        <button type="button" onclick="AppNav.navigate('expenses', { action: 'add' })" class="flex items-center justify-center gap-2 bg-orange-600 hover:bg-orange-700 active:scale-95 text-white px-2 py-3 rounded-xl text-xs font-extrabold shadow-sm">
+                            <i class="fas fa-plus text-sm"></i><span>إضافة مصروف</span>
+                        </button>
+                    </div>
                 `;
             },
 
@@ -2407,22 +2424,30 @@
 
 
             // ==================== WAREHOUSES & INTERNAL TRANSFERS ====================
-            renderWarehouses(main) {
-                UI.setHeader('<i class="fas fa-warehouse text-sky-400"></i> <span>المستودعات والمناقلات</span>',
+            renderWarehouses(main, params = {}) {
+                UI.setHeader('<i class="fas fa-box-open text-sky-400"></i> <span>المستودعات والمناقلات</span>',
                              'أرصدة مستقلة لكل مستودع ومناقلة لا تؤثر على المبيعات أو الأرباح');
                 const wopts = WarehouseController.options(State.settings.selectedWarehouseId);
                 const warehouseName = id => WarehouseController.name(id);
                 main.innerHTML = `
+                    <div class="grid grid-cols-2 gap-2 mb-3" aria-label="عمليات المستودعات">
+                        <button type="button" onclick="Views.jumpToEntry('warehouseCreatePanel','newWarehouseName')" class="flex items-center justify-center gap-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-extrabold text-xs px-2 py-3 shadow-sm active:scale-95">
+                            <i class="fas fa-plus text-sm"></i><span>إضافة مستودع</span>
+                        </button>
+                        <button type="button" onclick="Views.jumpToEntry('warehouseTransferPanel','transferItem')" class="flex items-center justify-center gap-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-extrabold text-xs px-2 py-3 shadow-sm active:scale-95">
+                            <i class="fas fa-boxes-stacked text-sm"></i><span>مناقلة مواد</span>
+                        </button>
+                    </div>
                     <div class="rounded-2xl border border-sky-200 bg-sky-50 p-3 mb-3">
                         <div class="text-xs font-extrabold text-sky-900 mb-2">المستودع المعتمد للعرض والفواتير الجديدة</div>
                         <select onchange="WarehouseController.selectWarehouse(this.value)" class="w-full rounded-xl border border-sky-300 bg-white p-3 text-sm">${wopts}</select>
                         <div class="text-[11px] text-sky-700 mt-2">المستودع الرئيسي يحتفظ بكل أرصدة الفواتير القديمة تلقائياً.</div>
                     </div>
-                    <div class="rounded-2xl bg-white p-3 border mb-3">
+                    <div id="warehouseCreatePanel" class="rounded-2xl bg-white p-3 border border-slate-200 mb-3 scroll-mt-4">
                         <h3 class="text-sm font-extrabold mb-2">تعريف مستودع جديد</h3>
                         <div class="flex gap-2">
                             <input id="newWarehouseName" maxlength="80" class="w-full rounded-xl border p-2.5 text-sm" placeholder="اسم المستودع الجديد">
-                            <button onclick="WarehouseController.addWarehouse()" class="shrink-0 rounded-xl bg-sky-600 px-4 text-white font-bold">إضافة</button>
+                            <button type="button" onclick="WarehouseController.addWarehouse()" class="shrink-0 rounded-xl bg-sky-600 hover:bg-sky-700 px-3 py-2.5 text-white text-xs font-extrabold flex items-center justify-center gap-1.5"><i class="fas fa-plus"></i><span>إضافة المستودع</span></button>
                         </div>
                         <div class="mt-3 space-y-2">
                             ${(State.warehouses||[]).map(wh=>`
@@ -2435,7 +2460,7 @@
                                 </div>`).join('')}
                         </div>
                     </div>
-                    <div class="rounded-2xl bg-white p-3 border mb-3">
+                    <div id="warehouseTransferPanel" class="rounded-2xl bg-white p-3 border border-slate-200 mb-3 scroll-mt-4">
                         <h3 class="text-sm font-extrabold mb-3">مناقلة مادة بين مستودعين</h3>
                         <div class="grid grid-cols-2 gap-2 mb-2">
                             <div><label class="block text-xs font-bold mb-1">من المستودع</label>
@@ -2475,16 +2500,21 @@
                     </div>
                 `;
                 WarehouseController.updateTransferUnits();
+                if (params.action === 'add') this.jumpToEntry('warehouseCreatePanel', 'newWarehouseName');
+                if (params.action === 'transfer') this.jumpToEntry('warehouseTransferPanel', 'transferItem');
             },
 
             // ==================== EXPENSE ACCOUNT & REGISTER ====================
-            renderExpenses(main) {
+            renderExpenses(main, params = {}) {
                 UI.setHeader('<i class="fas fa-receipt text-orange-400"></i> <span>حساب المصاريف</span>',
                              'مصاريف نقدية تُخصم من صافي الأرباح ومن رصيد الصندوق');
                 const list = (State.expenses||[]).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));
                 const rate = Number(State.settings.exchangeRate) || 1;
                 const sumUsd = list.reduce((acc,e)=>acc + (e.currency === 'USD' ? Number(e.amount)||0 : (Number(e.amount)||0)/(Number(e.exchangeRate)||rate)),0);
                 main.innerHTML = `
+                    <button type="button" onclick="ExpenseController.startNewExpense()" class="w-full mb-3 flex items-center justify-center gap-2 rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-extrabold px-3 py-3 text-sm shadow-sm active:scale-95">
+                        <i class="fas fa-plus"></i><span>إضافة مصروف جديد</span>
+                    </button>
                     <div class="grid grid-cols-2 gap-2 mb-3">
                         <div class="rounded-2xl bg-orange-50 border border-orange-200 p-3">
                             <div class="text-xs text-orange-800">المصاريف الإجمالية بالدولار</div>
@@ -2495,7 +2525,7 @@
                             <strong class="text-base">${Accounting.format(sumUsd*rate,'SYP')}</strong>
                         </div>
                     </div>
-                    <div class="rounded-2xl bg-white border p-3 mb-3">
+                    <div id="expenseFormPanel" class="rounded-2xl bg-white border border-slate-200 p-3 mb-3 scroll-mt-4">
                         <h3 class="font-extrabold text-sm mb-3" id="expenseFormTitle">إضافة مصروف جديد</h3>
                         <input type="hidden" id="expenseId" value="">
                         <div class="grid grid-cols-2 gap-2 mb-2">
@@ -2510,7 +2540,7 @@
                             <div class="col-span-2"><label class="block text-xs font-bold mb-1">سعر الصرف لهذه العملية (1$ = ل.س)</label><input id="expenseRate" type="number" min="0.0001" step="any" value="${rate}" class="w-full border rounded-xl p-2.5"></div>
                         </div>
                         <input id="expenseNote" maxlength="250" class="w-full border rounded-xl p-2.5 text-sm mb-3" placeholder="البيان / الملاحظات">
-                        <button onclick="ExpenseController.saveExpense()" class="w-full bg-orange-600 text-white rounded-xl py-3 font-extrabold">حفظ المصروف وخصمه من صافي الربح</button>
+                        <button type="button" onclick="ExpenseController.saveExpense()" class="w-full bg-orange-600 hover:bg-orange-700 text-white rounded-xl py-3 font-extrabold flex items-center justify-center gap-2"><i class="fas fa-plus"></i><span>حفظ المصروف وخصمه من صافي الربح</span></button>
                     </div>
                     <div class="rounded-2xl bg-white border p-3">
                         <div class="font-extrabold text-sm mb-2">سجل المصاريف (${list.length})</div>
@@ -2529,6 +2559,7 @@
                             </div>`).join('') : '<p class="text-slate-400 text-xs">لا توجد مصاريف مسجلة.</p>'}
                     </div>
                 `;
+                if (params.action === 'add') this.jumpToEntry('expenseFormPanel', 'expenseAmount');
             },
 
             // ==================== 6.3 INVOICES LIST ====================
@@ -4166,6 +4197,11 @@
         };
 
         const ExpenseController = {
+            startNewExpense() {
+                // Re-render to leave edit mode without modifying existing records.
+                AppNav.renderCurrent();
+                Views.jumpToEntry('expenseFormPanel', 'expenseAmount');
+            },
             async saveExpense() {
                 if (this.saving) return;
                 this.saving = true;

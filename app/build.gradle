@@ -10,8 +10,8 @@ android {
         applicationId 'com.sunshine.technicalaccountant'
         minSdk 26
         targetSdk 35
-        versionCode 8
-        versionName '3.5.0-warehouses-expenses'
+        versionCode 9
+        versionName '3.5.1-ui-fixes'
     }
 
     buildTypes {
