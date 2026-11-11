@@ -185,12 +185,6 @@
             </div>
 
             <div class="flex items-center gap-1.5 shrink-0">
-                <!-- License / Trial Status Badge -->
-                <button onclick="LicenseManager.openActivationModal()" id="licenseTopBadge" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 px-2 py-1 rounded-xl flex items-center gap-1 text-[10px] sm:text-[11px] font-bold transition active:scale-95 shrink-0" title="حالة ترخيص وتفعيل النسخة">
-                    <i class="fas fa-key text-amber-400"></i>
-                    <span id="licenseBadgeText">تجريبي</span>
-                </button>
-
                 <!-- Active Operation Protection Status Badge -->
                 <div id="unsavedGuardBadge" class="hidden bg-amber-500/20 border border-amber-400/50 text-amber-300 px-2 py-1 rounded-xl text-[10px] font-extrabold items-center gap-1 animate-pulse shrink-0" title="حماية العمليات مفعّلة لمنع الخروج العرضي">
                     <i class="fas fa-shield-halved"></i>
@@ -503,19 +497,13 @@
                 await StorageEngine.saveState();
             },
             updateBadgeUI() {
-                const badge = document.getElementById('licenseTopBadge');
-                const txt = document.getElementById('licenseBadgeText');
-                if (!badge || !txt) return;
-                if (State.license.isActivated) {
-                    badge.className = 'bg-emerald-950/90 hover:bg-emerald-900 border border-emerald-500/50 text-emerald-300 px-2.5 py-1 rounded-xl flex items-center gap-1 text-[11px] font-extrabold transition';
-                    txt.textContent = 'نسخة مفعّلة';
-                } else {
-                    const rem = this.getRemainingTrialOps();
-                    badge.className = rem === 0
-                        ? 'bg-rose-950 border border-rose-500 text-rose-300 px-2 py-1 rounded-xl text-[11px] font-bold'
-                        : 'bg-slate-800 border border-amber-500/40 text-amber-300 px-2 py-1 rounded-xl text-[11px] font-bold';
-                    txt.textContent = rem === 0 ? 'انتهت التجربة' : `تجريبي (${rem}/${this.MAX_TRIAL_OPS})`;
-                }
+                // License status is displayed in Settings, not in the top application bar.
+                // When Settings is visible, keep its information synchronized.
+                const status = document.getElementById('settingsLicenseStatus');
+                if (!status) return;
+                status.textContent = State.license.isActivated
+                    ? 'النسخة مفعّلة بالكامل مدى الحياة'
+                    : `نسخة تجريبية: استهلكت ${this.getTotalOpsUsed()} من أصل ${this.MAX_TRIAL_OPS} عملية`;
             },
             openActivationModal(lockedAlert = false) {
                 const used = this.getTotalOpsUsed();
@@ -2336,7 +2324,7 @@
                         </button>
                         <button onclick="AppNav.navigate('settings')" class="bg-white border border-slate-200 p-2.5 rounded-xl flex flex-col items-center gap-1 hover:bg-slate-50 active:scale-95">
                             <i class="fas fa-sliders text-slate-700 text-base"></i>
-                            <span class="text-[11px] font-bold text-slate-700">الطابعة والنسخ</span>
+                            <span class="text-[11px] font-bold text-slate-700">الضبط</span>
                         </button>
                         <button onclick="AppNav.navigate('warehouses')" class="bg-white border border-slate-200 p-2.5 rounded-xl flex flex-col items-center gap-1 hover:bg-slate-50 active:scale-95">
                             <i class="fas fa-box-open text-sky-600 text-base"></i>
@@ -3419,11 +3407,32 @@
 
             // ==================== 6.9 SETTINGS, PRINTER & BACKUP/RESTORE ====================
             renderSettings(main) {
-                UI.setHeader('<i class="fas fa-sliders text-emerald-400"></i> <span>الإعدادات والطباعة والنسخ الاحتياطي</span>', 'تخصيص الترويسة، الربط بالبلوتوث، وحفظ نسخة احتياطية');
+                UI.setHeader('<i class="fas fa-sliders text-emerald-400"></i> <span>الضبط</span>', 'التفعيل، إعدادات الطباعة، النسخ الاحتياطي، والحماية');
 
                 const mode = State.settings.btPrintMode || 'auto';
 
                 main.innerHTML = `
+                    <!-- License and activation are accessible from Settings only. -->
+                    <div class="bg-white rounded-2xl border border-slate-200 p-4 mb-4 shadow-xs space-y-3">
+                        <h3 class="font-bold text-sm text-slate-900 flex items-center gap-2">
+                            <i class="fas fa-key text-emerald-600"></i>
+                            <span>تفعيل البرنامج والترخيص</span>
+                        </h3>
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs">
+                            <div>
+                                <div class="font-bold text-slate-800">رقم الجهاز: <span dir="ltr" class="font-mono text-indigo-700 break-all">${State.license.deviceId}</span></div>
+                                <div id="settingsLicenseStatus" class="text-slate-500 mt-0.5">
+                                    ${State.license.isActivated
+                                        ? '<span class="text-emerald-600 font-extrabold">النسخة مفعّلة بالكامل مدى الحياة</span>'
+                                        : `نسخة تجريبية: استهلكت ${LicenseManager.getTotalOpsUsed()} من أصل ${LicenseManager.MAX_TRIAL_OPS} عملية`}
+                                </div>
+                            </div>
+                            <button onclick="LicenseManager.openActivationModal()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3.5 py-2 rounded-xl text-xs shrink-0">
+                                ${State.license.isActivated ? 'تفاصيل التفعيل' : 'إدخال كود التفعيل'}
+                            </button>
+                        </div>
+                    </div>
+
                     <!-- Compact Bluetooth Printer Card -->
                     <div class="bg-white rounded-2xl border border-slate-200 p-4 mb-4 shadow-xs">
                         <div class="flex items-center justify-between mb-2">
@@ -3507,26 +3516,6 @@
                         <button onclick="SettingsController.saveSettings()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-xs shadow-xs">
                             <i class="fas fa-check ml-1"></i> حفظ إعدادات الطباعة والترويسة
                         </button>
-                    </div>
-
-                    <div class="bg-white rounded-2xl border border-slate-200 p-4 mb-4 shadow-xs space-y-3">
-                        <h3 class="font-bold text-sm text-slate-900 flex items-center gap-2">
-                            <i class="fas fa-key text-emerald-600"></i>
-                            <span>حالة الترخيص وتفعيل البرنامج</span>
-                        </h3>
-                        <div class="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs">
-                            <div>
-                                <div class="font-bold text-slate-800">رقم الجهاز: <span dir="ltr" class="font-mono text-indigo-700">${State.license.deviceId}</span></div>
-                                <div class="text-slate-500 mt-0.5">
-                                    ${State.license.isActivated
-                                        ? '<span class="text-emerald-600 font-extrabold">النسخة مفعّلة بالكامل مدى الحياة</span>'
-                                        : `نسخة تجريبية: استهلكت ${LicenseManager.getTotalOpsUsed()} من أصل ${LicenseManager.MAX_TRIAL_OPS} عملية`}
-                                </div>
-                            </div>
-                            <button onclick="LicenseManager.openActivationModal()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3.5 py-2 rounded-xl text-xs">
-                                ${State.license.isActivated ? 'تفاصيل التفعيل' : 'إدخال كود التفعيل'}
-                            </button>
-                        </div>
                     </div>
 
                     <div class="bg-white rounded-2xl border border-slate-200 p-4 mb-4 shadow-xs space-y-3">
