@@ -327,6 +327,20 @@ public final class MainActivity extends FragmentActivity {
 
     private boolean routeExternal(Uri uri) {
         if ("https".equals(uri.getScheme()) && HOST.equals(uri.getHost())) return false;
+        // WhatsApp support numbers open in the installed app when available.
+        // Never expose the local financial WebView to external pages.
+        if ("https".equalsIgnoreCase(uri.getScheme()) && "wa.me".equalsIgnoreCase(uri.getHost())) {
+            for (String appPackage : new String[]{"com.whatsapp", "com.whatsapp.w4b"}) {
+                try {
+                    Intent whatsapp = new Intent(Intent.ACTION_VIEW, uri);
+                    whatsapp.setPackage(appPackage);
+                    startActivity(whatsapp);
+                    return true;
+                } catch (Exception ignored) {
+                    // Try the next WhatsApp variant before falling back to the browser.
+                }
+            }
+        }
         String scheme = uri.getScheme();
         if (scheme == null) return true;
         if (scheme.equals("https") || scheme.equals("http") || scheme.equals("rawbt")

@@ -445,7 +445,19 @@
                         <div class="w-16 h-16 rounded-2xl ${active ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'} flex items-center justify-center mx-auto mb-3 text-3xl"><i class="fas ${active ? 'fa-check-circle' : 'fa-lock'}"></i></div>
                         <h3 class="font-extrabold text-base text-slate-900 mb-2">${active ? 'النسخة مفعّلة بتوقيع رقمي' : 'ترخيص تطبيق المحاسبة'}</h3>
                         <p class="text-xs text-slate-600 mb-3 leading-relaxed">${active ? 'الترخيص صالح لهذا الجهاز.' : lockedAlert ? 'انتهى حد التجربة. اطلب رمز تفعيل موقّع من الإدارة.' : `المتبقي في النسخة التجريبية: ${rem} من ${this.MAX_TRIAL_OPS} عملية.`}</p>
-                        <div class="bg-indigo-50 border border-indigo-200 rounded-xl p-3 mb-3 text-xs text-indigo-950 font-bold">التفعيل: التواصل مع الإدارة للحصول على رمز خاص بمعرّف الجهاز</div>
+                        <div class="bg-indigo-50 border border-indigo-200 rounded-2xl p-3 mb-3 text-xs text-indigo-950 text-center">
+                            <div class="font-extrabold text-sm mb-1"><i class="fas fa-headset ml-1"></i> التواصل مع الدعم</div>
+                            <div class="font-bold mb-3">مجموعة التقني للمحاسبة و المستودعات</div>
+                            <div class="grid grid-cols-1 gap-2">
+                                <a href="https://wa.me/963932325577" class="flex items-center justify-center gap-2 bg-white text-emerald-700 border border-emerald-200 rounded-xl px-3 py-2.5 font-extrabold" dir="ltr" aria-label="واتساب الدعم 00963932325577">
+                                    <i class="fab fa-whatsapp text-lg"></i><span>00963932325577</span>
+                                </a>
+                                <a href="https://wa.me/963968643771" class="flex items-center justify-center gap-2 bg-white text-emerald-700 border border-emerald-200 rounded-xl px-3 py-2.5 font-extrabold" dir="ltr" aria-label="واتساب الدعم 00963968643771">
+                                    <i class="fab fa-whatsapp text-lg"></i><span>00963968643771</span>
+                                </a>
+                            </div>
+                            <p class="text-[11px] text-indigo-800 mt-2">اضغط على أي رقم لفتح محادثة واتساب مع الدعم.</p>
+                        </div>
                         <div class="bg-slate-900 text-white p-3 rounded-xl mb-4">
                             <div class="text-[11px] text-slate-300 mb-2">معرّف الجهاز المطلوب إرساله للإدارة:</div>
                             <div dir="ltr" class="font-mono text-xs sm:text-sm font-bold select-all break-all text-amber-300">${deviceId}</div>
@@ -1458,15 +1470,17 @@
             },
 
             async printInvoiceDirect(inv) {
-                if (!inv) return;
+                if (!inv) return false;
                 try {
                     UI.toast('جاري تجهيز وإرسال الفاتورة لطابعة البلوتوث الحرارية...', 'info');
                     const paperWidthDots = State.settings.printerWidth === 58 ? 384 : 576;
                     const canvas = await this.renderInvoiceToCanvas(inv, paperWidthDots);
                     const escposBytes = this.canvasToEscPosRaster(canvas);
                     await this.sendRawEscPosBytes(escposBytes);
+                    return true;
                 } catch (err) {
-                    UI.toast('خطأ أثناء الطباعة: ' + err.message, 'error');
+                    UI.toast('تم حفظ الفاتورة لكن تعذر إرسال الطباعة: ' + err.message, 'error');
+                    return false;
                 }
             },
 
@@ -4594,9 +4608,18 @@
                 AppNav.clearDirty();
                 UI.toast('تم حفظ الفاتورة وتحديث أرصدة الحسابات والصندوق والمستودع فوراً', 'success');
 
-                AppNav.navigate('invoice_print', { id: cleanDoc.id }, true);
                 if (andBluetoothPrint) {
-                    setTimeout(() => ThermalPrinter.printInvoiceDirect(cleanDoc), 200);
+                    // Save is complete; render and send directly, without ever opening invoice_print.
+                    // Native Bluetooth transmission is asynchronous: this waits for preparation/
+                    // dispatch, not for the printer to physically finish printing.
+                    try {
+                        await ThermalPrinter.printInvoiceDirect(cleanDoc);
+                    } finally {
+                        AppNav.navigate('dashboard');
+                    }
+                } else {
+                    // Preserve the current preview behavior for the Save-only button.
+                    AppNav.navigate('invoice_print', { id: cleanDoc.id }, true);
                 }
                 return true;
             },

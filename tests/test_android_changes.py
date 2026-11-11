@@ -11,7 +11,7 @@ manifest = (root/'app/src/main/AndroidManifest.xml').read_text()
 build = (root/'app/build.gradle').read_text()
 
 checks = {
-    'App name': 'android:label="المحاسب التقني - اختبار الكاميرا"' in manifest,
+    'App name': 'android:label="المحاسب التقني"' in manifest,
     'Native margin-based safe insets': 'WindowInsetsCompat.Type.displayCutout()' in java and 'params.setMargins(bars.left, bars.top, bars.right, bars.bottom)' in java,
     'Android back confirmation': 'UI.showExitAppDialog();' in html,
     'Native exit confirmation fallback': 'showNativeExitConfirmation' in java,
@@ -22,7 +22,7 @@ checks = {
     'Paired device selection': 'getBondedDevices()' in printer,
     'Asynchronous printer confirmation': '__nativePrinterEvent' in html,
     'Android bitmap and adaptive launcher': (root/'app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml').is_file() and (root/'app/src/main/res/mipmap-xxxhdpi/ic_launcher.png').is_file(),
-    'Valid stable Android package identifier': any(x in build for x in ["applicationId 'com.sunshine.accounting'", "applicationId 'com.sunshine.technicalaccountant'", "applicationId 'com.sunshine.technicalaccountant.cameratest'"]),
+    'Valid stable Android package identifier': any(x in build for x in ["applicationId 'com.sunshine.accounting'", "applicationId 'com.sunshine.technicalaccountant'"]),
     'Kotlin duplicate class resolution': "details.useVersion '1.8.20'" in build,
     'Manifest declares CAMERA': 'android.permission.CAMERA' in manifest,
     'Optional camera device support': 'android.hardware.camera.any' in manifest,
