@@ -6,7 +6,7 @@ manager=(root/'app/src/main/java/com/sunshine/accounting/AutoBackupManager.java'
 worker=(root/'app/src/main/java/com/sunshine/accounting/BackupWorker.java').read_text()
 html=(root/'app/src/main/assets/www/index.html').read_text()
 manifest=(root/'app/src/main/AndroidManifest.xml').read_text()
-assert 'versionCode 15' in (root/'app/build.gradle').read_text()
+assert 'versionCode 16' in (root/'app/build.gradle').read_text()
 assert 'AlRaedAccountingERP_v2' in html
 assert 'applicationId \'com.sunshine.technicalaccountant\'' in (root/'app/build.gradle').read_text()
 assert 'window.AndroidAutoBackup.stageSnapshot' in html

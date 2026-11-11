@@ -302,6 +302,7 @@
                 defaultCurrency: 'USD',
                 defaultInvoiceListType: 'sale',
                 itemQuantityDecimals: 2,
+                inventoryValuationCurrency: 'SYP', // Display currency for inventory cost valuation only
                 selectedWarehouseId: 'wh_main',
                 appProtection: { pinSalt: '', pinHash: '', pinAlgo: 'sha256-v1', securityQuestions: [], recoveryFailures: 0, recoveryLockedUntil: 0, lockApp: false, protectDeletion: false, fingerprintEnabled: false, fingerprintCredentialId: '' }
             },
@@ -935,6 +936,42 @@
         /********************************************************************
          * 3. SMART NAVIGATION, BACK STACK & GLOBAL UNSAVED DATA PROTECTION
          ********************************************************************/
+        // v3.5.8 - Inventory value = current base-stock quantity x first/base unit cost.
+        // Sum at full precision and round only for display. Internal warehouse transfers
+        // are excluded from global stock by Accounting.getItemBaseStock.
+        const InventoryValuation = {
+            calculate(warehouseId = 'wh_main', currency = 'SYP') {
+                const targetCurrency = currency === 'USD' ? 'USD' : 'SYP';
+                const selectedWarehouse = warehouseId === 'all' ? null : warehouseId;
+                const rate = Number(State.settings.exchangeRate);
+                const rateValid = Number.isFinite(rate) && rate > 0;
+                const rows = [];
+                let total = 0;
+                for (const item of (Array.isArray(State.items) ? State.items : [])) {
+                    if (!item || !item.id) continue;
+                    const units = Array.isArray(item.units) ? item.units : [];
+                    const baseUnit = units[0] || {name: 'وحدة', costPrice: 0};
+                    const stock = Accounting.getItemBaseStock(item.id, null, selectedWarehouse);
+                    const sourceCurrency = item.currency === 'USD' ? 'USD' : 'SYP';
+                    const cost = Number(baseUnit.costPrice);
+                    const nativeValue = stock * (Number.isFinite(cost) ? cost : 0);
+                    const value = sourceCurrency === targetCurrency ? nativeValue
+                        : (rateValid ? (sourceCurrency === 'USD' ? nativeValue * rate : nativeValue / rate) : null);
+                    if (value !== null) total += value;
+                    rows.push({item, stock, baseUnit, sourceCurrency, nativeValue, value});
+                }
+                const hasMixedCurrency = rows.some(row => row.sourceCurrency !== targetCurrency);
+                return {currency: targetCurrency, rate, rateValid, rows,
+                    total: (!rateValid && hasMixedCurrency) ? null : total};
+            },
+            async setCurrency(value) {
+                if (value !== 'SYP' && value !== 'USD') return;
+                State.settings.inventoryValuationCurrency = value;
+                await StorageEngine.saveState();
+                AppNav.renderCurrent();
+            }
+        };
+
         const AppNav = {
             stack: [{ screen: 'dashboard', params: {} }],
             isDirty: false,
@@ -1130,10 +1167,14 @@
                 if (backBtn) {
                     backBtn.classList.remove('hidden');
                     if (screen === 'dashboard') {
-                        backBtn.setAttribute('title', 'الخروج من التطبيق');
-                        if (backIcon) backIcon.className = 'fas fa-power-off text-rose-400 text-base';
+                        backBtn.setAttribute('title', 'الضبط');
+                        backBtn.setAttribute('aria-label', 'الضبط');
+                        backBtn.onclick = () => AppNav.navigate('settings');
+                        if (backIcon) backIcon.className = 'fas fa-sliders text-emerald-400 text-base';
                     } else {
                         backBtn.setAttribute('title', 'رجوع');
+                        backBtn.setAttribute('aria-label', 'رجوع');
+                        backBtn.onclick = () => AppNav.handleBackButton();
                         if (backIcon) backIcon.className = 'fas fa-arrow-right text-lg';
                     }
                 }
@@ -2284,18 +2325,6 @@
                 UI.setHeader('<i class="fas fa-calculator text-emerald-400"></i> <span>المحاسب التقني</span>', 'نظام المحاسبة والمستودعات');
                 document.title = 'المحاسب التقني';
 
-                const cash = Accounting.getCashboxSummary();
-                let totalReceivablesSyp = 0, totalReceivablesUsd = 0;
-                let totalPayablesSyp = 0, totalPayablesUsd = 0;
-
-                for (const acc of State.accounts) {
-                    const st = Accounting.getAccountStatement(acc.id);
-                    if (st.sypBalance > 0) totalReceivablesSyp += st.sypBalance;
-                    if (st.sypBalance < 0) totalPayablesSyp += Math.abs(st.sypBalance);
-                    if (st.usdBalance > 0) totalReceivablesUsd += st.usdBalance;
-                    if (st.usdBalance < 0) totalPayablesUsd += Math.abs(st.usdBalance);
-                }
-
                 let lowStockCount = 0;
                 for (const item of State.items) {
                     const curStock = Accounting.getItemBaseStock(item.id);
@@ -2303,32 +2332,7 @@
                 }
 
                 main.innerHTML = `
-                    <!-- Dual-Currency Cashbox & Financial Position Cards -->
-                    <div class="grid grid-cols-2 gap-2.5 mb-4">
-                        <div class="bg-gradient-to-br from-slate-900 to-slate-800 text-white p-3.5 rounded-2xl shadow-sm">
-                            <div class="flex items-center justify-between text-xs text-slate-400 mb-1">
-                                <span>رصيد الصندوق (SYP / USD)</span>
-                                <i class="fas fa-vault text-emerald-400"></i>
-                            </div>
-                            <div class="font-extrabold text-base sm:text-lg text-emerald-400">${Accounting.format(cash.sypCash, 'SYP')}</div>
-                            <div class="font-bold text-xs sm:text-sm text-amber-300 mt-0.5">${Accounting.format(cash.usdCash, 'USD')}</div>
-                        </div>
-
-                        <div class="bg-white border border-slate-200 p-3.5 rounded-2xl shadow-xs flex flex-col justify-between">
-                            <div class="flex items-center justify-between text-xs text-slate-500">
-                                <span>ديون لنا (مدينون)</span>
-                                <i class="fas fa-arrow-trend-up text-blue-600"></i>
-                            </div>
-                            <div>
-                                <div class="font-bold text-sm text-blue-700">${Accounting.format(totalReceivablesSyp, 'SYP')}</div>
-                                <div class="font-bold text-xs text-blue-500">${Accounting.format(totalReceivablesUsd, 'USD')}</div>
-                            </div>
-                            <div class="border-t border-slate-100 pt-1 mt-1 flex items-center justify-between text-[11px]">
-                                <span class="text-slate-400">علينا (دائنون):</span>
-                                <span class="font-bold text-rose-600">${Accounting.format(totalPayablesSyp, 'SYP')} | ${Accounting.format(totalPayablesUsd, 'USD')}</span>
-                            </div>
-                        </div>
-                    </div>
+                    
 
                     <!-- Quick Field Action Buttons -->
                     <h2 class="font-bold text-xs text-slate-500 mb-2 px-1">العمليات السريعة (الفواتير والسندات)</h2>
@@ -2373,10 +2377,6 @@
                         <button onclick="AppNav.navigate('accounts', { debts: true, balanceSide: 'debit' })" class="bg-white border border-slate-200 p-2.5 rounded-xl flex flex-col items-center gap-1 hover:bg-slate-50 active:scale-95">
                             <i class="fas fa-scale-balanced text-rose-600 text-base"></i>
                             <span class="text-[11px] font-bold text-slate-700">الديون</span>
-                        </button>
-                        <button onclick="AppNav.navigate('settings')" class="bg-white border border-slate-200 p-2.5 rounded-xl flex flex-col items-center gap-1 hover:bg-slate-50 active:scale-95">
-                            <i class="fas fa-sliders text-slate-700 text-base"></i>
-                            <span class="text-[11px] font-bold text-slate-700">الضبط</span>
                         </button>
                         <button onclick="AppNav.navigate('warehouses')" class="bg-white border border-slate-200 p-2.5 rounded-xl flex flex-col items-center gap-1 hover:bg-slate-50 active:scale-95">
                             <i class="fas fa-box-open text-sky-600 text-base"></i>
@@ -3300,6 +3300,8 @@
                 const selectedDate = params.date || new Date().toISOString().slice(0, 10);
                 const profitView = params.view || 'invoices';
                 const inventoryWarehouseId = params.warehouseId || State.settings.selectedWarehouseId || 'wh_main';
+                const inventoryValuationCurrency = ['SYP', 'USD'].includes(State.settings.inventoryValuationCurrency) ? State.settings.inventoryValuationCurrency : 'SYP';
+                const inventoryValuation = tab === 'inventory' ? InventoryValuation.calculate(inventoryWarehouseId, inventoryValuationCurrency) : null;
                 const revealProfits = params.reveal === true || params.reveal === 'true';
                 const asLocalDate = d => { const x = new Date(d.getTime() - d.getTimezoneOffset() * 60000); return x.toISOString().slice(0, 10); };
                 const today = asLocalDate(new Date());
@@ -3403,8 +3405,23 @@
                                 ${WarehouseController.options(inventoryWarehouseId)}
                             </select>
                         </div>
-                        <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden"><div class="p-3 font-bold text-xs border-b border-slate-100 flex justify-between"><span>تقرير الجرد الفعلي للأصناف</span><span>عدد المواد: ${State.items.length}</span></div>
-                        ${(Array.isArray(State.items) ? State.items : []).length === 0 ? `<div class="p-6 text-center text-xs text-slate-400">المستودع فارغ حالياً</div>` : `<table class="w-full text-right text-xs"><thead class="bg-slate-50 text-slate-600 font-bold border-b"><tr><th class="p-2.5">المادة (عملتها)</th><th class="p-2.5 text-center">الرصيد بالوحدة الكبرى الأساسية</th><th class="p-2.5 text-left">تقييم التكلفة</th></tr></thead><tbody class="divide-y divide-slate-100">${State.items.map(item => { const st = Accounting.getItemBaseStock(item.id, null, inventoryWarehouseId === 'all' ? null : inventoryWarehouseId); const stDisp = Accounting.formatItemQuantity(st); const u0 = item.units[0] || { name: 'كرتونة', costPrice: 0 }; const val = st * (Number(u0.costPrice) || 0); return `<tr><td class="p-2.5 font-bold">${item.name} <span class="text-[10px] text-slate-400">(${item.currency})</span></td><td class="p-2.5 text-center font-bold ${st <= item.minStockBase ? 'text-rose-600' : 'text-emerald-700'}">${stDisp} ${u0.name}</td><td class="p-2.5 text-left font-bold">${Accounting.format(val, item.currency)}</td></tr>`; }).join('')}</tbody></table>`}</div>
+                        <!-- Total valuation in a selectable currency (cost, not sale price). -->
+                        <div class="bg-emerald-50 border-2 border-emerald-300 rounded-2xl p-4 mb-3" id="inventoryTotalValueCard">
+                            <div class="flex flex-wrap items-center justify-between gap-3 mb-2">
+                                <label class="text-sm font-extrabold text-emerald-950" for="inventoryValuationCurrency">القيمة الإجمالية للمواد بسعر التكلفة</label>
+                                <select id="inventoryValuationCurrency" aria-label="عملة تقييم المخزون" onchange="InventoryValuation.setCurrency(this.value)" class="border border-emerald-400 bg-white rounded-xl px-3 py-2 text-sm font-bold text-emerald-900">
+                                    <option value="SYP" ${inventoryValuationCurrency === 'SYP' ? 'selected' : ''}>الليرة السورية (SYP)</option>
+                                    <option value="USD" ${inventoryValuationCurrency === 'USD' ? 'selected' : ''}>الدولار الأمريكي (USD)</option>
+                                </select>
+                            </div>
+                            <div id="inventoryGrandTotal" dir="ltr" class="text-2xl font-black text-emerald-800 text-center py-2" aria-live="polite">${inventoryValuation.total === null ? '—' : Accounting.format(inventoryValuation.total, inventoryValuationCurrency)}</div>
+                            ${inventoryValuation.total === null
+                                ? `<div role="alert" class="text-xs font-bold text-rose-700">سعر الصرف غير صالح. يرجى تعديل سعر الصرف لإتمام تقييم المواد بعملة موحدة.</div>`
+                                : `<div class="text-xs text-emerald-900"><span>سعر الصرف المستخدم: 1 USD =</span> <b dir="ltr">${Accounting.format(inventoryValuation.rate, 'SYP')}</b></div>`}
+                            <div class="text-[11px] text-emerald-800 mt-1">يُحسب الإجمالي من رصيد المستودع المحدد × سعر تكلفة الوحدة الأساسية لكل مادة.</div>
+                        </div>
+                        <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden"><div class="p-3 font-bold text-xs border-b border-slate-100 flex justify-between"><span>تقرير الجرد الفعلي للأصناف</span><span>عدد المواد: ${inventoryValuation.rows.length}</span></div>
+                        ${inventoryValuation.rows.length === 0 ? `<div class="p-6 text-center text-xs text-slate-400">المستودع فارغ حالياً</div>` : `<table class="w-full text-right text-xs"><thead class="bg-slate-50 text-slate-600 font-bold border-b"><tr><th class="p-2.5">المادة (عملتها)</th><th class="p-2.5 text-center">الرصيد بالوحدة الكبرى الأساسية</th><th class="p-2.5 text-left">تقييم التكلفة</th></tr></thead><tbody class="divide-y divide-slate-100">${inventoryValuation.rows.map(({item,stock,baseUnit,value}) => `<tr><td class="p-2.5 font-bold">${AppEscape.text(item.name)} <span class="text-[10px] text-slate-400">(${item.currency === 'USD' ? 'USD' : 'SYP'})</span></td><td class="p-2.5 text-center font-bold ${stock <= (Number(item.minStockBase) || 0) ? 'text-rose-600' : 'text-emerald-700'}">${Accounting.formatItemQuantity(stock)} ${AppEscape.text(baseUnit.name)}</td><td class="p-2.5 text-left font-bold" dir="ltr">${value === null ? '—' : Accounting.format(value, inventoryValuationCurrency)}</td></tr>`).join('')}</tbody></table>`}</div>
                     ` : `
                         <div class="bg-white border border-slate-200 rounded-2xl p-3 mb-3 space-y-3">
                             <div class="flex items-center justify-between gap-2">
