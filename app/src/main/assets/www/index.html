@@ -1681,6 +1681,12 @@
 
             renderCurrent() {
                 const { screen, params } = this.current();
+                // A successful setting change may re-render this screen before the
+                // queued <details> toggle event has updated expandedSections.
+                // Remember the live panel and its scroll position, rather than
+                // treating a notification as navigation away from the settings form.
+                const settingsView = screen === 'settings'
+                    ? SettingsController.captureVisibleSettingsView() : null;
                 const backBtn = document.getElementById('headerBackBtn');
                 const backIcon = document.getElementById('headerBackIcon');
                 if (backBtn) {
@@ -1713,9 +1719,10 @@
                     }
                 });
 
-                window.scrollTo({ top: 0, behavior: 'instant' });
+                if (!settingsView) window.scrollTo({ top: 0, behavior: 'instant' });
                 try {
                     Views.render(screen, params);
+                    if (settingsView) SettingsController.restoreVisibleSettingsView(settingsView);
                 } catch (error) {
                     console.error('Application screen render failed:', screen, error);
                     const main = document.getElementById('mainContent');
@@ -6745,6 +6752,36 @@
         const SettingsController = {
             expandedSections: new Set(),
             passwordPanelOpen: false,
+            captureVisibleSettingsView() {
+                const root = document.getElementById('mainContent');
+                const sections = root?.querySelectorAll('details.settings-section');
+                if (!sections?.length) return null; // entering Settings, not refreshing
+                const live = Array.from(sections).find(el => el.open);
+                const liveKey = live?.dataset?.settingsSection;
+                const pendingKey = this.expandedSections.values().next().value;
+                // The DOM is authoritative if no different section was explicitly
+                // requested by a controller (e.g. opening PIN setup).
+                if (liveKey && (!pendingKey || pendingKey === liveKey)) {
+                    this.expandedSections.clear();
+                    this.expandedSections.add(liveKey);
+                }
+                return {
+                    x: window.scrollX || 0,
+                    y: window.scrollY || 0,
+                    section: this.expandedSections.values().next().value || liveKey || null
+                };
+            },
+            restoreVisibleSettingsView(view) {
+                if (!view) return;
+                // onSectionToggle ignores callbacks from removed DOM nodes.
+                // Keep the same open panel after replacing the settings markup.
+                const root = document.getElementById('mainContent');
+                const sections = root?.querySelectorAll('details.settings-section');
+                for (const el of Array.from(sections || [])) {
+                    el.open = el.dataset.settingsSection === view.section;
+                }
+                window.scrollTo({ left: view.x, top: view.y, behavior: 'instant' });
+            },
             closeAllSections() {
                 this.expandedSections.clear();
                 this.passwordPanelOpen = false;
@@ -6754,7 +6791,9 @@
             },
             onSectionToggle(details) {
                 const key = details?.dataset?.settingsSection;
-                if (!key) return;
+                // A toggle event can be delivered after renderCurrent replaced the
+                // entire panel. Never let that obsolete event close the new panel.
+                if (!key || details.isConnected === false) return;
                 if (details.open) {
                     // Only one accordion pane is allowed, including after rerender.
                     const sections = typeof document.querySelectorAll === 'function'
@@ -6764,7 +6803,7 @@
                     }
                     this.expandedSections.clear();
                     this.expandedSections.add(key);
-                } else {
+                } else if (this.expandedSections.has(key)) {
                     this.expandedSections.delete(key);
                 }
             },
