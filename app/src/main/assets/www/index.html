@@ -3157,7 +3157,7 @@
                 }, {debit:{syp:0,usd:0},credit:{syp:0,usd:0}});
 
                 main.innerHTML = `
-                    ${debtsMode ? `
+                    ${debtsMode && balanceSide === 'debit' ? `
                     <div class="bg-gradient-to-l from-emerald-50 to-white border border-emerald-200 rounded-2xl p-3.5 mb-3 shadow-xs">
                         <div class="flex items-center gap-2 mb-2">
                             <div class="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center"><i class="fas fa-wallet"></i></div>
@@ -3177,7 +3177,8 @@
                             </div>
                         </div>
                     </div>
-
+                    ` : ''}
+                    ${debtsMode && balanceSide === 'credit' ? `
                     <div class="bg-gradient-to-l from-amber-50 to-white border border-amber-200 rounded-2xl p-3.5 mb-3 shadow-xs">
                         <div class="flex items-center gap-2 mb-2">
                             <div class="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center"><i class="fas fa-truck"></i></div>
