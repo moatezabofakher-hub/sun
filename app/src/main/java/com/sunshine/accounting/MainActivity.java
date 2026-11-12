@@ -649,7 +649,7 @@ public final class MainActivity extends FragmentActivity {
                 intent.addCategory(Intent.CATEGORY_OPENABLE);
                 intent.setType("application/json");
                 String safeName = (filename == null ? "SAN_SHINE_Backup.json" : filename)
-                        .replaceAll("[^a-zA-Z0-9_.-]", "_");
+                        .replaceAll("[^\\p{L}\\p{N}_.-]", "_");
                 intent.putExtra(Intent.EXTRA_TITLE, safeName);
                 try {
                     startActivityForResult(intent, SAVE_BACKUP);

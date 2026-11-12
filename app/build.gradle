@@ -10,8 +10,8 @@ android {
         applicationId 'com.sunshine.technicalaccountant'
         minSdk 26
         targetSdk 35
-        versionCode 27
-        versionName '3.5.20-settings-persist'
+        versionCode 28
+        versionName '3.5.21-invoices-reports-profiles'
     }
 
     // A permanent signing key is required for in-place updates. The keystore is

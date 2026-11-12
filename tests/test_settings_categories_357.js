@@ -30,10 +30,10 @@ const {State,Accounting,SettingsController,Renderer,I18n}=ctx.Test;
 let main={innerHTML:''};
 Renderer.renderSettings(main);
 const tags=[...main.innerHTML.matchAll(/<details class="settings-section" data-settings-section="([^"]+)"/g)].map(x=>x[1]);
-assert.deepEqual(tags,['language','invoices','items','printing','company','security','backup','currency','activation','data']);
+assert.deepEqual(tags,['business-profiles','language','invoices','items','printing','company','security','backup','currency','activation','data']);
 for(const id of ['setCompanyName','setCompanyPhone','setCompanyAddress','setFooterNote','appProtectionSettings','appLanguage','setPrinterWidth','setPrinterFontScale','allowOutOfStockSales','setItemQuantityDecimals','setDefaultInvoiceCurrency','setDefaultInvoiceListType','settingsLicenseStatus'])
  assert.ok(main.innerHTML.includes(`id="${id}"`),`missing setting id ${id}`);
-assert.equal((main.innerHTML.match(/<\/details>/g)||[]).length,10);
+assert.equal((main.innerHTML.match(/<\/details>/g)||[]).length,11);
 assert.ok(!main.innerHTML.includes('open>'),'all sections should start closed');
 assert.ok(main.innerHTML.includes('Backup controls'));
 assert.ok(main.innerHTML.includes('تصفير شامل لقاعدة البيانات'));
@@ -65,5 +65,5 @@ assert.equal(I18n.translate('عدد الخانات بعد الفاصلة الع�
  assert.ok(!SettingsController.expandedSections.has('items'));
  assert.ok(saveCount>=4);
  assert.ok(rerenders>=2);
- console.log('PASS: 10 collapsible grouped settings, precision and invoice defaults persist, license/security/backup remain, translations');
+ console.log('PASS: 11 collapsible grouped settings, precision and invoice defaults persist, license/security/backup remain, translations');
 })().catch(err=>{console.error(err);process.exit(1)});

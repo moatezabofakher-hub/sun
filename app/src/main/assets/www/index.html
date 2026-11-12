@@ -561,6 +561,25 @@
         @media(max-width:360px){.ta-items-filters{grid-template-columns:1fr}.ta-view-switch{grid-column:1/-1}.ta-stock-card.is-list{gap:7px;padding:9px}.ta-stock-card.is-list > .shrink-0{width:50px;height:50px}.ta-item-actions button{width:30px;}}
         @media(prefers-reduced-motion:reduce){.ta-action-card,.ta-module-card,.ta-primary-3d,.ta-secondary-3d{transition:none !important;}}
 
+
+        /* v3.5.21 — calm invoice surfaces, embossed controls and defined item rows. */
+        .invoice-entry-top {background:linear-gradient(145deg,#fff,#f3f8fd);border:1px solid #cbd5e1;box-shadow:0 8px 20px rgba(15,23,42,.08),inset 0 1px #fff;}
+        .invoice-entry-top select,.invoice-entry-top input{min-height:34px;}
+        .invoice-entry-top label{font-weight:800;letter-spacing:.05px;}
+        .invoice-added-items {background:#eaf5ff!important;border:1px solid #7dd3fc!important;box-shadow:0 6px 16px #07598514!important;}
+        .invoice-added-items .invoice-added-row {position:relative;background:#f5faff;border-bottom:2px dashed #86b9d6!important;margin:0 7px;border-radius:8px;padding:12px 7px!important;}
+        .invoice-added-items .invoice-added-row:last-child{border-bottom:0!important;}
+        .invoice-added-items .invoice-added-row:nth-child(odd){background:#eaf4ff;}
+        .invoice-added-row .invoice-row-index{display:inline-flex;align-items:center;justify-content:center;min-width:25px;height:25px;background:linear-gradient(#fff,#cbdcf1);border:1px solid #9cb6d2;color:#153856;border-radius:9px;box-shadow:0 2px 0 #8baac5;font-size:12px;font-weight:900;}
+        .invoice-added-row input,.invoice-added-row select{background:white;border-color:#c1cfdf;box-shadow:inset 0 1px 2px #0f172a0c;min-height:36px;}
+        .invoice-print-item-row{border-bottom:1.5px dashed #777!important;}
+        .invoice-print-item-row:last-child{border-bottom:none!important;}
+        .invoice-report-action{background:linear-gradient(145deg,#18678b,#0d3e59);box-shadow:0 5px 0 #082b40,0 8px 15px #082b4029;color:white!important;border-radius:13px;font-weight:800;padding:11px 13px;}
+        .invoice-report-action:active{transform:translateY(3px);box-shadow:0 2px 0 #082b40;}
+        .report-card{background:#fff;border:1px solid #d4e0ed;border-radius:15px;box-shadow:0 4px 12px #0f172a0c;}
+        .report-period-pill{border:1px solid #c5d5e5;padding:9px 5px;border-radius:10px;font-size:11px;font-weight:800;background:#f8fafc;color:#334155;}
+        .report-period-pill.active{background:#0e577b;color:white;border-color:#0c5274;box-shadow:0 3px 0 #073e60;}
+        .profiles-chip{border:1px solid #a5b8d0;border-radius:14px;background:linear-gradient(145deg,#fff,#edf5ff);padding:10px;box-shadow:0 3px 0 #becbdc;}
     </style>
 </head>
 <body class="ta-premium-ui bg-slate-100 text-slate-800 min-h-screen flex flex-col w-full max-w-full overflow-x-hidden">
@@ -719,6 +738,9 @@
             expenses: []
         };
 
+        // Immutable template for a newly created business ledger. The activation is device-wide.
+        const DEFAULT_PROFILE = JSON.parse(JSON.stringify(State));
+
         /** Currency selection is deliberately separated from the existing USD/SYP double-entry ledger.
          * Other ISO codes may be catalogued here; transactions remain USD/SYP until
          * the ledger, settlements, statements and historic migrations support extra codes.
@@ -805,6 +827,7 @@
                             if (!State.warehouses.some(w => w.id === State.settings.selectedWarehouseId))
                                 State.settings.selectedWarehouseId = 'wh_main';
                         }
+                        await ProfileManager.initialize();
                         await LicenseManager.syncFallbackStorage();
                         ThermalPrinter.updateStatusUI();
                         resolve();
@@ -819,7 +842,7 @@
             async saveState() {
                 LicenseManager.persistFallbackStorage();
                 if (!this.db) return;
-                return new Promise((resolve) => {
+                return new Promise((resolve, reject) => {
                     const tx = this.db.transaction('app_state', 'readwrite');
                     const store = tx.objectStore('app_state');
                     store.put({
@@ -838,6 +861,14 @@
                             expenses: State.expenses
                         }
                     });
+                    if (ProfileManager.registry) {
+                        const profile = ProfileManager.registry.profiles.find(p=>p.id===ProfileManager.registry.activeId);
+                        if (profile) profile.name=String(State.settings.companyName||profile.name).trim()||profile.name;
+                        store.put({id:'profile:'+ProfileManager.registry.activeId,updatedAt:new Date().toISOString(),data:ProfileManager.cloneState()});
+                        store.put({id:'profile_registry',data:ProfileManager.registry});
+                    }
+                    tx.onerror = () => { console.error('IndexedDB state commit failed', tx.error); reject(tx.error || Error('تعذر حفظ بيانات الشركة')); };
+                    tx.onabort = () => reject(tx.error || Error('تم إلغاء عملية حفظ البيانات'));
                     tx.oncomplete = () => {
                         // Only snapshot successful IndexedDB commits; background workers never
                         // touch the live accounting database or read an unfinished invoice.
@@ -857,6 +888,217 @@
                 State.expenses = [];
                 State.settings.selectedWarehouseId = 'wh_main';
                 await this.saveState();
+            }
+        };
+
+
+        /**
+         * Independent business ledgers live in separate IndexedDB records.
+         * 'main' remains an atomic active-ledger mirror to preserve compatibility with old releases.
+         * Before changing the active ledger we persist a dated, local recovery snapshot.
+         * No uploaded backup can silently overwrite the current business.
+         */
+        const ProfileManager = {
+            registry: null,
+            activeId: 'primary',
+            pendingTarget: null,
+            generateId() {
+                const bytes=new Uint8Array(16);
+                crypto.getRandomValues(bytes);
+                return 'business_'+Array.from(bytes,b=>b.toString(16).padStart(2,'0')).join('');
+            },
+            cloneState() { return JSON.parse(JSON.stringify(State)); },
+            newState(name) {
+                const data=JSON.parse(JSON.stringify(DEFAULT_PROFILE));
+                data.settings.companyName=String(name||'شركة جديدة').trim();
+                data.license=JSON.parse(JSON.stringify(State.license)); // device-wide activation & trial counter
+                return data;
+            },
+            currentName() { return String(State.settings.companyName||'شركة').trim()||'شركة'; },
+            safeName(name) { return String(name||'Company').trim().replace(/[^\p{L}\p{N}_-]+/gu,'_').slice(0,52)||'Company'; },
+            exportName() { return `Backup_${this.safeName(this.currentName())}_${this.activeId}_${new Date().toISOString().slice(0,10)}.json`; },
+            async getRecord(id) {
+                return new Promise((resolve,reject)=>{
+                    const tx=StorageEngine.db.transaction('app_state','readonly');
+                    const req=tx.objectStore('app_state').get(id);
+                    req.onsuccess=()=>resolve(req.result||null);
+                    req.onerror=()=>reject(req.error||Error('تعذّر قراءة السجل'));
+                });
+            },
+            async putBatch(records) {
+                return new Promise((resolve,reject)=>{
+                    const tx=StorageEngine.db.transaction('app_state','readwrite');
+                    const store=tx.objectStore('app_state');
+                    records.forEach(r=>store.put(r));
+                    tx.oncomplete=()=>resolve(true);
+                    tx.onabort=()=>reject(tx.error||Error('تعذّر حفظ البيانات قبل التبديل'));
+                    tx.onerror=()=>{};
+                });
+            },
+            async initialize() {
+                const existing=await this.getRecord('profile_registry');
+                if(existing?.data?.activeId && Array.isArray(existing.data.profiles)) {
+                    this.registry=existing.data;this.activeId=this.registry.activeId;
+                    if(!this.registry.profiles.some(p=>p.id===this.activeId)) throw Error('ملف الحسابات المستقلة غير متوافق');
+                    return;
+                }
+                // First upgrade: retain all existing accounting information as primary profile.
+                this.activeId=this.generateId();
+                this.registry={version:1,activeId:this.activeId,profiles:[{id:this.activeId,name:this.currentName(),createdAt:new Date().toISOString()}]};
+                await this.putBatch([
+                    {id:'profile_registry',data:this.registry},
+                    {id:'profile:'+this.activeId,data:this.cloneState(),updatedAt:new Date().toISOString()}
+                ]);
+            },
+            backupPayload(data=this.cloneState(),id=this.activeId,name=this.currentName()) {
+                return {app:'AlRaedAccountingERP',backupFormat:2,profileId:id,profileName:name,companyName:data.settings?.companyName||name,exportedAt:new Date().toISOString(),data};
+            },
+            async makeCheckpoint(label='before-switch') {
+                if(!this.registry||!StorageEngine.db) throw Error('قاعدة البيانات غير جاهزة');
+                const stamp=new Date().toISOString().replace(/[:.]/g,'-');
+                const snapshot=this.cloneState();
+                const key=`backup:${this.activeId}:${stamp}`;
+                await this.putBatch([
+                    {id:key,createdAt:new Date().toISOString(),reason:label,profileId:this.activeId,profileName:this.currentName(),data:snapshot},
+                    {id:'profile:'+this.activeId,data:snapshot,updatedAt:new Date().toISOString()}
+                ]);
+                // This recovery checkpoint is local IndexedDB; export a JSON file for off-device safety.
+                return key;
+            },
+            async createProfile() {
+                const input=document.getElementById('newBusinessProfileName');
+                const name=String(input?.value||'').trim();
+                if(name.length<2 || name.length>75) return UI.toast('اسم الشركة يجب أن يكون من 2 إلى 75 حرفاً', 'error');
+                if(this.registry.profiles.some(p=>p.name.trim().toLocaleLowerCase()===name.toLocaleLowerCase()))
+                    return UI.toast('يوجد حساب بهذا الاسم بالفعل', 'warn');
+                if(AppNav.isDirty||AppNav.isModalDirty) return UI.toast('احفظ التغييرات المفتوحة أولاً', 'warn');
+                try {
+                    await StorageEngine.saveState();
+                    const id=this.generateId();
+                    const next=this.newState(name);
+                    const current=this.registry.profiles.map(p=>({...p}));
+                    const updated={...this.registry,profiles:[...current,{id,name,createdAt:new Date().toISOString()}]};
+                    await this.putBatch([{id:'profile:'+id,data:next,updatedAt:new Date().toISOString()},{id:'profile_registry',data:updated}]);
+                    this.registry=updated;
+                    await this.activate(id);
+                }catch(e){UI.toast('تعذّر إنشاء حساب مستقل: '+e.message,'error');}
+            },
+            async requestSwitch(id) {
+                if(!this.registry?.profiles.some(p=>p.id===id)||id===this.activeId) return;
+                if(AppNav.isDirty||AppNav.isModalDirty||AppNav.activeOperationGuard)
+                    return UI.toast('احفظ الفاتورة أو التعديل الجاري قبل تبديل الشركة', 'warn');
+                const target=await this.getRecord('profile:'+id);
+                if(!target?.data) return UI.toast('تعذر العثور على بيانات الشركة المستهدفة', 'error');
+                this.pendingTarget=id;
+                const cfg=target.data.settings?.appProtection||{};
+                if(cfg.pinHash&&cfg.pinSalt){
+                    UI.openModal(`<div class="space-y-3 text-right"><h3 class="font-black text-base">تبديل الشركة</h3><p class="text-xs text-slate-600">سيتم حفظ نسخة استرجاع محلية للشركة الحالية، ثم فتح ${AppEscape.text(target.data.settings.companyName)}.</p><label class="block text-xs font-bold">كلمة سر الشركة المستهدفة<input id="profileSwitchPin" type="password" inputmode="numeric" class="w-full mt-2 border rounded-xl p-3" autocomplete="off"></label><button onclick="ProfileManager.confirmSwitch()" class="w-full bg-emerald-700 text-white rounded-xl py-3 font-black">تحقق وتبديل</button></div>`);
+                }else{
+                    UI.openModal(`<div class="space-y-3 text-right"><h3 class="font-black text-base">تبديل الشركة</h3><p class="text-xs text-slate-600">سيتم حفظ جميع بيانات ${AppEscape.text(this.currentName())} ونقطة استرجاع محلية قبل التبديل.</p><p class="text-xs text-amber-800 bg-amber-50 p-2 rounded-lg">الشركة المستهدفة ليس لها كلمة سر بعد. يمكنك ضبط كلمة سر منفصلة من قسم الحماية.</p><button onclick="ProfileManager.confirmSwitch()" class="w-full bg-emerald-700 text-white rounded-xl py-3 font-black">حفظ البيانات والتبديل</button></div>`);
+                }
+            },
+            async confirmSwitch() {
+                const id=this.pendingTarget;
+                const rec=await this.getRecord('profile:'+id);
+                if(!rec?.data) return;
+                const cfg=rec.data.settings?.appProtection||{};
+                if(cfg.pinHash){
+                    const pin=document.getElementById('profileSwitchPin')?.value||'';
+                    const check=await ProtectionController.hashPin(pin,cfg.pinSalt,cfg.pinAlgo||'sha256-v1');
+                    if(check!==cfg.pinHash) return UI.toast('كلمة سر الشركة غير صحيحة','error');
+                }
+                await this.activate(id);
+            },
+            async activate(id) {
+                if(!this.registry?.profiles.some(p=>p.id===id)||id===this.activeId) return;
+                if(AppNav.isDirty||AppNav.isModalDirty||AppNav.activeOperationGuard) return UI.toast('يوجد تعديل غير محفوظ', 'warn');
+                try {
+                    const target=await this.getRecord('profile:'+id);
+                    if(!target?.data) throw Error('لا توجد بيانات محفوظة للشركة');
+                    const oldId=this.activeId,oldState=this.cloneState(),newState=target.data;
+                    const commonLicense=JSON.parse(JSON.stringify(State.license));
+                    const registry={...this.registry,activeId:id};
+                    const date=new Date().toISOString();
+                    const checkpointId=`backup:${oldId}:${date.replace(/[:.]/g,'-')}`;
+                    await StorageEngine.saveState();
+                    await this.putBatch([
+                        {id:checkpointId,reason:'before-switch',profileId:oldId,profileName:this.currentName(),createdAt:date,data:oldState},
+                        {id:'profile:'+oldId,data:oldState,updatedAt:date},
+                        {id:'main',data:{...newState,license:commonLicense},updatedAt:date},
+                        {id:'profile:'+id,data:{...newState,license:commonLicense},updatedAt:date},
+                        {id:'profile_registry',data:registry}
+                    ]);
+                    this.registry=registry;this.activeId=id;
+                    for(const key of ['settings','categories','items','accounts','invoices','vouchers','warehouses','transfers','expenses'])
+                        State[key]=JSON.parse(JSON.stringify(newState[key]??DEFAULT_PROFILE[key]));
+                    State.license=commonLicense;
+                    AppNav.clearDirty();AppNav.clearModalDirty();UI.forceCloseModal();
+                    SettingsController.closeAllSections();
+                    AppNav.stack=[{screen:'dashboard',params:{}}];
+                    AppNav.renderCurrent();
+                    BackupController.stageLatest();
+                    UI.toast('تم حفظ الشركة السابقة وفتح '+this.currentName(),'success');
+                }catch(e){UI.toast('لم يتم التبديل؛ بقيت البيانات الحالية دون تغيير: '+e.message,'error');}
+            },
+            renderSettings() {
+                const profiles=this.registry?.profiles||[{id:'primary',name:this.currentName()}];
+                return `<div class="space-y-3"><div class="bg-sky-50 border border-sky-200 rounded-xl p-3 text-xs text-sky-900">كل شركة تملك مواد وفواتير وعملاء وسندات ومستودعات وإعدادات مستقلة. يتم حفظ نسخة استرجاع محلية قبل تبديل الشركة؛ وللحماية من فقدان الهاتف صدّر ملف JSON لكل شركة بشكل دوري.</div>
+                  <div class="space-y-2">${profiles.map(profile=>`<div class="profiles-chip flex items-center justify-between gap-2"><div class="min-w-0"><p class="text-xs font-black text-slate-900">${AppEscape.text(profile.id===this.activeId?this.currentName():profile.name)}</p><p class="text-[10px] text-slate-500">${profile.id===this.activeId?'الشركة المفتوحة حاليًا':'حساب مستقل محفوظ'}</p></div>${profile.id===this.activeId?'<span class="text-xs text-emerald-700 font-black">نشط</span>':`<button type="button" class="bg-slate-800 text-white text-[11px] font-bold rounded-lg p-2" onclick="ProfileManager.requestSwitch('${profile.id}')">فتح</button>`}</div>`).join('')}</div>
+                  <label class="block text-xs font-black text-slate-700">إضافة شركة / حساب مستقل<input id="newBusinessProfileName" maxlength="75" placeholder="اسم الشركة الجديدة" class="w-full mt-2 rounded-xl border border-slate-300 p-3 text-sm"></label>
+                  <button type="button" onclick="ProfileManager.createProfile()" class="w-full bg-emerald-700 text-white py-3 rounded-xl text-xs font-black"><i class="fas fa-plus ml-1"></i> إنشاء حساب مستقل جديد</button>
+                  <button type="button" onclick="SettingsController.exportBackup()" class="w-full bg-slate-900 text-white py-3 rounded-xl text-xs font-black"><i class="fas fa-download ml-1"></i> نسخة JSON باسم الشركة الحالية</button>
+                  <p class="text-[10px] text-amber-800 leading-relaxed">النسخ الداخلية لا تحمي عند حذف التطبيق أو تلف الهاتف. احفظ نسخة خارجية قبل الانتقال أو التحديث. لا ترفع النسخ إلى مستودع عام.</p>
+                </div>`;
+            },
+            async restoreParsed(parsed) {
+                const d=parsed?.data||parsed;
+                if(!d||!['categories','items','accounts','invoices','vouchers'].every(k=>Array.isArray(d[k])))
+                    throw Error('النسخة لا تحتوي على سجلات محاسبية كاملة');
+                const other=parsed.profileId?parsed.profileId!==this.activeId:this.activeId!==this.registry?.profiles?.[0]?.id;
+                if(other){
+                    this.pendingImport={parsed,d};
+                    const foreign=AppEscape.text(parsed.profileName||parsed.companyName||d.settings?.companyName||'حساب آخر');
+                    UI.openModal(`<div class="space-y-3 text-right"><h3 class="font-black text-base text-rose-800"><i class="fas fa-triangle-exclamation ml-1"></i> نسخة من شركة مختلفة</h3><p class="text-xs leading-relaxed bg-rose-50 p-3 rounded-xl text-rose-800">هذه النسخة تخص ${foreign}، وليست الحساب المفتوح: ${AppEscape.text(this.currentName())}. الاستعادة ستستبدل مواد وفواتير وحسابات وإعدادات الشركة الحالية. سيتم حفظ نقطة استرجاع داخلية أولاً.</p><label class="block text-xs font-bold">كلمة سر الشركة المالكة للنسخة<input id="foreignBackupPin" type="password" inputmode="numeric" autocomplete="off" class="mt-2 w-full p-3 border rounded-xl" placeholder="كلمة السر"></label><button onclick="ProfileManager.confirmForeignRestore()" class="w-full bg-rose-700 text-white py-3 rounded-xl font-black">تحقق واستعد بعد التحذير</button><button onclick="ProfileManager.pendingImport=null;UI.forceCloseModal()" class="w-full bg-slate-100 py-2 rounded-xl font-bold">إلغاء</button></div>`);
+                    return false;
+                }
+                await this.applyRestore(d);return true;
+            },
+            async confirmForeignRestore() {
+                const info=this.pendingImport;if(!info)return;
+                const cfg=info.d.settings?.appProtection||{};
+                if(!cfg.pinHash||!cfg.pinSalt){
+                    UI.toast('هذه النسخة لا تحتوي كلمة سر يمكن التحقق منها؛ يُمنع استيرادها إلى شركة مختلفة حفاظاً على العزل','error');return;
+                }
+                const pin=document.getElementById('foreignBackupPin')?.value||'';
+                const actual=await ProtectionController.hashPin(pin,cfg.pinSalt,cfg.pinAlgo||'sha256-v1');
+                if(actual!==cfg.pinHash){UI.toast('كلمة سر النسخة الاحتياطية غير صحيحة','error');return;}
+                const currentCfg=State.settings.appProtection||{};
+                // Existing company must approve overwriting its records too, when protected.
+                if(currentCfg.pinHash){
+                    this.authorizedImport=info;
+                    UI.openModal(`<div class="space-y-3 text-right"><p class="text-xs bg-amber-50 p-3 rounded-xl text-amber-800">تم التحقق من كلمة سر الشركة المصدر. أكّد الآن بكلمة سر الشركة الحالية قبل استبدال بياناتها.</p><input id="currentBackupPin" type="password" inputmode="numeric" class="w-full p-3 border rounded-xl" placeholder="كلمة سر الشركة الحالية"><button onclick="ProfileManager.confirmCurrentRestore()" class="w-full bg-rose-700 text-white rounded-xl p-3 font-black">تأكيد استعادة النسخة</button></div>`);return;
+                }
+                await this.applyRestore(info.d);
+            },
+            async confirmCurrentRestore() {
+                const pin=document.getElementById('currentBackupPin')?.value||'';
+                if(!(await ProtectionController.verifyPin(pin)))return UI.toast('كلمة سر الشركة الحالية غير صحيحة','error');
+                const data=this.authorizedImport?.d;
+                if(data)await this.applyRestore(data);
+            },
+            async applyRestore(d) {
+                if(AppNav.isDirty||AppNav.activeOperationGuard)return UI.toast('احفظ أي تعديلات قبل الاستعادة','warn');
+                // Commit a local pre-restore checkpoint BEFORE mutating State.
+                await this.makeCheckpoint('before-import');
+                const license=State.license;
+                const fresh=this.newState(d.settings?.companyName||this.currentName());
+                for(const key of ['settings','categories','items','accounts','invoices','vouchers','warehouses','transfers','expenses'])
+                    State[key]=JSON.parse(JSON.stringify(d[key]??fresh[key]));
+                State.license=license; // Activation cannot be imported from another device/business.
+                await StorageEngine.saveState();
+                this.pendingImport=null;this.authorizedImport=null;
+                UI.forceCloseModal();SettingsController.closeAllSections();
+                AppNav.navigate('dashboard',{},true);UI.toast('تمت استعادة البيانات بعد إنشاء نقطة استرجاع محلية','success');
             }
         };
 
@@ -2168,6 +2410,44 @@
                 }
             },
 
+            async printSummaryReport({title,range,rows,totals}) {
+                try {
+                    const width=State.settings.printerWidth===58?384:576;
+                    const scale=Number(State.settings.printFontScale)||0.75;
+                    const font=Math.max(15,Math.round((width===384?21:26)*scale));
+                    const pad=width===384?10:18;
+                    const canvas=document.getElementById('thermalCanvas');
+                    const ctx=canvas.getContext('2d');
+                    // Prepare wrapped Arabic report lines before allocating the canvas height.
+                    const lines=[];
+                    const add=(text,bold=false,center=false)=>{
+                        ctx.font=`${bold?'900':'bold'} ${font}px Cairo, sans-serif`;
+                        const words=String(text||'').split(/\s+/);
+                        let line='';
+                        for(const word of words){const test=line?line+' '+word:word;
+                            if(line&&ctx.measureText(test).width>width-2*pad){lines.push({text:line,bold,center});line=word;}else line=test;
+                        }
+                        if(line)lines.push({text:line,bold,center});
+                    };
+                    const sep=()=>lines.push({separator:true});
+                    add(State.settings.companyName||'المحاسب التقني',true,true);add(title,true,true);add(range,false,true);sep();
+                    for(const r of rows){add(r.name,true);add(r.detail);sep();}
+                    add(`عدد البنود: ${rows.length}`,true);add(`إجمالي الدولار: ${Accounting.format(totals.USD,'USD')}`,true);
+                    add(`إجمالي الليرة: ${Accounting.format(totals.SYP,'SYP')}`,true);sep();add('تقرير محاسبي من السجلات المحفوظة',false,true);
+                    canvas.width=width;canvas.height=30+lines.length*(font+16)+30;
+                    ctx.fillStyle='white';ctx.fillRect(0,0,canvas.width,canvas.height);
+                    ctx.fillStyle='black';ctx.textBaseline='top';ctx.direction='rtl';
+                    let y=16;
+                    for(const line of lines){
+                        if(line.separator){ctx.beginPath();ctx.setLineDash([5,5]);ctx.moveTo(pad,y+5);ctx.lineTo(width-pad,y+5);ctx.stroke();ctx.setLineDash([]);}
+                        else{ctx.font=`${line.bold?'900':'bold'} ${font}px Cairo, sans-serif`;ctx.textAlign=line.center?'center':'right';ctx.fillText(line.text,line.center?width/2:width-pad,y);}
+                        y+=font+16;
+                    }
+                    const bytes=this.canvasToEscPosRaster(canvas);await this.sendRawEscPosBytes(bytes);
+                    UI.toast('أُرسل تقرير الطباعة إلى الطابعة', 'success');return true;
+                }catch(e){UI.toast('تعذرت طباعة التقرير: '+e.message,'error');return false;}
+            },
+
             async printInvoiceDirect(inv) {
                 if (!inv) return false;
                 try {
@@ -2412,10 +2692,25 @@
                         ctx.fillText(nameLines[nl], xName, y);
                         y += fItem + 6;
                     }
-                    y += 4;
+                    // Dotted separator after each product except last; preserves index numbers.
+                    if (i < inv.rows.length - 1) {
+                        const lineY = y + 2;
+                        ctx.beginPath();
+                        ctx.setLineDash([4, 6]);
+                        ctx.strokeStyle = '#555555';
+                        ctx.lineWidth = 1;
+                        ctx.moveTo(pad, lineY);
+                        ctx.lineTo(widthDots - pad, lineY);
+                        ctx.stroke();
+                        ctx.setLineDash([]);
+                        ctx.strokeStyle = '#000000';
+                        y += 13;
+                    }
                 }
-
-                y += 4;
+                ctx.font = `bold ${fMeta}px Cairo, sans-serif`;
+                ctx.textAlign = 'right';
+                ctx.fillText(`عدد الأصناف: ${inv.rows.length}`, widthDots - pad, y);
+                y += fMeta + 12;
                 drawDoubleSep();
 
                 // 6. Totals Section
@@ -2818,6 +3113,95 @@
         /********************************************************************
          * 6. APPLICATION VIEWS & CONTROLLERS
          ********************************************************************/
+
+        /** Reports are computed from posted invoices/ledger. Never store duplicate totals. */
+        const LedgerReports = {
+            localDate(d=new Date()) { return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10); },
+            inPeriod(date, period, selected='', end='') {
+                const v=String(date||'').slice(0,10), today=this.localDate();
+                if (period==='today') return v===today;
+                if (period==='yesterday') {const y=new Date();y.setDate(y.getDate()-1);return v===this.localDate(y);}
+                if (period==='custom') return v===selected;
+                if (period==='range') return !!selected && !!end && selected<=v && v<=end;
+                return true;
+            },
+            sales(period='today',date='',end='') {
+                const grouped=new Map(), totals={USD:0,SYP:0}, invoiceTotals={USD:0,SYP:0};
+                for (const inv of State.invoices) {
+                    if (!inv || !['sale','sale_return'].includes(inv.type) || !this.inPeriod(inv.date,period,date,end)) continue;
+                    const rows=Array.isArray(inv.rows)?inv.rows:[];
+                    const currency=inv.currency==='USD'?'USD':'SYP';
+                    const sign=inv.type==='sale_return'?-1:1;
+                    const net=Accounting.round(Math.abs(Number(inv.netTotal)||0)*sign,currency);
+                    invoiceTotals[currency]+=net;
+                    const valid=rows.filter(r=>r && Number.isFinite(Number(r.qty)) && Number(r.qty)>0);
+                    const gross=valid.reduce((a,r)=>a+Math.max(0,Number(r.total)||Number(r.price)*Number(r.qty)||0),0);
+                    if (!valid.length) {
+                        // Keep report totals reconciled even for imported invoices lacking item rows.
+                        const key=JSON.stringify(['unassigned','—',currency]);
+                        const row=grouped.get(key)||{id:'',name:'قيمة فواتير دون تفاصيل أصناف',unit:'—',currency,qty:0,total:0};
+                        row.total+=net; grouped.set(key,row);totals[currency]+=net;
+                        continue;
+                    }
+                    let allocated=0;
+                    valid.forEach((r,i)=>{
+                        const weight=gross>0?Math.max(0,Number(r.total)||Number(r.price)*Number(r.qty)||0)/gross:1/valid.length;
+                        const amount=i===valid.length-1 ? Accounting.round(net-allocated,currency) : Accounting.round(net*weight,currency);
+                        allocated+=amount;
+                        const key=JSON.stringify([r.itemId||r.itemName,r.unitName||'قطعة',currency]);
+                        const item=grouped.get(key)||{id:r.itemId||'',name:r.itemName||State.items.find(it=>it.id===r.itemId)?.name||'صنف',unit:r.unitName||'قطعة',currency,qty:0,total:0};
+                        item.qty+=sign*Number(r.qty);
+                        item.total+=amount;
+                        grouped.set(key,item);
+                        totals[currency]+=amount;
+                    });
+                }
+                const items=Array.from(grouped.values()).sort((a,b)=>a.name.localeCompare(b.name,'ar'));
+                return {items,totals,invoiceTotals};
+            },
+            debts(side='debit') {
+                const accounts=[],totals={USD:0,SYP:0};
+                for(const acc of State.accounts){
+                    const st=Accounting.getAccountStatement(acc.id);
+                    const syp=side==='debit'?Math.max(0,Number(st.sypBalance)||0):Math.max(0,-(Number(st.sypBalance)||0));
+                    const usd=side==='debit'?Math.max(0,Number(st.usdBalance)||0):Math.max(0,-(Number(st.usdBalance)||0));
+                    if(syp>0||usd>0){accounts.push({name:acc.name||'حساب',SYP:syp,USD:usd});totals.SYP+=syp;totals.USD+=usd;}
+                }
+                return {accounts,totals};
+            },
+            params: {},
+            render(main,params={}) {
+                this.params={...params};
+                const sale=params.tab==='sales_summary';
+                const side=params.side==='credit'?'credit':'debit';
+                const period=params.period||'today';
+                const date=params.date||this.localDate();
+                const end=params.end||date;
+                const summary=sale?this.sales(period,date,end):this.debts(side);
+                UI.setHeader(`<i class="fas fa-receipt text-emerald-400"></i> ${sale?'تقرير المواد المباعة':'تقرير الذمم المالية'}`,'تقرير مطابق للسجلات المالية المحفوظة');
+                const periodButtons=['today','yesterday','all','custom','range'].map((p,i)=>`<button type="button" onclick="LedgerReports.goPeriod('${p}')" class="report-period-pill ${period===p?'active':''}">${['اليوم','الأمس','الكل','تاريخ','من / إلى'][i]}</button>`).join('');
+                main.innerHTML=`<div class="space-y-3 pb-6">
+                  <div class="report-card p-3 flex flex-wrap items-center justify-between gap-2"><div><h2 class="text-base font-black text-slate-900">${sale?'ملخص حركة المواد المباعة':'إجمالي الذمم'}</h2><p class="text-[11px] text-slate-500 mt-1">${AppEscape.text(State.settings.companyName)}</p></div><button class="invoice-report-action text-xs" type="button" onclick="LedgerReports.print()"><i class="fas fa-print ml-1"></i> طباعة حرارية</button></div>
+                  ${sale?`<div class="report-card p-3"><div class="grid grid-cols-5 gap-1.5">${periodButtons}</div>${period==='custom'||period==='range'?`<div class="grid grid-cols-${period==='range'?'2':'1'} gap-2 mt-3"><label class="text-[11px] font-bold">${period==='range'?'من':'التاريخ'}<input type="date" value="${AppEscape.text(date)}" onchange="LedgerReports.goDate(this.value,'start')" class="mt-1 w-full border rounded-xl p-2 text-xs"></label>${period==='range'?`<label class="text-[11px] font-bold">إلى<input type="date" value="${AppEscape.text(end)}" onchange="LedgerReports.goDate(this.value,'end')" class="mt-1 w-full border rounded-xl p-2 text-xs"></label>`:''}</div>`:''}</div>`:
+                    `<div class="report-card p-2 flex gap-2"><button class="flex-1 py-3 rounded-xl font-black text-xs ${side==='debit'?'bg-emerald-700 text-white':'bg-slate-100 text-slate-700'}" onclick="LedgerReports.goSide('debit')">لنا</button><button class="flex-1 py-3 rounded-xl font-black text-xs ${side==='credit'?'bg-amber-600 text-white':'bg-slate-100 text-slate-700'}" onclick="LedgerReports.goSide('credit')">علينا</button></div>`}
+                  <div class="grid grid-cols-2 gap-2"><div class="report-card p-3"><div class="text-xs text-slate-500 font-bold">الإجمالي بالدولار</div><div dir="ltr" class="text-base font-black text-emerald-800 mt-1">${Accounting.format(summary.totals.USD,'USD')}</div></div><div class="report-card p-3"><div class="text-xs text-slate-500 font-bold">الإجمالي بالليرة</div><div dir="ltr" class="text-base font-black text-emerald-800 mt-1">${Accounting.format(summary.totals.SYP,'SYP')}</div></div></div>
+                  <div class="report-card overflow-hidden"><div class="p-3 bg-slate-100 flex justify-between text-xs font-black"><span>${sale?'الصنف · الوحدة':'الحساب'}</span><span>${sale?'صافي الكمية والقيمة':'الرصيد المستحق'}</span></div><div class="divide-y divide-dashed divide-slate-200">${(sale?summary.items:summary.accounts).length? (sale?summary.items.map((r,i)=>`<div class="p-3 text-xs flex gap-2 items-start"><span class="rounded-lg text-[11px] font-black text-slate-600 bg-slate-100 p-1">${i+1}</span><div class="min-w-0 flex-1"><b>${AppEscape.text(r.name)}</b><p class="text-slate-500 text-[11px] mt-1">${AppEscape.text(r.unit)}</p></div><div class="text-left"><b>${Accounting.formatItemQuantity(r.qty)}</b><p class="text-emerald-800 font-black mt-1" dir="ltr">${Accounting.format(r.total,r.currency)}</p></div></div>`):summary.accounts.map((r,i)=>`<div class="p-3 text-xs flex gap-2"><span class="text-slate-400">${i+1}</span><b class="flex-1">${AppEscape.text(r.name)}</b><div class="text-left font-bold"><div dir="ltr">${Accounting.format(r.USD,'USD')}</div><div dir="ltr">${Accounting.format(r.SYP,'SYP')}</div></div></div>`)).join(''):`<div class="p-6 text-center text-sm text-slate-500">لا توجد عمليات مطابقة</div>`}</div></div>
+                  ${sale?`<p class="text-[11px] text-slate-500 px-2 leading-relaxed">القيم صافية بعد الحسم والضرائب والمردود، موزعة على بنود الفواتير، بكل عملة على حدة. تُعرض الوحدة كما وردت في الفاتورة دون جمع وحدات مختلفة.</p>`:'<p class="text-[11px] text-slate-500 px-2">الأرصدة محسوبة حتى اللحظة من سجلات الفواتير والسندات، بما فيها الأرصدة الافتتاحية.</p>'}
+                </div>`;
+            },
+            goPeriod(period) {AppNav.navigate('reports',{tab:'sales_summary',period,date:this.params.date||this.localDate(),end:this.params.end||this.localDate()},true);},
+            goDate(value,which){const opts={...this.params};opts[which==='end'?'end':'date']=value;AppNav.navigate('reports',opts,true);},
+            goSide(side){AppNav.navigate('reports',{tab:'debts_summary',side},true);},
+            async print(){
+                const p=this.params, sale=p.tab==='sales_summary';
+                const data=sale?this.sales(p.period||'today',p.date||this.localDate(),p.end||p.date||this.localDate()):this.debts(p.side||'debit');
+                const rows=sale?data.items.map((r,i)=>({name:`${i+1}. ${r.name} (${r.unit})`,detail:`${Accounting.formatItemQuantity(r.qty)} × ${Accounting.format(r.total,r.currency)}`})):data.accounts.map((r,i)=>({name:`${i+1}. ${r.name}`,detail:`${Accounting.format(r.USD,'USD')} | ${Accounting.format(r.SYP,'SYP')}`}));
+                const title=sale?'تقرير صافي المواد المباعة':`تقرير الديون ${p.side==='credit'?'علينا':'لنا'}`;
+                const range=sale?`${p.period||'today'}: ${p.date||this.localDate()} ${p.period==='range'?' - '+(p.end||''):''}`:'حتى '+this.localDate();
+                return await ThermalPrinter.printSummaryReport({title,range,rows,totals:data.totals});
+            }
+        };
+
         const Views = {
             jumpToEntry(panelId, fieldId) {
                 const panel = document.getElementById(panelId);
@@ -3414,8 +3798,8 @@
                                 </thead>
                                 <tbody class="font-bold">
                                     ${inv.rows.map((r, idx) => `
-                                        <tr class="align-top">
-                                            <td class="py-1 text-right">${idx + 1}</td>
+                                        <tr class="invoice-print-item-row align-top">
+                                            <td class="py-2 text-right font-black">${idx + 1}</td>
                                             <td class="py-1 text-right pl-1 break-words">${r.itemName}</td>
                                             <td class="py-1 text-center">${r.unitName}</td>
                                             <td class="py-1 text-center">${Accounting.formatItemQuantity(r.qty)}</td>
@@ -3425,6 +3809,7 @@
                                     `).join('')}
                                 </tbody>
                             </table>
+                            <div class="font-black text-[11px] text-right mt-2 pt-1">عدد الأصناف: ${inv.rows.length}</div>
                         </div>
 
                         <div class="text-center font-mono font-bold text-xs sm:text-sm tracking-widest my-1.5 select-none overflow-hidden">
@@ -3566,6 +3951,7 @@
                     </div>
 
                     ` : ''}
+                    ${debtsMode ? `<div class="mb-3"><button type="button" class="invoice-report-action w-full text-xs" onclick="AppNav.navigate('reports',{tab:'debts_summary',side:'${balanceSide}'})"><i class="fas fa-print ml-2"></i>طباعة تقرير إجمالي الديون ${balanceSide==='debit'?'التي لنا':'التي علينا'}</button></div>` : ''}
                     ${!debtsMode ? `<div class="flex items-center justify-start mb-3">
                         <button onclick="AccountController.openAccountModal()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-xs">
                             <i class="fas fa-user-plus"></i> إضافة عميل/مورد
@@ -3812,6 +4198,7 @@
                 UI.setHeader('<i class="fas fa-chart-pie text-emerald-400"></i> <span>التقارير المالية والمخزنية</span>', 'حركة الصندوق، جرد المستودع، والأرباح والخسائر');
 
                 const tab = params.tab || 'cashbox';
+                if (tab === 'sales_summary' || tab === 'debts_summary') return LedgerReports.render(main, params);
                 // Do not build the cashbox ledger while rendering the profit report.
                 // Imported/older databases may contain incomplete voucher records;
                 // that unrelated data must never block the profit & sales tab.
@@ -3912,6 +4299,10 @@
                         <button onclick="AppNav.navigate('reports', { tab: 'inventory' }, true)" class="py-2 rounded-xl ${tab === 'inventory' ? 'bg-slate-900 text-white' : 'text-slate-600'}">جرد المستودع</button>
                         <button type="button" onclick="AppNav.navigate('reports', { tab: 'pnl', period: 'all', view: 'invoices' }, true)" class="py-2 rounded-xl ${tab === 'pnl' ? 'bg-slate-900 text-white' : 'text-slate-600'}">الأرباح والمبيعات</button>
                     </div>
+                    <div class="grid grid-cols-2 gap-2 mb-4">
+                       <button type="button" onclick="AppNav.navigate('reports',{tab:'sales_summary',period:'today'},true)" class="invoice-report-action text-xs"><i class="fas fa-chart-bar ml-1"></i> طباعة إجمالي المواد المباعة</button>
+                       <button type="button" onclick="AppNav.navigate('reports',{tab:'debts_summary',side:'debit'},true)" class="invoice-report-action text-xs"><i class="fas fa-file-invoice-dollar ml-1"></i> طباعة تقرير الديون</button>
+                    </div>
                     ${tab === 'cashbox' ? `
                         <div class="grid grid-cols-2 gap-2.5 mb-3">
                             <div class="bg-emerald-700 text-white p-3.5 rounded-2xl"><span class="text-xs opacity-80 block">صافي صندوق الليرة السورية</span><span class="font-extrabold text-base sm:text-lg">${Accounting.format(cash.sypCash, 'SYP')}</span></div>
@@ -4002,6 +4393,10 @@
                 const mode = State.settings.btPrintMode || 'auto';
                 main.innerHTML = `
                     <div class="mb-3 text-[11px] text-slate-500 font-semibold px-1">جميع خيارات التطبيق مرتبة ضمن فئات. اضغط على اسم أي فئة لفتحها أو إغلاقها.</div>
+                    <details class="settings-section" data-settings-section="business-profiles" ontoggle="SettingsController.onSectionToggle(this)" ${SettingsController.expandedSections.has('business-profiles') ? 'open' : ''}>
+                      <summary class="settings-section-heading"><span class="settings-section-leading"><i class="fas fa-building text-emerald-600"></i><span><span class="settings-section-name">الحسابات المستقلة للشركات</span><span class="settings-section-note">التبديل والنسخ الاحتياطي لكل شركة</span></span></span><i class="fas fa-chevron-down settings-section-arrow"></i></summary>
+                      <div class="settings-section-body">${typeof ProfileManager === 'undefined' ? '' : ProfileManager.renderSettings()}</div>
+                    </details>
                     <details class="settings-section" data-settings-section="language" ontoggle="SettingsController.onSectionToggle(this)" ${SettingsController.expandedSections.has('language') ? 'open' : ''}>
                         <summary class="settings-section-heading" aria-label="اللغة">
                             <span class="settings-section-leading"><i class="fas fa-globe text-emerald-600" aria-hidden="true"></i><span><span class="settings-section-name">اللغة</span><span class="settings-section-note">العربية / English</span></span></span>
@@ -5919,8 +6314,8 @@
                 const partyLabelAr = isPurchase ? 'المورد' : 'العميل';
 
                 main.innerHTML = `
-                    <div class="bg-white rounded-2xl border border-slate-200 p-2 mb-3 shadow-xs space-y-1.5">
-                        <div class="flex flex-wrap items-center justify-between gap-1.5 border-b border-slate-100 pb-1.5">
+                    <div class="invoice-entry-top rounded-2xl p-3 mb-3 space-y-2.5">
+                        <div class="flex flex-wrap items-center justify-between gap-1.5 border-b border-slate-100 pb-2">
                             <div class="flex items-center gap-1">
                                 <span class="bg-slate-900 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-md">#${d.number}</span>
                                 <i class="fas fa-file-invoice text-emerald-600 text-[10px]" title="نوع الفاتورة"></i>
@@ -6014,7 +6409,7 @@
                                         <div class="invoice-added-row p-3">
                                             <div class="flex items-center justify-between mb-2">
                                                 <div class="flex items-center gap-1.5 flex-wrap">
-                                                    <span class="font-extrabold text-xs sm:text-sm text-slate-900">${idx + 1}. ${r.itemName}</span>
+                                                    <span class="invoice-row-index" aria-label="رقم الصنف ${idx+1}">${idx + 1}</span><span class="font-extrabold text-xs sm:text-sm text-slate-900">${AppEscape.text(r.itemName)}</span>
                                                     <span class="text-[10px] bg-slate-100 text-slate-600 font-bold px-1.5 py-0.5 rounded">عملة الأصل: ${baseCurr}</span>
                                                     <span class="text-[10px] bg-emerald-50 text-emerald-700 font-bold px-2 py-0.5 rounded">
                                                         متاح: ${availInSelectedUnit} ${r.unitName}
@@ -6659,7 +7054,8 @@
                 try {
                     if (window.AndroidAutoBackup?.stageSnapshot)
                         window.AndroidAutoBackup.stageSnapshot(JSON.stringify({
-                            app: 'AlRaedAccountingERP', exportedAt: new Date().toISOString(),
+              app: 'AlRaedAccountingERP', exportedAt: new Date().toISOString(),
+                            profileId: typeof ProfileManager === 'undefined' ? 'primary' : ProfileManager.activeId, profileName: typeof ProfileManager === 'undefined' ? State.settings.companyName : ProfileManager.currentName(),
                             data: State
                         }));
                 } catch (e) { console.warn('Automatic backup snapshot failed', e); }
@@ -7066,57 +7462,28 @@
             },
 
             exportBackup() {
-                const payload = {
-                    app: 'AlRaedAccountingERP',
-                    exportedAt: new Date().toISOString(),
-                    data: State
-                };
-                if (window.AndroidFiles && typeof window.AndroidFiles.saveBackup === 'function') {
-                    window.AndroidFiles.saveBackup(JSON.stringify(payload, null, 2), `AlMohaseb_AlTaqni_Backup_${new Date().toISOString().slice(0, 10)}.json`);
-                    return;
+                const payload=ProfileManager.backupPayload();
+                const name=ProfileManager.exportName();
+                const content=JSON.stringify(payload,null,2);
+                if(window.AndroidFiles && typeof window.AndroidFiles.saveBackup==='function') {
+                    window.AndroidFiles.saveBackup(content,name);return;
                 }
-                const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `AlRaed_Backup_${new Date().toISOString().slice(0, 10)}.json`;
-                a.click();
+                const blob=new Blob([content],{type:'application/json'});
+                const url=URL.createObjectURL(blob);const a=document.createElement('a');
+                a.href=url;a.download=name;a.click();
                 URL.revokeObjectURL(url);
-                UI.toast('تم استخراج ملف النسخة الاحتياطية بنجاح', 'success');
+                UI.toast('تم تجهيز نسخة باسم الشركة الحالية', 'success');
             },
 
             importBackup(event) {
-                const file = event.target.files?.[0];
-                if (!file) return;
-                const reader = new FileReader();
-                reader.onload = async (e) => {
-                    try {
-                        const parsed = JSON.parse(e.target.result);
-                        const d = parsed.data || parsed;
-                        if (!d || !['categories','items','accounts','invoices','vouchers'].every(k => Array.isArray(d[k]))) {
-                            throw new Error('نسخة احتياطية ناقصة');
-                        }
-                        if (d.settings) State.settings = { ...State.settings, ...d.settings };
-                        State.categories = d.categories;
-                        State.items = d.items;
-                        State.accounts = d.accounts;
-                        State.invoices = d.invoices;
-                        State.vouchers = d.vouchers;
-                        State.warehouses = Array.isArray(d.warehouses) && d.warehouses.length
-                            ? d.warehouses : [{ id:'wh_main', name:'المستودع الرئيسي' }];
-                        if (!State.warehouses.some(w=>w.id==='wh_main')) State.warehouses.unshift({id:'wh_main',name:'المستودع الرئيسي'});
-                        State.transfers = Array.isArray(d.transfers) ? d.transfers : [];
-                        State.expenses = Array.isArray(d.expenses) ? d.expenses : [];
-                        if (!State.warehouses.some(w=>w.id===State.settings.selectedWarehouseId))
-                            State.settings.selectedWarehouseId='wh_main';
-                        await StorageEngine.saveState();
-                        UI.toast('تمت استعادة النسخة الاحتياطية بنجاح!', 'success');
-                        AppNav.navigate('dashboard', {}, true);
-                    } catch (err) {
-                        UI.toast('ملف النسخة الاحتياطية غير صالح', 'error');
-                    }
+                const file=event.target.files?.[0];if(!file)return;
+                const reader=new FileReader();
+                reader.onload=async e=>{
+                    try{const parsed=JSON.parse(e.target.result);await ProfileManager.restoreParsed(parsed);}
+                    catch(err){UI.toast('تعذرت الاستعادة: '+err.message,'error');}
                 };
                 reader.readAsText(file);
+                event.target.value='';
             },
 
             confirmResetAll() {

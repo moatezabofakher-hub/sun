@@ -62,7 +62,10 @@ public final class BackupWorker extends Worker {
                 !(data.opt("items") instanceof JSONArray) ||
                 !(data.opt("accounts") instanceof JSONArray))
                 throw new IOException("النسخة الحالية غير مكتملة");
-            String name = nameNow();
+            String company = payload.optString("profileName", data.optJSONObject("settings") != null
+                ? data.optJSONObject("settings").optString("companyName", "Company") : "Company");
+            String profile = payload.optString("profileId", "primary");
+            String name = nameNow(company, profile);
             if ("local".equals(kind)) writeLocal(context, preferences, bytes, name);
             else writeDrive(context, bytes, name);
             AutoBackupManager.saveResult(context, kind, "");
@@ -91,10 +94,14 @@ public final class BackupWorker extends Worker {
         return output.toByteArray();
     }
 
-    private static String nameNow() {
+    private static String nameNow(String company, String profileId) {
         SimpleDateFormat f = new SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US);
         f.setTimeZone(TimeZone.getTimeZone("UTC"));
-        return "AlMohaseb_AlTaqni_" + f.format(new Date()) + ".json";
+        String safeCompany = String.valueOf(company).replaceAll("[^\\p{L}\\p{N}_.-]", "_");
+        if (safeCompany.length() > 48) safeCompany = safeCompany.substring(0, 48);
+        String safeId = String.valueOf(profileId).replaceAll("[^a-zA-Z0-9_-]", "_");
+        if (safeId.length() > 36) safeId = safeId.substring(0, 36);
+        return "AlMohaseb_" + safeCompany + "_" + safeId + "_" + f.format(new Date()) + ".json";
     }
 
     private static void writeLocal(Context context, SharedPreferences prefs, byte[] bytes, String name)
