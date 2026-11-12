@@ -15,7 +15,8 @@ assert.match(html,/#topAppBar\.dashboard-header #headerTitleWrap/,'home brand ce
 assert.match(html,/dashboard-settings-button/,'home settings bigger');
 assert.match(html,/backBtn\.onclick = \(\) => AppNav\.navigate\('settings'\)/,'settings shortcut stays');
 assert.match(gradle,/applicationId 'com\.sunshine\.technicalaccountant'/,'same package');
-assert.match(gradle,/versionCode 22/);
+assert.match(gradle,/versionCode 24/);
+assert.match(gradle,/versionName '3\.5\.17-debts-tabs-signed'/);
 assert.match(html,/const DB_NAME = 'AlRaedAccountingERP_v2'/,'same DB');
 assert.match(workflow,/TA_KEYSTORE_BASE64/);
 assert.match(workflow,/assembleRelease/);
@@ -52,6 +53,9 @@ assert.match(main.innerHTML,/Customer A|Supplier B/,'accounts with debit balance
 assert.doesNotMatch(main.innerHTML,/Zero/,'zero balance not in debt list');
 const debitSummary=main.innerHTML.split('<div class="flex flex-wrap items-center justify-between gap-2 mb-3">')[0];
 assert.match(debitSummary,/مجموع المبالغ التي لنا/);
+assert.match(main.innerHTML,/>\s*لنا\s*<\/button>/,'one-button switch: لنا');
+assert.match(main.innerHTML,/>\s*علينا\s*<\/button>/,'one-button switch: علينا');
+assert.match(main.innerHTML,/aria-pressed="true"/,'active tab has accessible state');
 assert.doesNotMatch(debitSummary,/مجموع المبالغ التي علينا/,'do not show what we owe when showing debt owed to us');
 assert.match(debitSummary,/120 SYP/);
 assert.match(debitSummary,/20 \$/);
@@ -69,4 +73,4 @@ assert.match(creditSummary,/40 SYP/);
 assert.match(creditSummary,/8 \$/);
 assert.doesNotMatch(creditSummary,/120 SYP/);
 assert.doesNotMatch(creditSummary,/20 \$/);
-console.log('PASS 3.5.15: debt modal, one relevant two-currency total per side, accounts cleanup, header + signing safeguards');
+console.log('PASS 3.5.17: debt modal, one relevant two-currency total per side, accounts cleanup, header + signing safeguards');

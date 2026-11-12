@@ -3134,7 +3134,7 @@
                 const debtsMode = params.debts === true || !!params.balanceSide;
                 const balanceSide = params.balanceSide || 'debit';
 
-                UI.setHeader(debtsMode ? `<i class="fas fa-scale-balanced text-emerald-400"></i> <span>الديون: ${balanceSide === 'debit' ? 'لنا' : 'علينا'}</span>` : '<i class="fas fa-users text-emerald-400"></i> <span>العملاء والموردون</span>', 'أرصدة مزدوجة العملة (SYP / USD) وسقف الائتمان');
+                UI.setHeader(debtsMode ? `<i class="fas fa-scale-balanced text-emerald-400"></i> <span>الديون: ${balanceSide === 'debit' ? 'لنا' : 'علينا'}</span>` : '<i class="fas fa-users text-emerald-400"></i> <span>العملاء والموردون</span>', debtsMode ? 'التبديل بين «لنا» و«علينا» من الأزرار أسفل الملخص' : 'أرصدة مزدوجة العملة (SYP / USD) وسقف الائتمان');
                 const filtered = State.accounts.filter(a => {
                     if (!debtsMode) return tab === 'all' || a.type === tab;
                     const st = Accounting.getAccountStatement(a.id);
@@ -3209,14 +3209,14 @@
                     <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
                         <div class="flex gap-1">
                             ${(debtsMode ? [
-                                { id: 'debit', label: 'الحسابات المدينة (لنا)' },
-                                { id: 'credit', label: 'الحسابات الدائنة (علينا)' }
+                                { id: 'debit', label: 'لنا', hint: 'الحسابات المدينة لنا' },
+                                { id: 'credit', label: 'علينا', hint: 'الحسابات الدائنة علينا' }
                             ] : [
                                 { id: 'all', label: 'الكل' },
                                 { id: 'customer', label: 'العملاء' },
                                 { id: 'supplier', label: 'الموردون' }
                             ]).map(t => `
-                                <button onclick="AppNav.navigate('accounts', ${debtsMode ? `{ debts: true, balanceSide: '${t.id}', evalCurr: '${evalCurr}' }` : `{ tab: '${t.id}', evalCurr: '${evalCurr}' }`}, true)" class="px-3 py-1.5 rounded-xl text-xs font-bold ${(debtsMode ? balanceSide === t.id : tab === t.id) ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 border border-slate-200'}">
+                                <button type="button" onclick="AppNav.navigate('accounts', ${debtsMode ? `{ debts: true, balanceSide: '${t.id}', evalCurr: '${evalCurr}' }` : `{ tab: '${t.id}', evalCurr: '${evalCurr}' }`}, true)" ${debtsMode ? `aria-label="${t.hint}" aria-pressed="${balanceSide === t.id ? 'true' : 'false'}"` : ''} class="px-3 py-1.5 rounded-xl text-xs font-bold ${(debtsMode ? balanceSide === t.id : tab === t.id) ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 border border-slate-200'}">
                                     ${t.label}
                                 </button>
                             `).join('')}
