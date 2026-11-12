@@ -3313,6 +3313,14 @@
                             </div>
                         </section>
 
+                        <section aria-label="تقارير الطباعة" data-feature="print-reports-3523">
+                            <div class="ta-section-head"><span class="ta-section-mark"></span><div><h3>تقارير للطباعة الحرارية</h3><p>مبيعات الأصناف والديون بشكل مباشر</p></div></div>
+                            <div class="grid grid-cols-2 gap-2.5 mb-4">
+                                <button type="button" onclick="AppNav.navigate('reports',{tab:'sales_summary',period:'today'})" class="invoice-report-action min-h-[74px] flex flex-col items-center justify-center gap-1 shadow-md" aria-label="طباعة تقرير المواد المباعة حسب الفترة"><i class="fas fa-chart-bar text-lg"></i><span class="text-xs font-black">المواد المباعة</span><span class="text-[10px]">طباعة حسب الفترة</span></button>
+                                <button type="button" onclick="AppNav.navigate('reports',{tab:'debts_summary',side:'debit'})" class="invoice-report-action min-h-[74px] flex flex-col items-center justify-center gap-1 shadow-md" aria-label="طباعة تقرير الديون لنا أو علينا"><i class="fas fa-print text-lg"></i><span class="text-xs font-black">تقرير الديون</span><span class="text-[10px]">لنا / علينا</span></button>
+                            </div>
+                        </section>
+
                         <section aria-label="إضافات سريعة">
                             <div class="ta-section-head"><span class="ta-section-mark"></span><div><h3>إضافات سريعة</h3><p>إدارة المصاريف والمستودعات</p></div></div>
                             <div class="ta-service-grid">
@@ -4300,8 +4308,8 @@
                         <button type="button" onclick="AppNav.navigate('reports', { tab: 'pnl', period: 'all', view: 'invoices' }, true)" class="py-2 rounded-xl ${tab === 'pnl' ? 'bg-slate-900 text-white' : 'text-slate-600'}">الأرباح والمبيعات</button>
                     </div>
                     <div class="grid grid-cols-2 gap-2 mb-4">
-                       <button type="button" onclick="AppNav.navigate('reports',{tab:'sales_summary',period:'today'},true)" class="invoice-report-action text-xs"><i class="fas fa-chart-bar ml-1"></i> طباعة إجمالي المواد المباعة</button>
-                       <button type="button" onclick="AppNav.navigate('reports',{tab:'debts_summary',side:'debit'},true)" class="invoice-report-action text-xs"><i class="fas fa-file-invoice-dollar ml-1"></i> طباعة تقرير الديون</button>
+                       <button type="button" onclick="AppNav.navigate('reports',{tab:'sales_summary',period:'today'},true)" class="invoice-report-action text-xs"><i class="fas fa-chart-bar ml-1"></i> طباعة مبيعات الأصناف حسب التاريخ</button>
+                       <button type="button" onclick="AppNav.navigate('reports',{tab:'debts_summary',side:'debit'},true)" class="invoice-report-action text-xs"><i class="fas fa-file-invoice-dollar ml-1"></i> طباعة إجمالي الديون لنا / علينا</button>
                     </div>
                     ${tab === 'cashbox' ? `
                         <div class="grid grid-cols-2 gap-2.5 mb-3">
@@ -4392,7 +4400,15 @@
                 UI.setHeader('<i class="fas fa-sliders text-emerald-400"></i> <span>الضبط</span>', 'اضغط على القسم المطلوب لعرض خياراته');
                 const mode = State.settings.btPrintMode || 'auto';
                 main.innerHTML = `
+                    <div class="mb-3 flex items-center justify-between gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2" data-app-build="3.5.23">
+                        <span class="font-black text-xs text-emerald-800"><i class="fas fa-check-circle ml-1"></i> إصدار التطبيق: 3.5.23</span>
+                        <span class="text-[10px] font-bold text-emerald-700">تحديث التقارير والحماية</span>
+                    </div>
                     <div class="mb-3 text-[11px] text-slate-500 font-semibold px-1">جميع خيارات التطبيق مرتبة ضمن فئات. اضغط على اسم أي فئة لفتحها أو إغلاقها.</div>
+                    <div class="grid grid-cols-2 gap-2 mb-3" data-feature="report-shortcuts-3523">
+                      <button type="button" class="invoice-report-action text-xs py-3" onclick="AppNav.navigate('reports',{tab:'sales_summary',period:'today'})"><i class="fas fa-chart-bar ml-1"></i>طباعة المبيعات</button>
+                      <button type="button" class="invoice-report-action text-xs py-3" onclick="AppNav.navigate('reports',{tab:'debts_summary',side:'debit'})"><i class="fas fa-print ml-1"></i>طباعة الديون</button>
+                    </div>
                     <details class="settings-section" data-settings-section="business-profiles" ontoggle="SettingsController.onSectionToggle(this)" ${SettingsController.expandedSections.has('business-profiles') ? 'open' : ''}>
                       <summary class="settings-section-heading"><span class="settings-section-leading"><i class="fas fa-building text-emerald-600"></i><span><span class="settings-section-name">الحسابات المستقلة للشركات</span><span class="settings-section-note">التبديل والنسخ الاحتياطي لكل شركة</span></span></span><i class="fas fa-chevron-down settings-section-arrow"></i></summary>
                       <div class="settings-section-body">${typeof ProfileManager === 'undefined' ? '' : ProfileManager.renderSettings()}</div>
@@ -7555,14 +7571,30 @@
                 const digest = await crypto.subtle.digest('SHA-256', secret);
                 return this.bytesToBase64(digest);
             },
+            showInitialPinSaveDialog() {
+                UI.openModal(`<div class="space-y-3 text-right" data-feature="initial-pin-3523">
+                  <h3 class="font-black text-base text-slate-900"><i class="fas fa-shield-halved text-emerald-600 ml-1"></i> يجب إنشاء كلمة سر أولاً</h3>
+                  <p class="text-xs text-slate-600">لا توجد كلمة سر محفوظة لهذا الحساب. قبل حفظ إعدادات الحماية، عيّن كلمة سر وسؤالَي أمان. لن تُحفظ الإعدادات دون ذلك.</p>
+                  <button type="button" onclick="UI.forceCloseModal(); SettingsController.passwordPanelOpen = true; SettingsController.expandedSections.add('security'); AppNav.renderCurrent(); document.getElementById('protectionPin')?.focus()" class="w-full rounded-xl bg-emerald-700 text-white py-3 font-black text-sm">تعيين كلمة السر وأسئلة الأمان</button>
+                  <button type="button" onclick="UI.forceCloseModal()" class="w-full rounded-xl bg-slate-100 py-2.5 font-bold text-sm">إلغاء</button>
+                </div>`);
+            },
             async saveSettings(verifiedCurrentPin = null) {
                 try {
                     // Use the existing PIN-verification dialog; never force the user to
                     // expand the password-change panel just to save a protection toggle.
                     // Do not save or rerender anything until verification succeeds.
                     if (State.settings.appProtection?.pinHash && verifiedCurrentPin === null) {
-                        this.requestPin('أدخل كلمة السر الحالية لتأكيد حفظ إعدادات الحماية',
+                        this.requestPin('أدخل كلمة السر الحالية لتأكيد حفظ إعدادات الحماية، ثم اضغط تحقق',
                             confirmedPin => this.saveSettings(confirmedPin));
+                        return;
+                    }
+                    // If no PIN exists yet, the user should get a direct explanation from the Save button.
+                    // Never silently pretend that an unprotected account can be verified.
+                    if (!State.settings.appProtection?.pinHash &&
+                        !document.getElementById('protectionPin')?.value &&
+                        !document.getElementById('protectionPinConfirm')?.value) {
+                        this.showInitialPinSaveDialog();
                         return;
                     }
                     const pin = document.getElementById('protectionPin')?.value || '';
