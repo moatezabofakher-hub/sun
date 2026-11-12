@@ -10,12 +10,32 @@ android {
         applicationId 'com.sunshine.technicalaccountant'
         minSdk 26
         targetSdk 35
-        versionCode 16
-        versionName '3.5.8-dashboard-inventory-value'
+        versionCode 21
+        versionName '3.5.14-debts-ui-signing'
+    }
+
+    // A permanent signing key is required for in-place updates. The keystore is
+    // injected from private GitHub Actions Secrets and is never committed.
+    def signingFile = System.getenv('TA_SIGNING_KEYSTORE_PATH')
+    def signingPass = System.getenv('TA_SIGNING_STORE_PASSWORD')
+    def signingAlias = System.getenv('TA_SIGNING_KEY_ALIAS')
+    def signingKeyPass = System.getenv('TA_SIGNING_KEY_PASSWORD')
+    def hasPermanentSigning = signingFile && signingPass && signingAlias && signingKeyPass
+            && file(signingFile).isFile()
+    signingConfigs {
+        if (hasPermanentSigning) {
+            permanent {
+                storeFile file(signingFile)
+                storePassword signingPass
+                keyAlias signingAlias
+                keyPassword signingKeyPass
+            }
+        }
     }
 
     buildTypes {
         release {
+            if (hasPermanentSigning) signingConfig signingConfigs.permanent
             minifyEnabled false
         }
         debug {

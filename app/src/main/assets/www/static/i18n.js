@@ -1,6 +1,20 @@
 /* Technical Accountant language pack — UI only. Database values/IDs are never translated. */
 const I18n = {
     en: {
+        "لنا": "Receivable",
+        "علينا": "Payable",
+        "المبالغ المستحقة لنا": "Amounts owed to us",
+        "المبالغ الواجب دفعها": "Amounts we owe",
+        "اختر نوع الأرصدة لعرض الحسابات والمبالغ": "Choose which account balances to view",
+        "مجموع المبالغ التي لنا": "Total receivables",
+        "مجموع المبالغ التي علينا": "Total payables",
+        "إجمالي الأرصدة الموجبة لكل الحسابات (عملاء وموردون)": "Positive balances across customer and supplier accounts",
+        "إجمالي الأرصدة السالبة لكل الحسابات (عملاء وموردون)": "Negative balances across customer and supplier accounts",
+        "الحسابات المدينة (لنا)": "Receivable accounts",
+        "الحسابات الدائنة (علينا)": "Payable accounts",
+        "العملاء والموردون": "Customers and suppliers",
+        "لا توجد حسابات عليها مبالغ لنا": "No accounts owe us money",
+        "لا توجد حسابات ندين لها بمبالغ": "No accounts we owe money to",
         "صورة المادة (اختياري)": "Item photo (optional)",
         "من المعرض": "Gallery",
         "التقاط صورة": "Take photo",

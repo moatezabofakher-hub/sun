@@ -64,6 +64,32 @@
         }
 
 
+        /* v3.5.13: decrement just one selected unit from invoice grid cards. */
+        #itemGridCardsContainer .invoice-grid-decrement {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            z-index: 5;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 25px;
+            height: 25px;
+            border-radius: 50%;
+            border: 2px solid white;
+            background-color: #dc2626;
+            color: #ffffff;
+            -webkit-text-fill-color: #ffffff;
+            font-size: 13px;
+            font-weight: 900;
+            line-height: 1;
+            box-shadow: 0 2px 5px rgba(127,29,29,.3);
+            cursor: pointer;
+            touch-action: manipulation;
+        }
+        #itemGridCardsContainer .invoice-grid-decrement:active { background-color: #991b1b; }
+        #itemGridCardsContainer .invoice-grid-decrement:focus-visible { outline: 2px solid #fca5a5; outline-offset: 1px; }
+
         /* v3.5.2 — high-contrast add/action buttons, including in Android WebView. */
         #mainContent button.ta-solid-action {
             display: flex;
@@ -126,6 +152,30 @@
         #mainContent .settings-section-body { padding:12px; border-top:1px solid #e2e8f0; background:#f8fafc; }
         #mainContent .settings-section-body > div { margin-bottom:0 !important; }
 
+        /* v3.5.14: centered home branding, clear and accessible settings button. */
+        #headerBackBtn.dashboard-settings-button {
+            width: 43px; height: 43px; min-width: 43px;
+            border-radius: 13px; background: #1e293b;
+            border: 1px solid #475569; color: #a7f3d0;
+        }
+        #headerBackBtn.dashboard-settings-button > i {font-size: 20px !important;transform:none !important;}
+        #topAppBar.dashboard-header {position:relative; min-height:66px;}
+        #topAppBar.dashboard-header #headerTitleWrap {
+            position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+            width:calc(100% - 214px); max-width:290px; min-width:0;
+            text-align:center; pointer-events:none;
+        }
+        #topAppBar.dashboard-header #screenTitle {justify-content:center; font-size:15px;}
+        #topAppBar.dashboard-header #screenSubtitle {font-size:10px;}
+        #topAppBar.dashboard-header #headerActionGroup {margin-right:auto;}
+        #topAppBar.dashboard-header #screenTitle, #topAppBar.dashboard-header #screenSubtitle {overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+        @media (max-width:380px) {
+            #topAppBar.dashboard-header #headerTitleWrap {width:calc(100% - 190px);}
+            #topAppBar.dashboard-header #screenTitle {font-size:13px;}
+            #topAppBar.dashboard-header #screenSubtitle {font-size:9px;}
+            #topAppBar.dashboard-header #headerBackBtn {width:40px;height:40px;min-width:40px;}
+            #topAppBar.dashboard-header #topBarRateButton {padding:4px 6px;font-size:10px;}
+        }
         /* Thermal & PDF Receipt Preview Styling */
         /* English layout follows the selected application direction; currency values keep their own notation. */
         html[lang="en"] #mainContent .text-right,
@@ -192,12 +242,12 @@
 
     <!-- Top App Bar (Android Style) -->
     <header class="bg-slate-900 text-white sticky top-0 z-30 shadow-md w-full">
-        <div class="max-w-3xl mx-auto px-2.5 py-2.5 flex items-center justify-between gap-1.5">
+        <div id="topAppBar" class="max-w-3xl mx-auto px-2.5 py-2.5 flex items-center justify-between gap-1.5">
             <div class="flex items-center gap-2 min-w-0 flex-1">
                 <button id="headerBackBtn" onclick="AppNav.handleBackButton()" class="w-8 h-8 shrink-0 rounded-full flex items-center justify-center hover:bg-slate-800 active:bg-slate-700 transition" title="رجوع / خروج">
                     <i id="headerBackIcon" class="fas fa-arrow-right text-base"></i>
                 </button>
-                <div class="min-w-0 flex-1">
+                <div id="headerTitleWrap" class="min-w-0 flex-1">
                     <h1 id="screenTitle" class="font-bold text-sm sm:text-lg leading-tight flex items-center gap-1.5 truncate">
                         <i class="fas fa-calculator text-emerald-400 shrink-0"></i>
                         <span class="truncate" id="brandCompanyName">المحاسب التقني</span>
@@ -206,7 +256,7 @@
                 </div>
             </div>
 
-            <div class="flex items-center gap-1.5 shrink-0">
+            <div id="headerActionGroup" class="flex items-center gap-1.5 shrink-0">
                 <!-- Active Operation Protection Status Badge -->
                 <div id="unsavedGuardBadge" class="hidden bg-amber-500/20 border border-amber-400/50 text-amber-300 px-2 py-1 rounded-xl text-[10px] font-extrabold items-center gap-1 animate-pulse shrink-0" title="حماية العمليات مفعّلة لمنع الخروج العرضي">
                     <i class="fas fa-shield-halved"></i>
@@ -214,17 +264,12 @@
                 </div>
 
                 <!-- Live Exchange Rate Badge -->
-                <button onclick="UI.openRateModal()" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 px-2 py-1 rounded-xl flex items-center gap-1 text-[11px] sm:text-xs transition active:scale-95 shrink-0" title="تعديل سعر الصرف اللحظي">
+                <button id="topBarRateButton" onclick="UI.openRateModal()" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 px-2 py-1 rounded-xl flex items-center gap-1 text-[11px] sm:text-xs transition active:scale-95 shrink-0" title="تعديل سعر الصرف اللحظي">
                     <span class="text-emerald-400 font-bold">1$=</span>
                     <span id="topBarRate" class="font-bold text-white">15,000</span>
                     <i class="fas fa-pen text-[9px] text-slate-400"></i>
                 </button>
 
-                <!-- Quick Compact Bluetooth Printer Popup Button -->
-                <button onclick="ThermalPrinter.openQuickModal()" id="btStatusBadge" class="w-8 h-8 sm:w-9 sm:h-9 shrink-0 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-400 hover:text-white transition relative" title="إعدادات واتصال طابعة البلوتوث السريع">
-                    <i class="fab fa-bluetooth-b text-sm sm:text-base"></i>
-                    <span id="btDot" class="w-2.5 h-2.5 rounded-full bg-rose-500 absolute -top-0.5 -right-0.5 border-2 border-slate-900"></span>
-                </button>
             </div>
         </div>
     </header>
@@ -1263,12 +1308,15 @@
                 const backBtn = document.getElementById('headerBackBtn');
                 const backIcon = document.getElementById('headerBackIcon');
                 if (backBtn) {
+                    const topAppBar = document.getElementById('topAppBar');
+                    if (topAppBar) topAppBar.classList.toggle('dashboard-header', screen === 'dashboard');
+                    backBtn.classList.toggle('dashboard-settings-button', screen === 'dashboard');
                     backBtn.classList.remove('hidden');
                     if (screen === 'dashboard') {
                         backBtn.setAttribute('title', 'الضبط');
                         backBtn.setAttribute('aria-label', 'الضبط');
                         backBtn.onclick = () => AppNav.navigate('settings');
-                        if (backIcon) backIcon.className = 'fas fa-sliders text-emerald-400 text-base';
+                        if (backIcon) backIcon.className = 'fas fa-sliders text-emerald-400 text-xl';
                     } else {
                         backBtn.setAttribute('title', 'رجوع');
                         backBtn.setAttribute('aria-label', 'رجوع');
@@ -1411,7 +1459,7 @@
             updateStatusUI() {
                 const dot = document.getElementById('btDot');
                 const badge = document.getElementById('btStatusBadge');
-                if (!dot || !badge) return;
+                if (!dot || !badge) return; // Indicator was intentionally removed from the home toolbar.
                 const mode = State.settings.btPrintMode || 'auto';
                 if (this.isConnected) {
                     dot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 absolute -top-0.5 -right-0.5 border-2 border-slate-900';
@@ -2419,6 +2467,25 @@
             },
 
             // ==================== 6.1 DASHBOARD ====================
+            openDebtsChoiceModal() {
+                UI.openModal(`
+                    <div class="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
+                        <div><h3 class="text-lg font-extrabold text-slate-900">الديون</h3>
+                            <p class="text-xs text-slate-500 mt-1">اختر نوع الأرصدة لعرض الحسابات والمبالغ</p></div>
+                        <button type="button" onclick="UI.requestCloseModal()" aria-label="إغلاق" class="w-9 h-9 rounded-xl bg-slate-100 text-slate-600"><i class="fas fa-times"></i></button>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <button type="button" onclick="UI.forceCloseModal(); AppNav.navigate('accounts', { debts: true, balanceSide: 'debit' })" class="bg-emerald-50 border-2 border-emerald-300 text-emerald-800 rounded-2xl py-5 px-3 font-black flex flex-col gap-2 items-center justify-center" aria-label="لنا - الحسابات التي عليها مبالغ لنا">
+                            <i class="fas fa-hand-holding-dollar text-3xl"></i><span class="text-lg">لنا</span>
+                            <span class="text-[11px] font-semibold text-emerald-700">المبالغ المستحقة لنا</span>
+                        </button>
+                        <button type="button" onclick="UI.forceCloseModal(); AppNav.navigate('accounts', { debts: true, balanceSide: 'credit' })" class="bg-amber-50 border-2 border-amber-300 text-amber-800 rounded-2xl py-5 px-3 font-black flex flex-col gap-2 items-center justify-center" aria-label="علينا - الأرصدة التي ندين بها">
+                            <i class="fas fa-money-bill-transfer text-3xl"></i><span class="text-lg">علينا</span>
+                            <span class="text-[11px] font-semibold text-amber-700">المبالغ الواجب دفعها</span>
+                        </button>
+                    </div>
+                `);
+            },
             renderDashboard(main) {
                 UI.setHeader('<i class="fas fa-calculator text-emerald-400"></i> <span>المحاسب التقني</span>', 'نظام المحاسبة والمستودعات');
                 document.title = 'المحاسب التقني';
@@ -2472,7 +2539,7 @@
                             <span class="text-[11px] font-bold text-slate-700">المواد (${State.items.length})</span>
                             ${lowStockCount > 0 ? `<span class="absolute top-1 left-1 bg-rose-500 text-white text-[9px] font-bold px-1.5 rounded-full">${lowStockCount} نواقص</span>` : ''}
                         </button>
-                        <button onclick="AppNav.navigate('accounts', { debts: true, balanceSide: 'debit' })" class="bg-white border border-slate-200 p-2.5 rounded-xl flex flex-col items-center gap-1 hover:bg-slate-50 active:scale-95">
+                        <button onclick="Views.openDebtsChoiceModal()" class="bg-white border border-slate-200 p-2.5 rounded-xl flex flex-col items-center gap-1 hover:bg-slate-50 active:scale-95">
                             <i class="fas fa-scale-balanced text-rose-600 text-base"></i>
                             <span class="text-[11px] font-bold text-slate-700">الديون</span>
                         </button>
@@ -3067,7 +3134,7 @@
                 const debtsMode = params.debts === true || !!params.balanceSide;
                 const balanceSide = params.balanceSide || 'debit';
 
-                UI.setHeader(debtsMode ? '<i class="fas fa-scale-balanced text-emerald-400"></i> <span>الديون والحسابات المدينة والدائنة</span>' : '<i class="fas fa-users text-emerald-400"></i> <span>العملاء والموردون والسندات</span>', 'أرصدة مزدوجة العملة (SYP / USD) وسقف الائتمان');
+                UI.setHeader(debtsMode ? `<i class="fas fa-scale-balanced text-emerald-400"></i> <span>الديون: ${balanceSide === 'debit' ? 'لنا' : 'علينا'}</span>` : '<i class="fas fa-users text-emerald-400"></i> <span>العملاء والموردون</span>', 'أرصدة مزدوجة العملة (SYP / USD) وسقف الائتمان');
                 const filtered = State.accounts.filter(a => {
                     if (!debtsMode) return tab === 'all' || a.type === tab;
                     const st = Accounting.getAccountStatement(a.id);
@@ -3076,43 +3143,37 @@
                     return balanceSide === 'debit' ? hasDebit : hasCredit;
                 });
 
-                // إجمالي ديون العملاء المستحقة لنا، كل عملة على حدة
-                const customerDebtTotals = State.accounts
-                    .filter(a => a.type === 'customer')
-                    .reduce((totals, acc) => {
-                        const st = Accounting.getAccountStatement(acc.id);
-                        totals.syp += Math.max(0, Number(st.sypBalance) || 0);
-                        totals.usd += Math.max(0, Number(st.usdBalance) || 0);
-                        return totals;
-                    }, { syp: 0, usd: 0 });
-
-                // إجمالي المبالغ المستحقة للموردين، كل عملة على حدة
-                const supplierDueTotals = State.accounts
-                    .filter(a => a.type === 'supplier')
-                    .reduce((totals, acc) => {
-                        const st = Accounting.getAccountStatement(acc.id);
-                        totals.syp += Math.max(0, -(Number(st.sypBalance) || 0));
-                        totals.usd += Math.max(0, -(Number(st.usdBalance) || 0));
-                        return totals;
-                    }, { syp: 0, usd: 0 });
+                // Only the debt screen exposes aggregate totals. Accounts are filtered by
+                // signed balance, independently for SYP and USD, regardless of party type.
+                const debtTotals = State.accounts.reduce((totals, acc) => {
+                    const st = Accounting.getAccountStatement(acc.id);
+                    const syp = Number(st.sypBalance) || 0;
+                    const usd = Number(st.usdBalance) || 0;
+                    totals.debit.syp += Math.max(0, syp);
+                    totals.debit.usd += Math.max(0, usd);
+                    totals.credit.syp += Math.max(0, -syp);
+                    totals.credit.usd += Math.max(0, -usd);
+                    return totals;
+                }, {debit:{syp:0,usd:0},credit:{syp:0,usd:0}});
 
                 main.innerHTML = `
+                    ${debtsMode ? `
                     <div class="bg-gradient-to-l from-emerald-50 to-white border border-emerald-200 rounded-2xl p-3.5 mb-3 shadow-xs">
                         <div class="flex items-center gap-2 mb-2">
                             <div class="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center"><i class="fas fa-wallet"></i></div>
                             <div>
-                                <div class="font-extrabold text-sm text-slate-900">مجموع الديون على الزبائن</div>
-                                <div class="text-[10px] text-slate-500">إجمالي الأرصدة المدينة المستحقة لنا، دون احتساب أرصدة الزبائن الدائنة</div>
+                                <div class="font-extrabold text-sm text-slate-900">مجموع المبالغ التي لنا</div>
+                                <div class="text-[10px] text-slate-500">إجمالي الأرصدة الموجبة لكل الحسابات (عملاء وموردون)</div>
                             </div>
                         </div>
                         <div class="grid grid-cols-2 gap-2">
                             <div class="bg-white border border-emerald-100 rounded-xl p-2.5">
                                 <div class="text-[10px] font-bold text-slate-500 mb-1">الليرة السورية</div>
-                                <div class="font-black text-base text-emerald-700">${Accounting.format(customerDebtTotals.syp, 'SYP')}</div>
+                                <div class="font-black text-base text-emerald-700">${Accounting.format(debtTotals.debit.syp, 'SYP')}</div>
                             </div>
                             <div class="bg-white border border-emerald-100 rounded-xl p-2.5">
                                 <div class="text-[10px] font-bold text-slate-500 mb-1">الدولار الأمريكي</div>
-                                <div class="font-black text-base text-emerald-700">${Accounting.format(customerDebtTotals.usd, 'USD')}</div>
+                                <div class="font-black text-base text-emerald-700">${Accounting.format(debtTotals.debit.usd, 'USD')}</div>
                             </div>
                         </div>
                     </div>
@@ -3121,33 +3182,28 @@
                         <div class="flex items-center gap-2 mb-2">
                             <div class="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center"><i class="fas fa-truck"></i></div>
                             <div>
-                                <div class="font-extrabold text-sm text-slate-900">مجموع المبالغ المستحقة للموردين</div>
-                                <div class="text-[10px] text-slate-500">إجمالي الأرصدة الدائنة التي علينا سدادها للموردين، دون احتساب أرصدتهم المدينة</div>
+                                <div class="font-extrabold text-sm text-slate-900">مجموع المبالغ التي علينا</div>
+                                <div class="text-[10px] text-slate-500">إجمالي الأرصدة السالبة لكل الحسابات (عملاء وموردون)</div>
                             </div>
                         </div>
                         <div class="grid grid-cols-2 gap-2">
                             <div class="bg-white border border-amber-100 rounded-xl p-2.5">
                                 <div class="text-[10px] font-bold text-slate-500 mb-1">الليرة السورية</div>
-                                <div class="font-black text-base text-amber-700">${Accounting.format(supplierDueTotals.syp, 'SYP')}</div>
+                                <div class="font-black text-base text-amber-700">${Accounting.format(debtTotals.credit.syp, 'SYP')}</div>
                             </div>
                             <div class="bg-white border border-amber-100 rounded-xl p-2.5">
                                 <div class="text-[10px] font-bold text-slate-500 mb-1">الدولار الأمريكي</div>
-                                <div class="font-black text-base text-amber-700">${Accounting.format(supplierDueTotals.usd, 'USD')}</div>
+                                <div class="font-black text-base text-amber-700">${Accounting.format(debtTotals.credit.usd, 'USD')}</div>
                             </div>
                         </div>
                     </div>
 
-                    <div class="grid grid-cols-3 gap-2 mb-3">
-                        <button onclick="AccountController.openAccountModal()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-2 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-xs">
+                    ` : ''}
+                    ${!debtsMode ? `<div class="flex items-center justify-start mb-3">
+                        <button onclick="AccountController.openAccountModal()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-xs">
                             <i class="fas fa-user-plus"></i> إضافة عميل/مورد
                         </button>
-                        <button onclick="AppNav.navigate('voucher_form', { type: 'receipt' })" class="bg-teal-600 hover:bg-teal-700 text-white font-bold py-2.5 px-2 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-xs">
-                            <i class="fas fa-hand-holding-dollar"></i> سند قبض
-                        </button>
-                        <button onclick="AppNav.navigate('voucher_form', { type: 'payment' })" class="bg-amber-600 hover:bg-amber-700 text-white font-bold py-2.5 px-2 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-xs">
-                            <i class="fas fa-money-bill-transfer"></i> سند دفع
-                        </button>
-                    </div>
+                    </div>` : ''}
 
                     <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
                         <div class="flex gap-1">
@@ -3188,7 +3244,7 @@
                         ${filtered.length === 0 ? `
                             <div class="bg-white rounded-2xl border border-slate-200 p-8 text-center">
                                 <i class="fas fa-users-slash text-4xl text-slate-300 mb-2"></i>
-                                <p class="font-bold text-sm text-slate-600">لا توجد حسابات عملاء أو موردين مسجلة</p>
+                                <p class="font-bold text-sm text-slate-600">${debtsMode ? (balanceSide === 'debit' ? 'لا توجد حسابات عليها مبالغ لنا' : 'لا توجد حسابات ندين لها بمبالغ') : 'لا توجد حسابات عملاء أو موردين مسجلة'}</p>
                                 <p class="text-xs text-slate-400 mt-1">أضف حساب عميل أو مورد لمتابعة الذمم المالية وكشوف الحساب بالليرة والدولار</p>
                             </div>
                         ` : filtered.map(acc => {
@@ -5154,15 +5210,16 @@
                     const rawPrice = isPurchase ? Number(u0.costPrice) : Number(u0.salePrice);
                     const priceInInvCurr = Accounting.convert(rawPrice, itm.currency, d.currency, d.exchangeRate);
                     const availStock = Math.round((Accounting.getItemBaseStock(itm.id, d.isEditing ? d.id : null, d.warehouseId || 'wh_main') + Number.EPSILON) * 100) / 100;
-                    const inCartRow = d.rows.find(r => r.itemId === itm.id);
-                    const inCartQty = inCartRow ? inCartRow.qty : 0;
+                    const inCartQty = d.rows.reduce((qty, row) =>
+                        row.itemId === itm.id ? qty + Math.max(0, Number(row.qty) || 0) : qty, 0);
 
                     return `
                         <div onclick="InvoiceController.selectItemFromGrid('${itm.id}')" class="relative bg-slate-50 hover:bg-emerald-50/70 active:scale-95 border ${inCartQty > 0 ? 'border-emerald-500 ring-1 ring-emerald-500 bg-emerald-50/40' : 'border-slate-200'} rounded-2xl p-2.5 cursor-pointer transition flex flex-col justify-between text-right shadow-2xs">
                             ${inCartQty > 0 ? `
                                 <span class="absolute -top-1.5 -left-1.5 bg-emerald-600 text-white text-[10px] font-extrabold w-6 h-6 rounded-full flex items-center justify-center shadow">
-                                    ${inCartQty}
+                                    ${Accounting.formatItemQuantity(inCartQty)}
                                 </span>
+                                <button type="button" class="invoice-grid-decrement" onclick="event.stopPropagation(); InvoiceController.removeOneFromGrid('${itm.id}')" aria-label="إنقاص وحدة واحدة من ${itm.name} في الفاتورة" title="إنقاص كمية واحدة">×</button>
                             ` : ''}
                             <div>
                                 ${ItemController.photoThumb(itm, 'grid')}
@@ -5198,6 +5255,32 @@
                 if (modalOpen && document.getElementById('itemGridCardsContainer')) {
                     this.renderItemGridCards();
                 }
+            },
+
+            removeOneFromGrid(itemId) {
+                if (!this.draft || !Array.isArray(this.draft.rows)) return;
+                const item = State.items.find(i => i.id === itemId);
+                const defaultUnit = item && item.units && item.units[0] ? item.units[0].name : null;
+                // Prefer the same default-unit row that a grid tap increments.
+                let rowIdx = this.draft.rows.findIndex(r => r.itemId === itemId &&
+                    r.unitName === defaultUnit && Number(r.qty) > 0);
+                if (rowIdx < 0) {
+                    rowIdx = this.draft.rows.findIndex(r => r.itemId === itemId && Number(r.qty) > 0);
+                }
+                if (rowIdx < 0) return;
+
+                const row = this.draft.rows[rowIdx];
+                const newQty = Math.max(0, Number((Number(row.qty) - 1).toFixed(8)));
+                if (newQty === 0) {
+                    this.draft.rows.splice(rowIdx, 1);
+                } else {
+                    row.qty = newQty;
+                }
+                this.markModified();
+                this.recalculate();
+                this.paintForm(document.getElementById('mainContent'));
+                // Leave the item picker open and update its badges/buttons.
+                if (document.getElementById('itemGridCardsContainer')) this.renderItemGridCards();
             },
 
             toggleInvoiceCurrency() {
