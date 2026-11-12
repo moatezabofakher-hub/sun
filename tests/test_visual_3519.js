@@ -1,0 +1,47 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
+const root=path.resolve(__dirname,'..');
+const html=fs.readFileSync(path.join(root,'app/src/main/assets/www/index.html'),'utf8');
+const build=fs.readFileSync(path.join(root,'app/build.gradle'),'utf8');
+const icons=fs.readFileSync(path.join(root,'app/src/main/assets/www/static/icons.js'),'utf8');
+const cut=(a,b)=>{let i=html.indexOf(a),j=html.indexOf(b,i+a.length);assert(i>=0&&j>i,`${a}→${b}`);return html.slice(i,j)};
+const dashboard=cut('            renderDashboard(main) {','            renderItems(main, params = {}) {');
+assert(!dashboard.includes('مركز إدارة الأعمال'),'the top management-center hero is removed');
+assert(dashboard.includes('ta-action-grid')&&dashboard.includes('ta-module-grid'),'actions stay');
+assert(html.includes('grid grid-cols-6 h-16'),'six navigation items');
+const nav=html.slice(html.indexOf('<nav class="ta-bottom-nav'),html.indexOf('<!-- Global Modals Container -->'));
+assert(nav.indexOf('data-nav="reports"')>=0 && nav.indexOf('data-nav="settings"')>nav.indexOf('data-nav="reports"'), 'Settings immediately after Reports');
+assert(!html.includes("backBtn.onclick = () => AppNav.navigate('settings')"),'no duplicate header setting');
+assert(html.includes('ta-action-card:active,.ta-module-card:active') && html.includes('translateY(5px)'),'tactile 3D pressed state');
+assert.match(build,/applicationId 'com\.sunshine\.technicalaccountant'/);
+assert.match(build,/versionCode 26/);
+assert.match(build,/versionName '3\.5\.19-luxe-items-groups'/);
+assert(html.includes("const DB_NAME = 'AlRaedAccountingERP_v2'"));
+assert(html.includes('id="trialStatusBar"'),'trial ribbon preserved');
+for(const icon of ['fa-search','fa-table-list','fa-table-cells-large','fa-layer-group','fa-box-open']) assert(icons.includes('"'+icon+'":'),icon);
+const src=cut('            renderItems(main, params = {}) {','            // ==================== WAREHOUSES & INTERNAL TRANSFERS ====================');
+assert(!src.includes('عملة الصنف:')&&!src.includes('مرتبط بـ'),'no price/currency/links in inventory cards');
+assert(src.includes("ItemController.photoThumb(item,'grid')") && src.includes("ItemController.photoThumb(item,'list')"),'photo in both modes');
+const State={categories:['جلي','شامبو'],items:[
+{id:'id1',name:'ليمون',category:'جلي',barcode:'123',units:[{name:'عبوة'}],minStockBase:1},
+{id:'id2',name:'ليلك',category:'جلي',units:[{name:'عبوة'}],minStockBase:1},
+{id:'id3',name:'شامبو',category:'شامبو',units:[{name:'علبة'}],minStockBase:1}],invoices:[],settings:{selectedWarehouseId:'wh_main'}};
+const Accounting={getItemBaseStock:id=>({id1:6,id2:4,id3:9}[id]),formatItemQuantity:v=>String(v)};
+const AppEscape={text:v=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')};
+const ItemController={viewMode:'list',photoThumb:(item,kind)=>`<div>${item.id} ${kind}</div>`};
+const sandbox={State,Accounting,AppEscape,ItemController,WarehouseController:{options:()=>'<option value="wh_main">الرئيسي</option>'},UI:{setHeader:()=>{}},console};
+vm.runInNewContext('globalThis.Views = {'+src+'};',sandbox);
+const main={innerHTML:''};
+sandbox.Views.renderItems(main,{});
+assert(main.innerHTML.includes('رصيد: <b>6 عبوة</b>'));
+assert(main.innerHTML.includes('is-list')&&!main.innerHTML.includes('is-grid'));
+assert(!main.innerHTML.includes('مجموع المبالغ'),'no unrelated financial summary');
+assert(!main.innerHTML.includes('سعر المبيع'),'no unit pricing in cards');
+assert(!main.innerHTML.includes('عملة الصنف'),'no currency badge in cards');
+assert(!main.innerHTML.includes('مرتبط بـ'),'no links displayed');
+ItemController.viewMode='group_grid';sandbox.Views.renderItems(main,{});
+assert.equal((main.innerHTML.match(/data-item-group-section/g)||[]).length,2,'two group headings');
+assert.equal((main.innerHTML.match(/ta-stock-card is-grid/g)||[]).length,3,'three grouped cards');
+assert(main.innerHTML.includes('شبكة بالمجموعة'));
+assert(main.innerHTML.includes('جلي')&&main.innerHTML.includes('شامبو'));
+console.log('PASS 3.5.19: home removed hero, settings beside reports, 3D buttons, group grid/list, stock-only cards, signature and DB unchanged.');

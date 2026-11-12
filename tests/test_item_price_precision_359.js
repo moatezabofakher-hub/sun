@@ -43,7 +43,7 @@ for(const digits of [0,1,2,3,4]){
   assert.equal(Accounting.formatItemQuantity(12.3456),target);
 }
 State.settings.itemQuantityDecimals=2;
-assert.ok(html.includes('Accounting.formatItemPrice(u.salePrice, item.currency)'), 'item cards should use new price formatter');
+assert.ok(!html.slice(html.indexOf('renderItems(main, params = {})'),html.indexOf('renderWarehouses(main')).includes('Accounting.formatItemPrice(u.salePrice, item.currency)'), 'inventory cards now show stock only, while item editor retains full prices');
 assert.ok(html.includes('Accounting.formatItemPrice(priceInInvCurr, d.currency)'), 'invoice grid should use formatter');
 assert.equal((html.match(/Accounting\.formatItemPriceNumber\(r\.price\)/g)||[]).length,2,'both print views should use new price formatter');
 assert.ok(html.includes('onfocus="this.value=InvoiceController.draft.rows[${idx}].price;this.select()"'));

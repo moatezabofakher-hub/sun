@@ -1,0 +1,6864 @@
+
+
+
+        /********************************************************************
+         * 1. CORE DATABASE & STATE (100% CLEAN - ZERO DEMO ITEMS/INVOICES)
+         * Uses IndexedDB for Offline-First Android Persistence
+         ********************************************************************/
+        const DB_NAME = 'AlRaedAccountingERP_v2';
+        const DB_VERSION = 1;
+
+        const State = {
+            settings: {
+                companyName: 'مؤسسة الرائد التجارية',
+                companyPhone: '',
+                companyAddress: '',
+                companyLogo: '',
+                footerNote: 'شكراً لتعاملكم معنا - البضاعة المباعة ترد أو تستبدل خلال 3 أيام مع الفاتورة',
+                exchangeRate: 15000, // 1 USD = X SYP
+                printerWidth: 80,    // 80mm or 58mm
+                btPrintMode: 'auto', // 'auto' | 'native' | 'web' | 'rawbt' | 'system'
+                btMacAddress: '',    // Optional MAC address for direct Cordova/Capacitor connection
+                printFontScale: 0.75, // 0.75 = أصغر (الافتراضي)، 0.85 = صغير، 1.0 = متوسط، 1.2 = كبير، 1.4 = عريض
+                language: 'ar',          // Persisted UI language: 'ar' or 'en'
+                allowNegativeStockSales: false, // Safety default: no sale beyond available inventory
+                defaultCurrency: 'USD',
+                defaultItemCurrency: 'USD', // New items only
+                primaryCurrency: 'USD', // Historic dual-currency ledger: USD / SYP
+                secondaryCurrency: 'SYP',
+                primaryOnlyMode: false,
+                addedCurrencies: [], // Other ISO codes are catalogued, not silently posted to a two-currency ledger
+                defaultInvoiceListType: 'sale',
+                itemQuantityDecimals: 2,
+                inventoryValuationCurrency: 'SYP', // Display currency for inventory cost valuation only
+                selectedWarehouseId: 'wh_main',
+                appProtection: { pinSalt: '', pinHash: '', pinAlgo: 'sha256-v1', securityQuestions: [], recoveryFailures: 0, recoveryLockedUntil: 0, lockApp: false, protectDeletion: false, fingerprintEnabled: false, fingerprintCredentialId: '' }
+            },
+            license: {
+                deviceId: '',
+                isActivated: false,
+                activationCode: '',
+                activatedAt: '',
+                opsUsedCount: 0 // Tracks total operations ever created (even if deleted later)
+            },
+            categories: [], // 100% Clean - Zero demo categories
+            items: [],      // 100% Clean - Zero demo items
+            accounts: [],   // 100% Clean - Zero demo customers/suppliers
+            invoices: [],   // 100% Clean - Zero demo invoices
+            vouchers: [],   // 100% Clean - Zero demo vouchers
+            warehouses: [{ id: 'wh_main', name: 'المستودع الرئيسي' }],
+            transfers: [],
+            expenses: []
+        };
+
+        /** Currency selection is deliberately separated from the existing USD/SYP double-entry ledger.
+         * Other ISO codes may be catalogued here; transactions remain USD/SYP until
+         * the ledger, settlements, statements and historic migrations support extra codes.
+         */
+        const CurrencyCatalog = {
+            popular: [
+                ['SYP','الليرة السورية','Syrian Pound'], ['USD','الدولار الأمريكي','US Dollar'],
+                ['EUR','اليورو','Euro'], ['GBP','الجنيه الإسترليني','British Pound'],
+                ['AED','الدرهم الإماراتي','UAE Dirham'], ['SAR','الريال السعودي','Saudi Riyal'],
+                ['TRY','الليرة التركية','Turkish Lira'], ['JOD','الدينار الأردني','Jordanian Dinar'],
+                ['IQD','الدينار العراقي','Iraqi Dinar'], ['LBP','الليرة اللبنانية','Lebanese Pound'],
+                ['EGP','الجنيه المصري','Egyptian Pound'], ['KWD','الدينار الكويتي','Kuwaiti Dinar'],
+                ['QAR','الريال القطري','Qatari Riyal'], ['BHD','الدينار البحريني','Bahraini Dinar'],
+                ['OMR','الريال العماني','Omani Rial'], ['CHF','الفرنك السويسري','Swiss Franc'],
+                ['CAD','الدولار الكندي','Canadian Dollar'], ['AUD','الدولار الأسترالي','Australian Dollar'],
+                ['JPY','الين الياباني','Japanese Yen'], ['CNY','اليوان الصيني','Chinese Yuan']
+            ],
+            ledgerCurrencies: ['SYP','USD'],
+            label(code) {
+                const found = this.popular.find(c=>c[0]===code) ||
+                    (Array.isArray(State.settings.addedCurrencies)?State.settings.addedCurrencies:[]).find(c=>c.code===code);
+                if (!found) return code;
+                return Array.isArray(found) ? `${found[1]} (${code})` : `${found.name} (${code})`;
+            },
+            options(selected, onlyLedger=true) {
+                const choices=onlyLedger ? this.ledgerCurrencies : this.popular.map(x=>x[0]).filter(code=>!this.ledgerCurrencies.includes(code));
+                return choices.map(code=>`<option value="${code}" ${selected===code?'selected':''}>${this.label(code)}</option>`).join('');
+            },
+            primary() {
+                return this.ledgerCurrencies.includes(State.settings.primaryCurrency) ? State.settings.primaryCurrency : 'USD';
+            },
+            secondary() { return this.primary()==='USD' ? 'SYP':'USD'; },
+            active() { return State.settings.primaryOnlyMode===true ? [this.primary()] : [this.primary(),this.secondary()]; },
+            canUse(currency,editing=false) { return editing || this.active().includes(currency); },
+            safeCode(value) { return String(value||'').trim().toUpperCase(); },
+            escapeText(value) { return String(value).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); },
+            renderAdditional() {
+                const extra=Array.isArray(State.settings.addedCurrencies)?State.settings.addedCurrencies:[];
+                return extra.length ? extra.map(c=>`<div class="flex items-center justify-between gap-2 border-b border-slate-100 py-1.5"><span class="text-xs font-bold">${this.escapeText(c.name)} <b dir="ltr">${c.code}</b></span><button type="button" class="text-rose-600 text-xs font-bold" onclick="SettingsController.removeCatalogCurrency('${c.code}')">إزالة</button></div>`).join('') : '<p class="text-[11px] text-slate-500">لم تُضف عملات جديدة إلى القائمة بعد.</p>';
+            }
+        };
+
+        const StorageEngine = {
+            db: null,
+            async init() {
+                return new Promise((resolve, reject) => {
+                    const req = indexedDB.open(DB_NAME, DB_VERSION);
+                    req.onupgradeneeded = (e) => {
+                        const db = e.target.result;
+                        if (!db.objectStoreNames.contains('app_state')) {
+                            db.createObjectStore('app_state', { keyPath: 'id' });
+                        }
+                    };
+                    req.onsuccess = async (e) => {
+                        this.db = e.target.result;
+                        await this.loadState();
+                        resolve();
+                    };
+                    req.onerror = (e) => reject(e);
+                });
+            },
+            async loadState() {
+                return new Promise((resolve) => {
+                    const tx = this.db.transaction('app_state', 'readonly');
+                    const store = tx.objectStore('app_state');
+                    const req = store.get('main');
+                    req.onsuccess = async () => {
+                        if (req.result && req.result.data) {
+                            const d = req.result.data;
+                            State.settings = { ...State.settings, ...(d.settings || {}) };
+                            State.license = { ...State.license, ...(d.license || {}) };
+                            State.categories = d.categories || [];
+                            State.items = d.items || [];
+                            State.accounts = d.accounts || [];
+                            State.invoices = d.invoices || [];
+                            State.vouchers = Array.isArray(d.vouchers) ? d.vouchers : [];
+                            State.warehouses = Array.isArray(d.warehouses) && d.warehouses.length
+                                ? d.warehouses : [{ id: 'wh_main', name: 'المستودع الرئيسي' }];
+                            if (!State.warehouses.some(w => w.id === 'wh_main')) {
+                                State.warehouses.unshift({ id: 'wh_main', name: 'المستودع الرئيسي' });
+                            }
+                            State.transfers = Array.isArray(d.transfers) ? d.transfers : [];
+                            State.expenses = Array.isArray(d.expenses) ? d.expenses : [];
+                            if (!State.warehouses.some(w => w.id === State.settings.selectedWarehouseId))
+                                State.settings.selectedWarehouseId = 'wh_main';
+                        }
+                        await LicenseManager.syncFallbackStorage();
+                        ThermalPrinter.updateStatusUI();
+                        resolve();
+                    };
+                    req.onerror = async () => {
+                        await LicenseManager.syncFallbackStorage();
+                        ThermalPrinter.updateStatusUI();
+                        resolve();
+                    };
+                });
+            },
+            async saveState() {
+                LicenseManager.persistFallbackStorage();
+                if (!this.db) return;
+                return new Promise((resolve) => {
+                    const tx = this.db.transaction('app_state', 'readwrite');
+                    const store = tx.objectStore('app_state');
+                    store.put({
+                        id: 'main',
+                        updatedAt: new Date().toISOString(),
+                        data: {
+                            settings: State.settings,
+                            license: State.license,
+                            categories: State.categories,
+                            items: State.items,
+                            accounts: State.accounts,
+                            invoices: State.invoices,
+                            vouchers: State.vouchers,
+                            warehouses: State.warehouses,
+                            transfers: State.transfers,
+                            expenses: State.expenses
+                        }
+                    });
+                    tx.oncomplete = () => {
+                        // Only snapshot successful IndexedDB commits; background workers never
+                        // touch the live accounting database or read an unfinished invoice.
+                        try { BackupController.stageLatest(); } catch (_) {}
+                        resolve();
+                    };
+                });
+            },
+            async clearAll() {
+                State.categories = [];
+                State.items = [];
+                State.accounts = [];
+                State.invoices = [];
+                State.vouchers = [];
+                State.warehouses = [{ id: 'wh_main', name: 'المستودع الرئيسي' }];
+                State.transfers = [];
+                State.expenses = [];
+                State.settings.selectedWarehouseId = 'wh_main';
+                await this.saveState();
+            }
+        };
+
+        /********************************************************************
+         * 1.5 SIGNED OFFLINE LICENSE VERIFICATION (PUBLIC KEY ONLY)
+         * The owner-only signing key and license generator are NOT in this app.
+         * SS1.<base64url(UTF8 JSON payload)>.<base64url(RSA-3072 signature)>
+         ********************************************************************/
+        const LicenseManager = {
+            MAX_TRIAL_OPS: 100,
+            PUBLIC_KEY_SPKI_B64: 'MIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEAyHZAiTZK3AD+YKRTG7Ba3aaMwdvd66/6VK8gcLbg4bImkXdcGt+naAe8j6fekCHFAEIhW03WV6QrSTeoK5cvyq83NZtBsD49EV1JmdaoiSLBhlkehbs8IReJuu94sfDzZEDlqz875wnqirRIvdWSB0pVdU1bo5xMp+SgihpAC0N6soF3TYMIpDJcxulB5h0uY1Iu/Y7i6bKmmwqacAxFrGYY7cK619e2iSLiqO0XNswd5zznjzLB9eFz+8cT3CEv+GNss1ccwAUSxSUsr0cIv0edjmt0T5o78SVn3Y51+L21WQcIUcrC4Ww9tQlyXS1M4BTAQ7WZnK2xXYrJg1EGwq1uxJmmtdumr0N3PvnccEJK+cOKnVYvMBD1+uhm0SNsbfNxpY63Ywj1hKwGbcGkQTem8UlSo1RmNxfP97PodwuTXfn6RyXXrH8rDs9jlrDNH0X7IzHgC5arRnKG7c+aq7tXm+gBhCzitk84Q9Dk3AJ57zKWS92haOQJkN7u+v2LAgMBAAE=',
+            publicCryptoKey: null,
+
+            // Backward-compatible device ID: existing stored IDs remain unchanged.
+            deviceIdFromRandom() {
+                const b = new Uint8Array(16);
+                crypto.getRandomValues(b);
+                return 'RD-' + Array.from(b, n => n.toString(16).padStart(2, '0')).join('').toUpperCase();
+            },
+            base64UrlBytes(str) {
+                if (!/^[A-Za-z0-9_-]+$/.test(str) || str.length > 3000) throw new Error('Invalid base64url');
+                const raw = atob(str.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - str.length % 4) % 4));
+                return Uint8Array.from(raw, char => char.charCodeAt(0));
+            },
+            async verifyCode(deviceId, token) {
+                // Fail closed: the old ACT- codes must never unlock this version.
+                try {
+                    if (!crypto?.subtle || typeof token !== 'string') return false;
+                    const clean = token.trim();
+                    if (clean.length > 3000 || !clean.startsWith('SS1.')) return false;
+                    const parts = clean.split('.');
+                    if (parts.length !== 3 || parts[0] !== 'SS1') return false;
+                    const payloadBytes = this.base64UrlBytes(parts[1]);
+                    const signatureBytes = this.base64UrlBytes(parts[2]);
+                    const payload = JSON.parse(new TextDecoder('utf-8', {fatal: true}).decode(payloadBytes));
+                    if (payload.v !== 1 || payload.p !== 'SAN_SHINE_ACCOUNTING' ||
+                        payload.d !== String(deviceId || '').trim().toUpperCase() ||
+                        typeof payload.iat !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(payload.iat)) return false;
+                    if (!this.publicCryptoKey) {
+                        const der = Uint8Array.from(atob(this.PUBLIC_KEY_SPKI_B64), c => c.charCodeAt(0));
+                        this.publicCryptoKey = await crypto.subtle.importKey('spki', der,
+                            {name:'RSASSA-PKCS1-v1_5',hash:'SHA-256'}, false, ['verify']);
+                    }
+                    return await crypto.subtle.verify('RSASSA-PKCS1-v1_5', this.publicCryptoKey,
+                        signatureBytes, payloadBytes);
+                } catch (e) { return false; }
+            },
+
+            async syncFallbackStorage() {
+                let storedToken = '';
+                try {
+                    const id = localStorage.getItem('alraed_device_id');
+                    if (id) State.license.deviceId = id;
+                    else if (!State.license.deviceId) State.license.deviceId = this.deviceIdFromRandom();
+                    localStorage.setItem('alraed_device_id', State.license.deviceId);
+                    const ops = Number(localStorage.getItem('alraed_ops_used')) || 0;
+                    State.license.opsUsedCount = Math.max(Number(State.license.opsUsedCount) || 0,
+                        ops, State.invoices.length + State.vouchers.length + State.items.length + State.accounts.length);
+                    localStorage.setItem('alraed_ops_used', String(State.license.opsUsedCount));
+                    storedToken = localStorage.getItem('sunshine_signed_license_v1') || '';
+                    // Retired legacy scheme: never consider its predictable activation codes.
+                    localStorage.removeItem('alraed_act_code');
+                } catch (e) {
+                    if (!State.license.deviceId) State.license.deviceId = this.deviceIdFromRandom();
+                }
+                const stateToken = typeof State.license.activationCode === 'string' ? State.license.activationCode : '';
+                const candidates = [storedToken, stateToken].filter(t => t.startsWith('SS1.'));
+                State.license.isActivated = false;
+                State.license.activationCode = '';
+                for (const token of candidates) {
+                    if (await this.verifyCode(State.license.deviceId, token)) {
+                        State.license.isActivated = true;
+                        State.license.activationCode = token;
+                        break;
+                    }
+                }
+                this.persistFallbackStorage();
+            },
+
+            persistFallbackStorage() {
+                try {
+                    if (State.license.deviceId) localStorage.setItem('alraed_device_id', State.license.deviceId);
+                    localStorage.setItem('alraed_ops_used', String(State.license.opsUsedCount || 0));
+                    if (State.license.isActivated && State.license.activationCode.startsWith('SS1.')) {
+                        localStorage.setItem('sunshine_signed_license_v1', State.license.activationCode);
+                    } else {
+                        localStorage.removeItem('sunshine_signed_license_v1');
+                    }
+                } catch (e) {}
+                this.updateBadgeUI();
+            },
+            getTotalOpsUsed() {
+                return Math.max(Number(State.license.opsUsedCount) || 0,
+                    State.invoices.length + State.vouchers.length + State.items.length + State.accounts.length);
+            },
+            getRemainingTrialOps() {
+                return State.license.isActivated ? Infinity : Math.max(0, this.MAX_TRIAL_OPS - this.getTotalOpsUsed());
+            },
+            canPerformOperation() {
+                if (State.license.isActivated) return true;
+                if (this.getTotalOpsUsed() >= this.MAX_TRIAL_OPS) {
+                    this.openActivationModal(true);
+                    return false;
+                }
+                return true;
+            },
+            async recordNewOperation() {
+                State.license.opsUsedCount = this.getTotalOpsUsed() + 1;
+                await StorageEngine.saveState();
+            },
+            updateBadgeUI() {
+                // License status is displayed in Settings, not in the top application bar.
+                // When Settings is visible, keep its information synchronized.
+                const status = document.getElementById('settingsLicenseStatus');
+                if (!status) return;
+                status.textContent = State.license.isActivated
+                    ? 'النسخة مفعّلة بالكامل مدى الحياة'
+                    : `نسخة تجريبية: استهلكت ${this.getTotalOpsUsed()} من أصل ${this.MAX_TRIAL_OPS} عملية`;
+            },
+            openActivationModal(lockedAlert = false) {
+                const used = this.getTotalOpsUsed();
+                const rem = this.getRemainingTrialOps();
+                const active = State.license.isActivated;
+                const deviceId = State.license.deviceId;
+                UI.openModal(`
+                    <div class="text-center">
+                        <div class="w-16 h-16 rounded-2xl ${active ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'} flex items-center justify-center mx-auto mb-3 text-3xl"><i class="fas ${active ? 'fa-check-circle' : 'fa-lock'}"></i></div>
+                        <h3 class="font-extrabold text-base text-slate-900 mb-2">${active ? 'النسخة مفعّلة بتوقيع رقمي' : 'ترخيص تطبيق المحاسبة'}</h3>
+                        <p class="text-xs text-slate-600 mb-3 leading-relaxed">${active ? 'الترخيص صالح لهذا الجهاز.' : lockedAlert ? 'انتهى حد التجربة. اطلب رمز تفعيل موقّع من الإدارة.' : `المتبقي في النسخة التجريبية: ${rem} من ${this.MAX_TRIAL_OPS} عملية.`}</p>
+                        <div class="bg-indigo-50 border border-indigo-200 rounded-2xl p-3 mb-3 text-xs text-indigo-950 text-center">
+                            <div class="font-extrabold text-sm mb-1"><i class="fas fa-headset ml-1"></i> التواصل مع الدعم</div>
+                            <div class="font-bold mb-3">مجموعة التقني للمحاسبة و المستودعات</div>
+                            <div class="grid grid-cols-1 gap-2">
+                                <a href="https://wa.me/963932325577" class="flex items-center justify-center gap-2 bg-white text-emerald-700 border border-emerald-200 rounded-xl px-3 py-2.5 font-extrabold" dir="ltr" aria-label="واتساب الدعم 00963932325577">
+                                    <i class="fab fa-whatsapp text-lg"></i><span>00963932325577</span>
+                                </a>
+                                <a href="https://wa.me/963968643771" class="flex items-center justify-center gap-2 bg-white text-emerald-700 border border-emerald-200 rounded-xl px-3 py-2.5 font-extrabold" dir="ltr" aria-label="واتساب الدعم 00963968643771">
+                                    <i class="fab fa-whatsapp text-lg"></i><span>00963968643771</span>
+                                </a>
+                            </div>
+                            <p class="text-[11px] text-indigo-800 mt-2">اضغط على أي رقم لفتح محادثة واتساب مع الدعم.</p>
+                        </div>
+                        <div class="bg-slate-900 text-white p-3 rounded-xl mb-4">
+                            <div class="text-[11px] text-slate-300 mb-2">معرّف الجهاز المطلوب إرساله للإدارة:</div>
+                            <div dir="ltr" class="font-mono text-xs sm:text-sm font-bold select-all break-all text-amber-300">${deviceId}</div>
+                            <button type="button" onclick="LicenseManager.copyText(State.license.deviceId)" class="mt-2 bg-slate-700 rounded-lg px-3 py-1.5 text-xs font-bold"><i class="fas fa-copy ml-1"></i> نسخ معرّف الجهاز</button>
+                        </div>
+                        ${active ? `
+                            <div class="bg-emerald-50 text-emerald-800 rounded-xl p-3 text-xs mb-3">تم التحقق من التوقيع الرقمي بنجاح · عدد العمليات غير محدود</div>
+                            <button onclick="UI.forceCloseModal()" class="w-full bg-slate-900 text-white rounded-xl py-3 font-bold">إغلاق</button>
+                        ` : `
+                            <div class="text-right mb-3">
+                                <label for="custActivationInput" class="text-xs font-bold text-slate-700 mb-1 block">الصق رمز التفعيل الموقّع SS1 كاملاً:</label>
+                                <textarea id="custActivationInput" rows="4" dir="ltr" spellcheck="false" class="w-full border-2 border-slate-300 rounded-xl px-3 py-2 text-xs font-mono break-all" placeholder="SS1. ..."></textarea>
+                            </div>
+                            <button onclick="LicenseManager.activateNow()" class="w-full bg-emerald-600 text-white rounded-xl py-3 font-bold mb-2"><i class="fas fa-check-circle ml-1"></i> التحقق والتفعيل</button>
+                            <button onclick="UI.forceCloseModal()" class="w-full bg-slate-100 rounded-xl py-2.5 text-xs font-bold">إلغاء</button>
+                        `}
+                    </div>`);
+            },
+            async activateNow() {
+                const token = (document.getElementById('custActivationInput')?.value || '').trim();
+                const button = document.querySelector('#modalBox button[onclick="LicenseManager.activateNow()"]');
+                if (button) button.disabled = true;
+                try {
+                    if (!await this.verifyCode(State.license.deviceId, token)) {
+                        UI.toast('رمز التفعيل غير صحيح أو ليس لهذا الجهاز. الرموز القديمة ACT لم تعد مدعومة.', 'error');
+                        return;
+                    }
+                    State.license.activationCode = token;
+                    State.license.isActivated = true;
+                    State.license.activatedAt = new Date().toISOString();
+                    await StorageEngine.saveState();
+                    UI.forceCloseModal();
+                    UI.toast('تم التحقق من التوقيع وتفعيل النسخة بنجاح', 'success');
+                    AppNav.renderCurrent();
+                } finally { if (button) button.disabled = false; }
+            },
+            copyText(txt) {
+                const field = document.createElement('textarea');
+                field.value = txt;
+                document.body.appendChild(field);
+                field.select();
+                try {
+                    document.execCommand('copy');
+                    UI.toast('تم النسخ', 'success');
+                } catch (e) { UI.toast('حدد النص وانسخه يدوياً', 'warn'); }
+                field.remove();
+            }
+        };
+
+        /********************************************************************
+         * 2. FINANCIAL & ACCOUNTING ENGINE (DOUBLE-ENTRY, DUAL CURRENCY)
+         ********************************************************************/
+        const Accounting = {
+            parseNum(val) {
+                if (typeof val === 'number') return isNaN(val) ? 0 : val;
+                if (val === null || val === undefined) return 0;
+                const str = String(val)
+                    .replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d))
+                    .replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d))
+                    .replace(/,/g, '.')
+                    .replace(/[^\d.-]/g, '');
+                const num = parseFloat(str);
+                return isNaN(num) ? 0 : num;
+            },
+
+            round(val, currency = 'SYP') {
+                const num = this.parseNum(val);
+                if (currency === 'USD') {
+                    return Math.round((num + Number.EPSILON) * 100) / 100;
+                }
+                return Math.round(num);
+            },
+
+            // Visual formatting only. Never round stock, quantity inputs or monetary calculations in storage.
+            itemDisplayDecimals() {
+                const count = Number(State.settings.itemQuantityDecimals ?? 2);
+                return Number.isInteger(count) && count >= 0 && count <= 4 ? count : 2;
+            },
+
+            // Presentation only: the saved item/invoice values and the accounting rounding rules stay untouched.
+            formatItemQuantity(value) {
+                const valueNum = Number(value);
+                if (!Number.isFinite(valueNum)) return '0';
+                return valueNum.toLocaleString('en-US', {
+                    minimumFractionDigits: 0, maximumFractionDigits: this.itemDisplayDecimals()
+                });
+            },
+
+            // Unit prices follow the SAME setting as item quantities, without currency rounding.
+            formatItemPriceNumber(value) {
+                const valueNum = Number(value);
+                if (!Number.isFinite(valueNum)) return '0';
+                return valueNum.toLocaleString('en-US', {
+                    minimumFractionDigits: 0, maximumFractionDigits: this.itemDisplayDecimals()
+                });
+            },
+            formatItemPrice(value, currency = 'SYP') {
+                return this.formatItemPriceNumber(value) + (currency === 'USD' ? ' $' : ' ل.س');
+            },
+            // Never use accounting currency rounding (USD 2 / SYP 0) for per-unit item prices.
+            // Derived small-unit prices use the precision chosen under Settings -> Items (0–4).
+            roundDerivedItemPrice(value) {
+                const multiplier = 10 ** this.itemDisplayDecimals();
+                return Math.round((this.parseNum(value) + Number.EPSILON) * multiplier) / multiplier;
+            },
+            // Keep the decimal separator while typing (e.g. "1.") so Android's decimal
+            // keyboard can append more digits; only limit the fractional digits, not the model.
+            limitItemPriceInput(value) {
+                const raw = String(value ?? '')
+                    .replace(/[٠-٩]/g, d => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)))
+                    .replace(/[۰-۹]/g, d => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)))
+                    .replace(/[٫,]/g, '.');
+                const dotIndex = raw.indexOf('.');
+                if (dotIndex < 0) return raw;
+                const decimals = this.itemDisplayDecimals();
+                return decimals === 0 ? raw.slice(0, dotIndex) : raw.slice(0, dotIndex + decimals + 1);
+            },
+            itemPricePlaceholder() {
+                const decimals = this.itemDisplayDecimals();
+                return decimals ? '0.' + '0'.repeat(decimals) : '0';
+            },
+            // Editable fields cannot contain grouping commas (parseNum treats them as decimals).
+            // On focus, show the full model value; on blur, show the configured precision.
+            formatEditableItemPrice(value) {
+                const num = Number(value);
+                if (!Number.isFinite(num)) return '0';
+                return String(Number(num.toFixed(this.itemDisplayDecimals())));
+            },
+
+            format(val, currency = 'SYP') {
+                const r = this.round(val, currency);
+                if (currency === 'USD') {
+                    return r.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' $';
+                }
+                return r.toLocaleString('en-US') + ' ل.س';
+            },
+
+            formatNumberOnly(val, currency = 'SYP') {
+                const r = this.round(val, currency);
+                if (currency === 'USD') {
+                    return r.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                }
+                return r.toLocaleString('en-US');
+            },
+
+            convert(amount, fromCurr, toCurr, rate) {
+                const exRate = Number(rate) || State.settings.exchangeRate || 15000;
+                if (fromCurr === toCurr) return this.round(amount, toCurr);
+                if (fromCurr === 'USD' && toCurr === 'SYP') {
+                    return this.round(Number(amount) * exRate, 'SYP');
+                }
+                if (fromCurr === 'SYP' && toCurr === 'USD') {
+                    return this.round(Number(amount) / exRate, 'USD');
+                }
+                return amount;
+            },
+            // Legacy stock and invoices belong to the main warehouse. Null warehouseId = total.
+            getItemBaseStock(itemId, excludeInvoiceId = null, warehouseId = null) {
+                const item = State.items.find(i => i.id === itemId);
+                if (!item) return 0;
+                const wanted = warehouseId || null;
+                let stock = (wanted === null || wanted === 'wh_main')
+                    ? (Number(item.openingStockBase) || 0) : 0;
+                for (const inv of State.invoices) {
+                    if (excludeInvoiceId && inv.id === excludeInvoiceId) continue;
+                    if (wanted && (inv.warehouseId || 'wh_main') !== wanted) continue;
+                    for (const row of (Array.isArray(inv.rows) ? inv.rows : [])) {
+                        if (row.itemId !== itemId) continue;
+                        const factor = Number(row.unitFactor) > 0 ? Number(row.unitFactor) : 1;
+                        const baseQty = (Number(row.qty) || 0) / factor;
+                        if (inv.type === 'purchase' || inv.type === 'sale_return') stock += baseQty;
+                        if (inv.type === 'sale' || inv.type === 'purchase_return') stock -= baseQty;
+                    }
+                }
+                for (const move of (State.transfers || [])) {
+                    if (move.itemId !== itemId) continue;
+                    const qty = Number(move.quantityBase) || 0;
+                    if (wanted === null) continue; // Internal transfers do not change global stock.
+                    if (move.fromWarehouseId === wanted) stock -= qty;
+                    if (move.toWarehouseId === wanted) stock += qty;
+                }
+                return Math.round((stock + Number.EPSILON) * 10000) / 10000;
+            },
+
+            // Double-Entry Account Statement & Dual-Currency Balance
+            getAccountStatement(accountId, excludeInvoiceId = null, excludeVoucherId = null, beforeInvoiceId = null) {
+                const acc = State.accounts.find(a => a.id === accountId);
+                if (!acc) return { sypBalance: 0, usdBalance: 0, evalSyp: 0, evalUsd: 0, entries: [] };
+
+                let sypBalance = 0;
+                let usdBalance = 0;
+                const entries = [];
+
+                if (Number(acc.openingSyp) !== 0) {
+                    const amt = Number(acc.openingSyp);
+                    const signed = acc.type === 'supplier' ? -amt : amt;
+                    sypBalance += signed;
+                    entries.push({
+                        date: acc.createdAt || '0000-01-01',
+                        type: 'opening',
+                        ref: 'رصيد افتتاحي',
+                        desc: 'رصيد افتتاحي ل.س',
+                        currency: 'SYP',
+                        rate: State.settings.exchangeRate,
+                        debit: signed > 0 ? Math.abs(signed) : 0,
+                        credit: signed < 0 ? Math.abs(signed) : 0,
+                        sypBalanceAfter: sypBalance,
+                        usdBalanceAfter: usdBalance
+                    });
+                }
+                if (Number(acc.openingUsd) !== 0) {
+                    const amt = Number(acc.openingUsd);
+                    const signed = acc.type === 'supplier' ? -amt : amt;
+                    usdBalance += signed;
+                    entries.push({
+                        date: acc.createdAt || '0000-01-01',
+                        type: 'opening',
+                        ref: 'رصيد افتتاحي',
+                        desc: 'رصيد افتتاحي دولار',
+                        currency: 'USD',
+                        rate: State.settings.exchangeRate,
+                        debit: signed > 0 ? Math.abs(signed) : 0,
+                        credit: signed < 0 ? Math.abs(signed) : 0,
+                        sypBalanceAfter: sypBalance,
+                        usdBalanceAfter: usdBalance
+                    });
+                }
+
+                const movements = [];
+                for (const inv of State.invoices) {
+                    if (excludeInvoiceId && inv.id === excludeInvoiceId) continue;
+                    if (beforeInvoiceId && inv.id === beforeInvoiceId) break;
+                    if (inv.accountId !== accountId) continue;
+                    movements.push({
+                        sortTime: new Date(inv.date).getTime() || 0,
+                        kind: 'invoice',
+                        obj: inv
+                    });
+                }
+
+                for (const v of State.vouchers) {
+                    if (excludeVoucherId && v.id === excludeVoucherId) continue;
+                    if (v.accountId !== accountId) continue;
+                    movements.push({
+                        sortTime: new Date(v.date).getTime() || 0,
+                        kind: 'voucher',
+                        obj: v
+                    });
+                }
+
+                movements.sort((a, b) => a.sortTime - b.sortTime);
+
+                for (const m of movements) {
+                    if (m.kind === 'invoice') {
+                        const inv = m.obj;
+                        const net = Number(inv.netTotal) || 0;
+                        const paid = Number(inv.paidAmount) || 0;
+                        const cur = inv.currency;
+
+                        const isDebit = (inv.type === 'sale' || inv.type === 'purchase_return');
+                        const invDelta = isDebit ? net : -net;
+
+                        if (cur === 'SYP') sypBalance = this.round(sypBalance + invDelta, 'SYP');
+                        else usdBalance = this.round(usdBalance + invDelta, 'USD');
+
+                        entries.push({
+                            id: inv.id,
+                            docType: 'invoice',
+                            date: inv.date,
+                            ref: `فاتورة #${inv.number}`,
+                            desc: `${this.getInvoiceTypeAr(inv.type)} (${inv.paymentMethod === 'cash' ? 'نقدي' : inv.paymentMethod === 'credit' ? 'آجل' : 'جزئي'})`,
+                            currency: cur,
+                            rate: inv.exchangeRate,
+                            debit: isDebit ? net : 0,
+                            credit: !isDebit ? net : 0,
+                            sypBalanceAfter: sypBalance,
+                            usdBalanceAfter: usdBalance
+                        });
+
+                        if (paid > 0) {
+                            const payDelta = isDebit ? -paid : paid;
+                            if (cur === 'SYP') sypBalance = this.round(sypBalance + payDelta, 'SYP');
+                            else usdBalance = this.round(usdBalance + payDelta, 'USD');
+
+                            entries.push({
+                                id: inv.id,
+                                docType: 'invoice_payment',
+                                date: inv.date,
+                                ref: `دفعة فاتورة #${inv.number}`,
+                                desc: `دفعة ${isDebit ? 'قبض' : 'دفع'} آلية مرتبطة بالفاتورة #${inv.number}`,
+                                currency: cur,
+                                rate: inv.exchangeRate,
+                                debit: !isDebit ? paid : 0,
+                                credit: isDebit ? paid : 0,
+                                sypBalanceAfter: sypBalance,
+                                usdBalanceAfter: usdBalance
+                            });
+                        }
+                    } else if (m.kind === 'voucher') {
+                        const v = m.obj;
+                        const isReceipt = v.type === 'receipt';
+                        const acctCurr = v.accountCurrency || v.currency;
+                        const amtInAcctCurr = Number(v.accountAmount) || Number(v.amount) || 0;
+                        const delta = isReceipt ? -amtInAcctCurr : amtInAcctCurr;
+
+                        if (acctCurr === 'SYP') sypBalance = this.round(sypBalance + delta, 'SYP');
+                        else usdBalance = this.round(usdBalance + delta, 'USD');
+
+                        let noteDesc = v.note || (isReceipt ? 'سند قبض' : 'سند دفع');
+                        if (v.currency !== acctCurr) {
+                            noteDesc += ` (مقاصة: دُفع ${this.format(v.amount, v.currency)} بسعر صرف ${v.exchangeRate})`;
+                        }
+
+                        entries.push({
+                            id: v.id,
+                            docType: 'voucher',
+                            date: v.date,
+                            ref: `سند #${v.number}`,
+                            desc: noteDesc,
+                            currency: acctCurr,
+                            rate: v.exchangeRate,
+                            debit: !isReceipt ? amtInAcctCurr : 0,
+                            credit: isReceipt ? amtInAcctCurr : 0,
+                            sypBalanceAfter: sypBalance,
+                            usdBalanceAfter: usdBalance
+                        });
+                    }
+                }
+
+                const curRate = State.settings.exchangeRate || 15000;
+                const evalSyp = this.round(sypBalance + (usdBalance * curRate), 'SYP');
+                const evalUsd = this.round(usdBalance + (sypBalance / curRate), 'USD');
+
+                return {
+                    sypBalance: this.round(sypBalance, 'SYP'),
+                    usdBalance: this.round(usdBalance, 'USD'),
+                    evalSyp,
+                    evalUsd,
+                    entries
+                };
+            },
+
+            getCashboxSummary() {
+                let sypCash = 0;
+                let usdCash = 0;
+                const movements = [];
+
+                for (const inv of State.invoices) {
+                    const paid = Number(inv.paidAmount) || 0;
+                    if (paid <= 0) continue;
+
+                    const isInflow = (inv.type === 'sale' || inv.type === 'purchase_return');
+                    const delta = isInflow ? paid : -paid;
+                    if (inv.currency === 'SYP') sypCash = this.round(sypCash + delta, 'SYP');
+                    else usdCash = this.round(usdCash + delta, 'USD');
+
+                    const accName = State.accounts.find(a => a.id === inv.accountId)?.name || 'عميل نقدي';
+                    movements.push({
+                        id: inv.id,
+                        docType: 'invoice',
+                        date: inv.date,
+                        ref: `فاتورة #${inv.number}`,
+                        party: accName,
+                        desc: `دفعة ${this.getInvoiceTypeAr(inv.type)}`,
+                        currency: inv.currency,
+                        inflow: isInflow ? paid : 0,
+                        outflow: !isInflow ? paid : 0
+                    });
+                }
+
+                for (const v of State.vouchers) {
+                    const amt = Number(v.amount) || 0;
+                    if (amt <= 0) continue;
+                    const isInflow = v.type === 'receipt';
+                    const delta = isInflow ? amt : -amt;
+                    if (v.currency === 'SYP') sypCash = this.round(sypCash + delta, 'SYP');
+                    else usdCash = this.round(usdCash + delta, 'USD');
+
+                    const accName = State.accounts.find(a => a.id === v.accountId)?.name || 'حساب عام';
+                    movements.push({
+                        id: v.id,
+                        docType: 'voucher',
+                        date: v.date,
+                        ref: `سند #${v.number}`,
+                        party: accName,
+                        desc: v.note || (isInflow ? 'سند قبض' : 'سند دفع'),
+                        currency: v.currency,
+                        inflow: isInflow ? amt : 0,
+                        outflow: !isInflow ? amt : 0
+                    });
+                }
+
+                for (const exp of (State.expenses || [])) {
+                    const amt = Number(exp.amount) || 0;
+                    if (!(amt > 0)) continue;
+                    if (exp.currency === 'USD') usdCash = this.round(usdCash - amt, 'USD');
+                    else sypCash = this.round(sypCash - amt, 'SYP');
+                    movements.push({
+                        id: exp.id, docType: 'expense', date: exp.date,
+                        ref: 'مصروف', party: exp.category || 'مصاريف',
+                        desc: exp.note || 'مصروف نقدي', currency: exp.currency,
+                        inflow: 0, outflow: amt
+                    });
+                }
+                movements.sort((a, b) => (new Date(b.date).getTime() || 0) - (new Date(a.date).getTime() || 0));
+                return { sypCash, usdCash, movements };
+            },
+
+            getInvoiceTypeAr(type) {
+                const map = {
+                    'sale': 'مبيعات',
+                    'purchase': 'مشتريات',
+                    'sale_return': 'مردود مبيعات',
+                    'purchase_return': 'مردود مشتريات'
+                };
+                return map[type] || 'فاتورة';
+            }
+        };
+
+        /********************************************************************
+         * 3. SMART NAVIGATION, BACK STACK & GLOBAL UNSAVED DATA PROTECTION
+         ********************************************************************/
+        // v3.5.8 - Inventory value = current base-stock quantity x first/base unit cost.
+        // Sum at full precision and round only for display. Internal warehouse transfers
+        // are excluded from global stock by Accounting.getItemBaseStock.
+        const InventoryValuation = {
+            calculate(warehouseId = 'wh_main', currency = 'SYP') {
+                const targetCurrency = currency === 'USD' ? 'USD' : 'SYP';
+                const selectedWarehouse = warehouseId === 'all' ? null : warehouseId;
+                const rate = Number(State.settings.exchangeRate);
+                const rateValid = Number.isFinite(rate) && rate > 0;
+                const rows = [];
+                let total = 0;
+                for (const item of (Array.isArray(State.items) ? State.items : [])) {
+                    if (!item || !item.id) continue;
+                    const units = Array.isArray(item.units) ? item.units : [];
+                    const baseUnit = units[0] || {name: 'وحدة', costPrice: 0};
+                    const stock = Accounting.getItemBaseStock(item.id, null, selectedWarehouse);
+                    const sourceCurrency = item.currency === 'USD' ? 'USD' : 'SYP';
+                    const cost = Number(baseUnit.costPrice);
+                    const nativeValue = stock * (Number.isFinite(cost) ? cost : 0);
+                    const value = sourceCurrency === targetCurrency ? nativeValue
+                        : (rateValid ? (sourceCurrency === 'USD' ? nativeValue * rate : nativeValue / rate) : null);
+                    if (value !== null) total += value;
+                    rows.push({item, stock, baseUnit, sourceCurrency, nativeValue, value});
+                }
+                const hasMixedCurrency = rows.some(row => row.sourceCurrency !== targetCurrency);
+                return {currency: targetCurrency, rate, rateValid, rows,
+                    total: (!rateValid && hasMixedCurrency) ? null : total};
+            },
+            async setCurrency(value) {
+                if (value !== 'SYP' && value !== 'USD') return;
+                State.settings.inventoryValuationCurrency = value;
+                await StorageEngine.saveState();
+                AppNav.renderCurrent();
+            }
+        };
+
+        const AppNav = {
+            stack: [{ screen: 'dashboard', params: {} }],
+            isDirty: false,
+            dirtySaveHandler: null,
+            isModalDirty: false,
+            modalDirtySaveHandler: null,
+            activeOperationGuard: false, // Protects invoice/voucher screens even against immediate accidental back press
+
+            current() {
+                return this.stack[this.stack.length - 1];
+            },
+
+            updateGuardBadge() {
+                const badge = document.getElementById('unsavedGuardBadge');
+                if (!badge) return;
+                if (this.isDirty || this.isModalDirty || this.activeOperationGuard) {
+                    badge.classList.remove('hidden');
+                    badge.classList.add('flex');
+                } else {
+                    badge.classList.add('hidden');
+                    badge.classList.remove('flex');
+                }
+            },
+
+            markDirty(saveCallback) {
+                this.isDirty = true;
+                this.dirtySaveHandler = saveCallback;
+                this.updateGuardBadge();
+            },
+
+            clearDirty() {
+                this.isDirty = false;
+                this.dirtySaveHandler = null;
+                this.activeOperationGuard = false;
+                this.updateGuardBadge();
+            },
+
+            enableOperationGuard(saveCallback) {
+                this.activeOperationGuard = true;
+                if (saveCallback) this.dirtySaveHandler = saveCallback;
+                this.updateGuardBadge();
+            },
+
+            markModalDirty(saveCallback) {
+                this.isModalDirty = true;
+                this.modalDirtySaveHandler = saveCallback;
+                this.updateGuardBadge();
+            },
+
+            clearModalDirty() {
+                this.isModalDirty = false;
+                this.modalDirtySaveHandler = null;
+                this.updateGuardBadge();
+            },
+
+            navigate(screen, params = {}, replace = false) {
+                const executeNavigation = () => {
+                    if (this.current().screen === 'settings' && screen !== 'settings') {
+                        SettingsController.closeAllSections();
+                    }
+                    this.clearDirty();
+                    this.clearModalDirty();
+                    UI.forceCloseModal();
+                    if (screen === 'dashboard') {
+                        // Reset stack when explicitly selecting main dashboard
+                        this.stack = [{ screen: 'dashboard', params: {} }];
+                    } else if (replace) {
+                        this.stack[this.stack.length - 1] = { screen, params };
+                    } else {
+                        const cur = this.current();
+                        if (cur.screen !== screen || JSON.stringify(cur.params) !== JSON.stringify(params)) {
+                            this.stack.push({ screen, params });
+                        }
+                    }
+                    // The app's own stack controls each Back step. Browser history is
+                    // only used as a single Android/WebView Back-button signal.
+                    this.renderCurrent();
+                };
+
+                const modalOpen = !document.getElementById('modalContainer').classList.contains('hidden');
+                if (modalOpen && this.isModalDirty) {
+                    UI.showUnsavedDialog(
+                        async () => {
+                            if (this.modalDirtySaveHandler) {
+                                const savedOk = await this.modalDirtySaveHandler();
+                                if (savedOk) executeNavigation();
+                            } else {
+                                executeNavigation();
+                            }
+                        },
+                        () => executeNavigation()
+                    );
+                    return;
+                }
+
+                if (this.isDirty || this.activeOperationGuard) {
+                    UI.showUnsavedDialog(
+                        async () => {
+                            if (this.dirtySaveHandler) {
+                                const savedOk = await this.dirtySaveHandler();
+                                if (savedOk) {
+                                    this.clearDirty();
+                                    executeNavigation();
+                                }
+                            } else {
+                                executeNavigation();
+                            }
+                        },
+                        () => executeNavigation()
+                    );
+                } else {
+                    executeNavigation();
+                }
+            },
+
+            handleBackButton() {
+                // If the confirmation dialog is already open, block accidental second Back press from bypassing protection
+                const dlg = document.getElementById('dialogContainer');
+                if (!dlg.classList.contains('hidden')) {
+                    const isExitDialog = dlg.getAttribute('data-dialog-type') === 'exit';
+                    if (isExitDialog) {
+                        dlg.classList.add('hidden');
+                        dlg.removeAttribute('data-dialog-type');
+                        return;
+                    }
+                    const box = document.getElementById('dialogBox');
+                    if (box) {
+                        box.classList.remove('animate-slide-up');
+                        void box.offsetWidth;
+                        box.classList.add('animate-slide-up');
+                    }
+                    UI.toast('يرجى اختيار (حفظ) أو (تجاهل) أو (البقاء في العملية) من النافذة', 'warn');
+                    return;
+                }
+
+                const modal = document.getElementById('modalContainer');
+                if (!modal.classList.contains('hidden')) {
+                    UI.requestCloseModal();
+                    return;
+                }
+
+                if (this.isDirty || this.activeOperationGuard) {
+                    UI.showUnsavedDialog(
+                        async () => {
+                            const saveHandler = this.dirtySaveHandler;
+                            if (!saveHandler) return;
+                            try {
+                                const saved = await saveHandler();
+                                // Saving an invoice may replace its form with a
+                                // print preview. Pop that view to reach the
+                                // actual preceding screen, one step at a time.
+                                if (saved) {
+                                    this.clearDirty();
+                                    this.popScreen();
+                                }
+                            } catch (error) {
+                                console.error('Unable to save before Back:', error);
+                                UI.toast('تعذر حفظ العملية؛ بقيت في الصفحة الحالية', 'error');
+                            }
+                        },
+                        () => {
+                            this.clearDirty();
+                            this.popScreen();
+                        }
+                    );
+                    return;
+                }
+
+                // On the home screen, Android Back must require an explicit confirmation.
+                if (this.current().screen === 'dashboard') {
+                    UI.showExitAppDialog();
+                    return;
+                }
+
+                if (this.stack.length > 1) {
+                    this.popScreen();
+                } else {
+                    this.stack = [{ screen: 'dashboard', params: {} }];
+                    this.renderCurrent();
+                }
+            },
+
+            popScreen() {
+                if (this.current().screen === 'settings') SettingsController.closeAllSections();
+                if (this.stack.length > 1) {
+                    this.stack.pop();
+                } else {
+                    this.stack = [{ screen: 'dashboard', params: {} }];
+                }
+                this.renderCurrent();
+            },
+
+            renderCurrent() {
+                const { screen, params } = this.current();
+                const backBtn = document.getElementById('headerBackBtn');
+                const backIcon = document.getElementById('headerBackIcon');
+                if (backBtn) {
+                    const topAppBar = document.getElementById('topAppBar');
+                    if (topAppBar) topAppBar.classList.toggle('dashboard-header', screen === 'dashboard');
+                    backBtn.classList.toggle('dashboard-settings-button', screen === 'dashboard');
+                    backBtn.classList.remove('hidden');
+                    if (screen === 'dashboard') {
+                        backBtn.setAttribute('title', 'الضبط');
+                        backBtn.setAttribute('aria-label', 'الضبط');
+                        backBtn.onclick = () => AppNav.navigate('settings');
+                        if (backIcon) backIcon.className = 'fas fa-sliders text-emerald-400 text-xl';
+                    } else {
+                        backBtn.setAttribute('title', 'رجوع');
+                        backBtn.setAttribute('aria-label', 'رجوع');
+                        backBtn.onclick = () => AppNav.handleBackButton();
+                        if (backIcon) backIcon.className = 'fas fa-arrow-right text-lg';
+                    }
+                }
+
+                document.querySelectorAll('.nav-btn').forEach(btn => {
+                    const navTarget = btn.getAttribute('data-nav');
+                    const isActive = (navTarget === screen) ||
+                        (navTarget === 'invoices_list' && (screen === 'invoice_form' || screen === 'invoice_print')) ||
+                        (navTarget === 'accounts' && (screen === 'vouchers_list' || screen === 'voucher_form' || screen === 'account_statement'));
+                    if (isActive) {
+                        btn.className = 'nav-btn flex flex-col items-center justify-center gap-1 text-emerald-600 font-bold transition';
+                    } else {
+                        btn.className = 'nav-btn flex flex-col items-center justify-center gap-1 text-slate-500 hover:text-slate-800 transition';
+                    }
+                });
+
+                window.scrollTo({ top: 0, behavior: 'instant' });
+                try {
+                    Views.render(screen, params);
+                } catch (error) {
+                    console.error('Application screen render failed:', screen, error);
+                    const main = document.getElementById('mainContent');
+                    if (main) {
+                        main.innerHTML = `<div class="m-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-right"><div class="font-bold text-rose-700 mb-2">تعذر عرض هذه الصفحة</div><div class="text-xs text-rose-600">حدث خطأ أثناء تجهيز التقرير. ارجع خطوة ثم حاول مرة أخرى.</div><button type="button" onclick="AppNav.navigate('reports',{tab:'pnl',period:'all',view:'invoices'},true)" class="mt-3 rounded-xl bg-rose-600 px-4 py-2 text-white text-sm font-bold">إعادة فتح تقرير الأرباح</button></div>`;
+                    }
+                }
+            }
+        };
+
+        // Native Android printer bridge events: connection and print completion are
+        // reported asynchronously by the actual Bluetooth socket, not guessed by JS.
+        window.__nativePrinterEvent = (event) => {
+            try {
+                const printer = ThermalPrinter;
+                if (event.state === 'connected' || event.state === 'printed') {
+                    printer.isConnected = true;
+                    printer.activeBridge = 'android_spp';
+                    if (event.address) State.settings.btMacAddress = event.address;
+                    if (event.state === 'connected') {
+                        printer.device = { name: event.message || 'طابعة بلوتوث', address: event.address };
+                        UI.toast('تم الاتصال المباشر: ' + (event.message || 'الطابعة'), 'success');
+                    } else {
+                        UI.toast(event.message || 'تم إرسال الفاتورة', 'success');
+                    }
+                } else if (event.state === 'disconnected' || event.state === 'error') {
+                    printer.isConnected = false;
+                    printer.activeBridge = 'none';
+                    if (event.state === 'error') UI.toast(event.message || 'تعذر الاتصال أو الطباعة', 'error');
+                } else if (event.state === 'connecting' || event.state === 'printing') {
+                    UI.toast(event.message || 'جارٍ الاتصال...', 'info');
+                }
+                printer.updateStatusUI();
+                const box = document.getElementById('nativePrinterStatus');
+                if (box) box.textContent = event.message || '';
+            } catch (e) { console.error('Printer callback:', e); }
+        };
+
+        // Android / WebView / browser Back-button bridge.
+        // Keep one spare browser-history entry; each system Back consumes it
+        // and we restore it before going back ONE page in AppNav.stack.
+        // This prevents browser history and application history from diverging.
+        let lastSystemBackTime = 0;
+        function handleSystemBack() {
+            if (window.isForceExiting) return;
+            const now = Date.now();
+            // Some Android wrappers emit both a native Back event and popstate.
+            if (now - lastSystemBackTime < 180) return;
+            lastSystemBackTime = now;
+            if (document.getElementById('appProtectionLock')) return;
+            AppNav.handleBackButton();
+        }
+
+        function rearmSystemBackHistory() {
+            try {
+                history.pushState({ appGuard: true }, '');
+            } catch (e) {}
+        }
+
+        window.addEventListener('popstate', () => {
+            if (window.isForceExiting) return;
+            rearmSystemBackHistory();
+            handleSystemBack();
+        });
+
+        // Cordova / PhoneGap APKs send the native Android Back event here.
+        document.addEventListener('backbutton', (event) => {
+            if (event && typeof event.preventDefault === 'function') event.preventDefault();
+            handleSystemBack();
+        }, false);
+
+        // Exposed to Android WebView containers which forward hardware Back
+        // into JavaScript through their native bridge.
+        window.onAndroidBackPressed = handleSystemBack;
+
+        // Desktop/Escape and WebView keyboard Back keys.
+        document.addEventListener('keydown', (event) => {
+            const target = event.target;
+            const editing = target && (target.isContentEditable ||
+                /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName || ''));
+            if (event.key === 'Escape' || event.key === 'BrowserBack' ||
+                event.key === 'GoBack' || (event.altKey && event.key === 'ArrowLeft' && !editing)) {
+                event.preventDefault();
+                handleSystemBack();
+            }
+        });
+
+        // Capacitor Android integration, when its native App bridge exists.
+        document.addEventListener('deviceready', () => {
+            // Cordova's event handler above is already installed.
+        }, false);
+        try {
+            const capacitorApp = window.Capacitor?.Plugins?.App;
+            if (capacitorApp && typeof capacitorApp.addListener === 'function') {
+                capacitorApp.addListener('backButton', handleSystemBack);
+            }
+        } catch (e) {}
+
+        window.addEventListener('beforeunload', (e) => {
+            if (AppNav.isDirty || AppNav.isModalDirty || AppNav.activeOperationGuard) {
+                e.preventDefault();
+                e.returnValue = 'لديك عمليات غير محفوظة، هل أنت متأكد من المغادرة؟';
+                return e.returnValue;
+            }
+        });
+
+        /********************************************************************
+         * 4. MULTI-BRIDGE BLUETOOTH ESC/POS THERMAL PRINTER ENGINE (APK & WEB)
+         * Supports: 1) APK Native Serial/BLE Plugin, 2) Web Bluetooth, 3) RawBT Bridge
+         ********************************************************************/
+        const ThermalPrinter = {
+            device: null,
+            characteristic: null,
+            isConnected: false,
+            activeBridge: 'none', // 'native_serial' | 'web_ble' | 'rawbt'
+
+            updateStatusUI() {
+                const dot = document.getElementById('btDot');
+                const badge = document.getElementById('btStatusBadge');
+                if (!dot || !badge) return; // Indicator was intentionally removed from the home toolbar.
+                const mode = State.settings.btPrintMode || 'auto';
+                if (this.isConnected) {
+                    dot.className = 'w-2.5 h-2.5 rounded-full bg-emerald-400 absolute -top-0.5 -right-0.5 border-2 border-slate-900';
+                    badge.classList.replace('text-slate-400', 'text-emerald-400');
+                } else {
+                    dot.className = 'w-2.5 h-2.5 rounded-full bg-rose-500 absolute -top-0.5 -right-0.5 border-2 border-slate-900';
+                    badge.classList.replace('text-emerald-400', 'text-slate-400');
+                }
+            },
+
+            // Compact Quick Bluetooth Modal (Accessible from top bar & settings)
+            openQuickModal() {
+                const mode = State.settings.btPrintMode || 'auto';
+                const width = State.settings.printerWidth || 80;
+                const devName = this.device?.name || State.settings.btMacAddress || 'غير مقترن بعد';
+
+                UI.openModal(`
+                    <div class="flex items-center justify-between border-b pb-2.5 mb-3">
+                        <h3 class="font-extrabold text-sm flex items-center gap-2 text-slate-900">
+                            <i class="fab fa-bluetooth text-blue-600 text-lg"></i>
+                            <span>اتصال وإعداد طابعة البلوتوث الحرارية</span>
+                        </h3>
+                        <button onclick="UI.forceCloseModal()" class="text-slate-400 hover:text-slate-700"><i class="fas fa-times"></i></button>
+                    </div>
+
+                    <div class="space-y-3 text-xs">
+                        <!-- Status & Quick Connect Row -->
+                        <div class="bg-slate-900 text-white p-3 rounded-xl flex items-center justify-between">
+                            <div>
+                                <div class="text-[11px] text-slate-400">حالة الطابعة الحرارية (الافتراضية):</div>
+                                <div class="font-extrabold text-xs ${this.isConnected ? 'text-emerald-400' : 'text-amber-300'} mt-0.5">
+                                    ${this.isConnected ? 'متصل: ' + devName : mode === 'rawbt' ? 'RawBT خارجي - ليس اتصالاً مباشراً' : 'اختر طابعة مقترنة للاتصال المباشر'}
+                                </div>
+                            </div>
+                            <button onclick="ThermalPrinter.connectNative()" class="bg-blue-600 hover:bg-blue-700 text-white font-extrabold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-sm active:scale-95 transition">
+                                <i class="fab fa-bluetooth-b"></i>
+                                <span>اختيار الطابعة</span>
+                            </button>
+                        </div>
+
+                        <!-- Compact Mode Selector for APK Compatibility -->
+                        <div>
+                            <label class="block font-extrabold text-slate-700 mb-1.5">طريقة الاتصال بالطابعة (داخل تطبيق APK):</label>
+                            <div class="grid grid-cols-2 gap-1.5">
+                                <button type="button" onclick="ThermalPrinter.setQuickOption('btPrintMode', 'auto')" class="p-2 rounded-xl border text-center font-bold transition ${mode === 'auto' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-slate-50 text-slate-700 border-slate-200'}">
+                                    <i class="fas fa-bolt block mb-0.5"></i> تلقائي ذكي
+                                </button>
+                                <button type="button" onclick="ThermalPrinter.setQuickOption('btPrintMode', 'native')" class="p-2 rounded-xl border text-center font-bold transition ${mode === 'native' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-slate-50 text-slate-700 border-slate-200'}">
+                                    <i class="fas fa-print block mb-0.5"></i> مباشر داخل التطبيق
+                                </button>
+                                <button type="button" onclick="ThermalPrinter.setQuickOption('btPrintMode', 'rawbt')" class="p-2 rounded-xl border text-center font-bold transition ${mode === 'rawbt' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-slate-50 text-slate-700 border-slate-200'}">
+                                    <i class="fas fa-mobile-screen block mb-0.5"></i> تطبيق RawBT خارجي
+                                </button>
+                                <button type="button" onclick="ThermalPrinter.setQuickOption('btPrintMode', 'web')" class="p-2 rounded-xl border text-center font-bold transition ${mode === 'web' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-slate-50 text-slate-700 border-slate-200'}">
+                                    <i class="fab fa-bluetooth-b block mb-0.5"></i> بلوتوث الويب (BLE)
+                                </button>
+                            </div>
+                        </div>
+
+                        <p id="nativePrinterStatus" class="text-[11px] text-slate-500 bg-blue-50 p-2 rounded-lg">لطابعة Xprinter: اقترن بها من إعدادات بلوتوث الهاتف، ثم اختر «مباشر داخل التطبيق» واضغط «اختيار الطابعة».</p>
+
+                        <!-- Paper Width Selector (80mm / 58mm) -->
+                        <div class="flex items-center justify-between bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                            <span class="font-extrabold text-slate-700">قياس ورق الطابعة الحرارية:</span>
+                            <div class="flex gap-1.5">
+                                <button type="button" onclick="ThermalPrinter.setQuickOption('printerWidth', 80)" class="px-3 py-1 rounded-lg font-extrabold ${width === 80 ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 border'}">80mm</button>
+                                <button type="button" onclick="ThermalPrinter.setQuickOption('printerWidth', 58)" class="px-3 py-1 rounded-lg font-extrabold ${width === 58 ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 border'}">58mm</button>
+                            </div>
+                        </div>
+
+                        <div class="flex gap-2 pt-1">
+                            <button type="button" onclick="ThermalPrinter.testPrint()" class="flex-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 font-extrabold py-2.5 rounded-xl text-xs">
+                                <i class="fas fa-receipt ml-1"></i> طباعة تجريبية سريعة
+                            </button>
+                            <button type="button" onclick="UI.forceCloseModal()" class="px-5 bg-slate-900 text-white font-bold py-2.5 rounded-xl text-xs">تم</button>
+                        </div>
+                    </div>
+                `);
+            },
+
+            async setQuickOption(key, val) {
+                State.settings[key] = val;
+                await StorageEngine.saveState();
+                this.updateStatusUI();
+                this.openQuickModal();
+                if (AppNav.current().screen === 'invoice_print' || AppNav.current().screen === 'settings') {
+                    AppNav.renderCurrent();
+                }
+            },
+
+            async connectNative() {
+                if (!window.AndroidPrinter || typeof window.AndroidPrinter.choosePrinter !== 'function') {
+                    UI.toast('الاتصال المباشر يحتاج النسخة الحديثة من تطبيق أندرويد APK', 'error');
+                    return false;
+                }
+                State.settings.btPrintMode = 'native';
+                await StorageEngine.saveState();
+                this.updateStatusUI();
+                if (!document.getElementById('modalContainer')?.classList.contains('hidden')) this.openQuickModal();
+                window.AndroidPrinter.choosePrinter();
+                UI.toast('اختر طابعتك من قائمة أجهزة البلوتوث المقترنة', 'info');
+                return true;
+            },
+
+            async connect(fromModal = false) {
+                // Android native RFCOMM pairing/connection is available in our APK.
+                // User picks one of the devices already paired in Android Settings.
+                if (window.AndroidPrinter && typeof window.AndroidPrinter.choosePrinter === 'function'
+                        && State.settings.btPrintMode !== 'rawbt' && State.settings.btPrintMode !== 'web') {
+                    try {
+                        window.AndroidPrinter.choosePrinter();
+                        UI.toast('اختر الطابعة المقترنة من القائمة؛ يلزم سماح الأجهزة المجاورة', 'info');
+                        return 'native_pending';
+                    } catch (e) {
+                        UI.toast('تعذر فتح اختيار الطابعة: ' + e.message, 'error');
+                        return false;
+                    }
+                }
+                // 1. Check Native Cordova/Capacitor Bluetooth Serial Plugin (if compiled inside APK with bluetoothSerial)
+                if (window.bluetoothSerial) {
+                    return new Promise((resolve) => {
+                        UI.toast('جاري البحث عن طابعات البلوتوث المقترنة في الهاتف...', 'info');
+                        window.bluetoothSerial.list((devices) => {
+                            if (!devices || devices.length === 0) {
+                                UI.toast('يرجى الاقتران بالطابعة من إعدادات بلوتوث الهاتف أولاً', 'warn');
+                                resolve(false);
+                                return;
+                            }
+                            const target = devices[0];
+                            const addr = target.address || target.id;
+                            window.bluetoothSerial.connect(addr, () => {
+                                this.device = { name: target.name || addr, address: addr };
+                                this.isConnected = true;
+                                this.activeBridge = 'native_serial';
+                                State.settings.btMacAddress = addr;
+                                StorageEngine.saveState();
+                                this.updateStatusUI();
+                                UI.toast(`تم الاتصال بطابعة البلوتوث: ${this.device.name}`, 'success');
+                                if (fromModal) this.openQuickModal();
+                                resolve(true);
+                            }, (err) => {
+                                UI.toast('تعذر الاتصال المباشر: ' + err, 'error');
+                                resolve(false);
+                            });
+                        }, () => resolve(false));
+                    });
+                }
+
+                // 2. Check Web Bluetooth API
+                if (navigator.bluetooth && State.settings.btPrintMode !== 'rawbt') {
+                    try {
+                        UI.toast('جاري البحث عن طابعة البلوتوث الحرارية...', 'info');
+                        this.device = await navigator.bluetooth.requestDevice({
+                            acceptAllDevices: true,
+                            optionalServices: [
+                                '000018f0-0000-1000-8000-00805f9b34fb',
+                                'e7810a71-73ae-499d-8c15-faa9aef0c3f2',
+                                '49535343-fe7d-4ae5-8fa9-9fafd205e455',
+                                '0000ff00-0000-1000-8000-00805f9b34fb',
+                                '0000ffe0-0000-1000-8000-00805f9b34fb'
+                            ]
+                        });
+
+                        this.device.addEventListener('gattserverdisconnected', () => {
+                            this.isConnected = false;
+                            this.characteristic = null;
+                            this.updateStatusUI();
+                        });
+
+                        const server = await this.device.gatt.connect();
+                        const services = await server.getPrimaryServices();
+                        let foundChar = null;
+
+                        for (const service of services) {
+                            const chars = await service.getCharacteristics();
+                            for (const c of chars) {
+                                if (c.properties.write || c.properties.writeWithoutResponse) {
+                                    foundChar = c;
+                                    break;
+                                }
+                            }
+                            if (foundChar) break;
+                        }
+
+                        if (!foundChar) {
+                            throw new Error('لم يتم العثور على قناة كتابة في الطابعة');
+                        }
+
+                        this.characteristic = foundChar;
+                        this.isConnected = true;
+                        this.activeBridge = 'web_ble';
+                        this.updateStatusUI();
+                        UI.toast(`تم الاقتران بالطابعة: ${this.device.name || 'Thermal Printer'}`, 'success');
+                        if (fromModal) this.openQuickModal();
+                        return true;
+                    } catch (err) {
+                        if (err.name === 'NotFoundError') return false;
+                        // If WebView inside APK blocks Web Bluetooth, automatically switch to APK Direct Bridge (RawBT)
+                        if (State.settings.btPrintMode === 'auto') {
+                            State.settings.btPrintMode = 'rawbt';
+                            await StorageEngine.saveState();
+                            this.updateStatusUI();
+                            if (fromModal) this.openQuickModal();
+                            UI.toast('تم اختيار RawBT الخارجي كخيار احتياطي', 'info');
+                            return 'rawbt';
+                        }
+                        UI.toast('تعذر الاتصال بالطابعة: ' + err.message, 'error');
+                        return false;
+                    }
+                }
+
+                // 3. Fallback for Android WebView APK (where navigator.bluetooth is disabled by Android WebView)
+                State.settings.btPrintMode = 'rawbt';
+                await StorageEngine.saveState();
+                this.updateStatusUI();
+                if (fromModal) this.openQuickModal();
+                UI.toast('تم اختيار تطبيق RawBT الخارجي؛ يحتاج إلى تثبيت منفصل', 'info');
+                return 'rawbt';
+            },
+
+            uint8ToBase64(bytes) {
+                let binary = '';
+                const chunkSize = 0x8000;
+                for (let i = 0; i < bytes.length; i += chunkSize) {
+                    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+                }
+                return btoa(binary);
+            },
+
+            sendViaApkBridge(escposBytes) {
+                const b64 = this.uint8ToBase64(escposBytes);
+                // 1. If Android native JS interface is injected in custom WebView
+                if (State.settings.btPrintMode !== 'rawbt' && window.AndroidPrinter && typeof window.AndroidPrinter.printBase64 === 'function') {
+                    window.AndroidPrinter.printBase64(b64);
+                    UI.toast('جارٍ إرسال الفاتورة عبر اتصال أندرويد المباشر...', 'info');
+                    return;
+                }
+                // 2. Direct Android Bluetooth Print URI (RawBT scheme works seamlessly inside any converted APK without permissions)
+                const uri = 'rawbt:base64,' + b64;
+                const a = document.createElement('a');
+                a.href = uri;
+                a.style.display = 'none';
+                document.body.appendChild(a);
+                a.click();
+                setTimeout(() => a.remove(), 400);
+                UI.toast('تم تمرير أمر الطباعة لتطبيق RawBT الخارجي', 'info');
+            },
+
+            async sendRawEscPosBytes(escposBytes) {
+                const mode = State.settings.btPrintMode || 'auto';
+
+                // Use the native Classic Bluetooth ESC/POS bridge for paired devices.
+                if ((mode === 'auto' || mode === 'native')
+                    && window.AndroidPrinter && typeof window.AndroidPrinter.printBase64 === 'function') {
+                    this.sendViaApkBridge(escposBytes);
+                    return;
+                }
+
+                // Optional external RawBT fallback, only when explicitly selected.
+                if (mode === 'rawbt') {
+                    this.sendViaApkBridge(escposBytes);
+                    return;
+                }
+
+                // Ensure connection if not connected
+                if (!this.isConnected) {
+                    const connResult = await this.connect(false);
+                    if (connResult === 'rawbt') {
+                        this.sendViaApkBridge(escposBytes);
+                        return;
+                    }
+                    if (!connResult) return;
+                }
+
+                // Send via Native Cordova/Capacitor Bluetooth Serial if active
+                if (this.activeBridge === 'native_serial' && window.bluetoothSerial) {
+                    window.bluetoothSerial.write(escposBytes.buffer, () => {
+                        UI.toast('تمت طباعة الفاتورة عبر البلوتوث بنجاح!', 'success');
+                    }, (err) => {
+                        UI.toast('خطأ أثناء الإرسال للطابعة: ' + err, 'error');
+                    });
+                    return;
+                }
+
+                // Send via Web Bluetooth GATT Characteristic in smooth chunks
+                if (this.characteristic) {
+                    const chunkSize = 180;
+                    for (let i = 0; i < escposBytes.length; i += chunkSize) {
+                        const chunk = escposBytes.slice(i, i + chunkSize);
+                        if (this.characteristic.properties.writeWithoutResponse) {
+                            await this.characteristic.writeValueWithoutResponse(chunk);
+                        } else {
+                            await this.characteristic.writeValue(chunk);
+                        }
+                        await new Promise(r => setTimeout(r, 30));
+                    }
+                    UI.toast('تمت طباعة الفاتورة عبر البلوتوث بنجاح!', 'success');
+                } else {
+                    this.sendViaApkBridge(escposBytes);
+                }
+            },
+
+            async testPrint() {
+                try {
+                    const paperWidthDots = State.settings.printerWidth === 58 ? 384 : 576;
+                    const canvas = document.createElement('canvas');
+                    canvas.width = paperWidthDots;
+                    canvas.height = 190;
+                    const ctx = canvas.getContext('2d');
+                    ctx.fillStyle = '#FFFFFF';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    ctx.fillStyle = '#000000';
+                    ctx.textAlign = 'center';
+                    ctx.font = '900 28px Cairo, sans-serif';
+                    ctx.fillText(State.settings.companyName || 'اسم الشركة', paperWidthDots / 2, 45);
+                    ctx.font = 'bold 22px Cairo, sans-serif';
+                    ctx.fillText('اختبار طابعة البلوتوث الحرارية ناجح ✓', paperWidthDots / 2, 95);
+                    ctx.fillText(`قياس الورق: ${State.settings.printerWidth}mm`, paperWidthDots / 2, 135);
+                    const bytes = this.canvasToEscPosRaster(canvas);
+                    await this.sendRawEscPosBytes(bytes);
+                } catch (e) {
+                    UI.toast('تعذر إرسال الطباعة التجريبية: ' + e.message, 'error');
+                }
+            },
+
+            async printInvoiceDirect(inv) {
+                if (!inv) return false;
+                try {
+                    UI.toast('جاري تجهيز وإرسال الفاتورة لطابعة البلوتوث الحرارية...', 'info');
+                    const paperWidthDots = State.settings.printerWidth === 58 ? 384 : 576;
+                    const canvas = await this.renderInvoiceToCanvas(inv, paperWidthDots);
+                    const escposBytes = this.canvasToEscPosRaster(canvas);
+                    await this.sendRawEscPosBytes(escposBytes);
+                    return true;
+                } catch (err) {
+                    UI.toast('تم حفظ الفاتورة لكن تعذر إرسال الطباعة: ' + err.message, 'error');
+                    return false;
+                }
+            },
+
+            formatReceiptDate(dateStr) {
+                try {
+                    const d = new Date(dateStr);
+                    if (isNaN(d.getTime())) return String(dateStr || '').replace('T', ' ');
+                    const dd = String(d.getDate()).padStart(2, '0');
+                    const mm = String(d.getMonth() + 1).padStart(2, '0');
+                    const yyyy = d.getFullYear();
+                    let hours = d.getHours();
+                    const mins = String(d.getMinutes()).padStart(2, '0');
+                    const ampm = hours >= 12 ? 'PM' : 'AM';
+                    hours = hours % 12;
+                    hours = hours ? hours : 12;
+                    const hh = String(hours).padStart(2, '0');
+                    return `${dd}-${mm}-${yyyy} - ${hh}:${mins} ${ampm}`;
+                } catch (e) {
+                    return String(dateStr || '').replace('T', ' ');
+                }
+            },
+
+            formatPartyBalance(val, currency = 'SYP') {
+                const r = Accounting.round(Math.abs(val), currency);
+                const numStr = currency === 'USD'
+                    ? r.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) + ' $'
+                    : r.toLocaleString('en-US') + ' ل.س';
+                const status = val >= 0 ? 'عليه' : 'له';
+                return `${numStr} ${status}`;
+            },
+
+            async renderInvoiceToCanvas(inv, widthDots) {
+                if (document.fonts && document.fonts.ready) {
+                    await document.fonts.ready;
+                }
+                const canvas = document.getElementById('thermalCanvas');
+                const ctx = canvas.getContext('2d');
+                const is58 = widthDots <= 384;
+                const scale = Number(State.settings.printFontScale) || 0.75;
+                const pad = is58 ? 8 : 14;
+
+                const fCompany = Math.round((is58 ? 26 : 36) * scale);
+                const fPhone = Math.round((is58 ? 19 : 25) * scale);
+                const fInvTitle = Math.round((is58 ? 28 : 40) * scale);
+                const fMeta = Math.round((is58 ? 18 : 25) * scale);
+                const fTableHead = Math.round((is58 ? 16 : 22) * scale);
+                const fItem = Math.round((is58 ? 16 : 22) * scale);
+                const fSum = Math.round((is58 ? 20 : 28) * scale);
+                const fNet = Math.round((is58 ? 23 : 33) * scale);
+                const fBalPrev = Math.round((is58 ? 18 : 24) * scale);
+                const fBalFinal = Math.round((is58 ? 20 : 28) * scale);
+                const fFooter = Math.round((is58 ? 18 : 25) * scale);
+                const fSep = Math.round((is58 ? 16 : 22) * scale);
+
+                const acc = State.accounts.find(a => a.id === inv.accountId);
+                let prevVal = 0;
+                let finalVal = 0;
+                if (acc) {
+                    const prevStmt = Accounting.getAccountStatement(acc.id, null, null, inv.id);
+                    prevVal = inv.currency === 'SYP' ? prevStmt.sypBalance : prevStmt.usdBalance;
+                    const netImpact = (inv.type === 'sale' || inv.type === 'purchase_return')
+                        ? (Number(inv.netTotal) - Number(inv.paidAmount))
+                        : -(Number(inv.netTotal) - Number(inv.paidAmount));
+                    finalVal = prevVal + netImpact;
+                }
+                const prevBalText = this.formatPartyBalance(prevVal, inv.currency);
+                const finalBalText = this.formatPartyBalance(finalVal, inv.currency);
+
+                const wrapTextLines = (text, fontStr, maxWidth) => {
+                    ctx.font = fontStr;
+                    const words = String(text || '').split(' ');
+                    const lines = [];
+                    let currentLine = words[0] || '';
+                    for (let i = 1; i < words.length; i++) {
+                        const testLine = currentLine + ' ' + words[i];
+                        if (ctx.measureText(testLine).width <= maxWidth) {
+                            currentLine = testLine;
+                        } else {
+                            lines.push(currentLine);
+                            currentLine = words[i];
+                        }
+                    }
+                    if (currentLine) lines.push(currentLine);
+                    return lines;
+                };
+
+                let logoImg = null;
+                if (State.settings.companyLogo) {
+                    logoImg = await new Promise((resolve) => {
+                        const img = new Image();
+                        img.onload = () => resolve(img);
+                        img.onerror = () => resolve(null);
+                        img.src = State.settings.companyLogo;
+                    });
+                }
+
+                const estimatedHeight = Math.round((1400 + (inv.rows.length * 140)) * scale);
+                canvas.width = widthDots;
+                canvas.height = estimatedHeight;
+
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#000000';
+                ctx.textBaseline = 'top';
+                ctx.direction = 'rtl';
+
+                let y = 16;
+
+                const drawDoubleSep = () => {
+                    ctx.font = `bold ${fSep}px monospace`;
+                    ctx.textAlign = 'center';
+                    ctx.fillText(is58 ? '========================' : '==============================', widthDots / 2, y);
+                    y += fSep + 10;
+                };
+
+                // 1. Optional Uploaded Logo + Company Name & Phone
+                if (logoImg) {
+                    const maxLogoW = Math.round(widthDots * 0.42);
+                    const maxLogoH = Math.round((is58 ? 110 : 150) * scale);
+                    const ratio = Math.min(maxLogoW / logoImg.width, maxLogoH / logoImg.height, 1);
+                    const drawW = Math.round(logoImg.width * ratio);
+                    const drawH = Math.round(logoImg.height * ratio);
+                    ctx.drawImage(logoImg, Math.round((widthDots - drawW) / 2), y, drawW, drawH);
+                    y += drawH + 10;
+                }
+
+                ctx.font = `900 ${fCompany}px Cairo, sans-serif`;
+                ctx.textAlign = 'center';
+                const compLines = wrapTextLines(State.settings.companyName || 'مؤسسة الرائد التجارية', `900 ${fCompany}px Cairo, sans-serif`, widthDots - pad * 2);
+                for (const line of compLines) {
+                    ctx.fillText(line, widthDots / 2, y);
+                    y += fCompany + 8;
+                }
+
+                if (State.settings.companyPhone) {
+                    ctx.font = `bold ${fPhone}px Cairo, sans-serif`;
+                    ctx.fillText(State.settings.companyPhone, widthDots / 2, y);
+                    y += fPhone + 8;
+                }
+                if (State.settings.companyAddress) {
+                    ctx.font = `bold ${Math.round(fPhone * 0.9)}px Cairo, sans-serif`;
+                    ctx.fillText(State.settings.companyAddress, widthDots / 2, y);
+                    y += fPhone + 6;
+                }
+
+                drawDoubleSep();
+
+                // 2. Invoice Title ("فاتورة مبيعات")
+                ctx.font = `900 ${fInvTitle}px Cairo, sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.fillText(`فاتورة ${Accounting.getInvoiceTypeAr(inv.type)}`, widthDots / 2, y);
+                y += fInvTitle + 14;
+
+                // 3. Metadata Rows (Right label, Center value)
+                const drawMetaRow = (labelAr, valText) => {
+                    ctx.font = `900 ${fMeta}px Cairo, sans-serif`;
+                    ctx.textAlign = 'right';
+                    ctx.fillText(labelAr, widthDots - pad, y);
+                    ctx.font = `bold ${fMeta}px Cairo, sans-serif`;
+                    ctx.textAlign = 'center';
+                    ctx.fillText(valText, widthDots * 0.44, y);
+                    y += fMeta + 12;
+                };
+
+                drawMetaRow('رقم الفاتورة', `فاتورة-${inv.number}`);
+                drawMetaRow('التاريخ', this.formatReceiptDate(inv.date));
+                drawMetaRow('الحساب', acc ? acc.name : 'زبون عام');
+
+                y += 4;
+                drawDoubleSep();
+
+                // 4. 5-Column Table Header (# | اسم المادة | الوحدة | الكمية | الإفرادي | الاجمالي)
+                const xIdx = widthDots - pad;
+                const xName = widthDots - pad - (is58 ? 24 : 34);
+                const xUnit = Math.round(widthDots * 0.50);
+                const xQty = Math.round(widthDots * 0.37);
+                const xPrice = Math.round(widthDots * 0.23);
+                const xTotal = pad;
+                const maxNameWidth = xName - (widthDots * 0.56);
+
+                ctx.font = `900 ${fTableHead}px Cairo, sans-serif`;
+                ctx.textAlign = 'right';
+                ctx.fillText('#', xIdx, y);
+                ctx.fillText('اسم المادة', xName, y);
+                ctx.textAlign = 'center';
+                ctx.fillText('الوحدة', xUnit, y);
+                ctx.fillText('الكمية', xQty, y);
+                ctx.fillText('الإفرادي', xPrice, y);
+                ctx.textAlign = 'left';
+                ctx.fillText('الاجمالي', xTotal, y);
+                y += fTableHead + 6;
+
+                // Dashed Sub-header Underlines
+                ctx.font = `bold ${Math.round(fTableHead * 0.85)}px monospace`;
+                ctx.textAlign = 'right';
+                ctx.fillText('--', xIdx, y);
+                ctx.fillText('---------', xName, y);
+                ctx.textAlign = 'center';
+                ctx.fillText('----', xUnit, y);
+                ctx.fillText('--', xQty, y);
+                ctx.fillText('----', xPrice, y);
+                ctx.textAlign = 'left';
+                ctx.fillText('----', xTotal, y);
+                y += fTableHead + 6;
+
+                // 5. Table Rows
+                for (let i = 0; i < inv.rows.length; i++) {
+                    const r = inv.rows[i];
+                    const nameLines = wrapTextLines(r.itemName, `bold ${fItem}px Cairo, sans-serif`, maxNameWidth);
+
+                    ctx.font = `bold ${fItem}px Cairo, sans-serif`;
+                    ctx.textAlign = 'right';
+                    ctx.fillText(String(i + 1), xIdx, y);
+                    ctx.fillText(nameLines[0] || '', xName, y);
+
+                    ctx.textAlign = 'center';
+                    ctx.fillText(String(r.unitName || ''), xUnit, y);
+                    ctx.fillText(Accounting.formatItemQuantity(r.qty), xQty, y);
+                    ctx.fillText(Accounting.formatItemPriceNumber(r.price), xPrice, y);
+
+                    ctx.font = `900 ${fItem}px Cairo, sans-serif`;
+                    ctx.textAlign = 'left';
+                    ctx.fillText(Accounting.formatNumberOnly(r.total, inv.currency), xTotal, y);
+
+                    y += fItem + 8;
+
+                    for (let nl = 1; nl < nameLines.length; nl++) {
+                        ctx.font = `bold ${fItem}px Cairo, sans-serif`;
+                        ctx.textAlign = 'right';
+                        ctx.fillText(nameLines[nl], xName, y);
+                        y += fItem + 6;
+                    }
+                    y += 4;
+                }
+
+                y += 4;
+                drawDoubleSep();
+
+                // 6. Totals Section
+                const drawTotalRow = (labelAr, valStr, fontPx, isBoldLabel = false) => {
+                    ctx.font = `${isBoldLabel ? '900' : 'bold'} ${fontPx}px Cairo, sans-serif`;
+                    ctx.textAlign = 'right';
+                    ctx.fillText(labelAr, widthDots - pad, y);
+                    ctx.font = `900 ${fontPx}px Cairo, sans-serif`;
+                    ctx.textAlign = 'left';
+                    ctx.fillText(valStr, pad, y);
+                    y += fontPx + 12;
+                };
+
+                drawTotalRow('المجموع', Accounting.format(inv.subTotal, inv.currency), fSum, false);
+                if (Number(inv.discountAmount) > 0) {
+                    drawTotalRow('الحسم', `- ${Accounting.format(inv.discountAmount, inv.currency)}`, fSum, false);
+                }
+                if (Number(inv.taxAmount) > 0) {
+                    drawTotalRow('الضريبة', `+ ${Accounting.format(inv.taxAmount, inv.currency)}`, fSum, false);
+                }
+                drawTotalRow('المدفوع', Accounting.format(inv.paidAmount, inv.currency), fSum, false);
+
+                // Side Dashes Divider
+                ctx.font = `bold ${fSep}px monospace`;
+                ctx.textAlign = 'right';
+                ctx.fillText('-----------', widthDots - pad, y);
+                ctx.textAlign = 'left';
+                ctx.fillText('-----------', pad, y);
+                y += fSep + 10;
+
+                drawTotalRow('إجمالي الفاتورة', Accounting.format(inv.netTotal, inv.currency), fNet, true);
+                drawTotalRow('المبلغ الباقي', Accounting.format(inv.remainingAmount, inv.currency), fNet, true);
+
+                y += 4;
+                drawTotalRow('رصيد قبل الفاتورة', prevBalText, fBalPrev, false);
+                drawTotalRow('الرصيد النهائي', finalBalText, fBalFinal, true);
+
+                y += 6;
+                drawDoubleSep();
+
+                // 7. Footer Note
+                const footerLines = wrapTextLines(State.settings.footerNote || 'ثقتكم تهمنا', `bold ${fFooter}px Cairo, sans-serif`, widthDots - pad * 2);
+                ctx.font = `bold ${fFooter}px Cairo, sans-serif`;
+                ctx.textAlign = 'center';
+                for (const fl of footerLines) {
+                    ctx.fillText(fl, widthDots / 2, y);
+                    y += fFooter + 8;
+                }
+                y += 36;
+
+                const finalCanvas = document.createElement('canvas');
+                finalCanvas.width = widthDots;
+                finalCanvas.height = y;
+                const fCtx = finalCanvas.getContext('2d');
+                fCtx.fillStyle = '#FFFFFF';
+                fCtx.fillRect(0, 0, widthDots, y);
+                fCtx.drawImage(canvas, 0, 0);
+                return finalCanvas;
+            },
+
+            canvasToEscPosRaster(canvas) {
+                const ctx = canvas.getContext('2d');
+                const width = canvas.width;
+                const height = canvas.height;
+                const imgData = ctx.getImageData(0, 0, width, height).data;
+                const bytesPerRow = Math.ceil(width / 8);
+                const rasterData = new Uint8Array(bytesPerRow * height);
+
+                for (let y = 0; y < height; y++) {
+                    for (let x = 0; x < width; x++) {
+                        const idx = (y * width + x) * 4;
+                        const luminance = 0.299 * imgData[idx] + 0.587 * imgData[idx + 1] + 0.114 * imgData[idx + 2];
+                        if (luminance < 160) {
+                            rasterData[y * bytesPerRow + (x >> 3)] |= (0x80 >> (x & 0x7));
+                        }
+                    }
+                }
+
+                const xL = bytesPerRow & 0xff;
+                const xH = (bytesPerRow >> 8) & 0xff;
+                const yL = height & 0xff;
+                const yH = (height >> 8) & 0xff;
+
+                const header = new Uint8Array([0x1B, 0x40, 0x1D, 0x76, 0x30, 0x00, xL, xH, yL, yH]);
+                const footer = new Uint8Array([0x1B, 0x64, 0x04, 0x1D, 0x56, 0x42, 0x00]);
+
+                const packet = new Uint8Array(header.length + rasterData.length + footer.length);
+                packet.set(header, 0);
+                packet.set(rasterData, header.length);
+                packet.set(footer, header.length + rasterData.length);
+                return packet;
+            }
+        };
+
+        /********************************************************************
+         * 5. UI HELPERS, MODALS & PROTECTION DIALOGS
+         ********************************************************************/
+        const UI = {
+            toast(msg, type = 'success') {
+                const container = document.getElementById('toastContainer');
+                const el = document.createElement('div');
+                const colors = {
+                    success: 'bg-emerald-600 text-white',
+                    error: 'bg-rose-600 text-white',
+                    warn: 'bg-amber-500 text-white',
+                    info: 'bg-slate-800 text-white'
+                };
+                const icons = {
+                    success: 'fa-check-circle',
+                    error: 'fa-circle-exclamation',
+                    warn: 'fa-triangle-exclamation',
+                    info: 'fa-circle-info'
+                };
+                el.className = `${colors[type] || colors.info} px-4 py-3 rounded-xl shadow-lg flex items-center gap-2.5 text-xs sm:text-sm font-bold animate-slide-up`;
+                el.innerHTML = `<i class="fas ${icons[type] || icons.info}"></i><span>${msg}</span>`;
+                container.appendChild(el);
+                setTimeout(() => {
+                    el.style.opacity = '0';
+                    el.style.transition = 'opacity 0.25s';
+                    setTimeout(() => el.remove(), 250);
+                }, 2800);
+            },
+
+            setHeader(title, subtitle = '') {
+                document.getElementById('screenTitle').innerHTML = title;
+                document.getElementById('screenSubtitle').textContent = subtitle;
+                document.getElementById('topBarRate').textContent = Number(State.settings.exchangeRate).toLocaleString('en-US');
+            },
+
+            openModal(html) {
+                AppNav.clearModalDirty();
+                const c = document.getElementById('modalContainer');
+                const b = document.getElementById('modalBox');
+                b.innerHTML = html;
+                c.classList.remove('hidden');
+            },
+
+            requestCloseModal() {
+                if (typeof InvoiceController !== 'undefined' && InvoiceController.barcodeScanActive
+                        && document.getElementById('invoiceBarcodeVideo')) {
+                    UI.toast('اضغط زر × للخروج من كاميرا الباركود', 'info');
+                    return;
+                }
+                if (AppNav.isModalDirty) {
+                    this.showUnsavedDialog(
+                        async () => {
+                            if (AppNav.modalDirtySaveHandler) {
+                                const ok = await AppNav.modalDirtySaveHandler();
+                                if (ok) this.forceCloseModal();
+                            }
+                        },
+                        () => this.forceCloseModal()
+                    );
+                } else {
+                    this.forceCloseModal();
+                }
+            },
+
+            forceCloseModal() {
+                if (typeof InvoiceController !== 'undefined' && InvoiceController.barcodeScanActive) {
+                    InvoiceController.stopBarcodeScanner();
+                }
+                AppNav.clearModalDirty();
+                document.getElementById('modalContainer').classList.add('hidden');
+                document.getElementById('modalBox').innerHTML = '';
+            },
+
+            showUnsavedDialog(onSave, onDiscard) {
+                const c = document.getElementById('dialogContainer');
+                const b = document.getElementById('dialogBox');
+                b.innerHTML = `
+                    <div class="w-14 h-14 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mx-auto mb-3 text-2xl shadow-inner">
+                        <i class="fas fa-shield-halved"></i>
+                    </div>
+                    <h3 class="font-extrabold text-base text-slate-900 mb-1">حماية العملية من الخروج العرضي</h3>
+                    <p class="text-xs text-slate-600 mb-5 leading-relaxed">لقد قمت بالضغط على رجوع/خروج قبل حفظ العملية الحالية. هل تريد حفظ التغييرات قبل الإغلاق؟</p>
+                    <div class="flex flex-col gap-2">
+                        <button id="dlgSaveBtn" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-extrabold text-sm shadow-xs transition">
+                            <i class="fas fa-floppy-disk ml-1"></i> حفظ العملية الآن
+                        </button>
+                        <button id="dlgCancelBtn" class="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold text-sm transition">
+                            <i class="fas fa-arrow-rotate-right ml-1"></i> البقاء في العملية (إلغاء الخروج)
+                        </button>
+                        <button id="dlgDiscardBtn" class="w-full py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl font-bold text-xs transition mt-1">
+                            <i class="fas fa-trash-can ml-1"></i> تجاهل التغييرات والخروج بدون حفظ
+                        </button>
+                    </div>
+                `;
+                c.classList.remove('hidden');
+
+                document.getElementById('dlgSaveBtn').onclick = () => {
+                    c.classList.add('hidden');
+                    if (onSave) onSave();
+                };
+                document.getElementById('dlgDiscardBtn').onclick = () => {
+                    c.classList.add('hidden');
+                    if (onDiscard) onDiscard();
+                };
+                document.getElementById('dlgCancelBtn').onclick = () => {
+                    c.classList.add('hidden');
+                };
+            },
+
+            showExitAppDialog() {
+                const c = document.getElementById('dialogContainer');
+                const b = document.getElementById('dialogBox');
+                c.setAttribute('data-dialog-type', 'exit');
+                b.innerHTML = `
+                    <div class="w-14 h-14 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto mb-3 text-2xl shadow-inner">
+                        <i class="fas fa-power-off"></i>
+                    </div>
+                    <h3 class="font-extrabold text-base text-slate-900 mb-1">تأكيد الخروج من التطبيق</h3>
+                    <p class="text-xs text-slate-600 mb-5 leading-relaxed">هل تريد الخروج من تطبيق المحاسب التقني؟ سيتم حفظ الحالة الحالية قبل الإغلاق.</p>
+                    <div class="grid grid-cols-2 gap-2.5">
+                        <button onclick="UI.closeExitDialog()" class="py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold text-sm transition">
+                            البقاء في التطبيق
+                        </button>
+                        <button onclick="UI.confirmExitAction()" class="py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-extrabold text-sm shadow-xs transition">
+                            نعم، خروج
+                        </button>
+                    </div>
+                `;
+                c.classList.remove('hidden');
+            },
+
+            closeExitDialog() {
+                const c = document.getElementById('dialogContainer');
+                c.classList.add('hidden');
+                c.removeAttribute('data-dialog-type');
+            },
+
+            async confirmExitAction() {
+                const c = document.getElementById('dialogContainer');
+                c.classList.add('hidden');
+                c.removeAttribute('data-dialog-type');
+
+                window.isForceExiting = true;
+                AppNav.clearDirty();
+                AppNav.clearModalDirty();
+                await StorageEngine.saveState();
+
+                UI.toast('تم حفظ وتأمين قاعدة البيانات.. جاري الخروج من التطبيق', 'info');
+
+                setTimeout(() => {
+                    try {
+                        if (navigator.app && typeof navigator.app.exitApp === 'function') {
+                            navigator.app.exitApp();
+                            return;
+                        }
+                        if (navigator.device && typeof navigator.device.exitApp === 'function') {
+                            navigator.device.exitApp();
+                            return;
+                        }
+                        if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
+                            window.Capacitor.Plugins.App.exitApp();
+                            return;
+                        }
+                        if (window.Android && typeof window.Android.exitApp === 'function') {
+                            window.Android.exitApp();
+                            return;
+                        }
+                        if (window.Android && typeof window.Android.closeApp === 'function') {
+                            window.Android.closeApp();
+                            return;
+                        }
+                        if (window.Website2APK && typeof window.Website2APK.exitApp === 'function') {
+                            window.Website2APK.exitApp();
+                            return;
+                        }
+                    } catch (e) {}
+
+                    // لا تستبدل واجهة التطبيق بصفحة "تم الإغلاق"؛ WebView قد لا يسمح
+                    // بإغلاق نفسه من JavaScript عند غياب جسر الإغلاق الأصلي.
+                    let closeRequested = false;
+                    try {
+                        if (window.Android && typeof window.Android.finish === 'function') {
+                            window.Android.finish();
+                            closeRequested = true;
+                        } else if (window.Android && typeof window.Android.close === 'function') {
+                            window.Android.close();
+                            closeRequested = true;
+                        }
+                    } catch (e) {}
+
+                    if (!closeRequested) {
+                        try {
+                            window.open('', '_self');
+                            window.close();
+                        } catch (e) {}
+                        try {
+                            if (history.length > 1) history.go(-history.length);
+                        } catch (e) {}
+
+                        // إذا منع المتصفح الإغلاق، أبقِ التطبيق كما هو بدلاً من عرضه
+                        // كشاشة مغلقة عالقة، وأعد تفعيل التنقل الطبيعي.
+                        setTimeout(() => {
+                            window.isForceExiting = false;
+                            if (typeof UI !== 'undefined' && UI.toast) {
+                                UI.toast('تم حفظ البيانات. لا يدعم هذا الإصدار الإغلاق البرمجي؛ يمكنك إغلاق التطبيق من شاشة التطبيقات الأخيرة في الهاتف.', 'info');
+                            }
+                        }, 500);
+                    }
+                }, 200);
+            },
+
+            showDeleteConfirm(title, message, onConfirm) {
+                const c = document.getElementById('dialogContainer');
+                const b = document.getElementById('dialogBox');
+                b.innerHTML = `
+                    <div class="w-14 h-14 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto mb-3 text-2xl">
+                        <i class="fas fa-trash-can"></i>
+                    </div>
+                    <h3 class="font-bold text-base text-slate-900 mb-1">${title}</h3>
+                    <p class="text-xs text-slate-500 mb-5 leading-relaxed">${message}</p>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button onclick="document.getElementById('dialogContainer').classList.add('hidden')" class="py-2.5 bg-slate-100 text-slate-700 rounded-xl font-bold text-sm">
+                            إلغاء
+                        </button>
+                        <button id="confirmDelBtn" class="py-2.5 bg-rose-600 text-white rounded-xl font-bold text-sm">
+                            تأكيد الحذف وعكس الأثر
+                        </button>
+                    </div>
+                `;
+                c.classList.remove('hidden');
+                document.getElementById('confirmDelBtn').onclick = () => {
+                    c.classList.add('hidden');
+                    // Optional protection now covers individual record deletions.
+                    // Full database reset has its own compulsory PIN flow and confirmation.
+                    if (State.settings.appProtection?.protectDeletion && title !== 'تصفير شامل للنظام') {
+                        ProtectionController.requirePinForDestructiveAction(
+                            'أدخل رمز الحماية لتأكيد حذف السجل',
+                            onConfirm,
+                            'حذف السجل'
+                        );
+                    } else {
+                        onConfirm();
+                    }
+                };
+            },
+
+            showProtectionAlert(title, message, details = '') {
+                const c = document.getElementById('dialogContainer');
+                const b = document.getElementById('dialogBox');
+                b.innerHTML = `
+                    <div class="w-14 h-14 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mx-auto mb-3 text-2xl">
+                        <i class="fas fa-shield-halved"></i>
+                    </div>
+                    <h3 class="font-bold text-base text-slate-900 mb-1">${title}</h3>
+                    <p class="text-xs text-slate-600 mb-3 leading-relaxed">${message}</p>
+                    ${details ? `<div class="bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-[11px] font-bold text-slate-700 mb-4 text-right">${details}</div>` : ''}
+                    <button onclick="document.getElementById('dialogContainer').classList.add('hidden')" class="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold text-sm">
+                        فهمت ذلك (إغلاق)
+                    </button>
+                `;
+                c.classList.remove('hidden');
+            },
+
+            openRateModal() {
+                this.openModal(`
+                    <div class="flex items-center justify-between border-b pb-3 mb-4">
+                        <h3 class="font-bold text-base flex items-center gap-2">
+                            <i class="fas fa-coins text-amber-500"></i>
+                            <span>تحديث سعر الصرف اللحظي</span>
+                        </h3>
+                        <button onclick="UI.requestCloseModal()" class="text-slate-400 hover:text-slate-700"><i class="fas fa-times"></i></button>
+                    </div>
+                    <p class="text-xs text-slate-500 mb-3">يُعتمد هذا السعر كافتراضي للفواتير والسندات الجديدة ولإعادة احتساب أسعار الأصناف وتقييم الأرصدة (1 دولار أمريكي مقابل الليرة السورية):</p>
+                    <div class="mb-4">
+                        <label class="block text-xs font-bold text-slate-700 mb-1">سعر صرف الدولار (ل.س لكل 1$)</label>
+                        <input type="number" id="modalRateInput" value="${State.settings.exchangeRate}" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-lg font-bold text-center focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="UI.saveQuickRate()" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-sm">حفظ واعتماد</button>
+                        <button onclick="UI.forceCloseModal()" class="px-4 bg-slate-100 text-slate-700 font-bold py-2.5 rounded-xl text-sm">إلغاء</button>
+                    </div>
+                `);
+            },
+
+            async saveQuickRate() {
+                const val = Number(document.getElementById('modalRateInput').value);
+                if (!val || val <= 0) {
+                    this.toast('يرجى إدخال سعر صرف صحيح أكبر من الصفر', 'error');
+                    return;
+                }
+                State.settings.exchangeRate = val;
+                await StorageEngine.saveState();
+                document.getElementById('topBarRate').textContent = val.toLocaleString('en-US');
+                this.forceCloseModal();
+                this.toast(`تم تحديث سعر الصرف العام إلى ${val.toLocaleString('en-US')} ل.س`, 'success');
+
+                if (AppNav.current().screen === 'invoice_form' && InvoiceController.draft) {
+                    InvoiceController.updateExchangeRate(val, true);
+                } else {
+                    AppNav.renderCurrent();
+                }
+            }
+        };
+
+        /********************************************************************
+         * 6. APPLICATION VIEWS & CONTROLLERS
+         ********************************************************************/
+        const Views = {
+            jumpToEntry(panelId, fieldId) {
+                const panel = document.getElementById(panelId);
+                if (!panel) return;
+                panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                const field = document.getElementById(fieldId);
+                if (field) {
+                    try { field.focus({ preventScroll: true }); }
+                    catch (_) { field.focus(); }
+                }
+            },
+
+            render(screen, params = {}) {
+                const main = document.getElementById('mainContent');
+                switch (screen) {
+                    case 'dashboard': return this.renderDashboard(main);
+                    case 'items': return this.renderItems(main, params);
+                    case 'warehouses': return this.renderWarehouses(main, params);
+                    case 'expenses': return this.renderExpenses(main, params);
+                    case 'invoices_list': return this.renderInvoicesList(main, params);
+                    case 'invoice_form': return InvoiceController.renderForm(main, params);
+                    case 'invoice_print': return this.renderInvoicePrint(main, params);
+                    case 'accounts': return this.renderAccounts(main, params);
+                    case 'account_statement': return this.renderAccountStatement(main, params);
+                    case 'vouchers_list': return this.renderVouchersList(main, params);
+                    case 'voucher_form': return VoucherController.renderForm(main, params);
+                    case 'reports': return this.renderReports(main, params);
+                    case 'settings': return this.renderSettings(main);
+                    default: return this.renderDashboard(main);
+                }
+            },
+
+            // ==================== 6.1 DASHBOARD ====================
+            openDebtsChoiceModal() {
+                UI.openModal(`
+                    <div class="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
+                        <div><h3 class="text-lg font-extrabold text-slate-900">الديون</h3>
+                            <p class="text-xs text-slate-500 mt-1">اختر نوع الأرصدة لعرض الحسابات والمبالغ</p></div>
+                        <button type="button" onclick="UI.requestCloseModal()" aria-label="إغلاق" class="w-9 h-9 rounded-xl bg-slate-100 text-slate-600"><i class="fas fa-times"></i></button>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <button type="button" onclick="UI.forceCloseModal(); AppNav.navigate('accounts', { debts: true, balanceSide: 'debit' })" class="bg-emerald-50 border-2 border-emerald-300 text-emerald-800 rounded-2xl py-5 px-3 font-black flex flex-col gap-2 items-center justify-center" aria-label="لنا - الحسابات التي عليها مبالغ لنا">
+                            <i class="fas fa-hand-holding-dollar text-3xl"></i><span class="text-lg">لنا</span>
+                            <span class="text-[11px] font-semibold text-emerald-700">المبالغ المستحقة لنا</span>
+                        </button>
+                        <button type="button" onclick="UI.forceCloseModal(); AppNav.navigate('accounts', { debts: true, balanceSide: 'credit' })" class="bg-amber-50 border-2 border-amber-300 text-amber-800 rounded-2xl py-5 px-3 font-black flex flex-col gap-2 items-center justify-center" aria-label="علينا - الأرصدة التي ندين بها">
+                            <i class="fas fa-money-bill-transfer text-3xl"></i><span class="text-lg">علينا</span>
+                            <span class="text-[11px] font-semibold text-amber-700">المبالغ الواجب دفعها</span>
+                        </button>
+                    </div>
+                `);
+            },
+            renderDashboard(main) {
+                UI.setHeader('<i class="fas fa-calculator text-emerald-400"></i> <span>المحاسب التقني</span>', 'نظام المحاسبة والمستودعات');
+                document.title = 'المحاسب التقني';
+
+                let lowStockCount = 0;
+                for (const item of State.items) {
+                    const curStock = Accounting.getItemBaseStock(item.id);
+                    if (curStock <= (Number(item.minStockBase) || 0)) lowStockCount++;
+                }
+
+                main.innerHTML = `
+                    
+
+                    <!-- Quick Field Action Buttons -->
+                    <h2 class="font-bold text-xs text-slate-500 mb-2 px-1">العمليات السريعة (الفواتير والسندات)</h2>
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-4">
+                        <button onclick="AppNav.navigate('invoice_form', { type: 'sale' })" class="bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white p-3.5 rounded-2xl shadow-sm flex flex-col items-center justify-center gap-1.5 transition">
+                            <i class="fas fa-cart-plus text-2xl"></i>
+                            <span class="font-bold text-xs sm:text-sm">فاتورة مبيعات</span>
+                        </button>
+                        <button onclick="AppNav.navigate('invoice_form', { type: 'purchase' })" class="bg-blue-600 hover:bg-blue-700 active:scale-98 text-white p-3.5 rounded-2xl shadow-sm flex flex-col items-center justify-center gap-1.5 transition">
+                            <i class="fas fa-truck-ramp-box text-2xl"></i>
+                            <span class="font-bold text-xs sm:text-sm">فاتورة مشتريات</span>
+                        </button>
+                        <button onclick="AppNav.navigate('voucher_form', { type: 'receipt' })" class="bg-teal-600 hover:bg-teal-700 active:scale-98 text-white p-3.5 rounded-2xl shadow-sm flex flex-col items-center justify-center gap-1.5 transition">
+                            <i class="fas fa-hand-holding-dollar text-2xl"></i>
+                            <span class="font-bold text-xs sm:text-sm">سند قبض</span>
+                        </button>
+                        <button onclick="AppNav.navigate('voucher_form', { type: 'payment' })" class="bg-amber-600 hover:bg-amber-700 active:scale-98 text-white p-3.5 rounded-2xl shadow-sm flex flex-col items-center justify-center gap-1.5 transition">
+                            <i class="fas fa-money-bill-transfer text-2xl"></i>
+                            <span class="font-bold text-xs sm:text-sm">سند دفع</span>
+                        </button>
+                    </div>
+
+                    <!-- Secondary Modules Grid -->
+                    <div class="grid grid-cols-3 gap-2 mb-5">
+                        <button onclick="AppNav.navigate('invoice_form', { type: 'sale_return' })" class="bg-white border border-slate-200 p-2.5 rounded-xl flex flex-col items-center gap-1 hover:bg-slate-50 active:scale-95">
+                            <i class="fas fa-rotate-left text-rose-500 text-base"></i>
+                            <span class="text-[11px] font-bold text-slate-700">مردود مبيعات</span>
+                        </button>
+                        <button onclick="AppNav.navigate('invoice_form', { type: 'purchase_return' })" class="bg-white border border-slate-200 p-2.5 rounded-xl flex flex-col items-center gap-1 hover:bg-slate-50 active:scale-95">
+                            <i class="fas fa-rotate-right text-indigo-500 text-base"></i>
+                            <span class="text-[11px] font-bold text-slate-700">مردود مشتريات</span>
+                        </button>
+                        <button onclick="AppNav.navigate('vouchers_list')" class="bg-white border border-slate-200 p-2.5 rounded-xl flex flex-col items-center gap-1 hover:bg-slate-50 active:scale-95">
+                            <i class="fas fa-receipt text-amber-600 text-base"></i>
+                            <span class="text-[11px] font-bold text-slate-700">سجل السندات (${State.vouchers.length})</span>
+                        </button>
+                        <button onclick="AppNav.navigate('items')" class="bg-white border border-slate-200 p-2.5 rounded-xl flex flex-col items-center gap-1 hover:bg-slate-50 active:scale-95 relative">
+                            <i class="fas fa-boxes-stacked text-emerald-600 text-base"></i>
+                            <span class="text-[11px] font-bold text-slate-700">المواد (${State.items.length})</span>
+                            ${lowStockCount > 0 ? `<span class="absolute top-1 left-1 bg-rose-500 text-white text-[9px] font-bold px-1.5 rounded-full">${lowStockCount} نواقص</span>` : ''}
+                        </button>
+                        <button onclick="Views.openDebtsChoiceModal()" class="bg-white border border-slate-200 p-2.5 rounded-xl flex flex-col items-center gap-1 hover:bg-slate-50 active:scale-95">
+                            <i class="fas fa-scale-balanced text-rose-600 text-base"></i>
+                            <span class="text-[11px] font-bold text-slate-700">الديون</span>
+                        </button>
+                        <button onclick="AppNav.navigate('warehouses')" class="bg-white border border-slate-200 p-2.5 rounded-xl flex flex-col items-center gap-1 hover:bg-slate-50 active:scale-95">
+                            <i class="fas fa-box-open text-sky-600 text-base"></i>
+                            <span class="text-[11px] font-bold text-slate-700">المستودعات والمناقلات</span>
+                        </button>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 mb-5" aria-label="إضافات سريعة">
+                        <button type="button" onclick="AppNav.navigate('warehouses', { action: 'add' })" class="ta-solid-action ta-action-warehouse flex items-center justify-center gap-2 bg-sky-600 hover:bg-sky-700 active:scale-95 text-white px-2 py-3 rounded-xl text-xs font-extrabold shadow-sm">
+                            <i class="fas fa-plus text-sm"></i><span>إضافة مستودع</span>
+                        </button>
+                        <button type="button" onclick="AppNav.navigate('expenses', { action: 'add' })" class="ta-solid-action ta-action-expense flex items-center justify-center gap-2 bg-orange-600 hover:bg-orange-700 active:scale-95 text-white px-2 py-3 rounded-xl text-xs font-extrabold shadow-sm">
+                            <i class="fas fa-plus text-sm"></i><span>إضافة مصروف</span>
+                        </button>
+                    </div>
+                `;
+            },
+
+            // ==================== 6.2 ITEMS & MULTI-UNIT WAREHOUSE ====================
+            renderItems(main, params = {}) {
+                UI.setHeader('<i class="fas fa-boxes-stacked text-emerald-400"></i> <span>إدارة الأصناف والمستودع</span>', 'تحديد العملة المعتمدة لكل صنف وتعدد الوحدات والباركود');
+
+                const searchQ = (params.q || '').trim().toLowerCase();
+                const catFilter = params.cat || 'all';
+
+                const filtered = State.items.filter(item => {
+                    const matchCat = catFilter === 'all' || item.category === catFilter;
+                    const matchQ = !searchQ || item.name.toLowerCase().includes(searchQ) || (item.barcode && item.barcode.toLowerCase().includes(searchQ));
+                    return matchCat && matchQ;
+                });
+
+                main.innerHTML = `
+                    <div class="flex flex-wrap gap-2 mb-3">
+                        <button onclick="ItemController.openItemModal()" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-4 rounded-xl text-xs sm:text-sm flex items-center justify-center gap-2 shadow-xs">
+                            <i class="fas fa-plus"></i>
+                            <span>إضافة صنف جديد (مع تحديد العملة والوحدات)</span>
+                        </button>
+                        <button onclick="ItemController.openCategoryModal()" class="bg-slate-800 hover:bg-slate-700 text-white font-bold py-2.5 px-3.5 rounded-xl text-xs flex items-center gap-1.5">
+                            <i class="fas fa-sitemap"></i>
+                            <span>المجموعات</span>
+                        </button>
+                    </div>
+
+                    <div class="rounded-xl bg-sky-50 border border-sky-200 p-3 mb-3">
+                        <label class="text-xs font-bold text-sky-900 block mb-1">المستودع المعروض</label>
+                        <select onchange="WarehouseController.selectWarehouse(this.value)" class="w-full rounded-lg border border-sky-300 p-2 text-xs bg-white">
+                            ${WarehouseController.options(State.settings.selectedWarehouseId)}
+                        </select>
+                        <button onclick="AppNav.navigate('warehouses')" class="text-xs font-bold text-sky-700 mt-2">إدارة المستودعات والمناقلات</button>
+                    </div>
+                    <div class="bg-white p-2.5 rounded-2xl border border-slate-200 mb-3 flex flex-col sm:flex-row gap-2">
+                        <div class="relative flex-1">
+                            <i class="fas fa-barcode absolute right-3 top-3 text-slate-400"></i>
+                            <input type="text" id="itemSearchInput" value="${params.q || ''}" oninput="ItemController.filterItems()" placeholder="ابحث باسم المادة أو امسح الباركود..." class="w-full pr-9 pl-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                        </div>
+                        <select id="itemCatSelect" onchange="ItemController.filterItems()" class="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700">
+                            <option value="all">جميع المجموعات (${State.items.length})</option>
+                            ${State.categories.map(c => `<option value="${c}" ${catFilter === c ? 'selected' : ''}>${c}</option>`).join('')}
+                        </select>
+                    </div>
+
+                    <div class="space-y-2.5" id="itemCardsList">
+                        ${filtered.length === 0 ? `
+                            <div class="bg-white rounded-2xl border border-slate-200 p-8 text-center">
+                                <i class="fas fa-box-open text-4xl text-slate-300 mb-2"></i>
+                                <p class="font-bold text-sm text-slate-600">لا توجد أصناف مسجلة في المستودع</p>
+                                <p class="text-xs text-slate-400 mt-1">اضغط على "إضافة صنف جديد" لتعريف المواد وتحديد عملتها المعتمدة (SYP أو USD) ووحداتها</p>
+                            </div>
+                        ` : filtered.map(item => {
+                            const baseStock = Accounting.getItemBaseStock(item.id, null, State.settings.selectedWarehouseId || 'wh_main');
+                            const baseStockDisp = Accounting.formatItemQuantity(baseStock);
+                            const baseUnit = item.units[0] || { name: 'كرتونة', factor: 1, salePrice: 0 };
+                            const isLow = baseStock <= (Number(item.minStockBase) || 0);
+                            const linkedInvoicesCount = State.invoices.filter(inv => Array.isArray(inv.rows) && inv.rows.some(r => r.itemId === item.id)).length;
+                            const linkedTransfersCount = (State.transfers || []).filter(tr => tr.itemId === item.id).length;
+
+                            const unitBadges = item.units.map((u, uIdx) => {
+                                const factor = Number(u.factor) || 1;
+                                const qtyInUnit = Accounting.formatItemQuantity(baseStock * factor);
+                                const unitTypeLabel = uIdx === 0 ? 'كبرى أساسية' : `تعبئة ${factor}`;
+                                return `<span class="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md text-[10px] font-bold">${u.name} (${unitTypeLabel}): ${Accounting.formatItemPrice(u.salePrice, item.currency)} | متاح: ${qtyInUnit}</span>`;
+                            }).join(' ');
+
+                            return `
+                                <div data-item-search="${encodeURIComponent(`${item.name} ${item.barcode || ''}`)}" data-item-category="${encodeURIComponent(item.category || '')}" class="bg-white rounded-2xl border ${isLow ? 'border-rose-300' : 'border-slate-200'} p-3 shadow-xs">
+                                    <div class="flex items-start justify-between gap-2">
+                                        <div class="min-w-0 flex-1">
+                                            <div class="flex items-start gap-2">
+                                                ${ItemController.photoThumb(item, 'list')}
+                                                <div class="min-w-0 flex-1">
+                                            <div class="flex items-center gap-1.5 flex-wrap">
+                                                <span class="font-bold text-sm text-slate-900">${item.name}</span>
+                                                <span class="text-[10px] font-extrabold px-2 py-0.5 rounded-md ${item.currency === 'USD' ? 'bg-amber-100 text-amber-800' : 'bg-blue-50 text-blue-700'}">
+                                                    عملة الصنف: ${item.currency === 'USD' ? 'دولار USD' : 'ليرة SYP'}
+                                                </span>
+                                                ${item.category ? `<span class="bg-emerald-50 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-md">${item.category}</span>` : ''}
+                                                ${linkedInvoicesCount > 0 ? `<span class="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded-md" title="محمي من الحذف لارتباطه بفواتير"><i class="fas fa-lock text-amber-600 ml-0.5"></i> مرتبط بـ ${linkedInvoicesCount} فاتورة</span>` : ''}
+                                                ${item.barcode ? `<span class="bg-slate-100 text-slate-500 text-[10px] px-1.5 py-0.5 rounded font-mono"><i class="fas fa-barcode mr-0.5"></i>${item.barcode}</span>` : ''}
+                                            </div>
+                                            <div class="flex flex-wrap gap-1 mt-2">
+                                                ${unitBadges}
+                                            </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="text-left shrink-0">
+                                            <div class="text-xs font-extrabold ${isLow ? 'text-rose-600' : 'text-emerald-700'}">
+                                                رصيد المستودع: ${baseStockDisp} ${baseUnit.name}
+                                                 <div class="text-[10px] text-slate-500 font-medium">جميع المستودعات: ${Accounting.formatItemQuantity(Accounting.getItemBaseStock(item.id))} ${baseUnit.name}</div>
+                                            </div>
+                                            ${isLow ? `<div class="text-[10px] text-rose-500 font-bold"><i class="fas fa-bell"></i> دون الحد الأدنى (${Accounting.formatItemQuantity(item.minStockBase)})</div>` : ''}
+                                            <div class="flex items-center justify-end gap-1.5 mt-2">
+                                                <button onclick="ItemController.openItemModal('${item.id}')" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold">
+                                                    <i class="fas fa-pen"></i> تعديل
+                                                </button>
+                                                <button onclick="ItemController.deleteItem('${item.id}')" class="px-2 py-1 ${linkedInvoicesCount > 0 ? 'bg-slate-100 text-slate-400' : 'bg-rose-50 hover:bg-rose-100 text-rose-600'} rounded-lg text-xs" title="${linkedInvoicesCount > 0 ? 'محمي من الحذف لارتباطه بعمليات' : 'حذف الصنف'}">
+                                                    <i class="fas ${linkedInvoicesCount > 0 ? 'fa-lock' : 'fa-trash'}"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                        <div id="itemsSearchEmpty" class="hidden bg-white rounded-2xl border border-slate-200 p-6 text-center text-sm text-slate-500">
+                            <i class="fas fa-search text-2xl text-slate-300 mb-2"></i>
+                            <p class="font-bold">لا توجد أصناف مطابقة للبحث</p>
+                            <p class="text-xs text-slate-400 mt-1">جرّب اسماً آخر أو رقم باركود مختلفاً</p>
+                        </div>
+                    </div>
+                `;
+            },
+
+
+            // ==================== WAREHOUSES & INTERNAL TRANSFERS ====================
+            renderWarehouses(main, params = {}) {
+                UI.setHeader('<i class="fas fa-box-open text-sky-400"></i> <span>المستودعات والمناقلات</span>',
+                             'أرصدة مستقلة لكل مستودع ومناقلة لا تؤثر على المبيعات أو الأرباح');
+                const wopts = WarehouseController.options(State.settings.selectedWarehouseId);
+                const warehouseName = id => WarehouseController.name(id);
+                main.innerHTML = `
+                    <div class="grid grid-cols-2 gap-2 mb-3" aria-label="عمليات المستودعات">
+                        <button type="button" onclick="Views.jumpToEntry('warehouseCreatePanel','newWarehouseName')" class="ta-solid-action ta-action-warehouse flex items-center justify-center gap-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-extrabold text-xs px-2 py-3 shadow-sm active:scale-95">
+                            <i class="fas fa-plus text-sm"></i><span>إضافة مستودع</span>
+                        </button>
+                        <button type="button" onclick="Views.jumpToEntry('warehouseTransferPanel','transferItem')" class="ta-solid-action ta-action-transfer flex items-center justify-center gap-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-extrabold text-xs px-2 py-3 shadow-sm active:scale-95">
+                            <i class="fas fa-boxes-stacked text-sm"></i><span>مناقلة مواد</span>
+                        </button>
+                    </div>
+                    <div class="rounded-2xl border border-sky-200 bg-sky-50 p-3 mb-3">
+                        <div class="text-xs font-extrabold text-sky-900 mb-2">المستودع المعتمد للعرض والفواتير الجديدة</div>
+                        <select onchange="WarehouseController.selectWarehouse(this.value)" class="w-full rounded-xl border border-sky-300 bg-white p-3 text-sm">${wopts}</select>
+                        <div class="text-[11px] text-sky-700 mt-2">المستودع الرئيسي يحتفظ بكل أرصدة الفواتير القديمة تلقائياً.</div>
+                    </div>
+                    <div id="warehouseCreatePanel" class="rounded-2xl bg-white p-3 border border-slate-200 mb-3 scroll-mt-4">
+                        <h3 class="text-sm font-extrabold mb-2">تعريف مستودع جديد</h3>
+                        <div class="flex gap-2">
+                            <input id="newWarehouseName" maxlength="80" class="w-full rounded-xl border p-2.5 text-sm" placeholder="اسم المستودع الجديد">
+                            <button type="button" onclick="WarehouseController.addWarehouse()" class="ta-solid-action ta-action-warehouse shrink-0 rounded-xl bg-sky-600 hover:bg-sky-700 px-3 py-2.5 text-white text-xs font-extrabold flex items-center justify-center gap-1.5"><i class="fas fa-plus"></i><span>إضافة المستودع</span></button>
+                        </div>
+                        <div class="mt-3 space-y-2">
+                            ${(State.warehouses||[]).map(wh=>`
+                                <div class="rounded-xl border border-slate-200 p-3 flex items-center justify-between gap-2">
+                                    <div><b class="text-sm">${AppEscape.text(wh.name)}</b><div class="text-[10px] text-slate-500">${State.items.length} صنف معرّف · ${State.items.filter(it=>Accounting.getItemBaseStock(it.id,null,wh.id) !== 0).length} صنف برصيد</div></div>
+                                    <div class="text-left flex items-center gap-1">
+                                        <button onclick="WarehouseController.renameWarehouse('${wh.id}')" class="rounded-lg bg-slate-100 p-2 text-xs" title="إعادة تسمية">تسمية</button>
+                                        ${wh.id !== 'wh_main' ? `<button onclick="WarehouseController.deleteWarehouse('${wh.id}')" class="rounded-lg bg-rose-50 text-rose-700 p-2 text-xs">حذف</button>` : ''}
+                                    </div>
+                                </div>`).join('')}
+                        </div>
+                    </div>
+                    <div id="warehouseTransferPanel" class="rounded-2xl bg-white p-3 border border-slate-200 mb-3 scroll-mt-4">
+                        <h3 class="text-sm font-extrabold mb-3">مناقلة مادة بين مستودعين</h3>
+                        <div class="grid grid-cols-2 gap-2 mb-2">
+                            <div><label class="block text-xs font-bold mb-1">من المستودع</label>
+                                <select id="transferFrom" onchange="WarehouseController.refreshTransferAvailability()" class="w-full border rounded-xl p-2.5 text-xs">${WarehouseController.options(State.settings.selectedWarehouseId)}</select></div>
+                            <div><label class="block text-xs font-bold mb-1">إلى المستودع</label>
+                                <select id="transferTo" class="w-full border rounded-xl p-2.5 text-xs">${WarehouseController.options((State.warehouses||[]).find(w=>w.id !== (State.settings.selectedWarehouseId||'wh_main'))?.id || 'wh_main')}</select></div>
+                        </div>
+                        <label class="text-xs font-bold block mb-1">المادة</label>
+                        <select id="transferItem" onchange="WarehouseController.updateTransferUnits()" class="w-full rounded-xl border p-2.5 text-xs mb-2">
+                            <option value="">اختر المادة</option>
+                            ${State.items.map(it=>`<option value="${it.id}">${AppEscape.text(it.name)}</option>`).join('')}
+                        </select>
+                        <div id="transferAvailability" class="text-[11px] text-sky-700 mb-2"></div>
+                        <label class="block text-xs font-bold mb-1">الوحدة المستخدمة بالمناقلة</label>
+                        <select id="transferUnit" onchange="WarehouseController.refreshTransferAvailability()" class="w-full border rounded-xl p-2.5 text-xs mb-2"></select>
+                        <div class="grid grid-cols-2 gap-2 mb-2">
+                            <div><label class="block text-xs font-bold mb-1">الكمية بحسب الوحدة المختارة</label><input id="transferQty" type="number" min="0.0001" step="any" inputmode="decimal" class="w-full border rounded-xl p-2.5 text-sm" placeholder="مثلاً 5"></div>
+                            <div><label class="block text-xs font-bold mb-1">التاريخ</label><input id="transferDate" type="date" value="${new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10)}" class="w-full border rounded-xl p-2.5 text-sm"></div>
+                        </div>
+                        <input id="transferNote" maxlength="200" class="w-full border rounded-xl p-2.5 text-sm mb-3" placeholder="ملاحظة المناقلة (اختياري)">
+                        <button onclick="WarehouseController.saveTransfer()" class="w-full rounded-xl bg-sky-700 py-3 text-white font-extrabold text-sm">حفظ المناقلة وتحديث أرصدة المستودعين</button>
+                    </div>
+                    <div class="rounded-2xl bg-white border p-3">
+                        <h3 class="font-extrabold text-sm mb-2">سجل المناقلات (${(State.transfers||[]).length})</h3>
+                        ${(State.transfers||[]).length ? [...State.transfers].reverse().map(t=>`
+                            <div class="p-2.5 border-b text-xs flex justify-between gap-2">
+                                <div class="min-w-0">
+                                    <b>${AppEscape.text(State.items.find(i=>i.id===t.itemId)?.name || 'مادة محذوفة')}</b>
+                                    <div class="text-slate-500">${AppEscape.text(warehouseName(t.fromWarehouseId))} ← ${AppEscape.text(warehouseName(t.toWarehouseId))}</div>
+                                    <div class="text-slate-400">${AppEscape.text(t.date)} ${AppEscape.text(t.note||'')}</div>
+                                </div>
+                                <div class="text-left shrink-0">
+                                    <strong>${t.quantity && t.unitName ? `${Accounting.formatItemQuantity(t.quantity)} ${AppEscape.text(t.unitName)}` : `${Accounting.formatItemQuantity(t.quantityBase)} وحدة كبرى`}</strong>
+                                    <button class="block text-rose-600 mt-1" onclick="WarehouseController.deleteTransfer('${t.id}')">إلغاء المناقلة</button>
+                                </div>
+                            </div>`).join('') : '<p class="text-xs text-slate-400">لا توجد مناقلات بعد.</p>'}
+                    </div>
+                `;
+                WarehouseController.updateTransferUnits();
+                if (params.action === 'add') this.jumpToEntry('warehouseCreatePanel', 'newWarehouseName');
+                if (params.action === 'transfer') this.jumpToEntry('warehouseTransferPanel', 'transferItem');
+            },
+
+            // ==================== EXPENSE ACCOUNT & REGISTER ====================
+            renderExpenses(main, params = {}) {
+                UI.setHeader('<i class="fas fa-receipt text-orange-400"></i> <span>حساب المصاريف</span>',
+                             'مصاريف نقدية تُخصم من صافي الأرباح ومن رصيد الصندوق');
+                const list = (State.expenses||[]).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+                const rate = Number(State.settings.exchangeRate) || 1;
+                const sumUsd = list.reduce((acc,e)=>acc + (e.currency === 'USD' ? Number(e.amount)||0 : (Number(e.amount)||0)/(Number(e.exchangeRate)||rate)),0);
+                main.innerHTML = `
+                    <button type="button" onclick="ExpenseController.startNewExpense()" class="ta-solid-action ta-action-expense w-full mb-3 flex items-center justify-center gap-2 rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-extrabold px-3 py-3 text-sm shadow-sm active:scale-95">
+                        <i class="fas fa-plus"></i><span>إضافة مصروف جديد</span>
+                    </button>
+                    <div class="grid grid-cols-2 gap-2 mb-3">
+                        <div class="rounded-2xl bg-orange-50 border border-orange-200 p-3">
+                            <div class="text-xs text-orange-800">المصاريف الإجمالية بالدولار</div>
+                            <strong class="text-base text-orange-900">${Accounting.format(sumUsd,'USD')}</strong>
+                        </div>
+                        <div class="rounded-2xl bg-white border p-3">
+                            <div class="text-xs text-slate-600">ما يعادلها بسعر الصرف الحالي</div>
+                            <strong class="text-base">${Accounting.format(sumUsd*rate,'SYP')}</strong>
+                        </div>
+                    </div>
+                    <div id="expenseFormPanel" class="rounded-2xl bg-white border border-slate-200 p-3 mb-3 scroll-mt-4">
+                        <h3 class="font-extrabold text-sm mb-3" id="expenseFormTitle">إضافة مصروف جديد</h3>
+                        <input type="hidden" id="expenseId" value="">
+                        <div class="grid grid-cols-2 gap-2 mb-2">
+                            <div><label class="block text-xs font-bold mb-1">قيمة المصروف</label><input id="expenseAmount" type="number" inputmode="decimal" min="0.01" step="any" class="w-full border rounded-xl p-2.5" placeholder="المبلغ"></div>
+                            <div><label class="block text-xs font-bold mb-1">العملة</label>
+                                <select id="expenseCurrency" class="w-full border rounded-xl p-2.5">${CurrencyCatalog.active().map(code => `<option value="${code}" ${CurrencyCatalog.primary() === code ? 'selected' : ''}>${CurrencyCatalog.label(code)}</option>`).join('')}</select></div>
+                            <div><label class="block text-xs font-bold mb-1">فئة المصروف</label>
+                                <select id="expenseCategory" class="w-full border rounded-xl p-2.5">
+                                    ${['نقل ومحروقات','رواتب وأجور','إيجار','كهرباء ومياه','صيانة','تسويق','مصاريف إدارية','أخرى'].map(c=>`<option>${c}</option>`).join('')}
+                                </select></div>
+                            <div><label class="block text-xs font-bold mb-1">التاريخ</label><input id="expenseDate" type="date" value="${new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10)}" class="w-full border rounded-xl p-2.5"></div>
+                            <div class="col-span-2"><label class="block text-xs font-bold mb-1">سعر الصرف لهذه العملية (1$ = ل.س)</label><input id="expenseRate" type="number" min="0.0001" step="any" value="${rate}" class="w-full border rounded-xl p-2.5"></div>
+                        </div>
+                        <input id="expenseNote" maxlength="250" class="w-full border rounded-xl p-2.5 text-sm mb-3" placeholder="البيان / الملاحظات">
+                        <button type="button" onclick="ExpenseController.saveExpense()" class="ta-solid-action ta-action-expense w-full bg-orange-600 hover:bg-orange-700 text-white rounded-xl py-3 font-extrabold flex items-center justify-center gap-2"><i class="fas fa-plus"></i><span>حفظ المصروف وخصمه من صافي الربح</span></button>
+                    </div>
+                    <div class="rounded-2xl bg-white border p-3">
+                        <div class="font-extrabold text-sm mb-2">سجل المصاريف (${list.length})</div>
+                        ${list.length ? list.map(e=>`
+                            <div class="border-b py-2.5 text-xs flex items-center justify-between gap-2">
+                                <div class="min-w-0">
+                                    <b>${AppEscape.text(e.category)}</b>
+                                    <div class="text-slate-500">${AppEscape.text(e.note||'')} · ${AppEscape.text(e.date||'')}</div>
+                                    <div class="text-[10px] text-slate-400">سعر صرف العملية: ${Number(e.exchangeRate||1).toLocaleString('en-US')}</div>
+                                </div>
+                                <div class="text-left shrink-0">
+                                    <div class="font-extrabold text-orange-700">${Accounting.format(e.amount,e.currency)}</div>
+                                    <button onclick="ExpenseController.editExpense('${e.id}')" class="text-sky-700 ml-3">تعديل</button>
+                                    <button onclick="ExpenseController.deleteExpense('${e.id}')" class="text-rose-600">حذف</button>
+                                </div>
+                            </div>`).join('') : '<p class="text-slate-400 text-xs">لا توجد مصاريف مسجلة.</p>'}
+                    </div>
+                `;
+                if (params.action === 'add') this.jumpToEntry('expenseFormPanel', 'expenseAmount');
+            },
+
+            // ==================== 6.3 INVOICES LIST ====================
+            renderInvoicesList(main, params = {}) {
+                UI.setHeader('<i class="fas fa-file-invoice-dollar text-emerald-400"></i> <span>سجل الفواتير الشامل</span>', 'عرض فواتير المبيعات والمشتريات حسب النوع والتاريخ');
+
+                const filterType = ['all', 'sale', 'purchase', 'sale_return', 'purchase_return'].includes(params.type) ? params.type : (['sale','purchase','all'].includes(State.settings.defaultInvoiceListType) ? State.settings.defaultInvoiceListType : 'sale');
+                const localToday = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
+                const dateMode = ['today', 'yesterday', 'custom', 'all'].includes(params.dateMode) ? params.dateMode : 'today';
+                const customDate = params.dateValue || localToday;
+                const yesterdayDate = (() => { const d = new Date(); d.setDate(d.getDate()-1); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
+                const targetDate = dateMode === 'today' ? localToday : dateMode === 'yesterday' ? yesterdayDate : dateMode === 'custom' ? customDate : null;
+                const typeFiltered = State.invoices.filter(i => filterType === 'all' || i.type === filterType);
+                const list = typeFiltered.filter(i => !targetDate || String(i.date || '').slice(0, 10) === targetDate).slice().reverse();
+                const totalUSD = list.filter(i => i.currency === 'USD').reduce((sum, i) => sum + (Number(i.netTotal) || 0), 0);
+                const totalSYP = list.filter(i => i.currency === 'SYP').reduce((sum, i) => sum + (Number(i.netTotal) || 0), 0);
+                const navFilter = (type, mode = dateMode, date = customDate) => `AppNav.navigate('invoices_list', { type: '${type}', dateMode: '${mode}', dateValue: '${date}' }, true)`;
+
+                main.innerHTML = `
+                    <div class="grid grid-cols-2 gap-2 mb-3">
+                        <button type="button" onclick="InvoiceController.openInvoiceTypeFilter('${filterType}','${dateMode}','${customDate}')" class="bg-white border border-slate-200 rounded-xl p-3 text-right shadow-xs">
+                            <span class="block text-[10px] text-slate-500 font-bold mb-1">نوع الفواتير</span>
+                            <span class="text-xs font-extrabold text-slate-800">${({all:'المبيعات والمشتريات معاً',sale:'فواتير المبيع',purchase:'فواتير الشراء',sale_return:'مردود مبيعات',purchase_return:'مردود مشتريات'})[filterType] || 'الكل'} <i class="fas fa-chevron-down text-slate-400 mr-1"></i></span>
+                        </button>
+                        <button type="button" onclick="InvoiceController.openInvoiceDateFilter('${filterType}','${dateMode}','${customDate}')" class="bg-white border border-slate-200 rounded-xl p-3 text-right shadow-xs">
+                            <span class="block text-[10px] text-slate-500 font-bold mb-1">الفترة الزمنية</span>
+                            <span class="text-xs font-extrabold text-slate-800">${({all:'كل المدة',today:'اليوم',yesterday:'الأمس',custom:'تاريخ محدد'})[dateMode] || 'اليوم'} <i class="fas fa-chevron-down text-slate-400 mr-1"></i></span>
+                        </button>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2 mb-3">
+                        <div class="bg-emerald-50 border border-emerald-100 rounded-2xl p-3">
+                            <div class="text-[11px] font-bold text-emerald-700">إجمالي الفواتير بالدولار</div>
+                            <div class="text-base font-extrabold text-emerald-900 mt-1">${Accounting.format(totalUSD, 'USD')}</div>
+                        </div>
+                        <div class="bg-blue-50 border border-blue-100 rounded-2xl p-3">
+                            <div class="text-[11px] font-bold text-blue-700">إجمالي الفواتير بالليرة</div>
+                            <div class="text-base font-extrabold text-blue-900 mt-1">${Accounting.format(totalSYP, 'SYP')}</div>
+                        </div>
+                    </div>
+                    <div class="relative mb-3">
+                        <i class="fas fa-search absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                        <input
+                            type="search"
+                            id="invoiceSearchInput"
+                            placeholder="ابحث برقم الفاتورة أو اسم الحساب أو نوع الفاتورة..."
+                            oninput="(function(input){const q=input.value.trim().toLocaleLowerCase();let visible=0;document.querySelectorAll('#invoiceCardsList [data-invoice-search]').forEach(card=>{const value=decodeURIComponent(card.dataset.invoiceSearch || '').toLocaleLowerCase();const match=!q || value.includes(q);card.classList.toggle('hidden',!match);if(match)visible++;});const empty=document.getElementById('invoiceSearchEmpty');if(empty)empty.classList.toggle('hidden',visible!==0);})(this)"
+                            class="w-full bg-white border border-slate-200 rounded-xl py-3 pr-10 pl-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                        >
+                    </div>
+
+                    <div class="flex items-center justify-between mb-2 px-1">
+                        <span class="text-xs text-slate-500 font-bold">عدد الفواتير: ${list.length}</span>
+                        <span class="text-[11px] text-slate-400">${targetDate ? targetDate : 'كل التواريخ'}</span>
+                    </div>
+                    <div class="space-y-2.5" id="invoiceCardsList">
+                        ${list.length === 0 ? `
+                            <div class="bg-white rounded-2xl border border-slate-200 p-8 text-center text-slate-400">
+                                <i class="fas fa-file-invoice text-4xl mb-2 opacity-40"></i>
+                                <p class="font-bold text-sm text-slate-600">لا توجد فواتير ضمن خيارات التصفية المحددة</p>
+                            </div>
+                        ` : list.map(inv => {
+                            const acc = State.accounts.find(a => a.id === inv.accountId);
+                            const payLabel = inv.paymentMethod === 'cash' ? 'نقدي' : inv.paymentMethod === 'credit' ? 'آجل' : 'دفع جزئي';
+                            return `
+                                <div data-invoice-search="${encodeURIComponent(`${inv.number} ${acc ? acc.name : 'عميل نقدي مباشر'} ${Accounting.getInvoiceTypeAr(inv.type)} ${String(inv.date || '')} ${(inv.rows || []).map(row => row.name || '').join(' ')}`)}" class="bg-white rounded-2xl border border-slate-200 p-3.5 shadow-xs">
+                                    <div class="flex items-center justify-between border-b border-slate-100 pb-2 mb-2">
+                                        <div class="flex items-center gap-2">
+                                            <span class="bg-slate-900 text-white text-xs font-bold px-2.5 py-0.5 rounded-lg">#${inv.number}</span>
+                                            <span class="font-bold text-xs sm:text-sm text-slate-800">${Accounting.getInvoiceTypeAr(inv.type)} (${payLabel})</span>
+                                        </div>
+                                        <span class="text-[11px] text-slate-400">${String(inv.date || '').replace('T', ' ')}</span>
+                                    </div>
+                                    <div class="flex items-center justify-between text-xs mb-3">
+                                        <div>
+                                            <div class="text-slate-500">الحساب: <strong class="text-slate-800">${acc ? acc.name : 'عميل نقدي مباشر'}</strong></div>
+                                            <div class="text-[11px] text-slate-400 mt-0.5">الأصناف: ${inv.rows.length} | العملة: ${inv.currency} (صرف: ${inv.exchangeRate})</div>
+                                        </div>
+                                        <div class="text-left">
+                                            <div class="font-extrabold text-sm text-slate-900">الصافي: ${Accounting.format(inv.netTotal, inv.currency)}</div>
+                                            <div class="text-[11px] ${Number(inv.remainingAmount) > 0 ? 'text-rose-600 font-bold' : 'text-emerald-600'}">
+                                                المدفوع: ${Accounting.format(inv.paidAmount, inv.currency)} | الباقي: ${Accounting.format(inv.remainingAmount, inv.currency)}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <button type="button" onclick="InvoiceController.openInvoiceActions('${inv.id}')" class="w-full mt-2 pt-2 border-t border-slate-100 text-center text-xs font-extrabold text-emerald-700">
+                                        <i class="fas fa-ellipsis"></i> خيارات الفاتورة
+                                    </button>
+                                </div>
+                            `;
+                        }).join('')}
+                        <div id="invoiceSearchEmpty" class="hidden bg-white rounded-2xl border border-slate-200 p-6 text-center text-sm text-slate-500">
+                            <i class="fas fa-search text-2xl text-slate-300 mb-2"></i>
+                            <p class="font-bold">لا توجد فواتير مطابقة للبحث</p>
+                            <p class="text-xs text-slate-400 mt-1">جرّب رقم فاتورة أو اسم حساب آخر</p>
+                        </div>
+                    </div>
+                `;
+            },
+
+            // ==================== 6.4 DEFAULT BLUETOOTH THERMAL PRINT & RECEIPT PREVIEW ====================
+            renderInvoicePrint(main, params = {}) {
+                const inv = State.invoices.find(i => i.id === params.id);
+                if (!inv) return AppNav.navigate('invoices_list');
+
+                UI.setHeader(`<i class="fab fa-bluetooth-b text-emerald-400"></i> <span>معاينة وطباعة فاتورة #${inv.number}</span>`, 'الطباعة الحرارية عبر البلوتوث هي الخيار الافتراضي');
+
+                const acc = State.accounts.find(a => a.id === inv.accountId);
+                let prevBal = 0, finalBal = 0;
+                if (acc) {
+                    const prevStmt = Accounting.getAccountStatement(acc.id, null, null, inv.id);
+                    prevBal = inv.currency === 'SYP' ? prevStmt.sypBalance : prevStmt.usdBalance;
+                    const impact = (inv.type === 'sale' || inv.type === 'purchase_return')
+                        ? (Number(inv.netTotal) - Number(inv.paidAmount))
+                        : -(Number(inv.netTotal) - Number(inv.paidAmount));
+                    finalBal = prevBal + impact;
+                }
+
+                const prevBalFormatted = ThermalPrinter.formatPartyBalance(prevBal, inv.currency);
+                const finalBalFormatted = ThermalPrinter.formatPartyBalance(finalBal, inv.currency);
+                const formattedDate = ThermalPrinter.formatReceiptDate(inv.date);
+
+                const fontScale = Number(State.settings.printFontScale) || 0.75;
+                const sizeClass = fontScale >= 1.35 ? 'text-base sm:text-lg' : fontScale >= 1.15 ? 'text-sm sm:text-base' : fontScale >= 0.95 ? 'text-xs sm:text-sm' : fontScale >= 0.82 ? 'text-[11px] sm:text-xs' : 'text-[10px] sm:text-[11px]';
+
+                main.innerHTML = `
+                    <!-- Print Control Toolbar (Hidden during system print) -->
+                    <div id="printActionToolbar" class="bg-slate-900 text-white p-3 rounded-2xl mb-4 space-y-2.5 shadow-md w-full">
+                        <div class="flex flex-wrap items-center justify-between gap-1.5">
+                            <div class="flex flex-wrap items-center gap-1.5 flex-1">
+                                <!-- DEFAULT BLUETOOTH THERMAL PRINT BUTTON -->
+                                <button onclick="ThermalPrinter.printInvoiceDirect(State.invoices.find(i=>i.id==='${inv.id}'))" class="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-extrabold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 shadow-sm active:scale-95 transition">
+                                    <i class="fab fa-bluetooth-b text-sm"></i>
+                                    <span>طباعة بلوتوث (${State.settings.printerWidth}mm)</span>
+                                </button>
+                                <!-- Quick Print Header/Logo/Company Settings Button -->
+                                <button onclick="SettingsController.openPrintHeaderModal()" class="bg-slate-800 hover:bg-slate-700 text-amber-300 font-bold px-2.5 py-2 rounded-xl text-xs flex items-center gap-1 border border-slate-700" title="تعديل اللوغو واسم الشركة والهاتف والملاحظات">
+                                    <i class="fas fa-print"></i>
+                                    <span>تعديل الطباعة</span>
+                                </button>
+                                <!-- Quick Bluetooth Settings Button -->
+                                <button onclick="ThermalPrinter.openQuickModal()" class="bg-slate-800 hover:bg-slate-700 text-emerald-400 font-bold px-2.5 py-2 rounded-xl text-xs flex items-center gap-1 border border-slate-700">
+                                    <i class="fas fa-sliders"></i>
+                                    <span>البلوتوث</span>
+                                </button>
+                                <!-- Secondary PDF / System Print Option -->
+                                <button onclick="window.print()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold px-2.5 py-2 rounded-xl text-xs flex items-center gap-1 border border-slate-700">
+                                    <i class="fas fa-file-pdf text-rose-400"></i>
+                                    <span>PDF</span>
+                                </button>
+                            </div>
+                            <button onclick="AppNav.navigate('invoice_form', { id: '${inv.id}' })" class="bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold px-2.5 py-2 rounded-xl text-xs border border-slate-700">
+                                <i class="fas fa-pen ml-1"></i> تعديل الفاتورة
+                            </button>
+                        </div>
+                        <!-- Font Size & Paper Width Quick Controls (Starts from smaller 0.75 scale) -->
+                        <div class="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800 text-[11px]">
+                            <div class="flex items-center gap-1 flex-wrap">
+                                <span class="text-slate-400 font-bold"><i class="fas fa-text-height text-emerald-400 ml-0.5"></i> الخط:</span>
+                                <button onclick="SettingsController.setPrintFontScale(0.75)" class="px-2 py-1 rounded-lg font-bold ${fontScale <= 0.75 ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-300'}">أصغر</button>
+                                <button onclick="SettingsController.setPrintFontScale(0.85)" class="px-2 py-1 rounded-lg font-bold ${fontScale === 0.85 ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-300'}">صغير</button>
+                                <button onclick="SettingsController.setPrintFontScale(1.0)" class="px-2 py-1 rounded-lg font-bold ${fontScale === 1.0 ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-300'}">متوسط</button>
+                                <button onclick="SettingsController.setPrintFontScale(1.2)" class="px-2 py-1 rounded-lg font-bold ${fontScale === 1.2 ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-300'}">كبير</button>
+                                <button onclick="SettingsController.setPrintFontScale(1.4)" class="px-2 py-1 rounded-lg font-bold ${fontScale >= 1.4 ? 'bg-emerald-500 text-slate-950' : 'bg-slate-800 text-slate-300'}">عريض</button>
+                            </div>
+                            <div class="flex items-center gap-1">
+                                <span class="text-slate-400 font-bold">الورق:</span>
+                                <button onclick="SettingsController.setPaperWidth(80)" class="px-2 py-1 rounded-lg font-bold ${State.settings.printerWidth === 80 ? 'bg-amber-400 text-slate-950' : 'bg-slate-800 text-slate-300'}">80mm</button>
+                                <button onclick="SettingsController.setPaperWidth(58)" class="px-2 py-1 rounded-lg font-bold ${State.settings.printerWidth === 58 ? 'bg-amber-400 text-slate-950' : 'bg-slate-800 text-slate-300'}">58mm</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Commercial Receipt Paper Matching Requested Layout (No Default Logo unless uploaded) -->
+                    <div id="printableReceiptArea" class="receipt-paper w-full mx-auto px-4 py-5 sm:px-6 text-black rounded-t-xl border border-slate-300 overflow-hidden ${State.settings.printerWidth === 58 ? 'max-w-[350px]' : 'max-w-[460px]'} ${sizeClass}" style="line-height: 1.5; zoom: ${fontScale};">
+                        
+                        <!-- 1. Header: Uploaded Logo (Only if added by user), Company Name, Phone -->
+                        <div class="text-center mb-1">
+                            ${State.settings.companyLogo ? `<img src="${State.settings.companyLogo}" class="h-24 max-w-[180px] mx-auto mb-2 object-contain" alt="Logo">` : ''}
+                            <h2 class="font-black text-2xl sm:text-3xl tracking-tight text-black">${State.settings.companyName || 'مؤسسة الرائد التجارية'}</h2>
+                            ${State.settings.companyPhone ? `<p class="font-bold text-base sm:text-lg text-black mt-0.5" dir="ltr">${State.settings.companyPhone}</p>` : ''}
+                            ${State.settings.companyAddress ? `<p class="font-bold text-xs sm:text-sm text-black mt-0.5">${State.settings.companyAddress}</p>` : ''}
+                        </div>
+
+                        <div class="text-center font-mono font-bold text-xs sm:text-sm tracking-widest my-1 select-none overflow-hidden">
+                            ==============================
+                        </div>
+
+                        <!-- 2. Invoice Type Title -->
+                        <div class="text-center font-black text-2xl sm:text-3xl text-black my-1.5">
+                            فاتورة ${Accounting.getInvoiceTypeAr(inv.type)}
+                        </div>
+
+                        <!-- 3. Metadata Rows (Right Label, Centered Value) -->
+                        <div class="space-y-1 my-2.5 text-sm sm:text-base">
+                            <div class="grid grid-cols-12 items-center">
+                                <span class="col-span-4 font-black text-right">رقم الفاتورة</span>
+                                <span class="col-span-8 font-bold text-center">فاتورة-${inv.number}</span>
+                            </div>
+                            <div class="grid grid-cols-12 items-center">
+                                <span class="col-span-4 font-black text-right">التاريخ</span>
+                                <span class="col-span-8 font-bold text-center" dir="ltr">${formattedDate}</span>
+                            </div>
+                            <div class="grid grid-cols-12 items-center">
+                                <span class="col-span-4 font-black text-right">الحساب</span>
+                                <span class="col-span-8 font-bold text-center">${acc ? acc.name : 'زبون عام'}</span>
+                            </div>
+                        </div>
+
+                        <div class="text-center font-mono font-bold text-xs sm:text-sm tracking-widest my-1.5 select-none overflow-hidden">
+                            ==============================
+                        </div>
+
+                        <!-- 4. Items Table (# | اسم المادة | الوحدة | الكمية | الإفرادي | الاجمالي) -->
+                        <div class="w-full my-1">
+                            <table class="w-full text-black border-collapse text-xs sm:text-sm">
+                                <thead>
+                                    <tr class="font-black">
+                                        <th class="py-1 text-right w-[6%]">#</th>
+                                        <th class="py-1 text-right w-[34%]">اسم المادة</th>
+                                        <th class="py-1 text-center w-[15%]">الوحدة</th>
+                                        <th class="py-1 text-center w-[11%]">الكمية</th>
+                                        <th class="py-1 text-center w-[17%]">الإفرادي</th>
+                                        <th class="py-1 text-left w-[17%]">الاجمالي</th>
+                                    </tr>
+                                    <tr class="font-mono text-[10px] sm:text-xs leading-none text-black select-none">
+                                        <th class="pb-1.5 text-right">--</th>
+                                        <th class="pb-1.5 text-right">---------</th>
+                                        <th class="pb-1.5 text-center">----</th>
+                                        <th class="pb-1.5 text-center">--</th>
+                                        <th class="pb-1.5 text-center">----</th>
+                                        <th class="pb-1.5 text-left">----</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="font-bold">
+                                    ${inv.rows.map((r, idx) => `
+                                        <tr class="align-top">
+                                            <td class="py-1 text-right">${idx + 1}</td>
+                                            <td class="py-1 text-right pl-1 break-words">${r.itemName}</td>
+                                            <td class="py-1 text-center">${r.unitName}</td>
+                                            <td class="py-1 text-center">${Accounting.formatItemQuantity(r.qty)}</td>
+                                            <td class="py-1 text-center" dir="ltr">${Accounting.formatItemPriceNumber(r.price)}</td>
+                                            <td class="py-1 text-left font-black" dir="ltr">${Accounting.formatNumberOnly(r.total, inv.currency)}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="text-center font-mono font-bold text-xs sm:text-sm tracking-widest my-1.5 select-none overflow-hidden">
+                            ==============================
+                        </div>
+
+                        <!-- 5. Totals & Balances Section -->
+                        <div class="space-y-1.5 my-2">
+                            <div class="flex justify-between items-center text-base sm:text-lg">
+                                <span class="font-bold">المجموع</span>
+                                <span class="font-black">${Accounting.format(inv.subTotal, inv.currency)}</span>
+                            </div>
+                            ${Number(inv.discountAmount) > 0 ? `
+                                <div class="flex justify-between items-center text-base sm:text-lg">
+                                    <span class="font-bold">الحسم</span>
+                                    <span class="font-black">- ${Accounting.format(inv.discountAmount, inv.currency)}</span>
+                                </div>
+                            ` : ''}
+                            ${Number(inv.taxAmount) > 0 ? `
+                                <div class="flex justify-between items-center text-base sm:text-lg">
+                                    <span class="font-bold">الضريبة</span>
+                                    <span class="font-black">+ ${Accounting.format(inv.taxAmount, inv.currency)}</span>
+                                </div>
+                            ` : ''}
+                            <div class="flex justify-between items-center text-base sm:text-lg">
+                                <span class="font-bold">المدفوع</span>
+                                <span class="font-black">${Accounting.format(inv.paidAmount, inv.currency)}</span>
+                            </div>
+
+                            <!-- Side Dashes Separator -->
+                            <div class="flex justify-between items-center font-mono text-xs sm:text-sm py-0.5 select-none">
+                                <span>-----------</span>
+                                <span>-----------</span>
+                            </div>
+
+                            <div class="flex justify-between items-center text-lg sm:text-xl font-black">
+                                <span>إجمالي الفاتورة</span>
+                                <span>${Accounting.format(inv.netTotal, inv.currency)}</span>
+                            </div>
+                            <div class="flex justify-between items-center text-lg sm:text-xl font-black">
+                                <span>المبلغ الباقي</span>
+                                <span>${Accounting.format(inv.remainingAmount, inv.currency)}</span>
+                            </div>
+
+                            <div class="pt-2 space-y-1">
+                                <div class="flex justify-between items-center text-sm sm:text-base font-bold">
+                                    <span>رصيد قبل الفاتورة</span>
+                                    <span>${prevBalFormatted}</span>
+                                </div>
+                                <div class="flex justify-between items-center text-base sm:text-lg font-black">
+                                    <span>الرصيد النهائي</span>
+                                    <span>${finalBalFormatted}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="text-center font-mono font-bold text-xs sm:text-sm tracking-widest my-2 select-none overflow-hidden">
+                            ==============================
+                        </div>
+
+                        <!-- 6. Footer Note -->
+                        <div class="text-center font-bold text-base sm:text-lg text-black pt-0.5">
+                            ${State.settings.footerNote || 'ثقتكم تهمنا'}
+                        </div>
+                    </div>
+                `;
+            },
+
+            // ==================== 6.5 ACCOUNTS (CUSTOMERS & SUPPLIERS) ====================
+            renderAccounts(main, params = {}) {
+                const tab = params.tab || 'all';
+                const evalCurr = params.evalCurr || 'BOTH';
+                const debtsMode = params.debts === true || !!params.balanceSide;
+                const balanceSide = params.balanceSide || 'debit';
+
+                UI.setHeader(debtsMode ? `<i class="fas fa-scale-balanced text-emerald-400"></i> <span>الديون: ${balanceSide === 'debit' ? 'لنا' : 'علينا'}</span>` : '<i class="fas fa-users text-emerald-400"></i> <span>العملاء والموردون</span>', 'أرصدة مزدوجة العملة (SYP / USD) وسقف الائتمان');
+                const filtered = State.accounts.filter(a => {
+                    if (!debtsMode) return tab === 'all' || a.type === tab;
+                    const st = Accounting.getAccountStatement(a.id);
+                    const hasDebit = Number(st.sypBalance) > 0 || Number(st.usdBalance) > 0;
+                    const hasCredit = Number(st.sypBalance) < 0 || Number(st.usdBalance) < 0;
+                    return balanceSide === 'debit' ? hasDebit : hasCredit;
+                });
+
+                // Only the debt screen exposes aggregate totals. Accounts are filtered by
+                // signed balance, independently for SYP and USD, regardless of party type.
+                const debtTotals = State.accounts.reduce((totals, acc) => {
+                    const st = Accounting.getAccountStatement(acc.id);
+                    const syp = Number(st.sypBalance) || 0;
+                    const usd = Number(st.usdBalance) || 0;
+                    totals.debit.syp += Math.max(0, syp);
+                    totals.debit.usd += Math.max(0, usd);
+                    totals.credit.syp += Math.max(0, -syp);
+                    totals.credit.usd += Math.max(0, -usd);
+                    return totals;
+                }, {debit:{syp:0,usd:0},credit:{syp:0,usd:0}});
+
+                main.innerHTML = `
+                    ${debtsMode && balanceSide === 'debit' ? `
+                    <div class="bg-gradient-to-l from-emerald-50 to-white border border-emerald-200 rounded-2xl p-3.5 mb-3 shadow-xs">
+                        <div class="flex items-center gap-2 mb-2">
+                            <div class="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center"><i class="fas fa-wallet"></i></div>
+                            <div>
+                                <div class="font-extrabold text-sm text-slate-900">مجموع المبالغ التي لنا</div>
+                                <div class="text-[10px] text-slate-500">إجمالي الأرصدة الموجبة لكل الحسابات (عملاء وموردون)</div>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div class="bg-white border border-emerald-100 rounded-xl p-2.5">
+                                <div class="text-[10px] font-bold text-slate-500 mb-1">الليرة السورية</div>
+                                <div class="font-black text-base text-emerald-700">${Accounting.format(debtTotals.debit.syp, 'SYP')}</div>
+                            </div>
+                            <div class="bg-white border border-emerald-100 rounded-xl p-2.5">
+                                <div class="text-[10px] font-bold text-slate-500 mb-1">الدولار الأمريكي</div>
+                                <div class="font-black text-base text-emerald-700">${Accounting.format(debtTotals.debit.usd, 'USD')}</div>
+                            </div>
+                        </div>
+                    </div>
+                    ` : ''}
+                    ${debtsMode && balanceSide === 'credit' ? `
+                    <div class="bg-gradient-to-l from-amber-50 to-white border border-amber-200 rounded-2xl p-3.5 mb-3 shadow-xs">
+                        <div class="flex items-center gap-2 mb-2">
+                            <div class="w-8 h-8 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center"><i class="fas fa-truck"></i></div>
+                            <div>
+                                <div class="font-extrabold text-sm text-slate-900">مجموع المبالغ التي علينا</div>
+                                <div class="text-[10px] text-slate-500">إجمالي الأرصدة السالبة لكل الحسابات (عملاء وموردون)</div>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div class="bg-white border border-amber-100 rounded-xl p-2.5">
+                                <div class="text-[10px] font-bold text-slate-500 mb-1">الليرة السورية</div>
+                                <div class="font-black text-base text-amber-700">${Accounting.format(debtTotals.credit.syp, 'SYP')}</div>
+                            </div>
+                            <div class="bg-white border border-amber-100 rounded-xl p-2.5">
+                                <div class="text-[10px] font-bold text-slate-500 mb-1">الدولار الأمريكي</div>
+                                <div class="font-black text-base text-amber-700">${Accounting.format(debtTotals.credit.usd, 'USD')}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    ` : ''}
+                    ${!debtsMode ? `<div class="flex items-center justify-start mb-3">
+                        <button onclick="AccountController.openAccountModal()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-4 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-xs">
+                            <i class="fas fa-user-plus"></i> إضافة عميل/مورد
+                        </button>
+                    </div>` : ''}
+
+                    <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+                        <div class="flex gap-1">
+                            ${(debtsMode ? [
+                                { id: 'debit', label: 'الحسابات المدينة (لنا)' },
+                                { id: 'credit', label: 'الحسابات الدائنة (علينا)' }
+                            ] : [
+                                { id: 'all', label: 'الكل' },
+                                { id: 'customer', label: 'العملاء' },
+                                { id: 'supplier', label: 'الموردون' }
+                            ]).map(t => `
+                                <button onclick="AppNav.navigate('accounts', ${debtsMode ? `{ debts: true, balanceSide: '${t.id}', evalCurr: '${evalCurr}' }` : `{ tab: '${t.id}', evalCurr: '${evalCurr}' }`}, true)" class="px-3 py-1.5 rounded-xl text-xs font-bold ${(debtsMode ? balanceSide === t.id : tab === t.id) ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 border border-slate-200'}">
+                                    ${t.label}
+                                </button>
+                            `).join('')}
+                        </div>
+
+                        <div class="flex items-center gap-1 bg-white border border-slate-200 rounded-xl p-1 text-[11px]">
+                            <span class="text-slate-400 px-1">عرض الأرصدة:</span>
+                            <button onclick="AppNav.navigate('accounts', ${debtsMode ? `{ debts: true, balanceSide: '${balanceSide}', evalCurr: 'BOTH' }` : `{ tab: '${tab}', evalCurr: 'BOTH' }`}, true)" class="px-2 py-1 rounded-lg font-bold ${evalCurr === 'BOTH' ? 'bg-emerald-600 text-white' : 'text-slate-600'}">العملتين</button>
+                            <button onclick="AppNav.navigate('accounts', ${debtsMode ? `{ debts: true, balanceSide: '${balanceSide}', evalCurr: 'SYP' }` : `{ tab: '${tab}', evalCurr: 'SYP' }`}, true)" class="px-2 py-1 rounded-lg font-bold ${evalCurr === 'SYP' ? 'bg-emerald-600 text-white' : 'text-slate-600'}">تقييم ل.س</button>
+                            <button onclick="AppNav.navigate('accounts', ${debtsMode ? `{ debts: true, balanceSide: '${balanceSide}', evalCurr: 'USD' }` : `{ tab: '${tab}', evalCurr: 'USD' }`}, true)" class="px-2 py-1 rounded-lg font-bold ${evalCurr === 'USD' ? 'bg-emerald-600 text-white' : 'text-slate-600'}">تقييم $</button>
+                        </div>
+                    </div>
+
+                    <div class="relative mb-3">
+                        <i class="fas fa-search absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                        <input
+                            type="search"
+                            id="accountsSearchInput"
+                            placeholder="ابحث عن حساب بالاسم أو رقم الهاتف..."
+                            oninput="(function(input){const q=input.value.trim().toLocaleLowerCase();let visible=0;document.querySelectorAll('[data-account-search]').forEach(card=>{const value=decodeURIComponent(card.dataset.accountSearch || '').toLocaleLowerCase();const match=!q || value.includes(q);card.classList.toggle('hidden',!match);if(match)visible++;});const empty=document.getElementById('accountsSearchEmpty');if(empty)empty.classList.toggle('hidden',visible!==0);})(this)"
+                            class="w-full bg-white border border-slate-200 rounded-xl py-3 pr-10 pl-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+                        >
+                    </div>
+
+                    <div class="space-y-2.5">
+                        ${filtered.length === 0 ? `
+                            <div class="bg-white rounded-2xl border border-slate-200 p-8 text-center">
+                                <i class="fas fa-users-slash text-4xl text-slate-300 mb-2"></i>
+                                <p class="font-bold text-sm text-slate-600">${debtsMode ? (balanceSide === 'debit' ? 'لا توجد حسابات عليها مبالغ لنا' : 'لا توجد حسابات ندين لها بمبالغ') : 'لا توجد حسابات عملاء أو موردين مسجلة'}</p>
+                                <p class="text-xs text-slate-400 mt-1">أضف حساب عميل أو مورد لمتابعة الذمم المالية وكشوف الحساب بالليرة والدولار</p>
+                            </div>
+                        ` : filtered.map(acc => {
+                            const st = Accounting.getAccountStatement(acc.id);
+                            const overLimit = Number(acc.creditLimitUsd) > 0 && st.evalUsd > Number(acc.creditLimitUsd);
+
+                            let balanceHtml = '';
+                            if (evalCurr === 'BOTH') {
+                                balanceHtml = `
+                                    <div class="font-extrabold text-xs sm:text-sm ${st.sypBalance > 0 ? 'text-blue-700' : st.sypBalance < 0 ? 'text-rose-600' : 'text-slate-700'}">
+                                        ${Accounting.format(Math.abs(st.sypBalance), 'SYP')} <span class="text-[10px]">${st.sypBalance > 0 ? '(مدين/لنا)' : st.sypBalance < 0 ? '(دائن/علينا)' : ''}</span>
+                                    </div>
+                                    <div class="font-extrabold text-xs ${st.usdBalance > 0 ? 'text-blue-600' : st.usdBalance < 0 ? 'text-rose-500' : 'text-slate-500'}">
+                                        ${Accounting.format(Math.abs(st.usdBalance), 'USD')} <span class="text-[10px]">${st.usdBalance > 0 ? '(مدين/لنا)' : st.usdBalance < 0 ? '(دائن/علينا)' : ''}</span>
+                                    </div>
+                                `;
+                            } else if (evalCurr === 'SYP') {
+                                balanceHtml = `<div class="font-extrabold text-sm text-slate-900">مُقيّم: ${Accounting.format(Math.abs(st.evalSyp), 'SYP')} ${st.evalSyp > 0 ? '(لنا)' : st.evalSyp < 0 ? '(علينا)' : ''}</div>`;
+                            } else {
+                                balanceHtml = `<div class="font-extrabold text-sm text-slate-900">مُقيّم: ${Accounting.format(Math.abs(st.evalUsd), 'USD')} ${st.evalUsd > 0 ? '(لنا)' : st.evalUsd < 0 ? '(علينا)' : ''}</div>`;
+                            }
+
+                            return `
+                                <div data-account-search="${encodeURIComponent(`${acc.name} ${acc.phone || ''}`)}" class="bg-white rounded-2xl border ${overLimit ? 'border-rose-400' : 'border-slate-200'} p-3.5 shadow-xs">
+                                    <div class="flex items-start justify-between">
+                                        <div>
+                                            <div class="flex items-center gap-1.5">
+                                                <button type="button" onclick="AccountController.openDebtAccountActions('${acc.id}')" class="font-bold text-sm text-slate-900 hover:text-emerald-700 text-right">${acc.name} <i class="fas fa-up-right-from-square text-[10px] text-slate-400 mr-1"></i></button>
+                                                <span class="text-[10px] font-bold px-2 py-0.5 rounded-md ${acc.type === 'customer' ? 'bg-blue-50 text-blue-700' : 'bg-amber-50 text-amber-700'}">
+                                                    ${acc.type === 'customer' ? 'عميل' : 'مورد'}
+                                                </span>
+                                            </div>
+                                            <div class="text-[11px] text-slate-400 mt-1">
+                                                ${acc.phone ? `<i class="fas fa-phone ml-1"></i>${acc.phone} | ` : ''}
+                                                سقف الائتمان: ${acc.creditLimitUsd ? Accounting.format(acc.creditLimitUsd, 'USD') : 'مفتوح'}
+                                                ${acc.paymentTerms ? ` | استحقاق: ${acc.paymentTerms}` : ''}
+                                            </div>
+                                            ${overLimit ? `<div class="text-[10px] text-rose-600 font-bold mt-1"><i class="fas fa-triangle-exclamation"></i> تجاوز سقف الائتمان المسموح!</div>` : ''}
+                                        </div>
+                                        <div class="text-left">
+                                            ${balanceHtml}
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center gap-2 mt-3 pt-2 border-t border-slate-100">
+                                        <button onclick="AppNav.navigate('account_statement', { id: '${acc.id}' })" class="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-bold py-1.5 rounded-xl text-xs flex items-center justify-center gap-1.5">
+                                            <i class="fas fa-table-list"></i> كشف حساب تفصيلي
+                                        </button>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                        <div id="accountsSearchEmpty" class="hidden bg-white rounded-2xl border border-slate-200 p-6 text-center text-sm text-slate-500">
+                            <i class="fas fa-search text-2xl text-slate-300 mb-2"></i>
+                            <p class="font-bold">لا توجد حسابات مطابقة لبحثك</p>
+                            <p class="text-xs text-slate-400 mt-1">جرّب البحث باسم آخر أو برقم الهاتف</p>
+                        </div>
+                    </div>
+                `;
+            },
+
+            // ==================== 6.6 DETAILED ACCOUNT STATEMENT ====================
+            renderAccountStatement(main, params = {}) {
+                const acc = State.accounts.find(a => a.id === params.id);
+                if (!acc) return AppNav.navigate('accounts');
+
+                const evalMode = params.evalMode || 'DUAL';
+                const st = Accounting.getAccountStatement(acc.id);
+
+                UI.setHeader(`<i class="fas fa-file-contract text-emerald-400"></i> <span>كشف حساب: ${acc.name}</span>`, 'مبدأ القيد المزدوج وتتبع الأرصدة التراكمية');
+
+                main.innerHTML = `
+                    <div class="bg-slate-900 text-white p-4 rounded-2xl mb-3 shadow-md">
+                        <div class="flex items-center justify-between border-b border-slate-800 pb-2 mb-3">
+                            <div>
+                                <h3 class="font-extrabold text-base">${acc.name}</h3>
+                                <p class="text-xs text-slate-400">${acc.type === 'customer' ? 'حساب عميل' : 'حساب مورد'} ${acc.phone ? '- ' + acc.phone : ''}</p>
+                            </div>
+                            <div class="flex gap-1 bg-slate-800 p-1 rounded-xl text-[11px]">
+                                <button onclick="AppNav.navigate('account_statement', { id: '${acc.id}', evalMode: 'DUAL' }, true)" class="px-2 py-1 rounded-lg font-bold ${evalMode === 'DUAL' ? 'bg-emerald-500 text-slate-950' : 'text-slate-300'}">بالعملتين</button>
+                                <button onclick="AppNav.navigate('account_statement', { id: '${acc.id}', evalMode: 'SYP' }, true)" class="px-2 py-1 rounded-lg font-bold ${evalMode === 'SYP' ? 'bg-emerald-500 text-slate-950' : 'text-slate-300'}">تقييم ل.س</button>
+                                <button onclick="AppNav.navigate('account_statement', { id: '${acc.id}', evalMode: 'USD' }, true)" class="px-2 py-1 rounded-lg font-bold ${evalMode === 'USD' ? 'bg-emerald-500 text-slate-950' : 'text-slate-300'}">تقييم $</button>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div class="bg-slate-800/80 p-2.5 rounded-xl">
+                                <span class="text-[11px] text-slate-400 block">الرصيد الفعلي (ل.س)</span>
+                                <span class="font-extrabold text-sm sm:text-base text-emerald-400">${Accounting.format(Math.abs(st.sypBalance), 'SYP')} ${st.sypBalance > 0 ? '(مدين/لنا)' : st.sypBalance < 0 ? '(دائن/علينا)' : ''}</span>
+                            </div>
+                            <div class="bg-slate-800/80 p-2.5 rounded-xl">
+                                <span class="text-[11px] text-slate-400 block">الرصيد الفعلي (USD)</span>
+                                <span class="font-extrabold text-sm sm:text-base text-amber-300">${Accounting.format(Math.abs(st.usdBalance), 'USD')} ${st.usdBalance > 0 ? '(مدين/لنا)' : st.usdBalance < 0 ? '(دائن/علينا)' : ''}</span>
+                            </div>
+                        </div>
+                        <div class="mt-2.5 pt-2 border-t border-slate-800 flex items-center justify-between text-xs text-slate-300">
+                            <span>الرصيد الموحد بعملة التقييم (بسعر ${State.settings.exchangeRate}):</span>
+                            <span class="font-extrabold text-white">
+                                ${evalMode === 'USD' ? Accounting.format(st.evalUsd, 'USD') : Accounting.format(st.evalSyp, 'SYP')}
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-right text-xs">
+                                <thead class="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+                                    <tr>
+                                        <th class="p-2.5">التاريخ والمرجع</th>
+                                        <th class="p-2.5">البيان</th>
+                                        <th class="p-2.5 text-center">مدين (+)</th>
+                                        <th class="p-2.5 text-center">دائن (-)</th>
+                                        <th class="p-2.5 text-left">الرصيد التراكمي</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-100">
+                                    ${st.entries.length === 0 ? `
+                                        <tr><td colspan="5" class="p-6 text-center text-slate-400">لا توجد حركات مسجلة لهذا الحساب</td></tr>
+                                    ` : st.entries.map(e => `
+                                        <tr class="hover:bg-slate-50">
+                                            <td class="p-2.5 whitespace-nowrap">
+                                                <div class="font-bold text-slate-800">${e.ref}</div>
+                                                <div class="text-[10px] text-slate-400">${(e.date || '').replace('T', ' ')}</div>
+                                            </td>
+                                            <td class="p-2.5">
+                                                <div class="text-slate-700">${e.desc}</div>
+                                                ${e.id ? `<button onclick="AppNav.navigate('${e.docType === 'voucher' ? 'voucher_form' : 'invoice_form'}', { id: '${e.id}' })" class="text-[10px] text-blue-600 font-bold hover:underline">فتح المستند للتعديل</button>` : ''}
+                                            </td>
+                                            <td class="p-2.5 text-center font-bold text-blue-700">
+                                                ${e.debit > 0 ? Accounting.format(e.debit, e.currency) : '-'}
+                                            </td>
+                                            <td class="p-2.5 text-center font-bold text-rose-600">
+                                                ${e.credit > 0 ? Accounting.format(e.credit, e.currency) : '-'}
+                                            </td>
+                                            <td class="p-2.5 text-left whitespace-nowrap font-bold">
+                                                <div>${Accounting.format(e.sypBalanceAfter, 'SYP')}</div>
+                                                <div class="text-[11px] text-amber-700">${Accounting.format(e.usdBalanceAfter, 'USD')}</div>
+                                            </td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+            },
+
+            // ==================== 6.7 VOUCHERS LIST ====================
+            renderVouchersList(main) {
+                UI.setHeader('<i class="fas fa-receipt text-emerald-400"></i> <span>سجل سندات القبض والدفع</span>', 'تعديل كامل مع دعم المقاصة بين العملات');
+
+                const list = State.vouchers.slice().reverse();
+                main.innerHTML = `
+                    <div class="grid grid-cols-2 gap-2 mb-3">
+                        <button onclick="AppNav.navigate('voucher_form', { type: 'receipt' })" class="bg-teal-600 text-white font-bold py-2.5 rounded-xl text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-xs">
+                            <i class="fas fa-plus"></i> سند قبض جديد
+                        </button>
+                        <button onclick="AppNav.navigate('voucher_form', { type: 'payment' })" class="bg-amber-600 text-white font-bold py-2.5 rounded-xl text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-xs">
+                            <i class="fas fa-plus"></i> سند دفع جديد
+                        </button>
+                    </div>
+
+                    <div class="space-y-2.5">
+                        ${list.length === 0 ? `
+                            <div class="bg-white rounded-2xl border border-slate-200 p-8 text-center text-slate-400">
+                                <i class="fas fa-receipt text-4xl mb-2 opacity-40"></i>
+                                <p class="font-bold text-sm text-slate-600">لا توجد سندات مسجلة</p>
+                            </div>
+                        ` : list.map(v => {
+                            const acc = State.accounts.find(a => a.id === v.accountId);
+                            const isRec = v.type === 'receipt';
+                            return `
+                                <div onclick="AppNav.navigate('voucher_form', { id: '${v.id}' })" class="bg-white rounded-2xl border border-slate-200 p-3.5 shadow-xs cursor-pointer hover:bg-slate-50">
+                                    <div class="flex items-center justify-between mb-1.5">
+                                        <span class="px-2.5 py-0.5 rounded-lg text-xs font-bold ${isRec ? 'bg-teal-50 text-teal-700' : 'bg-amber-50 text-amber-700'}">
+                                            ${isRec ? 'سند قبض' : 'سند دفع'} #${v.number}
+                                        </span>
+                                        <span class="text-[11px] text-slate-400">${v.date.replace('T', ' ')}</span>
+                                    </div>
+                                    <div class="flex items-center justify-between">
+                                        <div>
+                                            <div class="font-bold text-sm text-slate-800">${acc ? acc.name : 'حساب عام'}</div>
+                                            <div class="text-xs text-slate-500">${v.note || 'بدون ملاحظات'}</div>
+                                        </div>
+                                        <div class="text-left">
+                                            <div class="font-extrabold text-sm text-slate-900">${Accounting.format(v.amount, v.currency)}</div>
+                                            ${v.accountCurrency && v.accountCurrency !== v.currency ? `<div class="text-[10px] text-blue-600 font-bold">مقاصة بالحساب: ${Accounting.format(v.accountAmount, v.accountCurrency)}</div>` : ''}
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                `;
+            },
+
+            // ==================== 6.8 COMPREHENSIVE REPORTS ====================
+            renderReports(main, params = {}) {
+                UI.setHeader('<i class="fas fa-chart-pie text-emerald-400"></i> <span>التقارير المالية والمخزنية</span>', 'حركة الصندوق، جرد المستودع، والأرباح والخسائر');
+
+                const tab = params.tab || 'cashbox';
+                // Do not build the cashbox ledger while rendering the profit report.
+                // Imported/older databases may contain incomplete voucher records;
+                // that unrelated data must never block the profit & sales tab.
+                const cash = tab === 'cashbox'
+                    ? Accounting.getCashboxSummary()
+                    : { sypCash: 0, usdCash: 0, movements: [] };
+                const period = params.period || 'all';
+                const selectedDate = params.date || new Date().toISOString().slice(0, 10);
+                const profitView = params.view || 'invoices';
+                const inventoryWarehouseId = params.warehouseId || State.settings.selectedWarehouseId || 'wh_main';
+                const inventoryValuationCurrency = ['SYP', 'USD'].includes(State.settings.inventoryValuationCurrency) ? State.settings.inventoryValuationCurrency : 'SYP';
+                const inventoryValuation = tab === 'inventory' ? InventoryValuation.calculate(inventoryWarehouseId, inventoryValuationCurrency) : null;
+                const revealProfits = params.reveal === true || params.reveal === 'true';
+                const asLocalDate = d => { const x = new Date(d.getTime() - d.getTimezoneOffset() * 60000); return x.toISOString().slice(0, 10); };
+                const today = asLocalDate(new Date());
+                const yesterdayDate = new Date(); yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+                const yesterday = asLocalDate(yesterdayDate);
+                const reportInvoices = (Array.isArray(State.invoices) ? State.invoices : []).filter(inv => {
+                    if (!inv || typeof inv !== 'object') return false;
+                    if (period === 'today') return String(inv.date || '').slice(0, 10) === today;
+                    if (period === 'yesterday') return String(inv.date || '').slice(0, 10) === yesterday;
+                    if (period === 'custom') return String(inv.date || '').slice(0, 10) === selectedDate;
+                    return true;
+                });
+
+                let salesSyp = 0, salesUsd = 0, purchasesSyp = 0, purchasesUsd = 0, estimatedProfitUsd = 0;
+                const invoiceProfits = [], groupProfits = {}, itemProfits = {};
+                for (const inv of reportInvoices) {
+                    const rate = Number(inv.exchangeRate) || Number(State.settings && State.settings.exchangeRate) || 1;
+                    const net = Number(inv.netTotal) || 0;
+                    const netUsd = inv.currency === 'USD' ? net : net / rate;
+                    const netSyp = inv.currency === 'SYP' ? net : net * rate;
+                    if (inv.type === 'sale') {
+                        salesSyp += netSyp; salesUsd += netUsd;
+                        let invoiceProfit = 0;
+                        const invoiceRows = Array.isArray(inv.rows) ? inv.rows : [];
+                        for (const r of invoiceRows) {
+                            if (!r || typeof r !== 'object') continue;
+                            const item = (Array.isArray(State.items) ? State.items : []).find(i => i && i.id === r.itemId);
+                            if (!item) continue;
+                            // Older/imported items may not have a units array; never let one
+                            // incomplete item record prevent the whole profit report from rendering.
+                            const itemUnits = Array.isArray(item.units) ? item.units : [];
+                            const unitObj = itemUnits.find(u => u && u.name === r.unitName) || itemUnits[0] || {};
+                            const qty = Number(r.qty) || 0;
+                            const costItemCurrency = (Number(unitObj.costPrice) || 0) * qty;
+                            const configuredRate = Number(State.settings && State.settings.exchangeRate);
+                            const safeRate = Number(rate) > 0 ? Number(rate) : (configuredRate > 0 ? configuredRate : 1);
+                            const itemCurrency = item.currency || inv.currency || 'SYP';
+                            const invoiceCurrency = inv.currency || 'SYP';
+                            const costUsd = itemCurrency === 'USD' ? costItemCurrency : costItemCurrency / safeRate;
+                            const rowRevenue = Number(r.total) || ((Number(r.qty) || 0) * (Number(r.price) || 0) - (Number(r.discount) || 0));
+                            const revenueUsd = invoiceCurrency === 'USD' ? rowRevenue : rowRevenue / safeRate;
+                            const rowProfitUsd = revenueUsd - costUsd;
+                            invoiceProfit += rowProfitUsd;
+                            const groupName = item.category || 'بدون مجموعة';
+                            if (!groupProfits[groupName]) groupProfits[groupName] = 0;
+                            groupProfits[groupName] += rowProfitUsd;
+                            if (!itemProfits[item.id]) itemProfits[item.id] = { name: item.name, profit: 0, qty: 0 };
+                            itemProfits[item.id].profit += rowProfitUsd;
+                            itemProfits[item.id].qty += qty;
+                        }
+                        estimatedProfitUsd += invoiceProfit;
+                        invoiceProfits.push({ id: inv.id, ref: inv.ref || inv.number || inv.id, date: inv.date || '', party: ((Array.isArray(State.accounts) ? State.accounts : []).find(a => a && a.id === inv.accountId)?.name) || inv.partyName || inv.accountName || inv.customerName || '', currency: inv.currency || 'USD', profit: invoiceProfit });
+                    } else if (inv.type === 'purchase') {
+                        purchasesSyp += netSyp; purchasesUsd += netUsd;
+                    }
+                }
+                const reportExpenses = (Array.isArray(State.expenses) ? State.expenses : []).filter(exp => {
+                    if (!exp || typeof exp !== 'object') return false;
+                    if (period === 'today') return String(exp.date || '').slice(0, 10) === today;
+                    if (period === 'yesterday') return String(exp.date || '').slice(0, 10) === yesterday;
+                    if (period === 'custom') return String(exp.date || '').slice(0, 10) === selectedDate;
+                    return true;
+                });
+                const expenseTotalUsd = reportExpenses.reduce((total, exp) => {
+                    const amount = Number(exp.amount) || 0;
+                    const originalRate = Number(exp.exchangeRate) > 0
+                        ? Number(exp.exchangeRate) : (Number(State.settings.exchangeRate) || 1);
+                    return total + (exp.currency === 'USD' ? amount : amount / originalRate);
+                }, 0);
+                const netProfitUsd = estimatedProfitUsd - expenseTotalUsd;
+                const expenseByCategory = {};
+                reportExpenses.forEach(exp => {
+                    const category = exp.category || 'أخرى';
+                    const originalRate = Number(exp.exchangeRate) > 0
+                        ? Number(exp.exchangeRate) : (Number(State.settings.exchangeRate) || 1);
+                    const usd = exp.currency === 'USD' ? (Number(exp.amount)||0) : (Number(exp.amount)||0)/originalRate;
+                    expenseByCategory[category] = (expenseByCategory[category] || 0) + usd;
+                });
+                const reportExchangeRate = Number(State.settings && State.settings.exchangeRate) || 1;
+                const moneyDual = usd => `<div class="font-extrabold text-emerald-700">${Accounting.format(usd, 'USD')}</div><div class="text-[10px] text-slate-500">${Accounting.format(usd * reportExchangeRate, 'SYP')}</div>`;
+                const active = (v, label) => `<button onclick="AppNav.navigate('reports',{tab:'pnl',period:'${period}',date:'${selectedDate}',view:'${v}',reveal:${revealProfits}},true)" class="px-3 py-2 rounded-xl text-xs font-bold ${profitView === v ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 border'}">${label}</button>`;
+
+                main.innerHTML = `
+                    <div class="grid grid-cols-3 gap-1.5 bg-white p-1.5 rounded-2xl border border-slate-200 mb-4 text-xs font-bold">
+                        <button onclick="AppNav.navigate('reports', { tab: 'cashbox' }, true)" class="py-2 rounded-xl ${tab === 'cashbox' ? 'bg-slate-900 text-white' : 'text-slate-600'}">حركة الصندوق</button>
+                        <button onclick="AppNav.navigate('reports', { tab: 'inventory' }, true)" class="py-2 rounded-xl ${tab === 'inventory' ? 'bg-slate-900 text-white' : 'text-slate-600'}">جرد المستودع</button>
+                        <button type="button" onclick="AppNav.navigate('reports', { tab: 'pnl', period: 'all', view: 'invoices' }, true)" class="py-2 rounded-xl ${tab === 'pnl' ? 'bg-slate-900 text-white' : 'text-slate-600'}">الأرباح والمبيعات</button>
+                    </div>
+                    ${tab === 'cashbox' ? `
+                        <div class="grid grid-cols-2 gap-2.5 mb-3">
+                            <div class="bg-emerald-700 text-white p-3.5 rounded-2xl"><span class="text-xs opacity-80 block">صافي صندوق الليرة السورية</span><span class="font-extrabold text-base sm:text-lg">${Accounting.format(cash.sypCash, 'SYP')}</span></div>
+                            <div class="bg-slate-900 text-white p-3.5 rounded-2xl"><span class="text-xs opacity-80 block">صافي صندوق الدولار الأمريكي</span><span class="font-extrabold text-base sm:text-lg text-amber-300">${Accounting.format(cash.usdCash, 'USD')}</span></div>
+                        </div>
+                        <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden"><div class="p-3 font-bold text-xs border-b border-slate-100">سجل المقبوضات والمدفوعات النقدية</div>
+                        ${cash.movements.length === 0 ? `<div class="p-6 text-center text-xs text-slate-400">لا توجد حركات صندوق مسجلة</div>` : `<div class="divide-y divide-slate-100 text-xs">${cash.movements.map(m => `<div class="p-3 flex items-center justify-between"><div><div class="font-bold text-slate-800">${m.ref} - ${m.party}</div><div class="text-[11px] text-slate-500">${m.desc} | ${m.date.replace('T', ' ')}</div></div><div class="font-extrabold ${m.inflow > 0 ? 'text-emerald-600' : 'text-rose-600'}">${m.inflow > 0 ? '+ ' + Accounting.format(m.inflow, m.currency) : '- ' + Accounting.format(m.outflow, m.currency)}</div></div>`).join('')}</div>`}</div>
+                    ` : tab === 'inventory' ? `
+                        <div class="bg-sky-50 border border-sky-200 rounded-xl p-3 mb-3">
+                            <label class="text-xs font-bold text-sky-900 block mb-1">عرض جرد مستودع محدد أو جميع المستودعات</label>
+                            <select onchange="AppNav.navigate('reports',{tab:'inventory',warehouseId:this.value},true)" class="w-full bg-white border rounded-xl p-2.5 text-xs">
+                                <option value="all" ${inventoryWarehouseId === 'all' ? 'selected' : ''}>إجمالي جميع المستودعات</option>
+                                ${WarehouseController.options(inventoryWarehouseId)}
+                            </select>
+                        </div>
+                        <!-- Total valuation in a selectable currency (cost, not sale price). -->
+                        <div class="bg-emerald-50 border-2 border-emerald-300 rounded-2xl p-4 mb-3" id="inventoryTotalValueCard">
+                            <div class="flex flex-wrap items-center justify-between gap-3 mb-2">
+                                <label class="text-sm font-extrabold text-emerald-950" for="inventoryValuationCurrency">القيمة الإجمالية للمواد بسعر التكلفة</label>
+                                <select id="inventoryValuationCurrency" aria-label="عملة تقييم المخزون" onchange="InventoryValuation.setCurrency(this.value)" class="border border-emerald-400 bg-white rounded-xl px-3 py-2 text-sm font-bold text-emerald-900">
+                                    <option value="SYP" ${inventoryValuationCurrency === 'SYP' ? 'selected' : ''}>الليرة السورية (SYP)</option>
+                                    <option value="USD" ${inventoryValuationCurrency === 'USD' ? 'selected' : ''}>الدولار الأمريكي (USD)</option>
+                                </select>
+                            </div>
+                            <div id="inventoryGrandTotal" dir="ltr" class="text-2xl font-black text-emerald-800 text-center py-2" aria-live="polite">${inventoryValuation.total === null ? '—' : Accounting.format(inventoryValuation.total, inventoryValuationCurrency)}</div>
+                            ${inventoryValuation.total === null
+                                ? `<div role="alert" class="text-xs font-bold text-rose-700">سعر الصرف غير صالح. يرجى تعديل سعر الصرف لإتمام تقييم المواد بعملة موحدة.</div>`
+                                : `<div class="text-xs text-emerald-900"><span>سعر الصرف المستخدم: 1 USD =</span> <b dir="ltr">${Accounting.format(inventoryValuation.rate, 'SYP')}</b></div>`}
+                            <div class="text-[11px] text-emerald-800 mt-1">يُحسب الإجمالي من رصيد المستودع المحدد × سعر تكلفة الوحدة الأساسية لكل مادة.</div>
+                        </div>
+                        <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden"><div class="p-3 font-bold text-xs border-b border-slate-100 flex justify-between"><span>تقرير الجرد الفعلي للأصناف</span><span>عدد المواد: ${inventoryValuation.rows.length}</span></div>
+                        ${inventoryValuation.rows.length === 0 ? `<div class="p-6 text-center text-xs text-slate-400">المستودع فارغ حالياً</div>` : `<table class="w-full text-right text-xs"><thead class="bg-slate-50 text-slate-600 font-bold border-b"><tr><th class="p-2.5">المادة (عملتها)</th><th class="p-2.5 text-center">الرصيد بالوحدة الكبرى الأساسية</th><th class="p-2.5 text-left">تقييم التكلفة</th></tr></thead><tbody class="divide-y divide-slate-100">${inventoryValuation.rows.map(({item,stock,baseUnit,value}) => `<tr><td class="p-2.5 font-bold">${AppEscape.text(item.name)} <span class="text-[10px] text-slate-400">(${item.currency === 'USD' ? 'USD' : 'SYP'})</span></td><td class="p-2.5 text-center font-bold ${stock <= (Number(item.minStockBase) || 0) ? 'text-rose-600' : 'text-emerald-700'}">${Accounting.formatItemQuantity(stock)} ${AppEscape.text(baseUnit.name)}</td><td class="p-2.5 text-left font-bold" dir="ltr">${value === null ? '—' : Accounting.format(value, inventoryValuationCurrency)}</td></tr>`).join('')}</tbody></table>`}</div>
+                    ` : `
+                        <div class="bg-white border border-slate-200 rounded-2xl p-3 mb-3 space-y-3">
+                            <div class="flex items-center justify-between gap-2">
+                                <div class="font-extrabold text-sm">فترة تقرير الأرباح</div>
+                                <button type="button" onclick="AppNav.navigate('reports',{tab:'pnl',period:'${period}',date:'${selectedDate}',view:'${profitView}',reveal:${!revealProfits}},true)" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-extrabold ${revealProfits ? 'bg-slate-100 text-slate-800 border border-slate-200' : 'bg-emerald-600 text-white'}" title="${revealProfits ? 'إخفاء الأرباح' : 'إظهار الأرباح'}" aria-label="${revealProfits ? 'إخفاء الأرباح' : 'إظهار الأرباح'}">
+                                    <i class="fas ${revealProfits ? 'fa-eye-slash' : 'fa-eye'}"></i>
+                                    <span>${revealProfits ? 'إخفاء الأرباح' : 'إظهار الأرباح'}</span>
+                                </button>
+                            </div>
+                            <div class="grid grid-cols-4 gap-1.5 text-xs">
+                                <button onclick="AppNav.navigate('reports',{tab:'pnl',period:'today',view:'${profitView}',reveal:${revealProfits}},true)" class="py-2 rounded-lg ${period==='today'?'bg-emerald-600 text-white':'bg-slate-100'}">اليوم</button>
+                                <button onclick="AppNav.navigate('reports',{tab:'pnl',period:'yesterday',view:'${profitView}',reveal:${revealProfits}},true)" class="py-2 rounded-lg ${period==='yesterday'?'bg-emerald-600 text-white':'bg-slate-100'}">الأمس</button>
+                                <button onclick="AppNav.navigate('reports',{tab:'pnl',period:'all',view:'${profitView}',reveal:${revealProfits}},true)" class="py-2 rounded-lg ${period==='all'?'bg-emerald-600 text-white':'bg-slate-100'}">كل الفترة</button>
+                                <button onclick="AppNav.navigate('reports',{tab:'pnl',period:'custom',date:'${selectedDate}',view:'${profitView}',reveal:${revealProfits}},true)" class="py-2 rounded-lg ${period==='custom'?'bg-emerald-600 text-white':'bg-slate-100'}">تاريخ محدد</button>
+                            </div>
+                            ${period==='custom' ? `<input type="date" value="${selectedDate}" onchange="AppNav.navigate('reports',{tab:'pnl',period:'custom',date:this.value,view:'${profitView}',reveal:${revealProfits}},true)" class="w-full border rounded-xl p-2 text-sm font-bold" aria-label="اختر تاريخ التقرير">` : ''}
+                        </div>
+                        <div class="grid grid-cols-3 gap-1.5 mb-3">${active('invoices','أرباح الفواتير')}${active('groups','أرباح المجموعات')}${active('items','أرباح المواد')}</div>
+                        <div class="grid grid-cols-2 gap-2 mb-3">
+                            <div class="bg-white p-3 rounded-2xl border"><div class="text-[11px] text-slate-500">إجمالي المبيعات</div><div class="font-extrabold text-emerald-700">${Accounting.format(salesUsd,'USD')}</div><div class="text-[10px] text-slate-500">${Accounting.format(salesSyp,'SYP')}</div></div>
+                            <div class="bg-slate-900 text-white p-3 rounded-2xl"><div class="text-[11px] text-slate-300">إجمالي الربح التقديري</div>${revealProfits ? `<div class="font-extrabold text-amber-300">${Accounting.format(estimatedProfitUsd,'USD')}</div><div class="text-[10px] text-emerald-300">${Accounting.format(estimatedProfitUsd * (Number(State.settings && State.settings.exchangeRate)||1),'SYP')}</div>` : `<div class="font-extrabold text-amber-300/80 mt-1 tracking-widest">••••••</div><div class="text-[10px] text-slate-300 mt-1">اضغط إظهار الأرباح</div>`}</div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2 mb-3">
+                            <div class="bg-orange-50 border border-orange-200 rounded-2xl p-3">
+                                <div class="text-[11px] font-bold text-orange-800">مصاريف الفترة (${reportExpenses.length})</div>
+                                <div class="font-extrabold text-orange-800">${Accounting.format(expenseTotalUsd,'USD')}</div>
+                                <div class="text-[10px] text-orange-700">${Accounting.format(expenseTotalUsd*reportExchangeRate,'SYP')}</div>
+                                <button onclick="AppNav.navigate('expenses')" class="text-[10px] font-bold text-orange-800 underline">حساب المصاريف</button>
+                            </div>
+                            <div class="bg-slate-900 rounded-2xl p-3 text-white">
+                                <div class="text-[11px] text-slate-300">صافي الربح بعد المصاريف</div>
+                                ${revealProfits ? `<div class="font-extrabold ${netProfitUsd>=0?'text-emerald-300':'text-rose-300'}">${Accounting.format(netProfitUsd,'USD')}</div><div class="text-[10px] text-slate-300">${Accounting.format(netProfitUsd*reportExchangeRate,'SYP')}</div>` : `<div class="font-extrabold text-slate-300 tracking-widest mt-1">••••••</div>`}
+                            </div>
+                        </div>
+                        <div class="bg-white border border-slate-200 rounded-2xl p-3 mb-3">
+                            <div class="flex items-center justify-between mb-2">
+                                <strong class="text-xs text-orange-900">تفاصيل المصاريف خلال الفترة</strong>
+                                <button onclick="AppNav.navigate('expenses')" class="text-xs text-orange-700 font-bold">إضافة مصروف</button>
+                            </div>
+                            ${Object.keys(expenseByCategory).length ? Object.entries(expenseByCategory).sort((a,b)=>b[1]-a[1]).map(([cat,usd])=>`
+                                <div class="py-1.5 flex justify-between text-xs border-b border-slate-100">
+                                    <span>${AppEscape.text(cat)}</span><b class="text-orange-700">${Accounting.format(usd,'USD')}</b>
+                                </div>`).join('') : `<div class="text-xs text-slate-400">لا توجد مصاريف خلال هذه الفترة.</div>`}
+                        </div>
+                        <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
+                            ${!revealProfits ? `<div class="p-8 text-center"><i class="fas fa-eye-slash text-2xl text-slate-300 mb-3"></i><p class="font-extrabold text-sm text-slate-700">تفاصيل الأرباح مخفية</p><p class="text-xs text-slate-500 mt-1">اختر الفترة المطلوبة ثم اضغط زر إظهار الأرباح بالأعلى.</p></div>` : profitView==='invoices' ? `<div class="p-3 border-b font-bold text-xs">ربح كل فاتورة على حدة</div>${invoiceProfits.length ? `<div class="divide-y">${invoiceProfits.map(x=>`<div class="p-3 flex items-center justify-between gap-2"><div class="min-w-0"><div class="font-bold text-xs">${x.ref} ${x.party ? ' - '+x.party : ''}</div><div class="text-[10px] text-slate-400">${String(x.date).replace('T',' ').slice(0,16)}</div></div><div class="text-left shrink-0">${moneyDual(x.profit)}</div></div>`).join('')}</div>` : `<div class="p-5 text-center text-xs text-slate-400">لا توجد فواتير مبيع ضمن الفترة المحددة</div>`}` : profitView==='groups' ? `<div class="p-3 border-b font-bold text-xs">الأرباح حسب مجموعات الأصناف</div>${Object.keys(groupProfits).length ? `<div class="divide-y">${Object.entries(groupProfits).sort((a,b)=>b[1]-a[1]).map(([name,val])=>`<div class="p-3 flex items-center justify-between"><span class="font-bold text-xs">${name}</span><div class="text-left">${moneyDual(val)}</div></div>`).join('')}</div>` : `<div class="p-5 text-center text-xs text-slate-400">لا توجد بيانات مجموعات ضمن الفترة المحددة</div>`}` : `<div class="p-3 border-b font-bold text-xs">الأرباح حسب المواد</div>${Object.keys(itemProfits).length ? `<div class="divide-y">${Object.values(itemProfits).sort((a,b)=>b.profit-a.profit).map(x=>`<div class="p-3 flex items-center justify-between gap-2"><div><div class="font-bold text-xs">${x.name}</div><div class="text-[10px] text-slate-400">الكمية المباعة: ${x.qty}</div></div><div class="text-left">${moneyDual(x.profit)}</div></div>`).join('')}</div>` : `<div class="p-5 text-center text-xs text-slate-400">لا توجد بيانات مواد ضمن الفترة المحددة</div>`}`}
+                        </div>
+                        <p class="text-[10px] text-slate-400 mt-2">صافي الربح التقديري = أرباح المبيعات التقديرية − المصاريف النقدية المسجلة للفترة. تُحوّل المصاريف بسعر صرف تاريخ العملية، بينما يُعرض المقابل بالليرة بسعر الصرف الحالي. تكلفة البضاعة مبنية على أسعار التكلفة المسجلة بالأصناف وليست تكلفة متحركة دقيقة.</p>
+                    `}
+                `;
+            },
+
+            // ==================== 6.9 SETTINGS, PRINTER & BACKUP/RESTORE ====================
+            renderSettings(main) {
+                UI.setHeader('<i class="fas fa-sliders text-emerald-400"></i> <span>الضبط</span>', 'اضغط على القسم المطلوب لعرض خياراته');
+                const mode = State.settings.btPrintMode || 'auto';
+                main.innerHTML = `
+                    <div class="mb-3 text-[11px] text-slate-500 font-semibold px-1">جميع خيارات التطبيق مرتبة ضمن فئات. اضغط على اسم أي فئة لفتحها أو إغلاقها.</div>
+                    <details class="settings-section" data-settings-section="language" ontoggle="SettingsController.onSectionToggle(this)" ${SettingsController.expandedSections.has('language') ? 'open' : ''}>
+                        <summary class="settings-section-heading" aria-label="اللغة">
+                            <span class="settings-section-leading"><i class="fas fa-globe text-emerald-600" aria-hidden="true"></i><span><span class="settings-section-name">اللغة</span><span class="settings-section-note">العربية / English</span></span></span>
+                            <i class="fas fa-chevron-down settings-section-arrow text-slate-400" aria-hidden="true"></i>
+                        </summary>
+                        <div class="settings-section-body">
+                    <!-- Persisted interface language and sales stock policy. -->
+                    <div class="bg-white rounded-2xl border border-slate-200 p-4 mb-4 shadow-xs space-y-3">
+                        <h3 class="font-bold text-sm text-slate-900 flex items-center gap-2">
+                            <i class="fas fa-globe text-indigo-600"></i><span>اللغة</span>
+                        </h3>
+                        <label for="appLanguage" class="block text-xs font-semibold text-slate-600">لغة التطبيق</label>
+                        <select id="appLanguage" aria-label="لغة التطبيق" onchange="I18n.setLanguage(this.value)" class="w-full border border-slate-300 bg-white text-slate-900 rounded-xl py-3 px-3 text-sm font-bold">
+                            <option value="ar" ${State.settings.language !== 'en' ? 'selected' : ''}>العربية</option>
+                            <option value="en" ${State.settings.language === 'en' ? 'selected' : ''}>English</option>
+                        </select>
+                    </div>
+                        </div>
+                    </details>
+                    <details class="settings-section" data-settings-section="invoices" ontoggle="SettingsController.onSectionToggle(this)" ${SettingsController.expandedSections.has('invoices') ? 'open' : ''}>
+                        <summary class="settings-section-heading" aria-label="الفواتير">
+                            <span class="settings-section-leading"><i class="fas fa-file-invoice text-emerald-600" aria-hidden="true"></i><span><span class="settings-section-name">الفواتير</span><span class="settings-section-note">العملة والفواتير المعروضة</span></span></span>
+                            <i class="fas fa-chevron-down settings-section-arrow text-slate-400" aria-hidden="true"></i>
+                        </summary>
+                        <div class="settings-section-body">
+                    <div class="bg-white border border-slate-200 rounded-xl p-3 space-y-3">
+                        <div>
+                            <label for="setDefaultInvoiceCurrency" class="block text-xs font-extrabold text-slate-800 mb-1">العملة الافتراضية للفاتورة الجديدة</label>
+                            <select id="setDefaultInvoiceCurrency" onchange="SettingsController.setDefaultInvoiceCurrency(this.value)" class="w-full bg-white border border-slate-300 rounded-xl p-2.5 text-xs font-bold" ${State.settings.primaryOnlyMode ? 'disabled' : ''}>
+                                ${CurrencyCatalog.options(State.settings.primaryOnlyMode ? CurrencyCatalog.primary() : (State.settings.defaultCurrency || 'USD'))}
+                            </select>
+                        </div>
+                        <div>
+                            <label for="setDefaultInvoiceListType" class="block text-xs font-extrabold text-slate-800 mb-1">النوع الافتراضي في سجل الفواتير</label>
+                            <select id="setDefaultInvoiceListType" onchange="SettingsController.setDefaultInvoiceListType(this.value)" class="w-full bg-white border border-slate-300 rounded-xl p-2.5 text-xs font-bold">
+                                <option value="sale" ${State.settings.defaultInvoiceListType !== 'purchase' && State.settings.defaultInvoiceListType !== 'all' ? 'selected' : ''}>فواتير المبيع</option>
+                                <option value="purchase" ${State.settings.defaultInvoiceListType === 'purchase' ? 'selected' : ''}>فواتير الشراء</option>
+                                <option value="all" ${State.settings.defaultInvoiceListType === 'all' ? 'selected' : ''}>المبيعات والمشتريات معاً</option>
+                            </select>
+                            <p class="text-[11px] text-slate-500 mt-1">يُعرض سجل الفواتير افتراضياً بتاريخ اليوم، ويمكن تغيير الفلتر داخل السجل في أي وقت.</p>
+                        </div>
+                    </div>
+                        </div>
+                    </details>
+                    <details class="settings-section" data-settings-section="items" ontoggle="SettingsController.onSectionToggle(this)" ${SettingsController.expandedSections.has('items') ? 'open' : ''}>
+                        <summary class="settings-section-heading" aria-label="المواد">
+                            <span class="settings-section-leading"><i class="fas fa-boxes-stacked text-emerald-600" aria-hidden="true"></i><span><span class="settings-section-name">المواد</span><span class="settings-section-note">المخزون والمنازل العشرية</span></span></span>
+                            <i class="fas fa-chevron-down settings-section-arrow text-slate-400" aria-hidden="true"></i>
+                        </summary>
+                        <div class="settings-section-body">
+                    <div class="bg-white rounded-2xl border border-slate-200 p-4 mb-4 shadow-xs space-y-3">
+                        <h3 class="font-bold text-sm text-slate-900 flex items-center gap-2">
+                            <i class="fas fa-boxes-stacked text-emerald-600"></i><span>إعدادات المخزون</span>
+                        </h3>
+                        <label for="allowOutOfStockSales" class="flex items-center justify-between gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200 cursor-pointer">
+                            <span class="space-y-1">
+                                <span class="block text-xs font-extrabold text-slate-800">السماح ببيع المواد التي نفذ رصيدها</span>
+                                <span class="block text-[11px] text-slate-500 leading-relaxed">عند التفعيل يمكن حفظ فاتورة مبيعات حتى لو أصبح رصيد المادة سالباً. عند الإلغاء يتم منع البيع فوق الرصيد المتاح.</span>
+                            </span>
+                            <input type="checkbox" id="allowOutOfStockSales" onchange="SettingsController.setAllowOutOfStockSales(this.checked)" ${State.settings.allowNegativeStockSales === true ? 'checked' : ''} class="w-5 h-5 shrink-0 accent-emerald-600" />
+                        </label>
+                        <div class="border-t border-slate-100 pt-3">
+                            <label for="setDefaultItemCurrency" class="block text-xs font-bold text-slate-800">العملة الافتراضية عند إضافة مادة جديدة</label>
+                            <select id="setDefaultItemCurrency" onchange="SettingsController.setDefaultItemCurrency(this.value)" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-xs font-bold" ${State.settings.primaryOnlyMode ? 'disabled' : ''}>
+                                ${CurrencyCatalog.options(State.settings.primaryOnlyMode ? CurrencyCatalog.primary() : (State.settings.defaultItemCurrency || CurrencyCatalog.primary()))}
+                            </select>
+                            ${State.settings.primaryOnlyMode ? '<p class="text-[11px] text-slate-500">العملة الافتراضية مقفلة على العملة الرئيسية في وضع العملة الواحدة.</p>' : ''}
+                            <label for="setItemQuantityDecimals" class="block text-xs font-extrabold text-slate-800 mb-1">عدد الخانات بعد الفاصلة العشرية للكميات والأسعار</label>
+                            <select id="setItemQuantityDecimals" onchange="SettingsController.setItemQuantityDecimals(this.value)" class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-xs font-bold">
+                                ${[0,1,2,3,4].map(n => `<option value="${n}" ${Number(State.settings.itemQuantityDecimals ?? 2) === n ? 'selected' : ''}>${n} ${n===1?'خانة':'خانات'}</option>`).join('')}
+                            </select>
+                            <p class="text-[11px] text-slate-500 mt-1">يحدد عدد المنازل العشرية لعرض الكميات والأسعار، ويسمح بإدخال أسعار شراء وبيع المواد بهذا العدد من الخانات (0 إلى 4). تُحسب أسعار الوحدات الفرعية وفق الدقة المختارة. الأسعار المحفوظة سابقاً لا تتغير بمجرد تعديل الإعداد، وإجماليات الفواتير والأرصدة المالية تتبع دقة العملة المحاسبية.</p>
+                            <div class="rounded-lg mt-2 px-3 py-2 bg-sky-50 border border-sky-100 flex items-center justify-between text-xs font-semibold text-sky-900">
+                                <span>مثال لعرض الكمية والسعر</span>
+                                <span dir="ltr">${Accounting.formatItemQuantity(12.3456)} | ${Accounting.formatItemPrice(12.3456, 'USD')}</span>
+                            </div>
+                        </div>
+                    </div>
+                        </div>
+                    </details>
+                    <details class="settings-section" data-settings-section="printing" ontoggle="SettingsController.onSectionToggle(this)" ${SettingsController.expandedSections.has('printing') ? 'open' : ''}>
+                        <summary class="settings-section-heading" aria-label="الطباعة">
+                            <span class="settings-section-leading"><i class="fas fa-print text-emerald-600" aria-hidden="true"></i><span><span class="settings-section-name">الطباعة</span><span class="settings-section-note">البلوتوث، الورق، الخط</span></span></span>
+                            <i class="fas fa-chevron-down settings-section-arrow text-slate-400" aria-hidden="true"></i>
+                        </summary>
+                        <div class="settings-section-body">
+                    <!-- Compact Bluetooth Printer Card -->
+                    <div class="bg-white rounded-2xl border border-slate-200 p-4 mb-4 shadow-xs">
+                        <div class="flex items-center justify-between mb-2">
+                            <h3 class="font-bold text-sm text-slate-900 flex items-center gap-2">
+                                <i class="fab fa-bluetooth text-blue-600 text-lg"></i>
+                                <span>طابعة البلوتوث الحرارية (الخيار الافتراضي)</span>
+                            </h3>
+                            <span class="text-[11px] font-extrabold px-2.5 py-0.5 rounded-lg ${ThermalPrinter.isConnected ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}">
+                                ${ThermalPrinter.isConnected ? 'متصل الآن' : mode === 'rawbt' ? 'RawBT خارجي' : 'غير متصل'}
+                            </span>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <button onclick="ThermalPrinter.connectNative()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5">
+                                <i class="fab fa-bluetooth-b"></i>
+                                <span>بحث واقتران سريع</span>
+                            </button>
+                            <button onclick="ThermalPrinter.openQuickModal()" class="bg-slate-900 hover:bg-slate-800 text-white font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5">
+                                <i class="fas fa-sliders"></i>
+                                <span>خيارات البلوتوث المختصرة</span>
+                            </button>
+                            <select id="setPrinterWidth" onchange="SettingsController.saveSettings()" class="bg-slate-100 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold">
+                                <option value="80" ${State.settings.printerWidth === 80 ? 'selected' : ''}>ورق: 80mm</option>
+                                <option value="58" ${State.settings.printerWidth === 58 ? 'selected' : ''}>ورق: 58mm</option>
+                            </select>
+                        </div>
+                        <div class="border-t border-slate-100 mt-3 pt-3">
+                            <label for="setPrinterFontScale" class="block text-xs font-extrabold text-slate-800 mb-1">حجم خط الفاتورة المطبوعة</label>
+                            <select id="setPrinterFontScale" onchange="SettingsController.setPrintFontScale(this.value)" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs font-bold">
+                                ${[{v:0.75,t:'أصغر'},{v:0.85,t:'صغير'},{v:1,t:'متوسط'},{v:1.2,t:'كبير'},{v:1.4,t:'عريض'}].map(o => `<option value="${o.v}" ${Math.abs((Number(State.settings.printFontScale)||0.75)-o.v)<0.001?'selected':''}>${o.t}</option>`).join('')}
+                            </select>
+                        </div>
+                    </div>
+                        </div>
+                    </details>
+                    <details class="settings-section" data-settings-section="company" ontoggle="SettingsController.onSectionToggle(this)" ${SettingsController.expandedSections.has('company') ? 'open' : ''}>
+                        <summary class="settings-section-heading" aria-label="إعدادات الشركة">
+                            <span class="settings-section-leading"><i class="fas fa-building text-emerald-600" aria-hidden="true"></i><span><span class="settings-section-name">إعدادات الشركة</span><span class="settings-section-note">اللوغو والاسم والهاتف والعنوان</span></span></span>
+                            <i class="fas fa-chevron-down settings-section-arrow text-slate-400" aria-hidden="true"></i>
+                        </summary>
+                        <div class="settings-section-body">
+                    <!-- Print Customization Section (Logo from mobile gallery, Company Name, Phone, Notes) -->
+                    <div class="bg-white rounded-2xl border border-slate-200 p-4 mb-4 shadow-xs space-y-3">
+                        <h3 class="font-bold text-sm text-slate-900 flex items-center gap-2">
+                            <i class="fas fa-print text-emerald-600"></i>
+                            <span>تعديل الطباعة وترويسة الفاتورة (اللوغو، اسم الشركة، الهاتف، الملاحظات)</span>
+                        </h3>
+
+                        <!-- Logo Upload from Mobile Gallery -->
+                        <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 flex flex-col sm:flex-row items-center justify-between gap-3">
+                            <div class="flex items-center gap-3">
+                                <div id="settingsLogoPreviewBox" class="w-16 h-16 rounded-xl bg-white border border-slate-200 flex items-center justify-center overflow-hidden shrink-0">
+                                    ${State.settings.companyLogo
+                                        ? `<img src="${State.settings.companyLogo}" class="w-full h-full object-contain" alt="Logo">`
+                                        : `<span class="text-[10px] text-slate-400 font-bold text-center px-1">بدون لوغو</span>`
+                                    }
+                                </div>
+                                <div>
+                                    <div class="font-bold text-xs text-slate-800">شعار الشركة (اللوغو) في أعلى الفاتورة</div>
+                                    <div class="text-[11px] text-slate-500 mt-0.5">اختر صورة الشعار من الاستوديو في الموبايل (اختياري)</div>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
+                                <label class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-2 rounded-xl text-xs cursor-pointer flex items-center gap-1.5 shadow-2xs">
+                                    <i class="fas fa-image"></i>
+                                    <span>اختيار لوغو من الموبايل</span>
+                                    <input type="file" accept="image/*" onchange="SettingsController.handleLogoUpload(event)" class="hidden">
+                                </label>
+                                ${State.settings.companyLogo ? `
+                                    <button type="button" onclick="SettingsController.removeLogo()" class="bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold px-3 py-2 rounded-xl text-xs">
+                                        <i class="fas fa-trash"></i> حذف اللوغو
+                                    </button>
+                                ` : ''}
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">اسم الشركة / المنشأة التجارية</label>
+                            <input type="text" id="setCompanyName" oninput="SettingsController.markSettingsDirty()" value="${State.settings.companyName}" placeholder="مثال: كلين CLEAN" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold">
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-600 mb-1">رقم الهاتف</label>
+                                <input type="text" id="setCompanyPhone" oninput="SettingsController.markSettingsDirty()" value="${State.settings.companyPhone}" placeholder="مثال: 0932325577" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold" dir="ltr">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-600 mb-1">العنوان (اختياري)</label>
+                                <input type="text" id="setCompanyAddress" oninput="SettingsController.markSettingsDirty()" value="${State.settings.companyAddress}" placeholder="المدينة - الشارع" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">الملاحظات / العبارة الختامية أسفل الفاتورة</label>
+                            <textarea id="setFooterNote" rows="2" oninput="SettingsController.markSettingsDirty()" placeholder="مثال: ثقتكم تهمنا" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold">${State.settings.footerNote}</textarea>
+                        </div>
+                        <button onclick="SettingsController.saveSettings()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-xs shadow-xs">
+                            <i class="fas fa-check ml-1"></i> حفظ إعدادات الطباعة والترويسة
+                        </button>
+                    </div>
+                        </div>
+                    </details>
+                    <details class="settings-section" data-settings-section="security" ontoggle="SettingsController.onSectionToggle(this)" ${SettingsController.expandedSections.has('security') ? 'open' : ''}>
+                        <summary class="settings-section-heading" aria-label="الحماية">
+                            <span class="settings-section-leading"><i class="fas fa-shield-halved text-emerald-600" aria-hidden="true"></i><span><span class="settings-section-name">الحماية</span><span class="settings-section-note">الرمز والبصمة وحماية الحذف</span></span></span>
+                            <i class="fas fa-chevron-down settings-section-arrow text-slate-400" aria-hidden="true"></i>
+                        </summary>
+                        <div class="settings-section-body">
+                    <div id="appProtectionSettings" class="bg-white rounded-2xl border border-slate-200 p-4 mb-4 shadow-xs space-y-3">
+                        <h3 class="font-bold text-sm text-slate-900 flex items-center gap-2">
+                            <i class="fas fa-shield-halved text-emerald-600"></i>
+                            <span>حماية التطبيق</span>
+                        </h3>
+                        <p class="text-[11px] font-semibold text-rose-700 bg-rose-50 border border-rose-100 rounded-xl p-2.5">حذف اللوغو وتصفير قاعدة البيانات يتطلبان رمز حماية حتى عند إيقاف خيار الحماية من حذف البيانات. عند عدم تعيين رمز، يجب إنشاؤه أولاً.</p>
+                        <button type="button" onclick="SettingsController.togglePasswordPanel()" class="w-full border border-indigo-200 bg-indigo-50 text-indigo-900 rounded-xl p-3 text-xs font-extrabold flex items-center justify-between" aria-controls="passwordSecurityFields">
+                            <span><i class="fas fa-key ml-1"></i>${State.settings.appProtection?.pinHash ? 'تغيير كلمة السر وأسئلة الأمان' : 'تعيين كلمة السر وأسئلة الأمان'}</span>
+                            <i id="passwordSecurityToggleIcon" class="fas ${SettingsController.passwordPanelOpen ? 'fa-chevron-up' : 'fa-chevron-down'}"></i>
+                        </button>
+                        <div id="passwordSecurityFields" class="${SettingsController.passwordPanelOpen ? '' : 'hidden'} space-y-3">
+                        <p class="text-[11px] text-slate-500">تغيير كلمة السر يتطلب إدخال الكلمة الحالية أولاً. عند تعيين كلمة سر جديدة، عيّن سؤالَي أمان مختلفين لتتمكن من استعادتها عند نسيانها. يتم حفظ الإجابات كبصمات مشفّرة بدلاً من نصوص واضحة.</p>
+                        ${State.settings.appProtection?.pinHash ? `
+                        <div>
+                            <label class="block text-xs font-extrabold text-slate-700 mb-1"><i class="fas fa-lock ml-1 text-emerald-600"></i> كلمة السر الحالية (مطلوبة عند تغيير كلمة السر أو إعدادات الحماية)</label>
+                            <input id="protectionCurrentPin" type="password" inputmode="numeric" autocomplete="current-password" placeholder="أدخل كلمة السر السابقة" class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-center tracking-widest">
+                        </div>` : ''}
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-600 mb-1">${State.settings.appProtection?.pinHash ? 'كلمة السر الجديدة (اختياري)' : 'إنشاء كلمة سر (4 خانات أو أكثر)'}</label>
+                                <input id="protectionPin" type="password" inputmode="numeric" autocomplete="new-password" minlength="4" placeholder="${State.settings.appProtection?.pinHash ? 'اتركها فارغة للإبقاء على الحالية' : 'أدخل كلمة السر الجديدة'}" class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-center tracking-widest">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-600 mb-1">تأكيد كلمة السر الجديدة</label>
+                                <input id="protectionPinConfirm" type="password" inputmode="numeric" autocomplete="new-password" minlength="4" placeholder="أعد إدخال كلمة السر الجديدة" class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-center tracking-widest">
+                            </div>
+                        </div>
+                        <div class="border border-slate-200 rounded-xl p-3 bg-slate-50 space-y-3">
+                            <div class="flex items-center justify-between gap-2">
+                                <div class="text-xs font-extrabold text-slate-800"><i class="fas fa-shield-keyhole fa-shield-halved text-emerald-600 ml-1"></i> سؤالا الأمان لاستعادة كلمة السر</div>
+                                <span class="text-[10px] font-bold ${State.settings.appProtection?.securityQuestions?.length === 2 ? 'text-emerald-700' : 'text-amber-700'}">${State.settings.appProtection?.securityQuestions?.length === 2 ? 'مُعدّان' : 'غير مُعدّين'}</span>
+                            </div>
+                            <p class="text-[10px] text-slate-500">اختر سؤالين مختلفين وأدخل الإجابتين. عند وجود سؤالين محفوظين، اترك الإجابات فارغة للإبقاء عليهما.</p>
+                            <div>
+                                <label class="block text-xs font-bold mb-1">سؤال الأمان الأول</label>
+                                <select id="securityQuestion1" class="w-full border border-slate-200 bg-white rounded-xl px-2 py-2.5 text-xs font-bold">${ProtectionController.securityQuestionOptions(State.settings.appProtection?.securityQuestions?.[0]?.id || 'school')}</select>
+                                <input id="securityAnswer1" type="password" autocomplete="off" placeholder="إجابة السؤال الأول" class="w-full border border-slate-200 rounded-xl px-3 py-2.5 mt-2 text-xs">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold mb-1">سؤال الأمان الثاني</label>
+                                <select id="securityQuestion2" class="w-full border border-slate-200 bg-white rounded-xl px-2 py-2.5 text-xs font-bold">${ProtectionController.securityQuestionOptions(State.settings.appProtection?.securityQuestions?.[1]?.id || 'friend')}</select>
+                                <input id="securityAnswer2" type="password" autocomplete="off" placeholder="إجابة السؤال الثاني" class="w-full border border-slate-200 rounded-xl px-3 py-2.5 mt-2 text-xs">
+                            </div>
+                            <button type="button" onclick="ProtectionController.openRecovery()" class="text-xs text-indigo-700 font-extrabold underline"><i class="fas fa-life-ring ml-1"></i> نسيت كلمة السر؟ استعادتها عبر سؤالَي الأمان</button>
+                        </div>
+                        </div><!-- /passwordSecurityFields -->
+                        <label class="flex items-center justify-between gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200">
+                            <span><span class="block text-xs font-extrabold text-slate-800">قفل التطبيق</span><span class="block text-[10px] text-slate-500">طلب الرمز عند فتح التطبيق أو العودة إليه</span></span>
+                            <input id="protectLockApp" type="checkbox" ${State.settings.appProtection?.lockApp ? 'checked' : ''} class="w-5 h-5 accent-emerald-600">
+                        </label>
+                        <label class="flex items-center justify-between gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200">
+                            <span><span class="block text-xs font-extrabold text-slate-800">الحماية من حذف البيانات</span><span class="block text-[10px] text-slate-500">طلب الرمز أيضاً عند حذف السجلات الفردية. التصفير الكامل يتطلب الرمز دائماً.</span></span>
+                            <input id="protectDeletion" type="checkbox" ${State.settings.appProtection?.protectDeletion ? 'checked' : ''} class="w-5 h-5 accent-emerald-600">
+                        </label>
+                        <div class="flex flex-wrap gap-2">
+                            <button onclick="ProtectionController.saveSettings()" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-xs">حفظ إعدادات الحماية</button>
+                            <button onclick="ProtectionController.registerFingerprint()" class="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 rounded-xl text-xs"><i class="fas fa-fingerprint ml-1"></i> إعداد بصمة الإصبع</button>
+                        </div>
+                        <div class="text-[10px] text-slate-400">${State.settings.appProtection?.fingerprintEnabled ? 'بصمة الجهاز مفعّلة' : 'بصمة الجهاز غير مفعّلة'} · ${State.settings.appProtection?.pinHash ? 'تم تعيين رمز حماية' : 'لم يتم تعيين رمز بعد'}</div>
+                    </div>
+                        </div>
+                    </details>
+                    <details class="settings-section" data-settings-section="backup" ontoggle="SettingsController.onSectionToggle(this)" ${SettingsController.expandedSections.has('backup') ? 'open' : ''}>
+                        <summary class="settings-section-heading" aria-label="النسخ الاحتياطي">
+                            <span class="settings-section-leading"><i class="fas fa-database text-emerald-600" aria-hidden="true"></i><span><span class="settings-section-name">النسخ الاحتياطي</span><span class="settings-section-note">النسخ المحلي والاستعادة</span></span></span>
+                            <i class="fas fa-chevron-down settings-section-arrow text-slate-400" aria-hidden="true"></i>
+                        </summary>
+                        <div class="settings-section-body">
+                    <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs space-y-3">
+                        <h3 class="font-bold text-sm text-slate-900 flex items-center gap-2">
+                            <i class="fas fa-database text-amber-600"></i>
+                            <span>النسخ الاحتياطي واستعادة البيانات (Offline Backup)</span>
+                        </h3>
+                        <div class="grid grid-cols-2 gap-2">
+                            <button onclick="SettingsController.exportBackup()" class="bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-1.5">
+                                <i class="fas fa-download"></i> تصدير نسخة احتياطية
+                            </button>
+                            <label class="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold py-2.5 px-3 rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer">
+                                <i class="fas fa-upload"></i> استعادة نسخة محفوظة
+                                <input type="file" accept=".json" onchange="SettingsController.importBackup(event)" class="hidden">
+                            </label>
+                        </div>
+                        <div class="border-t border-slate-100 pt-3 space-y-3">
+                            <h4 class="font-extrabold text-slate-800 text-xs">النسخ الاحتياطي التلقائي</h4>
+                            ${BackupController.card('local','النسخ الاحتياطي المحلي','fa-folder-open',
+                                BackupController.status(), 'اختَر مجلداً على الهاتف؛ يمكن للنسخ أن تستمر عند إغلاق التطبيق.')}
+                            <p class="text-[10px] text-slate-500 leading-relaxed">توقيت النسخ تقريبي وقد يتأخر بسبب توفير البطارية. لا تغني النسخ الآلية عن حفظ نسخة يدوية قبل تحديث التطبيق أو حذفه.</p>
+                            ${!BackupController.status().supported?`<p class="text-xs font-bold text-rose-700">النسخ التلقائي يعمل داخل تطبيق أندرويد APK المحدّث فقط.</p>`:''}
+                            ${BackupController.status().snapshotError?`<p class="text-xs text-rose-600">${BackupController.status().snapshotError}</p>`:''}
+                        </div>
+                    </div>
+                        </div>
+                    </details>
+                    <details class="settings-section" data-settings-section="currency" ontoggle="SettingsController.onSectionToggle(this)" ${SettingsController.expandedSections.has('currency') ? 'open' : ''}>
+                        <summary class="settings-section-heading" aria-label="العملة وسعر الصرف">
+                            <span class="settings-section-leading"><i class="fas fa-coins text-emerald-600" aria-hidden="true"></i><span><span class="settings-section-name">العملة وسعر الصرف</span><span class="settings-section-note">سعر الصرف العام للتطبيق</span></span></span>
+                            <i class="fas fa-chevron-down settings-section-arrow text-slate-400" aria-hidden="true"></i>
+                        </summary>
+                        <div class="settings-section-body">
+                    <div class="bg-white border border-slate-200 rounded-xl p-3 space-y-3 mb-3">
+                        <h3 class="text-sm font-extrabold text-slate-800">العملة الرئيسية والثانوية</h3>
+                        <label class="block text-xs font-bold">العملة الرئيسية</label>
+                        <select id="setPrimaryCurrency" onchange="SettingsController.setPrimaryCurrency(this.value)" class="w-full border border-slate-300 rounded-xl p-2.5 text-xs font-bold">
+                            ${CurrencyCatalog.options(CurrencyCatalog.primary())}
+                        </select>
+                        <label class="block text-xs font-bold">العملة الثانوية</label>
+                        <select id="setSecondaryCurrency" onchange="SettingsController.setSecondaryCurrency(this.value)" class="w-full border border-slate-300 rounded-xl p-2.5 text-xs font-bold" ${State.settings.primaryOnlyMode ? 'disabled' : ''}>
+                            ${CurrencyCatalog.options(CurrencyCatalog.secondary())}
+                        </select>
+                        <label class="flex gap-3 items-center border border-slate-200 bg-slate-50 p-3 rounded-xl cursor-pointer">
+                            <input id="setPrimaryOnlyMode" type="checkbox" ${State.settings.primaryOnlyMode ? 'checked' : ''} onchange="SettingsController.setPrimaryOnlyMode(this.checked)" class="w-5 h-5 accent-emerald-600">
+                            <span class="text-xs font-bold">التشغيل بالعملة الرئيسية فقط</span>
+                        </label>
+                        <p class="text-[11px] text-slate-600">عند التفعيل تقتصر العمليات الجديدة على العملة الرئيسية. تبقى سجلات الفواتير والأرصدة القديمة بعملاتها الأصلية.</p>
+                        <p class="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2">تدعم الحسابات والترحيلات المالية حالياً الدولار USD والليرة SYP فقط. إضافة عملة أخرى إلى القائمة لا تفعّل بها الفواتير قبل دعم ترحيلها المحاسبي.</p>
+                    </div>
+                    <div class="bg-white border border-slate-200 rounded-xl p-3 space-y-2 mb-3">
+                        <h3 class="text-sm font-extrabold text-slate-800">إضافة عملات جديدة واختصاراتها</h3>
+                        <label class="block text-xs font-bold">اختر عملة شائعة</label>
+                        <select id="catalogPopularCurrency" class="w-full border border-slate-300 rounded-xl p-2.5 text-xs font-bold">
+                            ${CurrencyCatalog.options('', false)}
+                        </select>
+                        <button type="button" class="w-full bg-indigo-700 text-white rounded-xl p-2.5 text-xs font-bold" onclick="SettingsController.addPopularCurrency()">إضافة العملة المختارة إلى القائمة</button>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div><label class="text-[11px] font-bold">رمز ISO من 3 أحرف</label><input id="customCurrencyCode" maxlength="3" dir="ltr" placeholder="مثال: SEK" class="w-full border border-slate-300 rounded-xl p-2 text-xs"></div>
+                            <div><label class="text-[11px] font-bold">اسم العملة</label><input id="customCurrencyName" maxlength="60" placeholder="اسم العملة" class="w-full border border-slate-300 rounded-xl p-2 text-xs"></div>
+                        </div>
+                        <button type="button" class="w-full bg-slate-800 text-white rounded-xl p-2.5 text-xs font-bold" onclick="SettingsController.addCustomCurrency()">إضافة عملة مخصصة</button>
+                        <div class="border-t border-slate-200 pt-2">${CurrencyCatalog.renderAdditional()}</div>
+                    </div>
+                    <div class="bg-white border border-slate-200 rounded-xl p-3 space-y-2">
+                        <div class="text-xs font-bold text-slate-800">سعر صرف الدولار الحالي: <span dir="ltr" class="font-mono">${Number(State.settings.exchangeRate||0).toLocaleString('en-US')}</span> ل.س</div>
+                        <button type="button" onclick="UI.openRateModal()" class="bg-slate-900 text-white text-xs font-bold rounded-xl px-4 py-2.5"><i class="fas fa-coins ml-1"></i> تعديل سعر الصرف</button>
+                    </div>
+                        </div>
+                    </details>
+                    <details class="settings-section" data-settings-section="activation" ontoggle="SettingsController.onSectionToggle(this)" ${SettingsController.expandedSections.has('activation') ? 'open' : ''}>
+                        <summary class="settings-section-heading" aria-label="التفعيل والترخيص">
+                            <span class="settings-section-leading"><i class="fas fa-key text-emerald-600" aria-hidden="true"></i><span><span class="settings-section-name">التفعيل والترخيص</span><span class="settings-section-note">الترخيص ومعرّف الجهاز</span></span></span>
+                            <i class="fas fa-chevron-down settings-section-arrow text-slate-400" aria-hidden="true"></i>
+                        </summary>
+                        <div class="settings-section-body">
+                    <!-- License and activation are accessible from Settings only. -->
+                    <div class="bg-white rounded-2xl border border-slate-200 p-4 mb-4 shadow-xs space-y-3">
+                        <h3 class="font-bold text-sm text-slate-900 flex items-center gap-2">
+                            <i class="fas fa-key text-emerald-600"></i>
+                            <span>تفعيل البرنامج والترخيص</span>
+                        </h3>
+                        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs">
+                            <div>
+                                <div class="font-bold text-slate-800">رقم الجهاز: <span dir="ltr" class="font-mono text-indigo-700 break-all">${State.license.deviceId}</span></div>
+                                <div id="settingsLicenseStatus" class="text-slate-500 mt-0.5">
+                                    ${State.license.isActivated
+                                        ? '<span class="text-emerald-600 font-extrabold">النسخة مفعّلة بالكامل مدى الحياة</span>'
+                                        : `نسخة تجريبية: استهلكت ${LicenseManager.getTotalOpsUsed()} من أصل ${LicenseManager.MAX_TRIAL_OPS} عملية`}
+                                </div>
+                            </div>
+                            <button onclick="LicenseManager.openActivationModal()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3.5 py-2 rounded-xl text-xs shrink-0">
+                                ${State.license.isActivated ? 'تفاصيل التفعيل' : 'إدخال كود التفعيل'}
+                            </button>
+                        </div>
+                    </div>
+                        </div>
+                    </details>
+                    <details class="settings-section" data-settings-section="data" ontoggle="SettingsController.onSectionToggle(this)" ${SettingsController.expandedSections.has('data') ? 'open' : ''}>
+                        <summary class="settings-section-heading" aria-label="إدارة البيانات">
+                            <span class="settings-section-leading"><i class="fas fa-triangle-exclamation text-emerald-600" aria-hidden="true"></i><span><span class="settings-section-name">إدارة البيانات</span><span class="settings-section-note">تصفير قاعدة البيانات</span></span></span>
+                            <i class="fas fa-chevron-down settings-section-arrow text-slate-400" aria-hidden="true"></i>
+                        </summary>
+                        <div class="settings-section-body">
+                    <div class="border border-rose-100 rounded-xl p-3 bg-white">
+                        <p class="text-[11px] font-semibold text-rose-700 mb-2">حذف جميع البيانات عملية لا يمكن التراجع عنها، ويتطلب إدخال رمز الحماية قبل التنفيذ.</p>
+                        <div class="pt-2 border-t border-slate-100">
+                            <button onclick="SettingsController.confirmResetAll()" class="w-full py-2 text-rose-600 hover:bg-rose-50 rounded-xl text-xs font-bold">
+                                <i class="fas fa-trash-can ml-1"></i> تصفير شامل لقاعدة البيانات (حذف جميع البيانات)
+                            </button>
+                        </div>
+                    </div>
+                        </div>
+                    </details>
+                `;
+            }
+        };
+
+        /********************************************************************
+         * 7. ITEM & MULTI-UNIT CONTROLLER (WITH DEDICATED CURRENCY & GUARD)
+         ********************************************************************/
+        const ItemController = {
+            tempUnits: [],
+            activeEditId: '',
+            selectedCurrency: 'USD', // Updated from defaultItemCurrency on each new item
+            tempPhotoData: '', // JPEG data URL stored on each item; included in local JSON backups.
+
+            safePhotoData(item) {
+                const value = typeof item === 'string' ? item : item?.photoData;
+                return typeof value === 'string' && /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(value) ? value : '';
+            },
+
+            photoThumb(item, size = 'list') {
+                const url = this.safePhotoData(item);
+                if (size === 'grid') {
+                    return `<div class="h-24 mb-2 bg-white border border-slate-200 rounded-xl flex items-center justify-center overflow-hidden">
+                        ${url ? `<img src="${url}" alt="صورة المادة" loading="lazy" draggable="false" class="w-full h-full object-contain">`
+                            : '<i class="fas fa-box-open text-3xl text-slate-300" aria-hidden="true"></i>'}
+                    </div>`;
+                }
+                return `<div class="shrink-0 w-16 h-16 rounded-xl border border-slate-200 bg-slate-50 overflow-hidden flex items-center justify-center">
+                    ${url ? `<img src="${url}" alt="صورة المادة" loading="lazy" class="w-full h-full object-cover">`
+                        : '<i class="fas fa-box text-xl text-slate-300" aria-hidden="true"></i>'}
+                </div>`;
+            },
+
+            photoEditorPreview() {
+                const url = this.safePhotoData(this.tempPhotoData);
+                return url ? `<img src="${url}" class="w-full h-full object-contain" alt="صورة المادة الحالية">`
+                    : '<div class="text-center text-slate-400"><i class="fas fa-box-open text-3xl"></i><div class="text-[10px] mt-1">بدون صورة</div></div>';
+            },
+
+            refreshPhotoEditor() {
+                const preview = document.getElementById('itmPhotoPreview');
+                if (preview) preview.innerHTML = this.photoEditorPreview();
+                const remove = document.getElementById('itmPhotoRemove');
+                if (remove) remove.classList.toggle('hidden', !this.safePhotoData(this.tempPhotoData));
+            },
+
+            clearItemPhoto() {
+                this.tempPhotoData = '';
+                this.markItemDirty();
+                this.refreshPhotoEditor();
+            },
+
+            async onItemPhotoSelected(event) {
+                const input = event?.target;
+                const file = input?.files?.[0];
+                if (input) input.value = ''; // allows choosing the same file again after cancel/edit
+                if (!file) return;
+                if (!/^image\/(jpeg|png|webp|gif|bmp|heic|heif)$/i.test(file.type || '')) {
+                    UI.toast('اختر ملف صورة صالحاً (JPG أو PNG أو WebP)', 'error');
+                    return;
+                }
+                if (file.size > 12 * 1024 * 1024) {
+                    UI.toast('حجم الصورة كبير جداً؛ اختر صورة أصغر من 12 ميغابايت', 'error');
+                    return;
+                }
+                try {
+                    const img = await new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onerror = () => reject(new Error('تعذر قراءة الصورة'));
+                        reader.onload = () => {
+                            const picture = new Image();
+                            picture.onload = () => resolve(picture);
+                            picture.onerror = () => reject(new Error('نوع الصورة غير مدعوم على هذا الهاتف'));
+                            picture.src = reader.result;
+                        };
+                        reader.readAsDataURL(file);
+                    });
+                    const renderJpeg = (edge, quality) => {
+                        const ratio = Math.min(1, edge / Math.max(img.naturalWidth || img.width, img.naturalHeight || img.height));
+                        const canvas = document.createElement('canvas');
+                        canvas.width = Math.max(1, Math.round((img.naturalWidth || img.width) * ratio));
+                        canvas.height = Math.max(1, Math.round((img.naturalHeight || img.height) * ratio));
+                        const ctx = canvas.getContext('2d');
+                        if (!ctx) throw new Error('تعذر معالجة الصورة');
+                        ctx.fillStyle = '#ffffff';
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                        return canvas.toDataURL('image/jpeg', quality);
+                    };
+                    let photo = renderJpeg(420, 0.7);
+                    if (photo.length > 240000) photo = renderJpeg(320, 0.6);
+                    if (photo.length > 320000 || !this.safePhotoData(photo))
+                        throw new Error('تعذر ضغط الصورة للحفظ');
+                    if (!document.getElementById('itmPhotoPreview')) return; // Edit modal closed while loading.
+                    this.tempPhotoData = photo;
+                    this.markItemDirty();
+                    this.refreshPhotoEditor();
+                    UI.toast('تم تجهيز صورة المادة؛ اضغط حفظ لتثبيتها', 'success');
+                } catch (err) {
+                    UI.toast(err?.message || 'تعذر قراءة الصورة', 'error');
+                }
+            },
+
+            filterItems() {
+                const q = (document.getElementById('itemSearchInput')?.value || '').trim().toLocaleLowerCase();
+                const cat = document.getElementById('itemCatSelect')?.value || 'all';
+                const cards = document.querySelectorAll('#itemCardsList [data-item-search]');
+                let visible = 0;
+
+                cards.forEach(card => {
+                    const searchable = decodeURIComponent(card.dataset.itemSearch || '').toLocaleLowerCase();
+                    const category = decodeURIComponent(card.dataset.itemCategory || '');
+                    const matches = (!q || searchable.includes(q)) && (cat === 'all' || category === cat);
+                    card.classList.toggle('hidden', !matches);
+                    if (matches) visible++;
+                });
+
+                const empty = document.getElementById('itemsSearchEmpty');
+                if (empty) empty.classList.toggle('hidden', visible !== 0);
+            },
+
+            markItemDirty() {
+                AppNav.markModalDirty(async () => {
+                    return await this.saveItem(this.activeEditId);
+                });
+            },
+
+            setItemBaseCurrency(curr) {
+                if (State.settings.primaryOnlyMode && !this.activeEditId && curr !== CurrencyCatalog.primary()) return;
+                this.selectedCurrency = curr;
+                this.markItemDirty();
+                const btnSyp = document.getElementById('btnCurrSYP');
+                const btnUsd = document.getElementById('btnCurrUSD');
+                if (btnSyp && btnUsd) {
+                    btnSyp.className = curr === 'SYP'
+                        ? 'flex-1 py-2 rounded-xl font-extrabold text-xs bg-emerald-600 text-white shadow-xs transition'
+                        : 'flex-1 py-2 rounded-xl font-bold text-xs bg-slate-100 text-slate-600 hover:bg-slate-200 transition';
+                    btnUsd.className = curr === 'USD'
+                        ? 'flex-1 py-2 rounded-xl font-extrabold text-xs bg-amber-500 text-slate-950 shadow-xs transition'
+                        : 'flex-1 py-2 rounded-xl font-bold text-xs bg-slate-100 text-slate-600 hover:bg-slate-200 transition';
+                }
+                document.querySelectorAll('.unit-curr-label').forEach(el => {
+                    el.textContent = curr === 'USD' ? '$' : 'ل.س';
+                });
+            },
+
+            openCategoryModal() {
+                UI.openModal(`
+                    <div class="flex items-center justify-between border-b pb-2.5 mb-3">
+                        <h3 class="font-bold text-sm">إدارة مجموعات وتصنيفات الأصناف</h3>
+                        <button onclick="UI.requestCloseModal()"><i class="fas fa-times text-slate-400"></i></button>
+                    </div>
+                    <div class="flex gap-2 mb-3">
+                        <input type="text" id="newCatInput" placeholder="اسم المجموعة الجديدة (مثال: غذائيات، زيوت...)" class="flex-1 border border-slate-300 rounded-xl px-3 py-2 text-xs">
+                        <button onclick="ItemController.addCategory()" class="bg-emerald-600 text-white font-bold px-4 rounded-xl text-xs">إضافة</button>
+                    </div>
+                    <div class="space-y-1.5 max-h-60 overflow-y-auto">
+                        ${State.categories.length === 0 ? `<p class="text-xs text-slate-400 text-center py-4">لا توجد مجموعات مضافة بعد</p>` : State.categories.map((c, idx) => {
+                            const linkedItems = State.items.filter(i => i.category === c);
+                            const linkedItemIds = new Set(linkedItems.map(i => i.id));
+                            const linkedInvoices = State.invoices.filter(inv => inv.rows.some(r => linkedItemIds.has(r.itemId)));
+                            const isProtected = linkedItems.length > 0 || linkedInvoices.length > 0;
+                            return `
+                                <div class="flex items-center justify-between bg-slate-50 px-3 py-2 rounded-xl text-xs font-bold border border-slate-200/70">
+                                    <div>
+                                        <span class="text-slate-800">${c}</span>
+                                        <span class="text-[10px] mr-1.5 px-2 py-0.5 rounded-md ${isProtected ? 'bg-amber-100 text-amber-800' : 'bg-emerald-50 text-emerald-700'}">
+                                            ${linkedItems.length} صنف ${linkedInvoices.length > 0 ? `| ${linkedInvoices.length} فاتورة` : ''}
+                                        </span>
+                                    </div>
+                                    <button onclick="ItemController.removeCategory(${idx})" class="px-2 py-1 rounded-lg ${isProtected ? 'text-slate-400 bg-slate-200/60' : 'text-rose-500 hover:bg-rose-50'}" title="${isProtected ? 'مجموعة محمية لارتباطها بأصناف/عمليات' : 'حذف المجموعة'}">
+                                        <i class="fas ${isProtected ? 'fa-lock' : 'fa-trash'}"></i>
+                                    </button>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                `);
+            },
+
+            async addCategory() {
+                const val = document.getElementById('newCatInput').value.trim();
+                if (!val) return;
+                if (!State.categories.includes(val)) {
+                    State.categories.push(val);
+                    await StorageEngine.saveState();
+                }
+                this.openCategoryModal();
+                AppNav.renderCurrent();
+            },
+
+            async removeCategory(idx) {
+                const catName = State.categories[idx];
+                if (!catName) return;
+
+                const linkedItems = State.items.filter(i => i.category === catName);
+                const linkedItemIds = new Set(linkedItems.map(i => i.id));
+                const linkedInvoices = State.invoices.filter(inv => inv.rows.some(r => linkedItemIds.has(r.itemId)));
+
+                if (linkedItems.length > 0 || linkedInvoices.length > 0) {
+                    UI.showProtectionAlert(
+                        'منع حذف المجموعة (حماية البيانات)',
+                        `لا يمكن حذف المجموعة "${catName}" لأنها مرتبطة ببيانات وعمليات مسجلة في النظام.`,
+                        `• عدد الأصناف المرتبطة بالمجموعة: ${linkedItems.length} صنف<br>• عدد الفواتير المرتبطة بأصناف المجموعة: ${linkedInvoices.length} فاتورة<br><span class="text-[10px] text-slate-500 font-normal mt-1 block">لحذف هذه المجموعة، يجب أولاً نقل أو حذف الأصناف المرتبطة بها.</span>`
+                    );
+                    return;
+                }
+
+                State.categories.splice(idx, 1);
+                await StorageEngine.saveState();
+                UI.toast(`تم حذف المجموعة "${catName}" بنجاح`, 'success');
+                this.openCategoryModal();
+                AppNav.renderCurrent();
+            },
+
+            openItemModal(itemId = null) {
+                const existing = itemId ? State.items.find(i => i.id === itemId) : null;
+                this.activeEditId = existing ? existing.id : '';
+                this.tempPhotoData = existing ? this.safePhotoData(existing) : '';
+                this.selectedCurrency = existing ? existing.currency : (State.settings.primaryOnlyMode ? CurrencyCatalog.primary() : (State.settings.defaultItemCurrency || CurrencyCatalog.primary()));
+                this.tempUnits = existing ? JSON.parse(JSON.stringify(existing.units)) : [
+                    { name: 'كرتونة', factor: 1, salePrice: '', costPrice: '', barcode: '' }
+                ];
+                const baseU = this.tempUnits[0] || { name: 'كرتونة', factor: 1, salePrice: '', costPrice: '' };
+                const currSym = this.selectedCurrency === 'USD' ? '$' : 'ل.س';
+
+                UI.openModal(`
+                    <div class="flex items-center justify-between border-b pb-2.5 mb-3">
+                        <h3 class="font-bold text-sm">${existing ? 'تعديل بطاقة صنف: ' + existing.name : 'تعريف بطاقة صنف جديد (الوحدة الكبرى هي الأساسية)'}</h3>
+                        <button onclick="UI.requestCloseModal()"><i class="fas fa-times text-slate-400"></i></button>
+                    </div>
+                    <div class="space-y-3 text-xs">
+                        <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                            <label class="block font-extrabold text-slate-800 mb-1.5"><i class="fas fa-coins text-amber-500 ml-1"></i> عملة تسعير الصنف (الافتراضية ${State.settings.defaultItemCurrency || 'USD'}) *</label>
+                            <div class="flex gap-2">
+                                <button type="button" id="btnCurrSYP" ${State.settings.primaryOnlyMode && !existing && CurrencyCatalog.primary() !== 'SYP' ? 'disabled hidden' : ''} onclick="ItemController.setItemBaseCurrency('SYP')" class="${this.selectedCurrency === 'SYP' ? 'flex-1 py-2 rounded-xl font-extrabold text-xs bg-emerald-600 text-white shadow-xs transition' : 'flex-1 py-2 rounded-xl font-bold text-xs bg-slate-100 text-slate-600 hover:bg-slate-200 transition'}">
+                                    ليرة سورية (SYP)
+                                </button>
+                                <button type="button" id="btnCurrUSD" ${State.settings.primaryOnlyMode && !existing && CurrencyCatalog.primary() !== 'USD' ? 'disabled hidden' : ''} onclick="ItemController.setItemBaseCurrency('USD')" class="${this.selectedCurrency === 'USD' ? 'flex-1 py-2 rounded-xl font-extrabold text-xs bg-amber-500 text-slate-950 shadow-xs transition' : 'flex-1 py-2 rounded-xl font-bold text-xs bg-slate-100 text-slate-600 hover:bg-slate-200 transition'}">
+                                    دولار أمريكي (USD $)
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <div>
+                                <label class="block font-bold text-slate-700 mb-1">اسم الصنف / المادة *</label>
+                                <input type="text" id="itmName" oninput="ItemController.markItemDirty()" value="${existing ? existing.name : ''}" placeholder="مثال: زيت دوار الشمس" class="w-full border border-slate-300 rounded-xl px-3 py-2 font-bold">
+                            </div>
+                            <div>
+                                <label class="block font-bold text-slate-700 mb-1">المجموعة / التصنيف</label>
+                                <input type="text" id="itmCat" oninput="ItemController.markItemDirty()" list="catListSuggestions" value="${existing ? (existing.category || '') : ''}" placeholder="اختر أو اكتب تصنيفاً" class="w-full border border-slate-300 rounded-xl px-3 py-2">
+                                <datalist id="catListSuggestions">
+                                    ${State.categories.map(c => `<option value="${c}">`).join('')}
+                                </datalist>
+                            </div>
+                        </div>
+
+                        <!-- Item images appear ONLY in item cards, item editor and invoice item grid. -->
+                        <div class="bg-white border border-slate-200 rounded-xl p-3 flex gap-3 items-center">
+                            <div id="itmPhotoPreview" class="w-24 h-24 shrink-0 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-center overflow-hidden">
+                                ${this.photoEditorPreview()}
+                            </div>
+                            <div class="min-w-0 flex-1 space-y-2">
+                                <div class="font-extrabold text-xs text-slate-800">صورة المادة (اختياري)</div>
+                                <div class="flex flex-wrap gap-1.5">
+                                    <label class="cursor-pointer bg-emerald-600 text-white px-2.5 py-2 rounded-lg text-[11px] font-bold">
+                                        <i class="fas fa-images"></i> من المعرض
+                                        <input type="file" accept="image/*" onchange="ItemController.onItemPhotoSelected(event)" class="hidden">
+                                    </label>
+                                    <label class="cursor-pointer bg-sky-700 text-white px-2.5 py-2 rounded-lg text-[11px] font-bold">
+                                        <i class="fas fa-camera"></i> التقاط صورة
+                                        <input type="file" accept="image/*" capture="environment" onchange="ItemController.onItemPhotoSelected(event)" class="hidden">
+                                    </label>
+                                    <button type="button" id="itmPhotoRemove" onclick="ItemController.clearItemPhoto()" class="${this.tempPhotoData ? '' : 'hidden'} bg-rose-50 text-rose-700 px-2.5 py-2 rounded-lg text-[11px] font-bold">
+                                        <i class="fas fa-trash"></i> إزالة الصورة
+                                    </button>
+                                </div>
+                                <p class="text-[10px] text-slate-500">ستظهر الصورة في العرض الشبكي وقائمة المواد فقط، ولن تُطبع مع الفاتورة.</p>
+                            </div>
+                        </div>
+
+                        <!-- حقول واضحة ومباشرة لتحديد سعر التكلفة وسعر المبيع للوحدة الكبرى الأساسية -->
+                        <div class="bg-emerald-50/70 border-2 border-emerald-500/40 p-3 rounded-2xl">
+                            <div class="font-extrabold text-emerald-950 mb-2 flex items-center justify-between">
+                                <span><i class="fas fa-boxes-packing text-emerald-600 ml-1"></i> أسعار الوحدة الكبرى الأساسية (<span class="unit-curr-label">${currSym}</span>):</span>
+                                <span class="text-[10px] text-emerald-700 font-bold">تُقسم تلقائياً لحساب سعر الفرعية/القطعة</span>
+                            </div>
+                            <div class="grid grid-cols-2 gap-2.5">
+                                <div>
+                                    <label class="block font-extrabold text-slate-700 mb-1">تكلفة الوحدة الكبرى (<span class="unit-curr-label">${currSym}</span>)</label>
+                                    <input type="text" inputmode="decimal" dir="ltr" id="itmMainCostPrice" value="${baseU.costPrice !== undefined && baseU.costPrice !== null ? Accounting.formatEditableItemPrice(baseU.costPrice) : ''}" placeholder="${Accounting.itemPricePlaceholder()}" onfocus="this.value=ItemController.tempUnits[0].costPrice;this.select()" onblur="this.value=Accounting.formatEditableItemPrice(ItemController.tempUnits[0].costPrice)" oninput="ItemController.onUnitPriceInput(0, 'costPrice', this.value, this)" class="w-full border-2 border-slate-300 focus:border-emerald-600 rounded-xl px-3 py-2 text-sm font-extrabold text-center bg-white shadow-2xs focus:outline-none">
+                                </div>
+                                <div>
+                                    <label class="block font-extrabold text-emerald-800 mb-1">مبيع الوحدة الكبرى (<span class="unit-curr-label">${currSym}</span>) *</label>
+                                    <input type="text" inputmode="decimal" dir="ltr" id="itmMainSalePrice" value="${baseU.salePrice !== undefined && baseU.salePrice !== null ? Accounting.formatEditableItemPrice(baseU.salePrice) : ''}" placeholder="${Accounting.itemPricePlaceholder()}" onfocus="this.value=ItemController.tempUnits[0].salePrice;this.select()" onblur="this.value=Accounting.formatEditableItemPrice(ItemController.tempUnits[0].salePrice)" oninput="ItemController.onUnitPriceInput(0, 'salePrice', this.value, this)" class="w-full border-2 border-emerald-500 focus:border-emerald-700 rounded-xl px-3 py-2 text-sm font-extrabold text-center bg-white text-emerald-900 shadow-2xs focus:outline-none">
+                                </div>
+                            </div>
+                            <p class="text-[11px] font-semibold text-emerald-800 mt-2">عدد الخانات العشرية المسموح بها عند إدخال أسعار المواد: <span dir="ltr" class="font-extrabold">${Accounting.itemDisplayDecimals()}</span></p>
+                        </div>
+
+                        <div class="grid grid-cols-3 gap-2">
+                            <div>
+                                <label class="block font-bold text-slate-700 mb-1">باركود المادة (للبحث والإضافة للفاتورة)</label>
+                                <div class="flex gap-1.5">
+                                    <input type="text" id="itmBarcode" oninput="ItemController.markItemDirty()" value="${existing ? (existing.barcode || '') : ''}" placeholder="رقم الباركود" class="min-w-0 flex-1 border border-slate-300 rounded-xl px-2.5 py-2 font-mono">
+                                    <button type="button" onclick="ItemController.openItemBarcodeScanner()" title="تصوير باركود المادة بالكاميرا" class="shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl px-3 py-2 font-bold text-xs">
+                                        <i class="fas fa-camera"></i> تصوير
+                                    </button>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block font-bold text-slate-700 mb-1">رصيد افتتاحي (بالكبرى)</label>
+                                <input type="text" inputmode="decimal" dir="ltr" id="itmOpenStock" onfocus="this.select()" oninput="ItemController.markItemDirty()" value="${existing ? existing.openingStockBase : 0}" class="w-full border border-slate-300 rounded-xl px-2.5 py-2 font-bold text-center">
+                            </div>
+                            <div>
+                                <label class="block font-bold text-slate-700 mb-1">حد التنبيه (بالكبرى)</label>
+                                <input type="text" inputmode="decimal" dir="ltr" id="itmMinStock" onfocus="this.select()" oninput="ItemController.markItemDirty()" value="${existing ? existing.minStockBase : 5}" class="w-full border border-slate-300 rounded-xl px-2.5 py-2 font-bold text-center">
+                            </div>
+                        </div>
+
+                        <div class="border-t pt-2.5">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="font-extrabold text-slate-800"><i class="fas fa-layer-group text-emerald-600 ml-1"></i> الوحدات (الكبرى أساسية وتشتق منها الصغرى):</span>
+                                <button type="button" onclick="ItemController.addUnitRow()" class="bg-emerald-50 text-emerald-700 font-bold px-2.5 py-1 rounded-lg text-[11px] border border-emerald-200">
+                                    + إضافة وحدة صغرى / فرعية (قطعة/علبة)
+                                </button>
+                            </div>
+                            <div id="itmUnitsContainer" class="space-y-2"></div>
+                        </div>
+
+                        <div class="flex gap-2 pt-3 border-t">
+                            <button onclick="ItemController.saveItem('${existing ? existing.id : ''}')" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-sm">
+                                <i class="fas fa-floppy-disk ml-1"></i> حفظ بطاقة الصنف
+                            </button>
+                            <button onclick="UI.requestCloseModal()" class="px-4 bg-slate-100 text-slate-700 font-bold py-2.5 rounded-xl text-sm">إلغاء</button>
+                        </div>
+                    </div>
+                `);
+                this.renderUnitRows();
+            },
+
+            renderUnitRows() {
+                const container = document.getElementById('itmUnitsContainer');
+                if (!container) return;
+                const currSym = this.selectedCurrency === 'USD' ? '$' : 'ل.س';
+                container.innerHTML = this.tempUnits.map((u, idx) => `
+                    <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                        <div class="flex items-center justify-between mb-1.5">
+                            <span class="font-bold text-[11px] text-emerald-800">${idx === 0 ? 'الوحدة الكبرى الأساسية (المرجع الأساسي = 1)' : `الوحدة الصغرى / الفرعية #${idx} (يُقسم سعر الكبرى على عدد التعبئة)`}</span>
+                            ${idx > 0 ? `<button type="button" onclick="ItemController.removeUnitRow(${idx})" class="text-rose-500 text-xs"><i class="fas fa-times-circle"></i> حذف الوحدة</button>` : ''}
+                        </div>
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                            <div>
+                                <label class="text-[10px] text-slate-600 font-bold block mb-0.5">${idx === 0 ? 'اسم الوحدة الكبرى' : 'اسم الوحدة الصغرى'}</label>
+                                <input type="text" id="unitName_${idx}" value="${u.name}" oninput="ItemController.tempUnits[${idx}].name = this.value; ItemController.markItemDirty()" placeholder="${idx === 0 ? 'كرتونة / طرد' : 'قطعة / علبة'}" class="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold bg-white">
+                            </div>
+                            <div>
+                                <label class="text-[10px] text-slate-600 font-bold block mb-0.5">${idx === 0 ? 'معامل الكبرى' : 'عددها داخل الكبرى (التعبئة)'}</label>
+                                <input type="text" inputmode="decimal" dir="ltr" id="unitFactor_${idx}" value="${u.factor}" ${idx === 0 ? 'disabled' : ''} onfocus="this.select()" oninput="ItemController.updateUnitFactor(${idx}, this.value)" class="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-center ${idx === 0 ? 'bg-slate-200' : 'bg-white'}">
+                            </div>
+                            <div>
+                                <label class="text-[10px] text-slate-600 font-bold block mb-0.5">التكلفة (<span class="unit-curr-label">${currSym}</span>)</label>
+                                <input type="text" inputmode="decimal" dir="ltr" id="unitCost_${idx}" value="${u.costPrice !== undefined && u.costPrice !== null ? Accounting.formatEditableItemPrice(u.costPrice) : ''}" placeholder="${Accounting.itemPricePlaceholder()}" onfocus="this.value=ItemController.tempUnits[${idx}].costPrice;this.select()" onblur="this.value=Accounting.formatEditableItemPrice(ItemController.tempUnits[${idx}].costPrice)" oninput="ItemController.onUnitPriceInput(${idx}, 'costPrice', this.value, this)" class="w-full border border-slate-300 focus:border-emerald-500 rounded-lg px-2.5 py-1.5 text-xs font-extrabold text-center bg-white">
+                            </div>
+                            <div>
+                                <label class="text-[10px] text-emerald-800 font-bold block mb-0.5">المبيع (<span class="unit-curr-label">${currSym}</span>)</label>
+                                <input type="text" inputmode="decimal" dir="ltr" id="unitSale_${idx}" value="${u.salePrice !== undefined && u.salePrice !== null ? Accounting.formatEditableItemPrice(u.salePrice) : ''}" placeholder="${Accounting.itemPricePlaceholder()}" onfocus="this.value=ItemController.tempUnits[${idx}].salePrice;this.select()" onblur="this.value=Accounting.formatEditableItemPrice(ItemController.tempUnits[${idx}].salePrice)" oninput="ItemController.onUnitPriceInput(${idx}, 'salePrice', this.value, this)" class="w-full border border-emerald-400 focus:border-emerald-600 rounded-lg px-2.5 py-1.5 text-xs font-extrabold text-center bg-white">
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+            },
+
+            onUnitPriceInput(idx, field, val, inputEl = null) {
+                this.markItemDirty();
+                const limited = Accounting.limitItemPriceInput(val);
+                if (inputEl && inputEl.value !== limited) inputEl.value = limited;
+                const num = Accounting.parseNum(limited);
+                this.tempUnits[idx][field] = num;
+
+                // مزامنة الحقول العلوية الأساسية للوحدة الكبرى وحساب أسعار الوحدات الصغرى بالقسمة على عدد التعبئة
+                if (idx === 0) {
+                    const mainElId = field === 'salePrice' ? 'itmMainSalePrice' : 'itmMainCostPrice';
+                    const unit0ElId = field === 'salePrice' ? 'unitSale_0' : 'unitCost_0';
+                    const mainEl = document.getElementById(mainElId);
+                    const unit0El = document.getElementById(unit0ElId);
+
+                    if (mainEl && document.activeElement !== mainEl) mainEl.value = Accounting.formatEditableItemPrice(num);
+                    if (unit0El && document.activeElement !== unit0El) unit0El.value = Accounting.formatEditableItemPrice(num);
+
+                    for (let i = 1; i < this.tempUnits.length; i++) {
+                        const factor = Accounting.parseNum(this.tempUnits[i].factor) || 1;
+                        const calcVal = Accounting.roundDerivedItemPrice(num / factor);
+                        this.tempUnits[i][field] = calcVal;
+
+                        const targetInputId = field === 'salePrice' ? `unitSale_${i}` : `unitCost_${i}`;
+                        const targetEl = document.getElementById(targetInputId);
+                        if (targetEl && document.activeElement !== targetEl) {
+                            targetEl.value = Accounting.formatEditableItemPrice(calcVal);
+                        }
+                    }
+                }
+            },
+
+            updateUnitFactor(idx, val) {
+                this.markItemDirty();
+                const factor = Accounting.parseNum(val) || 1;
+                this.tempUnits[idx].factor = factor;
+                const base = this.tempUnits[0];
+                if (base) {
+                    const newCost = Accounting.roundDerivedItemPrice(Accounting.parseNum(base.costPrice) / factor);
+                    const newSale = Accounting.roundDerivedItemPrice(Accounting.parseNum(base.salePrice) / factor);
+                    this.tempUnits[idx].costPrice = newCost;
+                    this.tempUnits[idx].salePrice = newSale;
+
+                    // تحديث الحقول مباشرة دون فقدان التركيز (Focus) من حقل معامل التعبئة
+                    const costEl = document.getElementById(`unitCost_${idx}`);
+                    const saleEl = document.getElementById(`unitSale_${idx}`);
+                    if (costEl && document.activeElement !== costEl) costEl.value = Accounting.formatEditableItemPrice(newCost);
+                    if (saleEl && document.activeElement !== saleEl) saleEl.value = Accounting.formatEditableItemPrice(newSale);
+                }
+            },
+
+            addUnitRow() {
+                this.markItemDirty();
+                const base = this.tempUnits[0] || { salePrice: 0, costPrice: 0 };
+                const defaultFactor = 12;
+                this.tempUnits.push({
+                    name: 'قطعة',
+                    factor: defaultFactor,
+                    costPrice: Accounting.roundDerivedItemPrice(Accounting.parseNum(base.costPrice) / defaultFactor),
+                    salePrice: Accounting.roundDerivedItemPrice(Accounting.parseNum(base.salePrice) / defaultFactor),
+                    barcode: ''
+                });
+                this.renderUnitRows();
+            },
+
+            removeUnitRow(idx) {
+                if (idx === 0) return;
+                const unitToRemove = this.tempUnits[idx];
+                if (this.activeEditId && unitToRemove?.name) {
+                    const usedInInvoices = State.invoices.filter(inv =>
+                        inv.rows.some(r => r.itemId === this.activeEditId && r.unitName === unitToRemove.name)
+                    );
+                    if (usedInInvoices.length > 0) {
+                        UI.showProtectionAlert(
+                            'منع حذف الوحدة (مرتبطة بفواتير)',
+                            `لا يمكن حذف الوحدة "${unitToRemove.name}" لأنها مستخدمة بالفعل في ${usedInInvoices.length} فاتورة محفوظة.`,
+                            `أرقام الفواتير المرتبطة: ${usedInInvoices.map(i => '#' + i.number).join(' ، ')}`
+                        );
+                        return;
+                    }
+                }
+                this.markItemDirty();
+                this.tempUnits.splice(idx, 1);
+                this.renderUnitRows();
+            },
+
+            async openItemBarcodeScanner() {
+                // Native APK scanner decodes reliably even without WebView BarcodeDetector.
+                if (window.NativeBarcode && typeof window.NativeBarcode.scan === 'function') {
+                    window.NativeBarcode.scan('item');
+                    return;
+                }
+                if (!navigator.mediaDevices?.getUserMedia) {
+                    UI.toast('الكاميرا غير مدعومة. افتح النظام عبر HTTPS أو أدخل الباركود يدوياً', 'error');
+                    return;
+                }
+                if (!('BarcodeDetector' in window)) {
+                    UI.toast('قراءة الباركود بالكاميرا غير مدعومة في هذا المتصفح. يمكنك إدخال الرقم يدوياً', 'error');
+                    return;
+                }
+                UI.openModal(`
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between">
+                            <h3 class="font-bold text-base text-slate-900"><i class="fas fa-camera text-emerald-600 ml-1"></i> تصوير باركود المادة</h3>
+                            <button type="button" onclick="ItemController.stopItemBarcodeScanner();UI.forceCloseModal()" class="w-8 h-8 rounded-full bg-slate-100"><i class="fas fa-times"></i></button>
+                        </div>
+                        <video id="itemBarcodeCameraVideo" autoplay muted playsinline class="w-full rounded-xl bg-black max-h-[55vh] object-contain"></video>
+                        <p class="text-center text-xs font-bold text-slate-600">وجّه كاميرا الهاتف نحو باركود المادة</p>
+                        <button type="button" onclick="ItemController.stopItemBarcodeScanner();UI.forceCloseModal()" class="w-full bg-slate-100 text-slate-700 rounded-xl py-2 font-bold text-sm">إلغاء</button>
+                    </div>
+                `);
+                try {
+                    const detector = new BarcodeDetector({ formats: ['ean_13','ean_8','upc_a','upc_e','code_128','code_39','itf','qr_code'] });
+                    this.itemBarcodeStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
+                    const video = document.getElementById('itemBarcodeCameraVideo');
+                    if (!video) { this.stopItemBarcodeScanner(); return; }
+                    video.srcObject = this.itemBarcodeStream;
+                    await video.play();
+                    this.itemBarcodeScanActive = true;
+                    const scanFrame = async () => {
+                        if (!this.itemBarcodeScanActive || !document.getElementById('itemBarcodeCameraVideo')) return;
+                        try {
+                            const codes = await detector.detect(video);
+                            if (codes.length && codes[0].rawValue) {
+                                const field = document.getElementById('itmBarcode');
+                                if (field) {
+                                    field.value = codes[0].rawValue;
+                                    this.markItemDirty();
+                                }
+                                this.stopItemBarcodeScanner();
+                                UI.forceCloseModal();
+                                UI.toast('تمت قراءة باركود المادة، احفظ بطاقة المادة لتثبيته', 'success');
+                                return;
+                            }
+                        } catch (scanError) {}
+                        if (this.itemBarcodeScanActive) setTimeout(scanFrame, 220);
+                    };
+                    scanFrame();
+                } catch (err) {
+                    this.stopItemBarcodeScanner();
+                    UI.toast('تعذر تشغيل الكاميرا. تحقق من إذن الكاميرا واستخدم اتصال HTTPS', 'error');
+                }
+            },
+
+            stopItemBarcodeScanner() {
+                this.itemBarcodeScanActive = false;
+                if (this.itemBarcodeStream) {
+                    this.itemBarcodeStream.getTracks().forEach(track => track.stop());
+                    this.itemBarcodeStream = null;
+                }
+            },
+
+            async saveItem(existingId) {
+                if (!existingId && !LicenseManager.canPerformOperation()) {
+                    return false;
+                }
+                const name = document.getElementById('itmName')?.value.trim();
+                const category = document.getElementById('itmCat')?.value.trim() || '';
+                const currency = this.selectedCurrency || 'USD';
+                const openingStockBase = Accounting.parseNum(document.getElementById('itmOpenStock')?.value);
+                const minStockBase = Accounting.parseNum(document.getElementById('itmMinStock')?.value);
+                const barcode = document.getElementById('itmBarcode')?.value.trim() || '';
+
+                // قراءة أحدث القيم مباشرة من حقول الإدخال لضمان حفظ أي سعر كُتب قبل الضغط على حفظ مباشرة
+                this.tempUnits = this.tempUnits.map((u, idx) => {
+                    const nameEl = document.getElementById(`unitName_${idx}`);
+                    const factorEl = document.getElementById(`unitFactor_${idx}`);
+                    const costEl = document.getElementById(`unitCost_${idx}`);
+                    const saleEl = document.getElementById(`unitSale_${idx}`);
+                    return {
+                        ...u,
+                        name: nameEl ? nameEl.value.trim() : (u.name || ''),
+                        factor: idx === 0 ? 1 : (Accounting.parseNum(factorEl ? factorEl.value : u.factor) || 1),
+                        costPrice: Accounting.parseNum(u.costPrice),
+                        salePrice: Accounting.parseNum(u.salePrice)
+                    };
+                });
+
+                if (!name) {
+                    UI.toast('يرجى إدخال اسم الصنف / المادة', 'error');
+                    return false;
+                }
+                if (!this.tempUnits[0]?.name) {
+                    UI.toast('يرجى تحديد اسم الوحدة الكبرى الأساسية', 'error');
+                    return false;
+                }
+
+                if (category && !State.categories.includes(category)) {
+                    State.categories.push(category);
+                }
+
+                if (existingId) {
+                    const idx = State.items.findIndex(i => i.id === existingId);
+                    if (idx > -1) {
+                        State.items[idx] = {
+                            ...State.items[idx],
+                            name, category, currency, openingStockBase, minStockBase, barcode,
+                            photoData: this.safePhotoData(this.tempPhotoData),
+                            units: this.tempUnits
+                        };
+                    }
+                } else {
+                    State.items.push({
+                        id: 'itm_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+                        name, category, currency, openingStockBase, minStockBase, barcode,
+                        photoData: this.safePhotoData(this.tempPhotoData),
+                        units: this.tempUnits
+                    });
+                    await LicenseManager.recordNewOperation();
+                }
+
+                await StorageEngine.saveState();
+                UI.forceCloseModal();
+                UI.toast(`تم حفظ بطاقة الصنف (${name}) بعملة ${currency} بنجاح`, 'success');
+                AppNav.renderCurrent();
+                return true;
+            },
+
+            deleteItem(itemId) {
+                const item = State.items.find(i => i.id === itemId);
+                if (!item) return;
+
+                const linkedInvoices = State.invoices.filter(inv => inv.rows.some(r => r.itemId === itemId));
+                const usedInDraft = InvoiceController.draft && InvoiceController.draft.rows && InvoiceController.draft.rows.some(r => r.itemId === itemId);
+                const linkedTransfers = (State.transfers || []).some(tr => tr.itemId === itemId);
+
+                if (linkedInvoices.length > 0 || usedInDraft || linkedTransfers) {
+                    const invNums = linkedInvoices.map(i => `#${i.number} (${Accounting.getInvoiceTypeAr(i.type)})`).slice(0, 6).join(' ، ');
+                    UI.showProtectionAlert(
+                        'منع حذف الصنف (حماية العمليات المرتبطة)',
+                        `لا يمكن حذف الصنف "${item.name}" لوجود حركات وفواتير مرتبطة به حفاظاً على سلامة الجرد المخزني والحسابات.`,
+                        `${linkedInvoices.length > 0 ? `• مرتبط بـ (${linkedInvoices.length}) فاتورة محفوظة: ${invNums}` : ''}${usedInDraft ? '<br>• الصنف مدرج حالياً في فاتورة قيد الإنشاء/التعديل.' : ''}`
+                    );
+                    return;
+                }
+
+                UI.showDeleteConfirm('حذف بطاقة مادة', `هل أنت متأكد من حذف الصنف "${item.name}" نهائياً من المستودع؟ (لا توجد أي عمليات مرتبطة به)`, async () => {
+                    State.items = State.items.filter(i => i.id !== itemId);
+                    await StorageEngine.saveState();
+                    UI.toast('تم حذف المادة بنجاح', 'success');
+                    AppNav.renderCurrent();
+                });
+            }
+        };
+
+
+        /********************************************************************
+         * MULTI-WAREHOUSE & CASH EXPENSES – persisted with legacy accounting.
+         ********************************************************************/
+        const AppEscape = {
+            text(value) {
+                return String(value ?? '').replace(/[&<>"']/g, char => ({
+                    '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
+                })[char]);
+            }
+        };
+
+        const WarehouseController = {
+            name(id) {
+                return (State.warehouses || []).find(w => w.id === (id || 'wh_main'))?.name || 'المستودع الرئيسي';
+            },
+            options(selected) {
+                return (State.warehouses || []).map(w =>
+                    `<option value="${w.id}" ${selected === w.id ? 'selected' : ''}>${AppEscape.text(w.name)}</option>`
+                ).join('');
+            },
+            async selectWarehouse(id) {
+                if (!(State.warehouses||[]).some(w => w.id === id)) return;
+                State.settings.selectedWarehouseId = id;
+                await StorageEngine.saveState();
+                AppNav.renderCurrent();
+            },
+            async addWarehouse() {
+                const name = document.getElementById('newWarehouseName')?.value.trim();
+                if (!name || name.length < 2 || name.length > 80) return UI.toast('اسم المستودع يجب أن يكون بين حرفين و80 حرفاً', 'error');
+                if ((State.warehouses||[]).some(w => w.name.trim().toLowerCase() === name.toLowerCase()))
+                    return UI.toast('يوجد مستودع بالاسم نفسه', 'error');
+                State.warehouses.push({ id: 'wh_' + Date.now() + '_' + Math.random().toString(36).slice(2,7), name });
+                await StorageEngine.saveState();
+                UI.toast('تم إنشاء المستودع بنجاح', 'success');
+                AppNav.renderCurrent();
+            },
+            renameWarehouse(id) {
+                const wh = State.warehouses.find(w => w.id === id);
+                if (!wh) return;
+                UI.openModal(`
+                    <h3 class="font-extrabold text-sm mb-3">إعادة تسمية مستودع</h3>
+                    <input id="renameWarehouseInput" maxlength="80" class="w-full p-3 border rounded-xl" value="${AppEscape.text(wh.name)}">
+                    <div class="flex gap-2 mt-3">
+                        <button onclick="WarehouseController.saveWarehouseName('${wh.id}')" class="flex-1 bg-sky-700 text-white p-3 rounded-xl font-bold">حفظ الاسم</button>
+                        <button onclick="UI.forceCloseModal()" class="bg-slate-100 p-3 rounded-xl">إلغاء</button>
+                    </div>`);
+            },
+            async saveWarehouseName(id) {
+                const wh = State.warehouses.find(w=>w.id===id);
+                const name = document.getElementById('renameWarehouseInput')?.value.trim();
+                if (!wh || !name || name.length < 2 || name.length > 80 ||
+                    State.warehouses.some(w=>w.id!==id && w.name.toLowerCase()===name.toLowerCase()))
+                    return UI.toast('اسم المستودع غير صالح أو مكرر', 'error');
+                wh.name = name;
+                await StorageEngine.saveState();
+                UI.forceCloseModal();
+                AppNav.renderCurrent();
+            },
+            deleteWarehouse(id) {
+                if (id === 'wh_main') return UI.toast('لا يمكن حذف المستودع الرئيسي', 'error');
+                const wh = State.warehouses.find(w=>w.id===id);
+                if (!wh) return;
+                const used = State.invoices.some(inv => (inv.warehouseId||'wh_main') === id)
+                    || (State.transfers||[]).some(t=>t.fromWarehouseId===id||t.toWarehouseId===id)
+                    || State.items.some(it=>Math.abs(Accounting.getItemBaseStock(it.id,null,id))>0.00001);
+                if (used) return UI.toast('لا يمكن حذف مستودع له حركات أو أرصدة. يمكن إعادة تسميته.', 'error');
+                UI.showDeleteConfirm('حذف مستودع فارغ', `هل تريد حذف المستودع "${AppEscape.text(wh.name)}"؟`, async () => {
+                    State.warehouses = State.warehouses.filter(w=>w.id!==id);
+                    if (State.settings.selectedWarehouseId === id) State.settings.selectedWarehouseId='wh_main';
+                    await StorageEngine.saveState();
+                    AppNav.renderCurrent();
+                });
+            },
+            updateTransferUnits() {
+                const itemId=document.getElementById('transferItem')?.value;
+                const el=document.getElementById('transferUnit');
+                if (!el) return;
+                const item=State.items.find(i=>i.id===itemId);
+                const units=Array.isArray(item?.units) && item.units.length ? item.units : [{name:'وحدة كبرى',factor:1}];
+                el.innerHTML=units.map(u=>`<option value="${Number(u.factor)||1}">${AppEscape.text(u.name)} (${Number(u.factor)||1} / وحدة كبرى)</option>`).join('');
+                this.refreshTransferAvailability();
+            },
+            refreshTransferAvailability() {
+                const itemId = document.getElementById('transferItem')?.value;
+                const from = document.getElementById('transferFrom')?.value;
+                const el = document.getElementById('transferAvailability');
+                if (!el) return;
+                if (!itemId || !from) { el.textContent = 'اختر المادة والمستودع المصدر لعرض الرصيد'; return; }
+                const item = State.items.find(i=>i.id===itemId);
+                const factor=Number(document.getElementById('transferUnit')?.value)||1;
+                const base=Accounting.getItemBaseStock(itemId,null,from);
+                el.textContent = `المتوفر في المصدر: ${base} ${item?.units?.[0]?.name || 'وحدة كبرى'} (ما يعادل ${Math.round(base*factor*100)/100} من الوحدة المختارة)`;
+            },
+            async saveTransfer() {
+                if (this.saving) return;
+                this.saving = true;
+                try {
+                const from = document.getElementById('transferFrom')?.value;
+                const to = document.getElementById('transferTo')?.value;
+                const itemId = document.getElementById('transferItem')?.value;
+                const qty = Accounting.parseNum(document.getElementById('transferQty')?.value);
+                const factor = Number(document.getElementById('transferUnit')?.value) || 1;
+                const quantityBase = qty / factor;
+                const itemUnits=State.items.find(i=>i.id===itemId)?.units || [];
+                const unitName=itemUnits.find(u=>Number(u.factor||1)===factor)?.name || 'وحدة كبرى';
+                const date = document.getElementById('transferDate')?.value;
+                const note = document.getElementById('transferNote')?.value.trim().slice(0,200) || '';
+                if (!from || !to || from === to) return UI.toast('اختر مستودعين مختلفين', 'error');
+                if (!(State.warehouses||[]).some(w=>w.id===from) || !(State.warehouses||[]).some(w=>w.id===to))
+                    return UI.toast('المستودع المختار غير موجود', 'error');
+                if (!State.items.some(i=>i.id===itemId)) return UI.toast('اختر مادة موجودة', 'error');
+                if (!Number.isFinite(qty) || qty<=0 || Math.abs(Math.round(qty*10000)-qty*10000)>0.000001)
+                    return UI.toast('الكمية يجب أن تكون موجبة بدقة أربع خانات عشرية كحد أقصى', 'error');
+                if (!/^\d{4}-\d{2}-\d{2}$/.test(date||'')) return UI.toast('تاريخ المناقلة غير صحيح', 'error');
+                if (!(factor > 0) || !Number.isFinite(quantityBase)) return UI.toast('وحدة قياس غير صالحة', 'error');
+                const available = Accounting.getItemBaseStock(itemId,null,from);
+                if (quantityBase > available + 0.00001) return UI.toast(`الكمية تتجاوز الرصيد المتاح (${available} وحدة كبرى)`, 'error');
+                if (!LicenseManager.canPerformOperation()) return;
+                const transfer = { id: 'tr_' + Date.now() + '_' + Math.random().toString(36).slice(2,8),
+                    itemId, fromWarehouseId:from, toWarehouseId:to, quantityBase, quantity:qty, unitName, date, note,
+                    createdAt:new Date().toISOString() };
+                State.transfers.push(transfer);
+                await LicenseManager.recordNewOperation();
+                await StorageEngine.saveState();
+                UI.toast('تم ترحيل المادة بين المستودعين دون تغيير المخزون الإجمالي', 'success');
+                AppNav.renderCurrent();
+                } finally { this.saving = false; }
+            },
+            deleteTransfer(id) {
+                const t = (State.transfers||[]).find(x=>x.id===id);
+                if (!t) return;
+                if (Accounting.getItemBaseStock(t.itemId,null,t.toWarehouseId) + 0.00001 < Number(t.quantityBase))
+                    return UI.toast('لا يمكن عكس المناقلة لأن الرصيد في المستودع المستلم لم يعد كافياً', 'error');
+                UI.showDeleteConfirm('إلغاء المناقلة', 'سيعاد الرصيد من المستودع المستلم إلى المصدر. هل تريد المتابعة؟', async()=>{
+                    State.transfers=State.transfers.filter(x=>x.id!==id);
+                    await StorageEngine.saveState();
+                    UI.toast('تم إلغاء المناقلة وعكس أثرها', 'success');
+                    AppNav.renderCurrent();
+                });
+            }
+        };
+
+        const ExpenseController = {
+            startNewExpense() {
+                // Re-render to leave edit mode without modifying existing records.
+                AppNav.renderCurrent();
+                Views.jumpToEntry('expenseFormPanel', 'expenseAmount');
+            },
+            async saveExpense() {
+                if (this.saving) return;
+                this.saving = true;
+                try {
+                const id = document.getElementById('expenseId')?.value;
+                const amount = Accounting.parseNum(document.getElementById('expenseAmount')?.value);
+                const currency = document.getElementById('expenseCurrency')?.value;
+                const category = document.getElementById('expenseCategory')?.value;
+                const date = document.getElementById('expenseDate')?.value;
+                const note = document.getElementById('expenseNote')?.value.trim().slice(0,250) || '';
+                const exchangeRate = Accounting.parseNum(document.getElementById('expenseRate')?.value);
+                if (!Number.isFinite(amount) || amount <= 0 || amount > 1e15)
+                    return UI.toast('أدخل قيمة مصروف موجبة وصحيحة', 'error');
+                if (currency !== 'SYP' && currency !== 'USD') return UI.toast('اختر العملة الصحيحة', 'error');
+                if (!id && State.settings.primaryOnlyMode && currency !== CurrencyCatalog.primary())
+                    return UI.toast('المصاريف الجديدة بالعملة الرئيسية فقط', 'warn');
+                if (!category || !/^\d{4}-\d{2}-\d{2}$/.test(date||''))
+                    return UI.toast('فئة المصروف أو تاريخه غير صحيح', 'error');
+                if (!(exchangeRate > 0) || !Number.isFinite(exchangeRate)) return UI.toast('أدخل سعر صرف صحيحاً', 'error');
+                const safeAmount = Accounting.round(amount,currency);
+                if (!(safeAmount > 0)) return UI.toast('القيمة بعد التقريب يجب أن تكون أكبر من صفر', 'error');
+                const idx = (State.expenses||[]).findIndex(e=>e.id===id);
+                if (idx < 0 && !LicenseManager.canPerformOperation()) return;
+                const expense = { id: idx>=0 ? id : 'exp_' + Date.now() + '_' + Math.random().toString(36).slice(2,8),
+                    amount:safeAmount, currency, category, date, note, exchangeRate,
+                    updatedAt:new Date().toISOString() };
+                if (idx>=0) State.expenses[idx] = {...State.expenses[idx], ...expense};
+                else {
+                    State.expenses.push(expense);
+                    await LicenseManager.recordNewOperation();
+                }
+                await StorageEngine.saveState();
+                UI.toast(idx>=0?'تم تعديل المصروف':'تم تسجيل المصروف وخصمه من صافي الأرباح', 'success');
+                AppNav.renderCurrent();
+                } finally { this.saving = false; }
+            },
+            editExpense(id) {
+                const exp = (State.expenses||[]).find(e=>e.id===id);
+                if (!exp) return;
+                const put=(elementId,value)=>{const el=document.getElementById(elementId);if(el)el.value=value;};
+                put('expenseId',exp.id);
+                put('expenseAmount',exp.amount);
+                const editCurrencySelect=document.getElementById('expenseCurrency');
+                if (editCurrencySelect && !Array.from(editCurrencySelect.options).some(o=>o.value===exp.currency)) {
+                    const option=document.createElement('option');
+                    option.value=exp.currency;
+                    option.textContent=CurrencyCatalog.label(exp.currency)+' (عملية سابقة)';
+                    editCurrencySelect.appendChild(option);
+                }
+                put('expenseCurrency',exp.currency);
+                put('expenseCategory',exp.category);
+                put('expenseDate',exp.date);
+                put('expenseNote',exp.note || '');
+                put('expenseRate',exp.exchangeRate);
+                const title=document.getElementById('expenseFormTitle');
+                if(title) title.textContent = 'تعديل مصروف مسجل';
+                document.getElementById('expenseAmount')?.focus();
+            },
+            deleteExpense(id) {
+                const exp = (State.expenses||[]).find(e=>e.id===id);
+                if (!exp) return;
+                UI.showDeleteConfirm('حذف المصروف', 'سيُحذف المصروف ويُعاد أثره على صافي الربح والصندوق. هل تريد المتابعة؟', async()=>{
+                    State.expenses=State.expenses.filter(e=>e.id!==id);
+                    await StorageEngine.saveState();
+                    AppNav.renderCurrent();
+                });
+            }
+        };
+
+        /********************************************************************
+         * 8. FLEXIBLE INVOICE CONTROLLER
+         * Default Save & Print uses Bluetooth Thermal Printer
+         ********************************************************************/
+        const InvoiceController = {
+            draft: null,
+            gridCatFilter: 'all',
+            gridSearchQuery: '',
+
+            openInvoiceActions(invoiceId) {
+                const inv = State.invoices.find(i => i.id === invoiceId);
+                if (!inv) return;
+                const canPay = Number(inv.remainingAmount) > 0 && inv.paymentMethod !== 'cash';
+                UI.openModal(`
+                    <div class="flex items-center justify-between border-b pb-3 mb-3">
+                        <div>
+                            <h3 class="font-extrabold text-base text-slate-900">خيارات الفاتورة #${inv.number}</h3>
+                            <p class="text-[11px] text-slate-500 mt-1">${Accounting.getInvoiceTypeAr(inv.type)} · ${inv.paymentMethod === 'cash' ? 'نقدي' : inv.paymentMethod === 'credit' ? 'آجل' : 'دفع جزئي'}</p>
+                        </div>
+                        <button onclick="UI.forceCloseModal()" class="text-slate-400"><i class="fas fa-times"></i></button>
+                    </div>
+                    <div class="space-y-2">
+                        ${canPay ? `<button onclick="InvoiceController.openInvoicePayment('${inv.id}')" class="w-full bg-emerald-600 text-white rounded-xl p-3 text-sm font-extrabold text-right"><i class="fas fa-money-bill-wave ml-2"></i>إضافة دفعة</button>` : ''}
+                        <button onclick="AppNav.navigate('invoice_print',{id:'${inv.id}'})" class="w-full bg-slate-100 text-slate-800 rounded-xl p-3 text-sm font-bold text-right"><i class="fas fa-eye ml-2 text-blue-600"></i>معاينة</button>
+                        <button onclick="AppNav.navigate('invoice_form',{id:'${inv.id}'})" class="w-full bg-slate-100 text-slate-800 rounded-xl p-3 text-sm font-bold text-right"><i class="fas fa-pen-to-square ml-2 text-amber-600"></i>تعديل</button>
+                        <button onclick="UI.forceCloseModal(); ThermalPrinter.printInvoiceDirect(State.invoices.find(i=>i.id==='${inv.id}'))" class="w-full bg-slate-100 text-slate-800 rounded-xl p-3 text-sm font-bold text-right"><i class="fab fa-bluetooth-b ml-2 text-emerald-600"></i>طباعة</button>
+                    </div>
+                `);
+            },
+
+            openInvoicePayment(invoiceId) {
+                const inv = State.invoices.find(i => i.id === invoiceId);
+                if (!inv || Number(inv.remainingAmount) <= 0) return;
+                const remaining = Number(inv.remainingAmount) || 0;
+                UI.openModal(`
+                    <div class="flex items-center justify-between border-b pb-3 mb-3">
+                        <h3 class="font-extrabold text-base">إضافة دفعة للفاتورة #${inv.number}</h3>
+                        <button onclick="UI.forceCloseModal()" class="text-slate-400"><i class="fas fa-times"></i></button>
+                    </div>
+                    <div class="bg-slate-50 rounded-xl p-3 mb-3 text-xs space-y-1">
+                        <div class="flex justify-between"><span>قيمة الفاتورة</span><strong>${Accounting.format(inv.netTotal, inv.currency)}</strong></div>
+                        <div class="flex justify-between"><span>المدفوع سابقاً</span><strong>${Accounting.format(inv.paidAmount, inv.currency)}</strong></div>
+                        <div class="flex justify-between text-rose-700"><span>المتبقي</span><strong>${Accounting.format(remaining, inv.currency)}</strong></div>
+                    </div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">قيمة الدفعة (${inv.currency})</label>
+                    <input id="invoiceAdditionalPayment" type="number" min="0.01" step="any" max="${remaining}" placeholder="أدخل مبلغ الدفعة" class="w-full border border-slate-300 rounded-xl p-3 text-center font-extrabold mb-3">
+                    <button onclick="InvoiceController.saveInvoicePayment('${inv.id}')" class="w-full bg-emerald-600 text-white rounded-xl py-3 font-extrabold text-sm">حفظ الدفعة</button>
+                `);
+            },
+
+            async saveInvoicePayment(invoiceId) {
+                const inv = State.invoices.find(i => i.id === invoiceId);
+                if (!inv) return;
+                const amount = Accounting.round(Accounting.parseNum(document.getElementById('invoiceAdditionalPayment')?.value), inv.currency);
+                const remaining = Accounting.round(Number(inv.netTotal) - Number(inv.paidAmount), inv.currency);
+                if (!(amount > 0) || amount > remaining) {
+                    UI.toast('أدخل مبلغاً صحيحاً لا يتجاوز المبلغ المتبقي', 'error');
+                    return;
+                }
+                inv.paidAmount = Accounting.round((Number(inv.paidAmount) || 0) + amount, inv.currency);
+                inv.remainingAmount = Accounting.round(Number(inv.netTotal) - inv.paidAmount, inv.currency);
+                inv.paymentMethod = inv.remainingAmount <= 0 ? 'cash' : 'partial';
+                inv.paymentHistory = Array.isArray(inv.paymentHistory) ? inv.paymentHistory : [];
+                inv.paymentHistory.push({ amount, date: new Date().toISOString(), currency: inv.currency });
+                await StorageEngine.saveState();
+                UI.forceCloseModal();
+                UI.toast(inv.paymentMethod === 'cash' ? 'اكتمل سداد الفاتورة وتحولت إلى نقدي' : 'تم تسجيل الدفعة وتحويل الفاتورة إلى دفع جزئي', 'success');
+                AppNav.renderCurrent();
+            },
+
+            openInvoiceTypeFilter(filterType, dateMode, customDate) {
+                const types = [
+                    {id:'all',label:'المبيعات والمشتريات معاً'},
+                    {id:'sale',label:'فواتير المبيع'},
+                    {id:'purchase',label:'فواتير الشراء'},
+                    {id:'sale_return',label:'مردود مبيعات'},
+                    {id:'purchase_return',label:'مردود مشتريات'}
+                ];
+                UI.openModal(`
+                    <div class="flex items-center justify-between border-b pb-3 mb-3">
+                        <h3 class="font-extrabold text-base">نوع الفواتير</h3>
+                        <button onclick="UI.forceCloseModal()" class="text-slate-400"><i class="fas fa-times"></i></button>
+                    </div>
+                    <div class="space-y-2">${types.map(t=>`<button onclick="AppNav.navigate('invoices_list',{type:'${t.id}',dateMode:'${dateMode}',dateValue:'${customDate}'},true)" class="w-full text-right p-3 rounded-xl text-sm font-bold ${filterType===t.id?'bg-emerald-600 text-white':'bg-slate-100 text-slate-700'}">${t.label}${filterType===t.id?' ✓':''}</button>`).join('')}</div>
+                `);
+            },
+
+            openInvoiceDateFilter(filterType, dateMode, customDate) {
+                const modes = [{id:'all',label:'كل المدة'},{id:'today',label:'اليوم'},{id:'yesterday',label:'الأمس'},{id:'custom',label:'تاريخ محدد'}];
+                UI.openModal(`
+                    <div class="flex items-center justify-between border-b pb-3 mb-3">
+                        <h3 class="font-extrabold text-base">الفترة الزمنية</h3>
+                        <button onclick="UI.forceCloseModal()" class="text-slate-400"><i class="fas fa-times"></i></button>
+                    </div>
+                    <div class="space-y-2">${modes.map(t=>`<button onclick="InvoiceController.applyInvoiceDateFilter('${filterType}','${t.id}','${customDate}')" class="w-full text-right p-3 rounded-xl text-sm font-bold ${dateMode===t.id?'bg-emerald-600 text-white':'bg-slate-100 text-slate-700'}">${t.label}${dateMode===t.id?' ✓':''}</button>`).join('')}</div>
+                    <div class="mt-3 border-t pt-3">
+                        <label class="block text-xs font-bold mb-1">تاريخ مخصص</label>
+                        <input id="invoiceFilterCustomDate" type="date" value="${customDate}" class="w-full border border-slate-300 rounded-xl p-2.5">
+                        <button onclick="InvoiceController.applyInvoiceDateFilter('${filterType}','custom',document.getElementById('invoiceFilterCustomDate').value)" class="w-full mt-2 bg-slate-900 text-white rounded-xl py-2.5 font-bold text-sm">تطبيق التاريخ</button>
+                    </div>
+                `);
+            },
+
+            applyInvoiceDateFilter(filterType, dateMode, customDate) {
+                AppNav.navigate('invoices_list',{type:filterType,dateMode,dateValue:customDate},true);
+            },
+
+            renderForm(main, params = {}) {
+                if (params.id) {
+                    const existing = State.invoices.find(i => i.id === params.id);
+                    if (!existing) return AppNav.navigate('invoices_list');
+                    this.draft = JSON.parse(JSON.stringify(existing));
+                    this.draft.warehouseId = existing.warehouseId || 'wh_main';
+                    this.draft.isEditing = true;
+                } else {
+                    const nextNum = State.invoices.length > 0 ? Math.max(...State.invoices.map(i => Number(i.number) || 0)) + 1 : 1;
+                    const nowIso = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+                    this.draft = {
+                        id: 'inv_' + Date.now(),
+                        number: nextNum,
+                        type: params.type || 'sale',
+                        warehouseId: State.settings.selectedWarehouseId || 'wh_main',
+                        date: nowIso,
+                        accountId: '',
+                        currency: State.settings.primaryOnlyMode ? CurrencyCatalog.primary() : (State.settings.defaultCurrency || CurrencyCatalog.primary()),
+                        exchangeRate: State.settings.exchangeRate || 15000,
+                        paymentMethod: 'cash',
+                        rows: [],
+                        subTotal: 0,
+                        discountValue: 0,
+                        discountType: 'amount',
+                        discountAmount: 0,
+                        taxValue: 0,
+                        taxType: 'percent',
+                        taxAmount: 0,
+                        netTotal: 0,
+                        paidAmount: 0,
+                        remainingAmount: 0,
+                        note: '',
+                        isEditing: false
+                    };
+                }
+
+                const titleAr = Accounting.getInvoiceTypeAr(this.draft.type);
+                UI.setHeader(
+                    `<i class="fas fa-file-invoice text-emerald-400"></i> <span>${this.draft.isEditing ? `تعديل فاتورة ${titleAr} #${this.draft.number}` : `فاتورة ${titleAr} جديدة #${this.draft.number}`}</span>`,
+                    'اختيار المواد عبر شبكة مرئية وتحديث تلقائي للأسعار حسب الصرف'
+                );
+
+                AppNav.enableOperationGuard(async () => await this.saveInvoice(false));
+                this.paintForm(main);
+            },
+
+            markModified() {
+                AppNav.markDirty(async () => {
+                    return await this.saveInvoice(false);
+                });
+            },
+
+            changeWarehouse(id) {
+                if (!(State.warehouses||[]).some(w => w.id === id)) return;
+                this.draft.warehouseId = id;
+                this.markModified();
+                this.paintForm(document.getElementById('mainContent'));
+            },
+
+            changeInvoiceType(newType) {
+                this.draft.type = newType;
+                const isPurchase = (newType === 'purchase' || newType === 'purchase_return');
+                const requiredAccType = isPurchase ? 'supplier' : 'customer';
+
+                if (this.draft.accountId) {
+                    const currentAcc = State.accounts.find(a => a.id === this.draft.accountId);
+                    if (!currentAcc || currentAcc.type !== requiredAccType) {
+                        this.draft.accountId = '';
+                    }
+                }
+                this.recalculateAllPricesByRate();
+            },
+
+            addItemByBarcode(rawCode) {
+                const code = String(rawCode || '').trim().toLowerCase();
+                if (!code) return;
+                const item = State.items.find(itm => String(itm.barcode || '').trim().toLowerCase() === code);
+                if (!item) {
+                    UI.toast('لا توجد مادة مسجلة بهذا الباركود', 'error');
+                    return;
+                }
+                this.addItemToInvoice(item.id);
+                const input = document.getElementById('invBarcodeInput');
+                if (input) { input.value = ''; input.focus(); }
+            },
+
+            addItemsByBarcodeBatch(codes) {
+                if (!Array.isArray(codes) || !codes.length) return;
+                // Do not mutate another screen after the scanner Activity returns.
+                if (AppNav.current().screen !== 'invoice_form' || !this.draft) {
+                    UI.toast('افتح فاتورة بيع أو شراء ثم أعد المسح', 'error');
+                    return;
+                }
+                const byBarcode = new Map(State.items
+                    .filter(itm => itm.barcode)
+                    .map(itm => [String(itm.barcode).trim().toLowerCase(), itm]));
+                let added = 0;
+                const missing = [];
+                for (const raw of codes.slice(0, 500)) {
+                    const code = String(raw || '').trim().toLowerCase();
+                    if (!code) continue;
+                    const item = byBarcode.get(code);
+                    if (!item) { missing.push(code); continue; }
+                    // Repeated reads of the same item increment its invoice quantity.
+                    this.addItemToInvoice(item.id, false);
+                    added += 1;
+                }
+                if (added) {
+                    this.markModified();
+                    this.recalculate();
+                    this.paintForm(document.getElementById('mainContent'));
+                    UI.toast(`تمت إضافة ${added} قراءة باركود إلى الفاتورة`, 'success');
+                }
+                if (missing.length) {
+                    UI.toast(`لم يتم العثور على ${missing.length} باركود في المواد المسجلة`, 'warn');
+                }
+            },
+
+            async openBarcodeScanner() {
+                if (window.NativeBarcode && typeof window.NativeBarcode.scan === 'function') {
+                    window.NativeBarcode.scan('invoice');
+                    return;
+                }
+                if (!navigator.mediaDevices?.getUserMedia) {
+                    UI.toast('الكاميرا غير مدعومة. افتح النظام عبر HTTPS أو أدخل الباركود يدوياً', 'error');
+                    return;
+                }
+                if (!('BarcodeDetector' in window)) {
+                    UI.toast('ميزة قراءة الباركود غير مدعومة في هذا المتصفح. استخدم الإدخال اليدوي أو متصفحاً يدعم BarcodeDetector', 'error');
+                    return;
+                }
+                UI.openModal(`
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between">
+                            <h3 class="font-bold text-base text-slate-900"><i class="fas fa-camera text-emerald-600 ml-1"></i> تصوير باركود المادة</h3>
+                            <button type="button" onclick="InvoiceController.stopBarcodeScanner();UI.forceCloseModal()" class="w-8 h-8 rounded-full bg-slate-100"><i class="fas fa-times"></i></button>
+                        </div>
+                        <video id="invoiceBarcodeVideo" autoplay muted playsinline class="w-full rounded-xl bg-black max-h-[55vh] object-contain"></video>
+                        <p id="barcodeScanStatus" class="text-center text-xs font-bold text-slate-600">امسح أكثر من صنف؛ الكاميرا لا تغلق حتى تضغط ×</p>
+                    </div>
+                `);
+                try {
+                    const detector = new BarcodeDetector({ formats: ['ean_13','ean_8','upc_a','upc_e','code_128','code_39','itf','qr_code'] });
+                    this.barcodeScanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
+                    const video = document.getElementById('invoiceBarcodeVideo');
+                    if (!video) { this.stopBarcodeScanner(); return; }
+                    video.srcObject = this.barcodeScanStream;
+                    await video.play();
+                    this.barcodeScanActive = true;
+                    const lastSeenAt = new Map();
+                    let lastAcceptedAt = 0;
+                    const scanFrame = async () => {
+                        if (!this.barcodeScanActive || !document.getElementById('invoiceBarcodeVideo')) return;
+                        try {
+                            const codes = await detector.detect(video);
+                            if (codes.length && codes[0].rawValue) {
+                                const value = String(codes[0].rawValue).trim();
+                                const now = Date.now();
+                                const lastForCode = lastSeenAt.get(value) || 0;
+                                const delay = lastForCode ? 3500 : 450;
+                                if (now - lastForCode >= delay && now - lastAcceptedAt >= 450) {
+                                    lastSeenAt.set(value, now);
+                                    lastAcceptedAt = now;
+                                    this.addItemByBarcode(value);
+                                    const status = document.getElementById('barcodeScanStatus');
+                                    if (status) status.textContent = `تمت قراءة ${value}؛ استمر بالمسح أو اضغط ×`;
+                                }
+                            }
+                        } catch (scanError) {}
+                        if (this.barcodeScanActive) setTimeout(scanFrame, 220);
+                    };
+                    scanFrame();
+                } catch (err) {
+                    this.stopBarcodeScanner();
+                    UI.toast('تعذر تشغيل الكاميرا. تحقق من إذن الكاميرا واستخدم اتصال HTTPS', 'error');
+                }
+            },
+
+            stopBarcodeScanner() {
+                this.barcodeScanActive = false;
+                if (this.barcodeScanStream) {
+                    this.barcodeScanStream.getTracks().forEach(track => track.stop());
+                    this.barcodeScanStream = null;
+                }
+            },
+
+            openItemGridModal() {
+                this.gridCatFilter = 'all';
+                this.gridSearchQuery = '';
+                UI.openModal(`
+                    <div class="flex items-center justify-between border-b pb-2.5 mb-3">
+                        <h3 class="font-bold text-sm flex items-center gap-1.5 text-slate-900">
+                            <i class="fas fa-grip text-emerald-600 text-base"></i>
+                            <span>شبكة اختيار وإضافة المواد للفاتورة</span>
+                        </h3>
+                        <button onclick="UI.forceCloseModal()" class="w-7 h-7 rounded-full bg-slate-100 text-slate-500 hover:text-slate-800 flex items-center justify-center">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+
+                    <div class="space-y-2 mb-3">
+                        <div class="relative">
+                            <i class="fas fa-search absolute right-3 top-2.5 text-slate-400 text-xs"></i>
+                            <input type="text" id="gridPickerSearch" oninput="InvoiceController.gridSearchQuery = this.value; InvoiceController.renderItemGridCards()" placeholder="ابحث باسم المادة أو الباركود..." class="w-full pr-8 pl-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                        </div>
+                        <div id="gridCatPills" class="flex gap-1.5 overflow-x-auto no-scrollbar pb-1"></div>
+                    </div>
+
+                    <div id="itemGridCardsContainer" class="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-[55vh] overflow-y-auto p-0.5"></div>
+
+                    <div class="flex items-center justify-between pt-3 mt-3 border-t border-slate-100">
+                        <button type="button" onclick="ItemController.openItemModal()" class="text-xs font-bold text-emerald-600 hover:underline flex items-center gap-1">
+                            <i class="fas fa-plus-circle"></i> تعريف مادة جديدة بالمستودع
+                        </button>
+                        <button type="button" onclick="UI.forceCloseModal()" class="bg-slate-900 text-white font-bold px-5 py-2 rounded-xl text-xs">
+                            إغلاق الشبكة (${this.draft.rows.length} أصناف بالفاتورة)
+                        </button>
+                    </div>
+                `);
+                this.renderItemGridCards();
+            },
+
+            renderItemGridCards() {
+                const pillsContainer = document.getElementById('gridCatPills');
+                const gridContainer = document.getElementById('itemGridCardsContainer');
+                if (!gridContainer) return;
+
+                if (pillsContainer) {
+                    const cats = ['all', ...State.categories];
+                    pillsContainer.innerHTML = cats.map(c => `
+                        <button type="button" onclick="InvoiceController.gridCatFilter = '${c}'; InvoiceController.renderItemGridCards()" class="px-2.5 py-1 rounded-lg text-[11px] font-bold shrink-0 transition ${this.gridCatFilter === c ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}">
+                            ${c === 'all' ? 'كل المجموعات' : c}
+                        </button>
+                    `).join('');
+                }
+
+                const q = (this.gridSearchQuery || '').trim().toLowerCase();
+                const filtered = State.items.filter(itm => {
+                    const matchCat = this.gridCatFilter === 'all' || itm.category === this.gridCatFilter;
+                    const matchQ = !q || itm.name.toLowerCase().includes(q) || (itm.barcode && itm.barcode.toLowerCase().includes(q));
+                    return matchCat && matchQ;
+                });
+
+                if (filtered.length === 0) {
+                    gridContainer.innerHTML = `
+                        <div class="col-span-full py-8 text-center text-slate-400">
+                            <i class="fas fa-box-open text-3xl mb-2 opacity-40"></i>
+                            <p class="text-xs font-bold text-slate-600">لا توجد مواد مطابقة في المستودع</p>
+                            <button type="button" onclick="ItemController.openItemModal()" class="mt-2 bg-emerald-600 text-white font-bold px-3 py-1.5 rounded-xl text-xs">+ تعريف مادة جديدة</button>
+                        </div>
+                    `;
+                    return;
+                }
+
+                const d = this.draft;
+                const isPurchase = (d.type === 'purchase' || d.type === 'purchase_return');
+
+                gridContainer.innerHTML = filtered.map(itm => {
+                    const u0 = itm.units[0] || { name: 'كرتونة', factor: 1, salePrice: 0, costPrice: 0 };
+                    const rawPrice = isPurchase ? Number(u0.costPrice) : Number(u0.salePrice);
+                    const priceInInvCurr = Accounting.convert(rawPrice, itm.currency, d.currency, d.exchangeRate);
+                    const availStock = Math.round((Accounting.getItemBaseStock(itm.id, d.isEditing ? d.id : null, d.warehouseId || 'wh_main') + Number.EPSILON) * 100) / 100;
+                    const inCartQty = d.rows.reduce((qty, row) =>
+                        row.itemId === itm.id ? qty + Math.max(0, Number(row.qty) || 0) : qty, 0);
+
+                    return `
+                        <div onclick="InvoiceController.selectItemFromGrid('${itm.id}')" class="relative bg-slate-50 hover:bg-emerald-50/70 active:scale-95 border ${inCartQty > 0 ? 'border-emerald-500 ring-1 ring-emerald-500 bg-emerald-50/40' : 'border-slate-200'} rounded-2xl p-2.5 cursor-pointer transition flex flex-col justify-between text-right shadow-2xs">
+                            ${inCartQty > 0 ? `
+                                <span class="absolute -top-1.5 -left-1.5 bg-emerald-600 text-white text-[10px] font-extrabold w-6 h-6 rounded-full flex items-center justify-center shadow">
+                                    ${Accounting.formatItemQuantity(inCartQty)}
+                                </span>
+                                <button type="button" class="invoice-grid-decrement" onclick="event.stopPropagation(); InvoiceController.removeOneFromGrid('${itm.id}')" aria-label="إنقاص وحدة واحدة من ${itm.name} في الفاتورة" title="إنقاص كمية واحدة">×</button>
+                            ` : ''}
+                            <div>
+                                ${ItemController.photoThumb(itm, 'grid')}
+                                <div class="flex items-center justify-between gap-1 mb-1">
+                                    <span class="text-[9px] font-extrabold px-1.5 py-0.5 rounded ${itm.currency === 'USD' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-700'}">
+                                        ${itm.currency}
+                                    </span>
+                                    ${itm.category ? `<span class="text-[9px] text-slate-400 truncate">${itm.category}</span>` : ''}
+                                </div>
+                                <h4 class="font-extrabold text-xs text-slate-900 line-clamp-2 leading-snug mb-1.5">${itm.name}</h4>
+                            </div>
+
+                            <div class="pt-1.5 border-t border-slate-200/80">
+                                <div class="font-extrabold text-xs text-emerald-700">
+                                    ${Accounting.formatItemPrice(priceInInvCurr, d.currency)}
+                                    <span class="text-[9px] text-slate-500 font-normal">/ ${u0.name}</span>
+                                </div>
+                                <div class="flex items-center justify-between text-[10px] mt-0.5">
+                                    <span class="${availStock <= (itm.minStockBase || 0) ? 'text-rose-600 font-bold' : 'text-slate-500'}">
+                                        المتاح: ${Accounting.formatItemQuantity(availStock)} ${u0.name}
+                                    </span>
+                                    <span class="text-emerald-600 font-bold"><i class="fas fa-plus-circle"></i> إضافة</span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            },
+
+            selectItemFromGrid(itemId) {
+                this.addItemToInvoice(itemId);
+                const modalOpen = !document.getElementById('modalContainer').classList.contains('hidden');
+                if (modalOpen && document.getElementById('itemGridCardsContainer')) {
+                    this.renderItemGridCards();
+                }
+            },
+
+            removeOneFromGrid(itemId) {
+                if (!this.draft || !Array.isArray(this.draft.rows)) return;
+                const item = State.items.find(i => i.id === itemId);
+                const defaultUnit = item && item.units && item.units[0] ? item.units[0].name : null;
+                // Prefer the same default-unit row that a grid tap increments.
+                let rowIdx = this.draft.rows.findIndex(r => r.itemId === itemId &&
+                    r.unitName === defaultUnit && Number(r.qty) > 0);
+                if (rowIdx < 0) {
+                    rowIdx = this.draft.rows.findIndex(r => r.itemId === itemId && Number(r.qty) > 0);
+                }
+                if (rowIdx < 0) return;
+
+                const row = this.draft.rows[rowIdx];
+                const newQty = Math.max(0, Number((Number(row.qty) - 1).toFixed(8)));
+                if (newQty === 0) {
+                    this.draft.rows.splice(rowIdx, 1);
+                } else {
+                    row.qty = newQty;
+                }
+                this.markModified();
+                this.recalculate();
+                this.paintForm(document.getElementById('mainContent'));
+                // Leave the item picker open and update its badges/buttons.
+                if (document.getElementById('itemGridCardsContainer')) this.renderItemGridCards();
+            },
+
+            toggleInvoiceCurrency() {
+                if (State.settings.primaryOnlyMode) {
+                    return UI.toast('وضع العملة الرئيسية فقط مفعّل', 'warn');
+                }
+                const oldCurr = this.draft.currency;
+                const newCurr = oldCurr === 'SYP' ? 'USD' : 'SYP';
+                const rate = Number(this.draft.exchangeRate) || State.settings.exchangeRate || 15000;
+
+                this.draft.currency = newCurr;
+                for (const row of this.draft.rows) {
+                    if (row.baseCurrency && row.basePrice !== undefined) {
+                        row.price = Accounting.convert(row.basePrice, row.baseCurrency, newCurr, rate);
+                    } else {
+                        row.price = Accounting.convert(row.price, oldCurr, newCurr, rate);
+                    }
+                    row.discount = Accounting.convert(row.discount || 0, oldCurr, newCurr, rate);
+                }
+                if (this.draft.discountType === 'amount') {
+                    this.draft.discountValue = Accounting.convert(this.draft.discountValue, oldCurr, newCurr, rate);
+                }
+                if (this.draft.taxType === 'amount') {
+                    this.draft.taxValue = Accounting.convert(this.draft.taxValue, oldCurr, newCurr, rate);
+                }
+                if (this.draft.paymentMethod === 'partial') {
+                    this.draft.paidAmount = Accounting.convert(this.draft.paidAmount, oldCurr, newCurr, rate);
+                }
+
+                this.markModified();
+                this.recalculate();
+                this.paintForm(document.getElementById('mainContent'));
+                UI.toast(`تم تحويل عملة الفاتورة إلى ${newCurr} وإعادة احتساب أسعار الأصناف وفق الصرف ${rate}`, 'info');
+            },
+
+            updateExchangeRate(newRateVal, forceRepaint = false) {
+                const oldRate = Number(this.draft.exchangeRate) || State.settings.exchangeRate || 15000;
+                const newRate = Number(newRateVal);
+                if (!newRate || newRate <= 0) return;
+
+                this.draft.exchangeRate = newRate;
+
+                this.draft.rows.forEach((row, idx) => {
+                    const item = State.items.find(i => i.id === row.itemId);
+                    const baseCurr = row.baseCurrency || (item ? item.currency : this.draft.currency);
+
+                    let basePrice = row.basePrice;
+                    if (basePrice === undefined && item) {
+                        const unitObj = item.units.find(u => u.name === row.unitName) || item.units[0];
+                        const isPurchase = (this.draft.type === 'purchase' || this.draft.type === 'purchase_return');
+                        basePrice = isPurchase ? Number(unitObj?.costPrice || 0) : Number(unitObj?.salePrice || 0);
+                        row.baseCurrency = baseCurr;
+                        row.basePrice = basePrice;
+                    }
+
+                    if (baseCurr && baseCurr !== this.draft.currency && basePrice !== undefined) {
+                        row.price = Accounting.convert(basePrice, baseCurr, this.draft.currency, newRate);
+                    } else if (oldRate !== newRate && baseCurr !== this.draft.currency) {
+                        if (this.draft.currency === 'SYP') {
+                            row.price = Accounting.round((Number(row.price) / oldRate) * newRate, 'SYP');
+                        } else {
+                            row.price = Accounting.round((Number(row.price) * oldRate) / newRate, 'USD');
+                        }
+                    }
+
+                    const priceInput = document.getElementById(`rowPrice_${idx}`);
+                    if (priceInput) priceInput.value = Accounting.formatEditableItemPrice(row.price);
+                });
+
+                this.markModified();
+                this.recalculate();
+
+                if (forceRepaint) {
+                    this.paintForm(document.getElementById('mainContent'));
+                } else {
+                    this.draft.rows.forEach((r, idx) => {
+                        const rowTotalEl = document.getElementById(`rowTotal_${idx}`);
+                        if (rowTotalEl) rowTotalEl.textContent = Accounting.formatNumberOnly(r.total, this.draft.currency);
+                    });
+                    this.updateTotalsDOM();
+                }
+            },
+
+            recalculateAllPricesByRate() {
+                const rate = Number(this.draft.exchangeRate) || State.settings.exchangeRate || 15000;
+                for (const row of this.draft.rows) {
+                    const item = State.items.find(i => i.id === row.itemId);
+                    if (!item) continue;
+                    const unitObj = item.units.find(u => u.name === row.unitName) || item.units[0];
+                    const isPurchase = (this.draft.type === 'purchase' || this.draft.type === 'purchase_return');
+                    const rawPrice = isPurchase ? Number(unitObj?.costPrice || 0) : Number(unitObj?.salePrice || 0);
+                    row.baseCurrency = item.currency;
+                    row.basePrice = rawPrice;
+                    row.price = Accounting.convert(rawPrice, item.currency, this.draft.currency, rate);
+                }
+                this.markModified();
+                this.recalculate();
+                this.paintForm(document.getElementById('mainContent'));
+                UI.toast(`تم تحديث أسعار جميع المواد في الفاتورة حسب سعر الصرف (${rate})`, 'success');
+            },
+
+            changePaymentMethod(method) {
+                this.draft.paymentMethod = method;
+                if (method === 'cash') {
+                    this.draft.paidAmount = this.draft.netTotal;
+                } else if (method === 'credit') {
+                    this.draft.paidAmount = 0;
+                }
+                this.markModified();
+                this.recalculate();
+                this.paintForm(document.getElementById('mainContent'));
+            },
+
+            addItemToInvoice(itemId, repaint = true) {
+                const item = State.items.find(i => i.id === itemId);
+                if (!item) return;
+
+                const unit0 = item.units[0] || { name: 'قطعة', factor: 1, salePrice: 0, costPrice: 0 };
+                const isPurchase = (this.draft.type === 'purchase' || this.draft.type === 'purchase_return');
+                const rawPrice = isPurchase ? Number(unit0.costPrice) : Number(unit0.salePrice);
+                const convertedPrice = Accounting.convert(rawPrice, item.currency, this.draft.currency, this.draft.exchangeRate);
+
+                const existingRow = this.draft.rows.find(r => r.itemId === item.id && r.unitName === unit0.name);
+                if (existingRow) {
+                    existingRow.qty = Number(existingRow.qty) + 1;
+                } else {
+                    this.draft.rows.push({
+                        rowId: 'r_' + Date.now() + '_' + Math.random().toString(36).substring(2, 5),
+                        itemId: item.id,
+                        itemName: item.name,
+                        baseCurrency: item.currency,
+                        basePrice: rawPrice,
+                        unitName: unit0.name,
+                        unitFactor: Number(unit0.factor) || 1,
+                        qty: 1,
+                        price: convertedPrice,
+                        discount: 0,
+                        total: convertedPrice
+                    });
+                }
+
+                if (repaint) {
+                    this.markModified();
+                    this.recalculate();
+                    this.paintForm(document.getElementById('mainContent'));
+                }
+            },
+
+            changeRowUnit(rowIdx, newUnitName) {
+                const row = this.draft.rows[rowIdx];
+                if (!row) return;
+                const item = State.items.find(i => i.id === row.itemId);
+                if (!item) return;
+
+                const unitObj = item.units.find(u => u.name === newUnitName);
+                if (!unitObj) return;
+
+                row.unitName = unitObj.name;
+                row.unitFactor = Number(unitObj.factor) || 1;
+                const isPurchase = (this.draft.type === 'purchase' || this.draft.type === 'purchase_return');
+                const rawUnitPrice = isPurchase ? Number(unitObj.costPrice) : Number(unitObj.salePrice);
+                row.baseCurrency = item.currency;
+                row.basePrice = rawUnitPrice;
+                row.price = Accounting.convert(rawUnitPrice, item.currency, this.draft.currency, this.draft.exchangeRate);
+
+                this.markModified();
+                this.recalculate();
+                this.paintForm(document.getElementById('mainContent'));
+            },
+
+            updateRowField(rowIdx, field, val) {
+                const row = this.draft.rows[rowIdx];
+                if (!row) return;
+                row[field] = Accounting.parseNum(val);
+                if (field === 'price') {
+                    const baseCurr = row.baseCurrency || this.draft.currency;
+                    row.basePrice = Accounting.convert(row.price, this.draft.currency, baseCurr, this.draft.exchangeRate);
+                }
+                this.markModified();
+                this.recalculate();
+                this.updateTotalsDOM();
+                const rowTotalEl = document.getElementById(`rowTotal_${rowIdx}`);
+                if (rowTotalEl) rowTotalEl.textContent = Accounting.formatNumberOnly(row.total, this.draft.currency);
+            },
+
+            removeRow(rowIdx) {
+                this.draft.rows.splice(rowIdx, 1);
+                this.markModified();
+                this.recalculate();
+                this.paintForm(document.getElementById('mainContent'));
+            },
+
+            recalculate() {
+                const cur = this.draft.currency;
+                let sub = 0;
+                for (const r of this.draft.rows) {
+                    const gross = (Number(r.qty) || 0) * (Number(r.price) || 0);
+                    r.total = Accounting.round(Math.max(0, gross - (Number(r.discount) || 0)), cur);
+                    sub += r.total;
+                }
+                this.draft.subTotal = Accounting.round(sub, cur);
+
+                if (this.draft.discountType === 'percent') {
+                    this.draft.discountAmount = Accounting.round(this.draft.subTotal * ((Number(this.draft.discountValue) || 0) / 100), cur);
+                } else {
+                    this.draft.discountAmount = Accounting.round(Number(this.draft.discountValue) || 0, cur);
+                }
+
+                const afterDisc = Math.max(0, this.draft.subTotal - this.draft.discountAmount);
+
+                if (this.draft.taxType === 'percent') {
+                    this.draft.taxAmount = Accounting.round(afterDisc * ((Number(this.draft.taxValue) || 0) / 100), cur);
+                } else {
+                    this.draft.taxAmount = Accounting.round(Number(this.draft.taxValue) || 0, cur);
+                }
+
+                this.draft.netTotal = Accounting.round(afterDisc + this.draft.taxAmount, cur);
+
+                if (this.draft.paymentMethod === 'cash') {
+                    this.draft.paidAmount = this.draft.netTotal;
+                } else if (this.draft.paymentMethod === 'credit') {
+                    this.draft.paidAmount = 0;
+                } else {
+                    this.draft.paidAmount = Accounting.round(Number(this.draft.paidAmount) || 0, cur);
+                }
+
+                this.draft.remainingAmount = Accounting.round(this.draft.netTotal - this.draft.paidAmount, cur);
+            },
+
+            updateTotalsDOM() {
+                const cur = this.draft.currency;
+                const setTxt = (id, val) => {
+                    const el = document.getElementById(id);
+                    if (el) el.textContent = val;
+                };
+                setTxt('invSubTotalTxt', Accounting.format(this.draft.subTotal, cur));
+                setTxt('invNetTotalTxt', Accounting.format(this.draft.netTotal, cur));
+                setTxt('invRemainingTxt', Accounting.format(this.draft.remainingAmount, cur));
+                const paidInput = document.getElementById('invPaidInput');
+                if (paidInput && this.draft.paymentMethod !== 'partial') {
+                    paidInput.value = this.draft.paidAmount;
+                }
+            },
+
+            paintForm(main) {
+                this.recalculate();
+                const d = this.draft;
+                const cur = d.currency;
+                const isPurchase = (d.type === 'purchase' || d.type === 'purchase_return');
+                const targetAccountType = isPurchase ? 'supplier' : 'customer';
+                const partyLabelAr = isPurchase ? 'المورد' : 'العميل';
+
+                main.innerHTML = `
+                    <div class="bg-white rounded-2xl border border-slate-200 p-2 mb-3 shadow-xs space-y-1.5">
+                        <div class="flex flex-wrap items-center justify-between gap-1.5 border-b border-slate-100 pb-1.5">
+                            <div class="flex items-center gap-1">
+                                <span class="bg-slate-900 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-md">#${d.number}</span>
+                                <i class="fas fa-file-invoice text-emerald-600 text-[10px]" title="نوع الفاتورة"></i>
+                                <select onchange="InvoiceController.changeInvoiceType(this.value)" class="bg-slate-100 border border-slate-200 rounded-lg px-2 py-1 text-[10px] font-bold">
+                                    <option value="sale" ${d.type === 'sale' ? 'selected' : ''}>فاتورة مبيعات</option>
+                                    <option value="purchase" ${d.type === 'purchase' ? 'selected' : ''}>فاتورة مشتريات</option>
+                                    <option value="sale_return" ${d.type === 'sale_return' ? 'selected' : ''}>مردود مبيعات</option>
+                                    <option value="purchase_return" ${d.type === 'purchase_return' ? 'selected' : ''}>مردود مشتريات</option>
+                                </select>
+                            </div>
+
+                            <button type="button" ${State.settings.primaryOnlyMode ? 'disabled' : ''} onclick="InvoiceController.toggleInvoiceCurrency()" class="bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 px-2 py-1 rounded-lg text-[10px] font-extrabold flex items-center gap-1 transition active:scale-95">
+                                <i class="fas fa-coins text-amber-600 text-[10px]"></i>
+                                <span>${cur === 'SYP' ? 'ليرة سورية' : 'دولار'}</span>
+                                ${State.settings.primaryOnlyMode ? '' : '<span class="text-[9px] bg-white px-1 py-0.5 rounded border">تبديل</span>'}
+                            </button>
+                        </div>
+
+                        <div class="mb-1.5 rounded-lg bg-sky-50 border border-sky-200 px-2 py-1.5">
+                            <label class="block text-[10px] font-extrabold text-sky-900 mb-1">المستودع الذي تتأثر به هذه الفاتورة</label>
+                            <select onchange="InvoiceController.changeWarehouse(this.value)" class="w-full bg-white rounded-lg p-2 border border-sky-300 text-xs">
+                                ${WarehouseController.options(d.warehouseId || 'wh_main')}
+                            </select>
+                        </div>
+                        <div class="grid grid-cols-2 gap-1.5 text-[10px]">
+                            <div class="min-w-0">
+                                <div class="flex items-center justify-between mb-0.5 gap-1">
+                                    <label class="font-bold text-slate-700 flex items-center gap-1"><i class="fas fa-user text-emerald-600 text-[9px]"></i>${partyLabelAr}</label>
+                                    <button type="button" onclick="AccountController.openAccountModal(null, true, '${targetAccountType}')" class="text-[9px] text-emerald-600 font-bold whitespace-nowrap">+ جديد</button>
+                                </div>
+                                <select onchange="InvoiceController.draft.accountId = this.value; InvoiceController.markModified()" class="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-[11px] font-bold bg-slate-50">
+                                    <option value="">-- ${isPurchase ? 'مورد نقدي مباشر' : 'عميل نقدي مباشر'} --</option>
+                                    ${State.accounts.filter(a => a.type === targetAccountType).map(a => `<option value="${a.id}" ${d.accountId === a.id ? 'selected' : ''}>${a.name}</option>`).join('')}
+                                </select>
+                            </div>
+
+                            <div>
+                                <label class="flex items-center gap-1 font-bold text-slate-700 mb-0.5"><i class="fas fa-calendar-days text-blue-600 text-[9px]"></i>التاريخ</label>
+                                <input type="datetime-local" value="${d.date}" onchange="InvoiceController.draft.date = this.value; InvoiceController.markModified()" class="w-full min-w-0 border border-slate-300 rounded-lg px-1.5 py-1.5 text-[10px]">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-3 gap-1.5 bg-slate-100 p-1 rounded-xl text-xs font-bold">
+                            <button type="button" onclick="InvoiceController.changePaymentMethod('cash')" class="py-2 rounded-lg transition ${d.paymentMethod === 'cash' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600'}">
+                                <i class="fas fa-money-bill-wave ml-1"></i> نقدي
+                            </button>
+                            <button type="button" onclick="InvoiceController.changePaymentMethod('credit')" class="py-2 rounded-lg transition ${d.paymentMethod === 'credit' ? 'bg-rose-600 text-white shadow-xs' : 'text-slate-600'}">
+                                <i class="fas fa-clock ml-1"></i> آجل (ذمم)
+                            </button>
+                            <button type="button" onclick="InvoiceController.changePaymentMethod('partial')" class="py-2 rounded-lg transition ${d.paymentMethod === 'partial' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600'}">
+                                <i class="fas fa-sliders ml-1"></i> دفع جزئي
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-2xl border border-slate-200 p-3 mb-3 shadow-xs space-y-2">
+                        <div class="flex items-center justify-between">
+                            <span class="font-bold text-xs text-slate-700"><i class="fas fa-grip text-emerald-600 ml-1"></i> إضافة أصناف إلى الفاتورة:</span>
+                            <button type="button" onclick="ItemController.openItemModal()" class="text-[11px] text-emerald-600 font-bold">+ تعريف صنف جديد</button>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button type="button" onclick="InvoiceController.openItemGridModal()" class="flex-1 min-w-0 bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white font-extrabold py-2.5 px-2 rounded-xl text-xs flex items-center justify-center gap-1.5 shadow-xs transition">
+                                <i class="fas fa-table-cells-large"></i>
+                                <span>إضافة مواد</span>
+                            </button>
+                            <button type="button" onclick="InvoiceController.openBarcodeScanner()" aria-label="فتح كاميرا ماسح الباركود" title="فتح كاميرا ماسح الباركود" class="w-9 h-9 shrink-0 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-sm flex items-center justify-center">
+                                <i class="fas fa-camera"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="invoice-added-items rounded-2xl overflow-hidden mb-3 shadow-xs">
+                        <div class="invoice-added-title px-3 py-2 text-xs font-extrabold flex items-center justify-between">
+                            <span><i class="fas fa-boxes-stacked ml-1"></i>الأصناف المضافة إلى الفاتورة</span>
+                            <span>${d.rows.length} صنف</span>
+                        </div>
+                        ${d.rows.length === 0 ? `
+                            <div onclick="InvoiceController.openItemGridModal()" class="p-6 text-center text-slate-400 text-xs cursor-pointer hover:bg-slate-50 transition">
+                                <i class="fas fa-table-cells-large text-2xl mb-1 text-emerald-500 opacity-80"></i>
+                                <p class="font-bold text-slate-600">الفاتورة فارغة حالياً - اضغط هنا لفتح شبكة المواد وإضافتها</p>
+                            </div>
+                        ` : `
+                            <div class="divide-y divide-slate-100">
+                                ${d.rows.map((r, idx) => {
+                                    const itemObj = State.items.find(i => i.id === r.itemId);
+                                    const availBase = itemObj ? Accounting.getItemBaseStock(itemObj.id, d.isEditing ? d.id : null, d.warehouseId || 'wh_main') : 0;
+                                    const availInSelectedUnit = Math.round(((availBase * (Number(r.unitFactor) || 1)) + Number.EPSILON) * 100) / 100;
+                                    const baseCurr = r.baseCurrency || (itemObj ? itemObj.currency : cur);
+
+                                    return `
+                                        <div class="invoice-added-row p-3">
+                                            <div class="flex items-center justify-between mb-2">
+                                                <div class="flex items-center gap-1.5 flex-wrap">
+                                                    <span class="font-extrabold text-xs sm:text-sm text-slate-900">${idx + 1}. ${r.itemName}</span>
+                                                    <span class="text-[10px] bg-slate-100 text-slate-600 font-bold px-1.5 py-0.5 rounded">عملة الأصل: ${baseCurr}</span>
+                                                    <span class="text-[10px] bg-emerald-50 text-emerald-700 font-bold px-2 py-0.5 rounded">
+                                                        متاح: ${availInSelectedUnit} ${r.unitName}
+                                                    </span>
+                                                </div>
+                                                <button type="button" onclick="InvoiceController.removeRow(${idx})" class="text-rose-500 hover:bg-rose-50 p-1 rounded-lg text-xs">
+                                                    <i class="fas fa-trash-can"></i>
+                                                </button>
+                                            </div>
+                                            <div class="grid grid-cols-4 gap-1.5 items-end text-xs">
+                                                <div>
+                                                    <label class="text-[10px] text-slate-500 block">الوحدة</label>
+                                                    <select onchange="InvoiceController.changeRowUnit(${idx}, this.value)" class="w-full border border-slate-300 rounded-lg px-1.5 py-1.5 font-bold bg-white text-xs">
+                                                        ${(itemObj?.units || [{ name: r.unitName }]).map(u => `<option value="${u.name}" ${u.name === r.unitName ? 'selected' : ''}>${u.name}</option>`).join('')}
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label class="text-[10px] text-slate-500 block">الكمية</label>
+                                                    <input type="text" inputmode="decimal" dir="ltr" value="${r.qty}" onfocus="this.select()" oninput="InvoiceController.updateRowField(${idx}, 'qty', this.value)" class="w-full border border-slate-300 rounded-lg px-2 py-1.5 font-bold text-center">
+                                                </div>
+                                                <div>
+                                                    <label class="text-[10px] text-slate-500 block">السعر (${cur})</label>
+                                                    <input type="text" inputmode="decimal" dir="ltr" id="rowPrice_${idx}" value="${Accounting.formatEditableItemPrice(r.price)}" onfocus="this.value=InvoiceController.draft.rows[${idx}].price;this.select()" onblur="this.value=Accounting.formatEditableItemPrice(InvoiceController.draft.rows[${idx}].price)" oninput="InvoiceController.updateRowField(${idx}, 'price', this.value)" class="w-full border border-slate-300 rounded-lg px-2 py-1.5 font-bold text-center">
+                                                </div>
+                                                <div class="text-left">
+                                                    <label class="text-[10px] text-slate-500 block">الإجمالي</label>
+                                                    <div id="rowTotal_${idx}" class="font-extrabold text-slate-900 py-1.5 px-1 bg-slate-100 rounded-lg text-center truncate">
+                                                        ${Accounting.formatNumberOnly(r.total, cur)}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                        `}
+                    </div>
+
+                    <div class="bg-white rounded-2xl border border-slate-200 p-3.5 mb-4 shadow-xs space-y-2.5 text-xs">
+                        <div class="flex items-center justify-between font-bold text-slate-700">
+                            <span>إجمالي الأصناف:</span>
+                            <span id="invSubTotalTxt" class="text-sm">${Accounting.format(d.subTotal, cur)}</span>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2 pt-1 border-t border-slate-100">
+                            <div>
+                                <label class="block text-[11px] font-bold text-slate-600 mb-1">الحسم العام على الفاتورة</label>
+                                <div class="flex">
+                                    <input type="number" step="any" value="${d.discountValue}" oninput="InvoiceController.draft.discountValue = this.value; InvoiceController.markModified(); InvoiceController.recalculate(); InvoiceController.updateTotalsDOM()" class="w-full border border-slate-300 rounded-r-xl px-2.5 py-1.5 font-bold text-center">
+                                    <select onchange="InvoiceController.draft.discountType = this.value; InvoiceController.markModified(); InvoiceController.recalculate(); InvoiceController.updateTotalsDOM()" class="bg-slate-100 border border-r-0 border-slate-300 rounded-l-xl px-2 font-bold">
+                                        <option value="amount" ${d.discountType === 'amount' ? 'selected' : ''}>${cur}</option>
+                                        <option value="percent" ${d.discountType === 'percent' ? 'selected' : ''}>%</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-[11px] font-bold text-slate-600 mb-1">الضريبة / الإضافات</label>
+                                <div class="flex">
+                                    <input type="number" step="any" value="${d.taxValue}" oninput="InvoiceController.draft.taxValue = this.value; InvoiceController.markModified(); InvoiceController.recalculate(); InvoiceController.updateTotalsDOM()" class="w-full border border-slate-300 rounded-r-xl px-2.5 py-1.5 font-bold text-center">
+                                    <select onchange="InvoiceController.draft.taxType = this.value; InvoiceController.markModified(); InvoiceController.recalculate(); InvoiceController.updateTotalsDOM()" class="bg-slate-100 border border-r-0 border-slate-300 rounded-l-xl px-2 font-bold">
+                                        <option value="percent" ${d.taxType === 'percent' ? 'selected' : ''}>%</option>
+                                        <option value="amount" ${d.taxType === 'amount' ? 'selected' : ''}>${cur}</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="bg-slate-900 text-white p-3 rounded-xl flex items-center justify-between">
+                            <span class="font-bold text-xs">الصافي النهائي المطلوب:</span>
+                            <span id="invNetTotalTxt" class="font-extrabold text-base text-emerald-400">${Accounting.format(d.netTotal, cur)}</span>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2 pt-1">
+                            <div>
+                                <label class="block text-[11px] font-bold text-emerald-700 mb-1">المبلغ المدفوع (دفعة الفاتورة)</label>
+                                <input type="number" step="any" id="invPaidInput" value="${d.paidAmount}" ${d.paymentMethod !== 'partial' ? 'readonly' : ''} oninput="InvoiceController.draft.paidAmount = this.value; InvoiceController.markModified(); InvoiceController.recalculate(); InvoiceController.updateTotalsDOM()" class="w-full border ${d.paymentMethod === 'partial' ? 'border-emerald-500 bg-white' : 'border-slate-200 bg-slate-100'} rounded-xl px-3 py-2 font-extrabold text-center text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] font-bold text-rose-700 mb-1">المبلغ المتبقي (ذمم على الحساب)</label>
+                                <div id="invRemainingTxt" class="w-full border border-slate-200 bg-rose-50 text-rose-700 rounded-xl px-3 py-2 font-extrabold text-center text-sm">
+                                    ${Accounting.format(d.remainingAmount, cur)}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2">
+                        <!-- DEFAULT ACTION: Save & Print via Bluetooth Thermal Printer -->
+                        <button type="button" onclick="InvoiceController.saveInvoice(true)" class="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-3 px-2 rounded-2xl text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-sm">
+                            <i class="fab fa-bluetooth-b text-base"></i>
+                            <span>حفظ وطباعة بلوتوث</span>
+                        </button>
+                        <button type="button" onclick="InvoiceController.saveInvoice(false)" class="bg-slate-900 hover:bg-slate-800 text-white font-extrabold py-3 px-2 rounded-2xl text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-sm">
+                            <i class="fas fa-floppy-disk text-emerald-400"></i>
+                            <span>${d.isEditing ? 'حفظ التعديلات' : 'حفظ الفاتورة'}</span>
+                        </button>
+                    </div>
+
+                    ${d.isEditing ? `
+                        <button type="button" onclick="InvoiceController.deleteInvoice('${d.id}')" class="w-full mt-2.5 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold rounded-xl text-xs">
+                            <i class="fas fa-trash-can ml-1"></i> حذف الفاتورة نهائياً وإلغاء أثرها المالي والمخزني
+                        </button>
+                    ` : ''}
+                `;
+            },
+
+            async saveInvoice(andBluetoothPrint = false) {
+                this.recalculate();
+                const d = this.draft;
+                const isNewInvoice = !State.invoices.some(i => i.id === d.id);
+                if (isNewInvoice && !LicenseManager.canPerformOperation()) {
+                    return false;
+                }
+                const isPurchase = (d.type === 'purchase' || d.type === 'purchase_return');
+                const requiredAccType = isPurchase ? 'supplier' : 'customer';
+
+                if (d.rows.length === 0) {
+                    UI.toast('لا يمكن حفظ فاتورة فارغة بدون أصناف', 'error');
+                    return false;
+                }
+                if (d.accountId) {
+                    const selectedAcc = State.accounts.find(a => a.id === d.accountId);
+                    if (!selectedAcc || selectedAcc.type !== requiredAccType) {
+                        UI.toast(isPurchase ? 'يجب اختيار حساب مورد حصراً في فواتير الشراء' : 'يجب اختيار حساب عميل حصراً في فواتير المبيعات', 'error');
+                        return false;
+                    }
+                }
+                if (d.remainingAmount !== 0 && !d.accountId) {
+                    UI.toast(isPurchase ? 'يرجى اختيار حساب المورد لأن الفاتورة آجلة أو تحتوي على مبلغ متبقٍ بالذمة' : 'يرجى اختيار حساب العميل لأن الفاتورة آجلة أو تحتوي على مبلغ متبقٍ بالذمة', 'error');
+                    return false;
+                }
+                if (!(State.warehouses||[]).some(w => w.id === (d.warehouseId||'wh_main'))) {
+                    UI.toast('المستودع المحدد غير موجود', 'error');
+                    return false;
+                }
+                const isOutbound = d.type === 'sale' || d.type === 'purchase_return';
+                if (isOutbound) {
+                    const requested = new Map();
+                    for (const row of d.rows) {
+                        const factor = Number(row.unitFactor) > 0 ? Number(row.unitFactor) : 1;
+                        const qty = Number(row.qty) || 0;
+                        if (!(qty > 0)) {
+                            UI.toast('كمية المادة يجب أن تكون أكبر من صفر', 'error');
+                            return false;
+                        }
+                        requested.set(row.itemId, (requested.get(row.itemId)||0) + qty / factor);
+                    }
+                    for (const [itemId, needed] of requested) {
+                        const available = Accounting.getItemBaseStock(itemId, d.isEditing ? d.id : null, d.warehouseId||'wh_main');
+                        // Only regular sales may deliberately create negative stock; purchase returns remain protected.
+                        if (needed > available + 0.00001 && !(d.type === 'sale' && State.settings.allowNegativeStockSales === true)) {
+                            const name = State.items.find(i=>i.id===itemId)?.name || 'المادة';
+                            UI.toast(`الكمية المطلوبة للصنف "${AppEscape.text(name)}" تتجاوز رصيد المستودع (${available})`, 'error');
+                            return false;
+                        }
+                    }
+                }
+
+                const cleanDoc = { ...d };
+                delete cleanDoc.isEditing;
+
+                const idx = State.invoices.findIndex(i => i.id === cleanDoc.id);
+                if (idx > -1) {
+                    State.invoices[idx] = cleanDoc;
+                } else {
+                    State.invoices.push(cleanDoc);
+                    await LicenseManager.recordNewOperation();
+                }
+
+                await StorageEngine.saveState();
+                AppNav.clearDirty();
+                UI.toast('تم حفظ الفاتورة وتحديث أرصدة الحسابات والصندوق والمستودع فوراً', 'success');
+
+                if (andBluetoothPrint) {
+                    // Save is complete; render and send directly, without ever opening invoice_print.
+                    // Native Bluetooth transmission is asynchronous: this waits for preparation/
+                    // dispatch, not for the printer to physically finish printing.
+                    try {
+                        await ThermalPrinter.printInvoiceDirect(cleanDoc);
+                    } finally {
+                        AppNav.navigate('dashboard');
+                    }
+                } else {
+                    // Preserve the current preview behavior for the Save-only button.
+                    AppNav.navigate('invoice_print', { id: cleanDoc.id }, true);
+                }
+                return true;
+            },
+
+            openInvoiceActions(invId) {
+                const inv = State.invoices.find(i => i.id === invId);
+                if (!inv) return UI.toast('تعذر العثور على الفاتورة', 'error');
+                const remaining = Math.max(0, Number(inv.remainingAmount) || 0);
+                UI.openModal(`
+                    <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-3">
+                        <div><h3 class="font-extrabold text-base text-slate-900">الفاتورة #${inv.number}</h3><p class="text-xs text-slate-500 mt-1">${Accounting.getInvoiceTypeAr(inv.type)} · ${Accounting.format(inv.netTotal, inv.currency)}</p></div>
+                        <button onclick="UI.requestCloseModal()" class="w-8 h-8 rounded-lg bg-slate-100 text-slate-500"><i class="fas fa-times"></i></button>
+                    </div>
+                    <div class="grid grid-cols-3 gap-2">
+                        <button onclick="UI.forceCloseModal(); AppNav.navigate('invoice_form',{id:'${inv.id}'})" class="rounded-xl bg-blue-50 text-blue-700 py-4 font-extrabold text-sm flex flex-col items-center gap-2"><i class="fas fa-pen-to-square text-xl"></i>تعديل</button>
+                        <button onclick="InvoiceController.openInvoicePayment('${inv.id}')" class="rounded-xl bg-emerald-50 text-emerald-700 py-4 font-extrabold text-sm flex flex-col items-center gap-2"><i class="fas fa-money-bill-transfer text-xl"></i>إضافة دفعة</button>
+                        <button onclick="UI.forceCloseModal(); ThermalPrinter.printInvoiceDirect(State.invoices.find(i=>i.id==='${inv.id}'))" class="rounded-xl bg-amber-50 text-amber-700 py-4 font-extrabold text-sm flex flex-col items-center gap-2"><i class="fas fa-print text-xl"></i>طباعة</button>
+                    </div>
+                    <div class="mt-3 rounded-xl bg-slate-50 p-3 text-xs flex justify-between"><span>المدفوع: ${Accounting.format(inv.paidAmount, inv.currency)}</span><strong class="${remaining > 0 ? 'text-rose-600' : 'text-emerald-600'}">المتبقي: ${Accounting.format(remaining, inv.currency)}</strong></div>
+                `);
+            },
+
+            openInvoicePayment(invId) {
+                const inv = State.invoices.find(i => i.id === invId);
+                if (!inv) return UI.toast('تعذر العثور على الفاتورة', 'error');
+                const remaining = Math.max(0, Number(inv.remainingAmount) || 0);
+                if (remaining <= 0) return UI.toast('هذه الفاتورة مسددة بالكامل', 'info');
+                UI.openModal(`
+                    <div class="flex items-center justify-between border-b border-slate-100 pb-2 mb-3"><h3 class="font-extrabold text-base">إضافة دفعة للفاتورة #${inv.number}</h3><button onclick="UI.requestCloseModal()"><i class="fas fa-times text-slate-400"></i></button></div>
+                    <div class="rounded-xl bg-slate-50 p-3 mb-3 text-xs space-y-1"><div class="flex justify-between"><span>إجمالي الفاتورة</span><b>${Accounting.format(inv.netTotal, inv.currency)}</b></div><div class="flex justify-between"><span>المدفوع سابقاً</span><b>${Accounting.format(inv.paidAmount, inv.currency)}</b></div><div class="flex justify-between text-rose-600"><span>المبلغ المتبقي</span><b>${Accounting.format(remaining, inv.currency)}</b></div></div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">مبلغ الدفعة (${inv.currency})</label>
+                    <input id="invoicePaymentAmount" type="number" min="0.01" max="${remaining}" step="any" value="${remaining}" class="w-full border border-slate-300 rounded-xl px-3 py-3 text-center text-lg font-extrabold mb-3" />
+                    <div class="flex gap-2"><button onclick="InvoiceController.saveInvoicePayment('${inv.id}')" class="flex-1 bg-emerald-600 text-white font-extrabold py-3 rounded-xl">حفظ الدفعة</button><button onclick="UI.forceCloseModal()" class="px-4 bg-slate-100 text-slate-700 font-bold rounded-xl">إلغاء</button></div>
+                `);
+                setTimeout(() => { const el = document.getElementById('invoicePaymentAmount'); if (el) { el.focus(); el.select(); } }, 50);
+            },
+
+            async saveInvoicePayment(invId) {
+                const inv = State.invoices.find(i => i.id === invId);
+                const input = document.getElementById('invoicePaymentAmount');
+                if (!inv || !input) return;
+                const amount = Accounting.parseNum(input.value);
+                const remaining = Math.max(0, Number(inv.remainingAmount) || 0);
+                if (!(amount > 0)) return UI.toast('يرجى إدخال مبلغ دفعة صحيح', 'error');
+                if (amount - remaining > 0.000001) return UI.toast('مبلغ الدفعة أكبر من المبلغ المتبقي', 'error');
+                inv.paidAmount = Accounting.round((Number(inv.paidAmount) || 0) + amount, inv.currency);
+                inv.remainingAmount = Accounting.round(Math.max(0, Number(inv.netTotal) - inv.paidAmount), inv.currency);
+                // تحويل الفاتورة الآجلة تلقائياً إلى دفع جزئي، أو نقدي عند السداد الكامل.
+                inv.paymentMethod = inv.remainingAmount > 0 ? 'partial' : 'cash';
+                inv.paymentHistory = Array.isArray(inv.paymentHistory) ? inv.paymentHistory : [];
+                inv.paymentHistory.push({ amount, date: new Date().toISOString(), currency: inv.currency });
+                await StorageEngine.saveState();
+                UI.forceCloseModal();
+                UI.toast(inv.remainingAmount > 0 ? 'تم تسجيل الدفعة وتحويل الفاتورة إلى دفع جزئي' : 'تم سداد الفاتورة بالكامل', 'success');
+                AppNav.renderCurrent();
+            },
+
+            deleteInvoice(invId) {
+                UI.showDeleteConfirm(
+                    'حذف الفاتورة وعكس أثرها',
+                    'عند حذف هذه الفاتورة سيقوم النظام تلقائياً بإعادة الكميات للمستودع وتصحيح رصيد العميل/المورد والصندوق كأن الفاتورة لم تكن. هل تريد المتابعة؟',
+                    async () => {
+                        State.invoices = State.invoices.filter(i => i.id !== invId);
+                        await StorageEngine.saveState();
+                        AppNav.clearDirty();
+                        UI.toast('تم حذف الفاتورة وعكس أثرها المالي والمخزني بالكامل', 'success');
+                        AppNav.navigate('invoices_list', {}, true);
+                    }
+                );
+            }
+        };
+
+        /********************************************************************
+         * 9. ACCOUNT & VOUCHER CONTROLLERS
+         ********************************************************************/
+        const AccountController = {
+            activeAccId: '',
+            fromInvFlag: false,
+
+            markAccDirty() {
+                AppNav.markModalDirty(async () => {
+                    return await this.saveAccount(this.activeAccId, this.fromInvFlag);
+                });
+            },
+
+            openAccountModal(accId = null, fromInvoice = false, forcedType = null) {
+                const ex = accId ? State.accounts.find(a => a.id === accId) : null;
+                this.activeAccId = ex ? ex.id : '';
+                this.fromInvFlag = fromInvoice;
+                const defaultType = forcedType || (ex ? ex.type : 'customer');
+                const typeLabelAr = defaultType === 'supplier' ? 'مورد' : 'عميل';
+
+                UI.openModal(`
+                    <div class="flex items-center justify-between border-b pb-2.5 mb-3">
+                        <h3 class="font-bold text-sm">${ex ? 'تعديل حساب: ' + ex.name : (fromInvoice ? `إضافة بطاقة ${typeLabelAr} جديد` : 'إضافة بطاقة عميل / مورد جديد')}</h3>
+                        <button onclick="UI.requestCloseModal()"><i class="fas fa-times text-slate-400"></i></button>
+                    </div>
+                    <div class="space-y-3 text-xs">
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block font-bold text-slate-700 mb-1">اسم ${fromInvoice ? 'ال' + typeLabelAr : 'العميل / المورد'} *</label>
+                                <input type="text" id="accName" oninput="AccountController.markAccDirty()" value="${ex ? ex.name : ''}" placeholder="الاسم التجاري الكامل" class="w-full border border-slate-300 rounded-xl px-3 py-2 font-bold">
+                            </div>
+                            <div>
+                                <label class="block font-bold text-slate-700 mb-1">نوع الحساب</label>
+                                <select id="accType" ${fromInvoice ? 'disabled' : ''} onchange="AccountController.markAccDirty()" class="w-full border border-slate-300 rounded-xl px-2.5 py-2 font-bold ${fromInvoice ? 'bg-slate-200' : 'bg-slate-50'}">
+                                    <option value="customer" ${defaultType === 'customer' ? 'selected' : ''}>عميل (زبون)</option>
+                                    <option value="supplier" ${defaultType === 'supplier' ? 'selected' : ''}>مورد</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2">
+                            <div>
+                                <label class="block font-bold text-slate-700 mb-1">رقم الهاتف</label>
+                                <input type="text" id="accPhone" oninput="AccountController.markAccDirty()" value="${ex ? (ex.phone || '') : ''}" placeholder="09xxxxxxxx" class="w-full border border-slate-300 rounded-xl px-3 py-2">
+                            </div>
+                            <div>
+                                <label class="block font-bold text-slate-700 mb-1">سقف الائتمان الأقصى ($)</label>
+                                <input type="text" inputmode="decimal" dir="ltr" id="accLimit" onfocus="this.select()" oninput="AccountController.markAccDirty()" value="${ex ? (ex.creditLimitUsd || 0) : 0}" placeholder="0 = مفتوح" class="w-full border border-slate-300 rounded-xl px-3 py-2 font-bold text-center">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                            <div>
+                                <label class="block font-bold text-slate-700 mb-1">رصيد افتتاحي (ل.س)</label>
+                                <input type="text" inputmode="decimal" dir="ltr" id="accOpenSyp" onfocus="this.select()" oninput="AccountController.markAccDirty()" value="${ex ? (ex.openingSyp || 0) : 0}" class="w-full border border-slate-300 rounded-lg px-2 py-1.5 font-bold text-center bg-white">
+                            </div>
+                            <div>
+                                <label class="block font-bold text-slate-700 mb-1">رصيد افتتاحي (USD)</label>
+                                <input type="text" inputmode="decimal" dir="ltr" id="accOpenUsd" onfocus="this.select()" oninput="AccountController.markAccDirty()" value="${ex ? (ex.openingUsd || 0) : 0}" class="w-full border border-slate-300 rounded-lg px-2 py-1.5 font-bold text-center bg-white">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block font-bold text-slate-700 mb-1">جدولة الدفعات والأقساط / شروط الاستحقاق</label>
+                            <input type="text" id="accTerms" oninput="AccountController.markAccDirty()" value="${ex ? (ex.paymentTerms || '') : ''}" placeholder="مثال: قسط أسبوعي كل يوم سبت / استحقاق 15 يوم" class="w-full border border-slate-300 rounded-xl px-3 py-2">
+                        </div>
+
+                        <div class="flex gap-2 pt-2">
+                            <button onclick="AccountController.saveAccount('${ex ? ex.id : ''}', ${fromInvoice})" class="flex-1 bg-emerald-600 text-white font-bold py-2.5 rounded-xl text-sm">حفظ الحساب</button>
+                            <button onclick="UI.requestCloseModal()" class="px-4 bg-slate-100 text-slate-700 font-bold py-2.5 rounded-xl text-sm">إلغاء</button>
+                        </div>
+                    </div>
+                `);
+            },
+
+            async saveAccount(existingId, fromInvoice = false) {
+                if (!existingId && !LicenseManager.canPerformOperation()) {
+                    return false;
+                }
+                const name = document.getElementById('accName')?.value.trim();
+                const type = document.getElementById('accType')?.value || 'customer';
+                const phone = document.getElementById('accPhone')?.value.trim() || '';
+                const creditLimitUsd = Accounting.parseNum(document.getElementById('accLimit')?.value);
+                const openingSyp = Accounting.parseNum(document.getElementById('accOpenSyp')?.value);
+                const openingUsd = Accounting.parseNum(document.getElementById('accOpenUsd')?.value);
+                const paymentTerms = document.getElementById('accTerms')?.value.trim() || '';
+
+                if (!name) {
+                    UI.toast('يرجى إدخال اسم العميل أو المورد', 'error');
+                    return false;
+                }
+
+                let targetId = existingId;
+                if (existingId) {
+                    const idx = State.accounts.findIndex(a => a.id === existingId);
+                    if (idx > -1) {
+                        State.accounts[idx] = { ...State.accounts[idx], name, type, phone, creditLimitUsd, openingSyp, openingUsd, paymentTerms };
+                    }
+                } else {
+                    targetId = 'acc_' + Date.now();
+                    State.accounts.push({
+                        id: targetId,
+                        name, type, phone, creditLimitUsd, openingSyp, openingUsd, paymentTerms,
+                        createdAt: new Date().toISOString().slice(0, 10)
+                    });
+                    await LicenseManager.recordNewOperation();
+                }
+
+                await StorageEngine.saveState();
+                UI.forceCloseModal();
+                UI.toast('تم حفظ بيانات الحساب بنجاح', 'success');
+
+                if (fromInvoice && InvoiceController.draft) {
+                    InvoiceController.draft.accountId = targetId;
+                    InvoiceController.paintForm(document.getElementById('mainContent'));
+                } else {
+                    AppNav.renderCurrent();
+                }
+                return true;
+            },
+
+            openDebtAccountActions(accId) {
+                const acc = State.accounts.find(a => a.id === accId);
+                if (!acc) return;
+                const st = Accounting.getAccountStatement(acc.id);
+                // العميل يسدد لنا بسند قبض، أما المورد فنسدد له بسند دفع.
+                const voucherType = acc.type === 'supplier' ? 'payment' : 'receipt';
+                UI.openModal(`
+                    <div class="flex items-center justify-between border-b pb-3 mb-3">
+                        <div><h3 class="font-extrabold text-base">${acc.name}</h3><p class="text-[11px] text-slate-500 mt-1">${acc.type === 'customer' ? 'عميل' : 'مورد'} · خيارات الحساب</p></div>
+                        <button type="button" onclick="UI.requestCloseModal()" class="w-8 h-8 rounded-lg bg-slate-100 text-slate-500"><i class="fas fa-times"></i></button>
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 mb-3">
+                        <div class="bg-blue-50 rounded-xl p-3"><div class="text-[10px] text-slate-500">الرصيد بالليرة</div><div class="font-extrabold text-sm">${Accounting.format(Math.abs(st.sypBalance), 'SYP')}</div><div class="text-[10px]">${st.sypBalance > 0 ? 'لنا (مدين)' : st.sypBalance < 0 ? 'علينا (دائن)' : 'متوازن'}</div></div>
+                        <div class="bg-amber-50 rounded-xl p-3"><div class="text-[10px] text-slate-500">الرصيد بالدولار</div><div class="font-extrabold text-sm">${Accounting.format(Math.abs(st.usdBalance), 'USD')}</div><div class="text-[10px]">${st.usdBalance > 0 ? 'لنا (مدين)' : st.usdBalance < 0 ? 'علينا (دائن)' : 'متوازن'}</div></div>
+                    </div>
+                    <div class="space-y-2">
+                        <button type="button" onclick="VoucherController.openAccountVoucherModal('${voucherType}','${acc.id}')" class="w-full bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl p-3 flex items-center justify-center gap-2"><i class="fas fa-money-bill-wave"></i> إضافة دفعة</button>
+                        <button type="button" onclick="UI.forceCloseModal(); AccountController.openAccountModal('${acc.id}')" class="w-full bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold rounded-xl p-3 flex items-center justify-center gap-2"><i class="fas fa-pen"></i> تعديل الحساب</button>
+                        <button type="button" onclick="UI.forceCloseModal(); AccountController.deleteAccount('${acc.id}')" class="w-full bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded-xl p-3 flex items-center justify-center gap-2"><i class="fas fa-trash"></i> حذف الحساب</button>
+                    </div>
+                `);
+            },
+
+            deleteAccount(accId) {
+                const used = State.invoices.some(i => i.accountId === accId) || State.vouchers.some(v => v.accountId === accId);
+                if (used) {
+                    UI.toast('لا يمكن حذف الحساب لوجود فواتير أو سندات مرتبطة به', 'error');
+                    return;
+                }
+                UI.showDeleteConfirm('حذف الحساب', 'هل أنت متأكد من حذف هذا الحساب نهائياً؟', async () => {
+                    State.accounts = State.accounts.filter(a => a.id !== accId);
+                    await StorageEngine.saveState();
+                    UI.toast('تم حذف الحساب', 'success');
+                    AppNav.renderCurrent();
+                });
+            }
+        };
+
+        const VoucherController = {
+            draft: null,
+            modalMode: false,
+
+            openAccountVoucherModal(type, accountId) {
+                const nextNum = State.vouchers.length > 0 ? Math.max(...State.vouchers.map(v => Number(v.number) || 0)) + 1 : 1;
+                const nowIso = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+                this.draft = { id: 'vch_' + Date.now(), number: nextNum, type, date: nowIso, accountId, currency: CurrencyCatalog.primary(), amount: 0, exchangeRate: State.settings.exchangeRate || 15000, accountCurrency: CurrencyCatalog.primary(), accountAmount: 0, note: '', isEditing: false };
+                this.modalMode = true;
+                UI.openModal(`
+                    <div class="flex items-center justify-between border-b pb-2 mb-3">
+                        <h3 class="font-extrabold text-sm">إنشاء سند ${type === 'receipt' ? 'قبض' : 'دفع'} · ${State.accounts.find(a => a.id === accountId)?.name || ''}</h3>
+                        <button type="button" onclick="UI.requestCloseModal()" class="text-slate-400"><i class="fas fa-times"></i></button>
+                    </div>
+                    <div id="voucherModalContent"></div>
+                `);
+                this.paintVoucherForm(document.getElementById('voucherModalContent'));
+            },
+
+            renderForm(main, params = {}) {
+                if (params.id) {
+                    const ex = State.vouchers.find(v => v.id === params.id);
+                    if (!ex) return AppNav.navigate('vouchers_list');
+                    this.draft = JSON.parse(JSON.stringify(ex));
+                    this.draft.isEditing = true;
+                } else {
+                    const nextNum = State.vouchers.length > 0 ? Math.max(...State.vouchers.map(v => Number(v.number) || 0)) + 1 : 1;
+                    const nowIso = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+                    this.draft = {
+                        id: 'vch_' + Date.now(),
+                        number: nextNum,
+                        type: params.type || 'receipt',
+                        date: nowIso,
+                        accountId: '',
+                        currency: CurrencyCatalog.primary(),
+                        amount: 0,
+                        exchangeRate: State.settings.exchangeRate || 15000,
+                        accountCurrency: CurrencyCatalog.primary(),
+                        accountAmount: 0,
+                        note: '',
+                        isEditing: false
+                    };
+                }
+
+                const isRec = this.draft.type === 'receipt';
+                UI.setHeader(
+                    `<i class="fas fa-receipt text-emerald-400"></i> <span>${this.draft.isEditing ? `تعديل ${isRec ? 'سند قبض' : 'سند دفع'} #${this.draft.number}` : `${isRec ? 'سند قبض' : 'سند دفع'} جديد #${this.draft.number}`}</span>`,
+                    'يدعم العملتين والمقاصة المباشرة وحماية البيانات غير المحفوظة'
+                );
+
+                AppNav.enableOperationGuard(async () => await this.saveVoucher());
+                this.paintVoucherForm(main);
+            },
+
+            markModified() {
+                if (this.modalMode) AppNav.markModalDirty(async () => await this.saveVoucher());
+                else AppNav.markDirty(async () => await this.saveVoucher());
+            },
+
+            recalcClearing() {
+                const d = this.draft;
+                d.accountAmount = Accounting.convert(d.amount, d.currency, d.accountCurrency, d.exchangeRate);
+                const el = document.getElementById('vchAccountAmountInput');
+                if (el) el.value = d.accountAmount;
+            },
+
+            paintVoucherForm(main) {
+                const d = this.draft;
+                const isRec = d.type === 'receipt';
+
+                main.innerHTML = `
+                    <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs space-y-3 text-xs">
+                        <div class="flex items-center justify-between border-b pb-2.5">
+                            <span class="bg-slate-900 text-white font-bold px-3 py-1 rounded-lg">سند #${d.number}</span>
+                            <div class="flex gap-1 bg-slate-100 p-1 rounded-xl">
+                                <button type="button" onclick="VoucherController.draft.type='receipt'; VoucherController.markModified(); VoucherController.paintVoucherForm(document.getElementById('mainContent'))" class="px-3 py-1.5 rounded-lg font-bold ${isRec ? 'bg-teal-600 text-white' : 'text-slate-600'}">سند قبض</button>
+                                <button type="button" onclick="VoucherController.draft.type='payment'; VoucherController.markModified(); VoucherController.paintVoucherForm(document.getElementById('mainContent'))" class="px-3 py-1.5 rounded-lg font-bold ${!isRec ? 'bg-amber-600 text-white' : 'text-slate-600'}">سند دفع</button>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                            <div>
+                                <label class="block font-bold text-slate-700 mb-1">الحساب (العميل / المورد) *</label>
+                                <select onchange="VoucherController.draft.accountId = this.value; VoucherController.markModified()" class="w-full border border-slate-300 rounded-xl px-3 py-2 font-bold bg-slate-50">
+                                    <option value="">-- اختر الحساب --</option>
+                                    ${State.accounts.map(a => `<option value="${a.id}" ${d.accountId === a.id ? 'selected' : ''}>${a.name}</option>`).join('')}
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block font-bold text-slate-700 mb-1">التاريخ والوقت</label>
+                                <input type="datetime-local" value="${d.date}" onchange="VoucherController.draft.date = this.value; VoucherController.markModified()" class="w-full border border-slate-300 rounded-xl px-3 py-2">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-3 gap-2 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                            <div>
+                                <label class="block font-bold text-slate-700 mb-1">عملة الدفع بالصندوق</label>
+                                <select onchange="VoucherController.draft.currency = this.value; VoucherController.draft.accountCurrency = this.value; VoucherController.markModified(); VoucherController.paintVoucherForm(document.getElementById('mainContent'))" class="w-full border border-slate-300 rounded-xl px-2 py-2 font-bold bg-white">
+                                    ${!State.settings.primaryOnlyMode || d.isEditing || CurrencyCatalog.primary() === 'SYP' ? `<option value="SYP" ${d.currency === 'SYP' ? 'selected' : ''}>ليرة سورية (SYP)</option>` : ''}
+                                    ${!State.settings.primaryOnlyMode || d.isEditing || CurrencyCatalog.primary() === 'USD' ? `<option value="USD" ${d.currency === 'USD' ? 'selected' : ''}>دولار (USD)</option>` : ''}
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block font-bold text-slate-700 mb-1">المبلغ المقبوض/المدفوع</label>
+                                <input type="text" inputmode="decimal" dir="ltr" value="${d.amount}" onfocus="this.select()" oninput="VoucherController.draft.amount = Accounting.parseNum(this.value); VoucherController.markModified(); VoucherController.recalcClearing()" class="w-full border border-emerald-500 rounded-xl px-2.5 py-2 font-extrabold text-center bg-white text-sm">
+                            </div>
+                            <div>
+                                <label class="block font-bold text-slate-700 mb-1">سعر الصرف المعتمد</label>
+                                <input type="text" inputmode="decimal" dir="ltr" value="${d.exchangeRate}" onfocus="this.select()" oninput="VoucherController.draft.exchangeRate = Accounting.parseNum(this.value); VoucherController.markModified(); VoucherController.recalcClearing()" class="w-full border border-slate-300 rounded-xl px-2.5 py-2 font-bold text-center bg-white">
+                            </div>
+                        </div>
+
+                        <div class="bg-blue-50/60 border border-blue-200 p-3 rounded-xl space-y-2">
+                            <div class="font-bold text-blue-900 flex items-center gap-1.5">
+                                <i class="fas fa-scale-balanced"></i>
+                                <span>خيارات المقاصة (الترحيل في حساب العميل بعملة مطابقة أو مختلفة):</span>
+                            </div>
+                            <div class="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label class="block text-[11px] text-slate-600 mb-1">عملة الترحيل في كشف الحساب</label>
+                                    <select onchange="VoucherController.draft.accountCurrency = this.value; VoucherController.markModified(); VoucherController.recalcClearing()" class="w-full border border-slate-300 rounded-xl px-2.5 py-1.5 font-bold bg-white">
+                                        ${!State.settings.primaryOnlyMode || d.isEditing || CurrencyCatalog.primary() === 'SYP' ? `<option value="SYP" ${d.accountCurrency === 'SYP' ? 'selected' : ''}>ترحيل بالليرة السورية (SYP)</option>` : ''}
+                                        ${!State.settings.primaryOnlyMode || d.isEditing || CurrencyCatalog.primary() === 'USD' ? `<option value="USD" ${d.accountCurrency === 'USD' ? 'selected' : ''}>ترحيل بالدولار الأمريكي (USD)</option>` : ''}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-[11px] text-slate-600 mb-1">المبلغ المحتسب في حساب العميل</label>
+                                    <input type="text" inputmode="decimal" dir="ltr" id="vchAccountAmountInput" value="${d.accountAmount}" onfocus="this.select()" oninput="VoucherController.draft.accountAmount = Accounting.parseNum(this.value); VoucherController.markModified()" class="w-full border border-slate-300 rounded-xl px-2.5 py-1.5 font-extrabold text-center bg-white">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block font-bold text-slate-700 mb-1">البيان / الملاحظات</label>
+                            <input type="text" value="${d.note}" oninput="VoucherController.draft.note = this.value; VoucherController.markModified()" placeholder="شرح السند أو رقم الإشعار..." class="w-full border border-slate-300 rounded-xl px-3 py-2">
+                        </div>
+
+                        <div class="flex gap-2 pt-2">
+                            ${this.modalMode ? `<button type="button" onclick="UI.requestCloseModal()" class="px-4 bg-slate-100 text-slate-600 font-bold rounded-xl text-xs">إلغاء</button>` : ''}
+                            <button type="button" onclick="VoucherController.saveVoucher()" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-3 rounded-xl text-sm">
+                                <i class="fas fa-floppy-disk ml-1"></i> ${d.isEditing ? 'حفظ تعديلات السند وعكس الأثر' : 'حفظ السند'}
+                            </button>
+                            ${d.isEditing ? `
+                                <button type="button" onclick="VoucherController.deleteVoucher('${d.id}')" class="px-4 bg-rose-50 text-rose-600 font-bold rounded-xl text-xs">
+                                    <i class="fas fa-trash"></i> حذف
+                                </button>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            },
+
+            async saveVoucher() {
+                const d = this.draft;
+                const isNewVoucher = !State.vouchers.some(v => v.id === d.id);
+                if (isNewVoucher && !LicenseManager.canPerformOperation()) {
+                    return false;
+                }
+                if (!d.accountId) {
+                    UI.toast('يرجى اختيار الحساب (العميل أو المورد)', 'error');
+                    return false;
+                }
+                if (!d.amount || Number(d.amount) <= 0) {
+                    UI.toast('يرجى إدخال مبلغ السند أكبر من الصفر', 'error');
+                    return false;
+                }
+                if (!d.accountAmount || Number(d.accountAmount) <= 0) {
+                    d.accountAmount = Accounting.convert(d.amount, d.currency, d.accountCurrency, d.exchangeRate);
+                }
+
+                const clean = { ...d };
+                delete clean.isEditing;
+
+                const idx = State.vouchers.findIndex(v => v.id === clean.id);
+                if (idx > -1) State.vouchers[idx] = clean;
+                else {
+                    State.vouchers.push(clean);
+                    await LicenseManager.recordNewOperation();
+                }
+
+                await StorageEngine.saveState();
+                AppNav.clearDirty();
+                UI.toast('تم حفظ السند وتحديث كشف الحساب والصندوق بنجاح', 'success');
+                if (this.modalMode) {
+                    this.modalMode = false;
+                    UI.forceCloseModal();
+                    AppNav.clearDirty();
+                    AppNav.renderCurrent();
+                } else {
+                    AppNav.navigate('vouchers_list', {}, true);
+                }
+                return true;
+            },
+
+            deleteVoucher(vId) {
+                UI.showDeleteConfirm('حذف السند المالي', 'سيتم حذف السند وإلغاء أثره من الصندوق وكشف حساب العميل فوراً. هل أنت متأكد؟', async () => {
+                    State.vouchers = State.vouchers.filter(v => v.id !== vId);
+                    await StorageEngine.saveState();
+                    AppNav.clearDirty();
+                    UI.toast('تم حذف السند وعكس أثره المالي', 'success');
+                    AppNav.navigate('vouchers_list', {}, true);
+                });
+            }
+        };
+
+        /********************************************************************
+         * 10. SETTINGS & BACKUP CONTROLLER
+         ********************************************************************/
+        /********************************************************************
+         * NATIVE AUTO BACKUP (WorkManager + user-chosen SAF folder + Google Drive).
+         * Android keeps scheduling when the WebView is closed.
+         ********************************************************************/
+        const BackupController = {
+            defaultStatus: { supported:false, localEnabled:false, localHours:24,
+                localFolderConfigured:false, driveEnabled:false, driveHours:24,
+                driveConnected:false, localLast:0, driveLast:0, localError:'', driveError:'',
+                snapshotAt:0, snapshotError:'' },
+            status() {
+                try {
+                    if (!window.AndroidAutoBackup || typeof window.AndroidAutoBackup.getStatus !== 'function')
+                        return this.defaultStatus;
+                    return { ...this.defaultStatus, ...JSON.parse(window.AndroidAutoBackup.getStatus()) };
+                } catch (_) { return this.defaultStatus; }
+            },
+            stageLatest() {
+                try {
+                    if (window.AndroidAutoBackup?.stageSnapshot)
+                        window.AndroidAutoBackup.stageSnapshot(JSON.stringify({
+                            app: 'AlRaedAccountingERP', exportedAt: new Date().toISOString(),
+                            data: State
+                        }));
+                } catch (e) { console.warn('Automatic backup snapshot failed', e); }
+            },
+            setEnabled(kind, enabled) {
+                if (!window.AndroidAutoBackup) return;
+                const status = this.status();
+                const hours = status[kind + 'Hours'] || 24;
+                const error = window.AndroidAutoBackup.configure(kind, !!enabled, hours);
+                if (error) UI.toast(error, 'warn');
+                this.refresh();
+            },
+            setHours(kind, value) {
+                if (!window.AndroidAutoBackup) return;
+                const hours = Number(value);
+                const status = this.status();
+                const error = window.AndroidAutoBackup.configure(kind,
+                    status[kind + 'Enabled'] === true, hours);
+                if (error) UI.toast(error, 'warn');
+                this.refresh();
+            },
+            chooseLocalFolder() {
+                if (window.AndroidAutoBackup?.chooseLocalFolder)
+                    window.AndroidAutoBackup.chooseLocalFolder();
+            },
+            connectDrive() {
+                if (window.AndroidAutoBackup?.connectDrive)
+                    window.AndroidAutoBackup.connectDrive();
+            },
+            runNow(kind) {
+                if (!window.AndroidAutoBackup) return;
+                const status = this.status();
+                if (!status[kind + 'Enabled']) {
+                    UI.toast('فعّل النسخ الاحتياطي أولاً', 'warn'); return;
+                }
+                this.stageLatest();
+                window.AndroidAutoBackup.runNow(kind);
+                UI.toast('تم طلب النسخ؛ راجع آخر وقت نجاح لمعرفة النتيجة', 'info');
+            },
+            prettyDate(timestamp) {
+                if (!timestamp) return 'لم تُنشأ نسخة بعد';
+                try { return new Date(timestamp).toLocaleString(State.settings.language === 'en' ? 'en-US' : 'ar-SY'); }
+                catch(_) { return 'لم تُنشأ نسخة بعد'; }
+            },
+            refresh() {
+                if (AppNav.current().screen !== 'settings') return;
+                const scroll = document.getElementById('mainContent')?.scrollTop;
+                AppNav.renderCurrent();
+                if (typeof scroll === 'number') document.getElementById('mainContent').scrollTop = scroll;
+                I18n.apply(document);
+            },
+            card(kind, heading, iconClass, status, description) {
+                const enabled = status[kind+'Enabled'] === true;
+                const hours = status[kind+'Hours'] || 24;
+                const ready = kind === 'local' ? status.localFolderConfigured : status.driveConnected;
+                const connectionLabel = kind === 'local' ? 'اختيار مجلد النسخ' : 'ربط Google Drive';
+                const connectionAction = kind === 'local'
+                    ? 'BackupController.chooseLocalFolder()' : 'BackupController.connectDrive()';
+                const error = status[kind+'Error'] || '';
+                const last = this.prettyDate(status[kind+'Last']);
+                return `<div class="border border-slate-200 rounded-xl p-3 space-y-3 bg-slate-50">
+                    <div class="flex items-center justify-between gap-2">
+                        <div class="font-extrabold text-sm text-slate-800"><i class="fas ${iconClass} text-emerald-600 ml-1"></i>${heading}</div>
+                        <label class="flex items-center gap-2 font-bold text-xs text-slate-700 cursor-pointer">
+                            <span>${enabled ? 'مفعّل' : 'متوقف'}</span>
+                            <input type="checkbox" aria-label="${heading}" ${enabled?'checked':''} ${status.supported?'':'disabled'}
+                                onchange="BackupController.setEnabled('${kind}', this.checked)" class="w-5 h-5 accent-emerald-600">
+                        </label>
+                    </div>
+                    <p class="text-[11px] text-slate-600">${description}</p>
+                    <label class="block text-xs font-bold text-slate-700">تكرار النسخ الاحتياطي</label>
+                    <select aria-label="تكرار النسخ الاحتياطي" class="w-full border border-slate-300 rounded-lg p-2.5 font-bold text-xs bg-white"
+                        ${status.supported?'':'disabled'} onchange="BackupController.setHours('${kind}', this.value)">
+                        <option value="6" ${hours===6?'selected':''}>كل 6 ساعات</option>
+                        <option value="12" ${hours===12?'selected':''}>كل 12 ساعة</option>
+                        <option value="24" ${hours===24?'selected':''}>كل 24 ساعة</option>
+                    </select>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button onclick="${connectionAction}" ${status.supported?'':'disabled'} class="bg-indigo-600 text-white rounded-lg px-3 py-2 text-xs font-bold">${connectionLabel}</button>
+                        <button onclick="BackupController.runNow('${kind}')" ${enabled?'':'disabled'} class="bg-emerald-600 disabled:bg-slate-300 text-white rounded-lg px-3 py-2 text-xs font-bold">نسخ الآن</button>
+                    </div>
+                    <div class="text-[11px] font-semibold ${ready?'text-emerald-700':'text-amber-700'}">${ready?'جاهز للنسخ':'يلزم اختيار الوجهة أو ربط الحساب'}</div>
+                    <div class="text-[11px] text-slate-600">آخر نسخة ناجحة: <span dir="auto" class="font-bold">${last}</span></div>
+                    ${error?`<p class="text-[11px] bg-rose-50 border border-rose-100 rounded-lg text-rose-700 p-2">${error}</p>`:''}
+                </div>`;
+            }
+        };
+        window.__nativeBackupStatus = function(_) { BackupController.refresh(); };
+
+        const SettingsController = {
+            expandedSections: new Set(),
+            passwordPanelOpen: false,
+            closeAllSections() {
+                this.expandedSections.clear();
+                this.passwordPanelOpen = false;
+                if (typeof document.querySelectorAll === 'function') {
+                    document.querySelectorAll('details.settings-section[open]').forEach(el => { el.open = false; });
+                }
+            },
+            onSectionToggle(details) {
+                const key = details?.dataset?.settingsSection;
+                if (!key) return;
+                if (details.open) {
+                    // Only one accordion pane is allowed, including after rerender.
+                    const sections = typeof document.querySelectorAll === 'function'
+                        ? document.querySelectorAll('details.settings-section') : [];
+                    for (const el of Array.from(sections)) {
+                        if (el !== details && el.open) el.open = false;
+                    }
+                    this.expandedSections.clear();
+                    this.expandedSections.add(key);
+                } else {
+                    this.expandedSections.delete(key);
+                }
+            },
+            togglePasswordPanel() {
+                this.passwordPanelOpen = !this.passwordPanelOpen;
+                const panel = document.getElementById('passwordSecurityFields');
+                if (panel) panel.classList.toggle('hidden', !this.passwordPanelOpen);
+                const icon = document.getElementById('passwordSecurityToggleIcon');
+                if (icon) icon.className = this.passwordPanelOpen ? 'fas fa-chevron-up' : 'fas fa-chevron-down';
+                if (this.passwordPanelOpen) document.getElementById('protectionCurrentPin')?.focus({preventScroll:true});
+            },
+            async setItemQuantityDecimals(value) {
+                const decimals = Number(value);
+                if (!Number.isInteger(decimals) || decimals < 0 || decimals > 4) return;
+                State.settings.itemQuantityDecimals = decimals;
+                await StorageEngine.saveState();
+                AppNav.renderCurrent();
+                UI.toast('تم حفظ عدد المنازل العشرية لإدخال وعرض أسعار المواد والكميات', 'success');
+            },
+            async setDefaultItemCurrency(value) {
+                if (!CurrencyCatalog.ledgerCurrencies.includes(value)) return;
+                if (State.settings.primaryOnlyMode) value = CurrencyCatalog.primary();
+                State.settings.defaultItemCurrency = value;
+                await StorageEngine.saveState();
+                UI.toast('تم حفظ العملة الافتراضية للمواد الجديدة', 'success');
+            },
+            async setPrimaryCurrency(value) {
+                if (!CurrencyCatalog.ledgerCurrencies.includes(value)) return;
+                State.settings.primaryCurrency = value;
+                State.settings.secondaryCurrency = CurrencyCatalog.secondary();
+                if (State.settings.primaryOnlyMode) {
+                    State.settings.defaultCurrency = value;
+                    State.settings.defaultItemCurrency = value;
+                }
+                await StorageEngine.saveState();
+                AppNav.renderCurrent();
+                UI.toast('تم تحديث العملة الرئيسية دون تغيير السجلات القديمة', 'success');
+            },
+            async setSecondaryCurrency(value) {
+                if (!CurrencyCatalog.ledgerCurrencies.includes(value) || State.settings.primaryOnlyMode) return;
+                if (value === CurrencyCatalog.primary()) {
+                    UI.toast('لا يمكن أن تكون العملتان الرئيسية والثانوية متطابقتين', 'warn');
+                    AppNav.renderCurrent(); return;
+                }
+                State.settings.secondaryCurrency = value;
+                await StorageEngine.saveState();
+                UI.toast('تم تحديث العملة الثانوية', 'success');
+            },
+            async setPrimaryOnlyMode(enabled) {
+                State.settings.primaryOnlyMode = enabled === true;
+                if (State.settings.primaryOnlyMode) {
+                    State.settings.defaultCurrency = CurrencyCatalog.primary();
+                    State.settings.defaultItemCurrency = CurrencyCatalog.primary();
+                }
+                await StorageEngine.saveState();
+                AppNav.renderCurrent();
+                UI.toast(State.settings.primaryOnlyMode ? 'العمليات الجديدة بالعملة الرئيسية فقط' : 'تم تفعيل العملة الثانوية', 'success');
+            },
+            async addPopularCurrency() {
+                const code = document.getElementById('catalogPopularCurrency')?.value;
+                const known = CurrencyCatalog.popular.find(c => c[0] === code);
+                if (!known) return;
+                await this.addCatalogCurrency(known[0], known[1]);
+            },
+            async addCustomCurrency() {
+                const code = CurrencyCatalog.safeCode(document.getElementById('customCurrencyCode')?.value);
+                const name = String(document.getElementById('customCurrencyName')?.value || '').trim();
+                if (!/^[A-Z]{3}$/.test(code)) return UI.toast('أدخل رمز عملة من ثلاثة أحرف لاتينية', 'error');
+                if (name.length < 2 || name.length > 60 || /[<>]/.test(name)) return UI.toast('أدخل اسماً صالحاً للعملة', 'error');
+                await this.addCatalogCurrency(code, name);
+            },
+            async addCatalogCurrency(code, name) {
+                code = CurrencyCatalog.safeCode(code);
+                if (!/^[A-Z]{3}$/.test(code)) return;
+                const added = Array.isArray(State.settings.addedCurrencies) ? State.settings.addedCurrencies : [];
+                if (CurrencyCatalog.ledgerCurrencies.includes(code)) return UI.toast('هذه عملة أساسية مدعومة مسبقاً', 'warn');
+                if (added.some(c=>c.code===code)) return UI.toast('العملة موجودة بالفعل في القائمة', 'warn');
+                if (added.length >= 50) return UI.toast('الحد الأقصى 50 عملة إضافية', 'warn');
+                State.settings.addedCurrencies = [...added,{code,name}];
+                await StorageEngine.saveState();
+                AppNav.renderCurrent();
+                UI.toast(`تمت إضافة ${code} إلى قائمة العملات`, 'success');
+            },
+            async removeCatalogCurrency(code) {
+                State.settings.addedCurrencies = (Array.isArray(State.settings.addedCurrencies)?State.settings.addedCurrencies:[]).filter(c=>c.code!==code);
+                await StorageEngine.saveState();
+                AppNav.renderCurrent();
+                UI.toast('تمت إزالة العملة من القائمة', 'success');
+            },
+            async setDefaultInvoiceCurrency(value) {
+                if (value !== 'USD' && value !== 'SYP') return;
+                if (State.settings.primaryOnlyMode) value = CurrencyCatalog.primary();
+                State.settings.defaultCurrency = value;
+                await StorageEngine.saveState();
+                UI.toast('تم تحديث العملة الافتراضية للفواتير الجديدة', 'success');
+            },
+            async setDefaultInvoiceListType(value) {
+                if (!['sale','purchase','all'].includes(value)) return;
+                State.settings.defaultInvoiceListType = value;
+                await StorageEngine.saveState();
+                UI.toast('تم حفظ النوع الافتراضي لسجل الفواتير', 'success');
+            },
+            async setAllowOutOfStockSales(checked) {
+                State.settings.allowNegativeStockSales = checked === true;
+                await StorageEngine.saveState();
+            },
+            markSettingsDirty() {
+                AppNav.markDirty(async () => await this.saveSettings());
+            },
+
+            async setPrintFontScale(scaleVal) {
+                State.settings.printFontScale = Number(scaleVal) || 0.75;
+                await StorageEngine.saveState();
+                AppNav.renderCurrent();
+                UI.toast('تم تحديث حجم خط الفاتورة المطبوعة', 'success');
+            },
+
+            async setPaperWidth(widthMm) {
+                State.settings.printerWidth = Number(widthMm) || 80;
+                await StorageEngine.saveState();
+                AppNav.renderCurrent();
+                UI.toast(`تم ضبط قياس ورق الطابعة على ${State.settings.printerWidth}mm`, 'info');
+            },
+
+            handleLogoUpload(event, fromModal = false) {
+                const file = event.target.files?.[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = async () => {
+                        const maxDim = 320;
+                        let w = img.width;
+                        let h = img.height;
+                        if (w > maxDim || h > maxDim) {
+                            const r = Math.min(maxDim / w, maxDim / h);
+                            w = Math.round(w * r);
+                            h = Math.round(h * r);
+                        }
+                        const c = document.createElement('canvas');
+                        c.width = w;
+                        c.height = h;
+                        const ctx = c.getContext('2d');
+                        ctx.drawImage(img, 0, 0, w, h);
+                        State.settings.companyLogo = c.toDataURL('image/png');
+                        await StorageEngine.saveState();
+                        UI.toast('تمت إضافة شعار (لوغو) الشركة بنجاح', 'success');
+                        if (fromModal) {
+                            this.openPrintHeaderModal();
+                        }
+                        AppNav.renderCurrent();
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            },
+
+            removeLogo(fromModal = false) {
+                // Never modify persistent logo data without a verified, configured PIN.
+                ProtectionController.requirePinForDestructiveAction(
+                    'أدخل رمز الحماية لحذف شعار الشركة من الفواتير',
+                    async () => {
+                        try {
+                            State.settings.companyLogo = '';
+                            await StorageEngine.saveState();
+                            UI.toast('تم حذف الشعار (اللوغو) من الفاتورة', 'info');
+                            AppNav.renderCurrent();
+                            if (fromModal) this.openPrintHeaderModal();
+                        } catch (e) {
+                            UI.toast('تعذر حفظ حذف اللوغو؛ حاول مجدداً', 'error');
+                        }
+                    },
+                    'حذف اللوغو'
+                );
+            },
+
+            openPrintHeaderModal() {
+                UI.openModal(`
+                    <div class="flex items-center justify-between border-b pb-2.5 mb-3">
+                        <h3 class="font-extrabold text-sm flex items-center gap-2 text-slate-900">
+                            <i class="fas fa-print text-emerald-600"></i>
+                            <span>تعديل بيانات الطباعة والترويسة</span>
+                        </h3>
+                        <button onclick="UI.forceCloseModal()" class="text-slate-400 hover:text-slate-700"><i class="fas fa-times"></i></button>
+                    </div>
+                    <div class="space-y-3 text-xs">
+                        <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 flex items-center justify-between gap-2">
+                            <div class="flex items-center gap-2.5">
+                                <div class="w-14 h-14 rounded-xl bg-white border border-slate-200 flex items-center justify-center overflow-hidden shrink-0">
+                                    ${State.settings.companyLogo
+                                        ? `<img src="${State.settings.companyLogo}" class="w-full h-full object-contain" alt="Logo">`
+                                        : `<span class="text-[10px] text-slate-400 font-bold text-center px-1">بدون لوغو</span>`
+                                    }
+                                </div>
+                                <div>
+                                    <div class="font-bold text-slate-800">شعار الشركة (اللوغو)</div>
+                                    <div class="text-[10px] text-slate-500">اختر صورة من الموبايل (اختياري)</div>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-1.5">
+                                <label class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-2.5 py-2 rounded-xl text-[11px] cursor-pointer flex items-center gap-1">
+                                    <i class="fas fa-image"></i>
+                                    <span>إضافة لوغو</span>
+                                    <input type="file" accept="image/*" onchange="SettingsController.handleLogoUpload(event, true)" class="hidden">
+                                </label>
+                                ${State.settings.companyLogo ? `
+                                    <button type="button" onclick="SettingsController.removeLogo(true)" class="bg-rose-50 text-rose-600 font-bold px-2.5 py-2 rounded-xl text-[11px]">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                ` : ''}
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block font-bold text-slate-700 mb-1">اسم الشركة</label>
+                            <input type="text" id="modalCompanyName" value="${State.settings.companyName}" placeholder="مثال: كلين CLEAN" class="w-full border border-slate-300 rounded-xl px-3 py-2 font-bold">
+                        </div>
+
+                        <div>
+                            <label class="block font-bold text-slate-700 mb-1">رقم الهاتف</label>
+                            <input type="text" id="modalCompanyPhone" value="${State.settings.companyPhone}" placeholder="مثال: 0932325577" class="w-full border border-slate-300 rounded-xl px-3 py-2 font-bold" dir="ltr">
+                        </div>
+
+                        <div>
+                            <label class="block font-bold text-slate-700 mb-1">الملاحظات أسفل الفاتورة</label>
+                            <textarea id="modalFooterNote" rows="2" placeholder="مثال: ثقتكم تهمنا" class="w-full border border-slate-300 rounded-xl px-3 py-2 font-bold">${State.settings.footerNote}</textarea>
+                        </div>
+
+                        <div class="flex gap-2 pt-2">
+                            <button type="button" onclick="SettingsController.savePrintHeaderModal()" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-2.5 rounded-xl text-xs">
+                                <i class="fas fa-check ml-1"></i> حفظ وتحديث الفاتورة
+                            </button>
+                            <button type="button" onclick="UI.forceCloseModal()" class="px-4 bg-slate-100 text-slate-700 font-bold py-2.5 rounded-xl text-xs">إغلاق</button>
+                        </div>
+                    </div>
+                `);
+            },
+
+            async savePrintHeaderModal() {
+                State.settings.companyName = document.getElementById('modalCompanyName')?.value.trim() || 'مؤسسة الرائد التجارية';
+                State.settings.companyPhone = document.getElementById('modalCompanyPhone')?.value.trim() || '';
+                State.settings.footerNote = document.getElementById('modalFooterNote')?.value.trim() || '';
+                await StorageEngine.saveState();
+                UI.forceCloseModal();
+                AppNav.renderCurrent();
+                UI.toast('تم تحديث بيانات الطباعة والترويسة بنجاح', 'success');
+            },
+
+            async saveSettings() {
+                State.settings.companyName = document.getElementById('setCompanyName')?.value.trim() || 'مؤسسة الرائد التجارية';
+                State.settings.companyPhone = document.getElementById('setCompanyPhone')?.value.trim() || '';
+                State.settings.companyAddress = document.getElementById('setCompanyAddress')?.value.trim() || '';
+                State.settings.footerNote = document.getElementById('setFooterNote')?.value.trim() || '';
+                State.settings.printerWidth = Number(document.getElementById('setPrinterWidth')?.value) || 80;
+
+                await StorageEngine.saveState();
+                AppNav.clearDirty();
+                UI.toast('تم حفظ الإعدادات وترويسة الطباعة بنجاح', 'success');
+                return true;
+            },
+
+            exportBackup() {
+                const payload = {
+                    app: 'AlRaedAccountingERP',
+                    exportedAt: new Date().toISOString(),
+                    data: State
+                };
+                if (window.AndroidFiles && typeof window.AndroidFiles.saveBackup === 'function') {
+                    window.AndroidFiles.saveBackup(JSON.stringify(payload, null, 2), `AlMohaseb_AlTaqni_Backup_${new Date().toISOString().slice(0, 10)}.json`);
+                    return;
+                }
+                const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `AlRaed_Backup_${new Date().toISOString().slice(0, 10)}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+                UI.toast('تم استخراج ملف النسخة الاحتياطية بنجاح', 'success');
+            },
+
+            importBackup(event) {
+                const file = event.target.files?.[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    try {
+                        const parsed = JSON.parse(e.target.result);
+                        const d = parsed.data || parsed;
+                        if (!d || !['categories','items','accounts','invoices','vouchers'].every(k => Array.isArray(d[k]))) {
+                            throw new Error('نسخة احتياطية ناقصة');
+                        }
+                        if (d.settings) State.settings = { ...State.settings, ...d.settings };
+                        State.categories = d.categories;
+                        State.items = d.items;
+                        State.accounts = d.accounts;
+                        State.invoices = d.invoices;
+                        State.vouchers = d.vouchers;
+                        State.warehouses = Array.isArray(d.warehouses) && d.warehouses.length
+                            ? d.warehouses : [{ id:'wh_main', name:'المستودع الرئيسي' }];
+                        if (!State.warehouses.some(w=>w.id==='wh_main')) State.warehouses.unshift({id:'wh_main',name:'المستودع الرئيسي'});
+                        State.transfers = Array.isArray(d.transfers) ? d.transfers : [];
+                        State.expenses = Array.isArray(d.expenses) ? d.expenses : [];
+                        if (!State.warehouses.some(w=>w.id===State.settings.selectedWarehouseId))
+                            State.settings.selectedWarehouseId='wh_main';
+                        await StorageEngine.saveState();
+                        UI.toast('تمت استعادة النسخة الاحتياطية بنجاح!', 'success');
+                        AppNav.navigate('dashboard', {}, true);
+                    } catch (err) {
+                        UI.toast('ملف النسخة الاحتياطية غير صالح', 'error');
+                    }
+                };
+                reader.readAsText(file);
+            },
+
+            confirmResetAll() {
+                // The optional protection toggle never disables PIN validation for a full reset.
+                // Without a configured PIN, show a setup-only prompt; NEVER call clearAll().
+                ProtectionController.requirePinForDestructiveAction(
+                    'أدخل رمز الحماية للسماح بتصفير قاعدة البيانات',
+                    () => UI.showDeleteConfirm(
+                        'تصفير شامل للنظام',
+                        'سيتم مسح جميع الفواتير والمواد والحسابات والسندات والمستودعات والمناقلات والمصاريف نهائياً. احفظ نسخة احتياطية قبل المتابعة.',
+                        async () => {
+                            // Recheck that a PIN still exists before the irreversible action.
+                            if (!State.settings.appProtection?.pinHash) {
+                                ProtectionController.promptPinSetup('تصفير قاعدة البيانات');
+                                return;
+                            }
+                            try {
+                                await StorageEngine.clearAll();
+                                UI.toast('تم تصفير قاعدة البيانات بالكامل', 'success');
+                                AppNav.navigate('dashboard', {}, true);
+                            } catch (e) {
+                                UI.toast('تعذر تصفير قاعدة البيانات', 'error');
+                            }
+                        }
+                    ),
+                    'تصفير قاعدة البيانات'
+                );
+            }
+        };
+
+
+        /********************************************************************
+         * APPLICATION PROTECTION: PIN + DEVICE BIOMETRIC (WebAuthn)
+         ********************************************************************/
+        const ProtectionController = {
+            SECURITY_QUESTIONS: [
+                { id: 'school', label: 'ما اسم أول مدرسة درست فيها؟' },
+                { id: 'friend', label: 'ما اسم صديق طفولتك؟' },
+                { id: 'teacher', label: 'ما اسم أول معلم تتذكره؟' },
+                { id: 'city', label: 'ما اسم المدينة التي ولدت فيها؟' },
+                { id: 'street', label: 'ما اسم الشارع الذي نشأت فيه؟' },
+                { id: 'book', label: 'ما اسم كتابك المفضل في طفولتك؟' }
+            ],
+            securityQuestionOptions(selected) {
+                return this.SECURITY_QUESTIONS.map(q => `<option value="${q.id}" ${q.id === selected ? 'selected' : ''}>${q.label}</option>`).join('');
+            },
+            questionLabel(id) {
+                return this.SECURITY_QUESTIONS.find(q => q.id === id)?.label || 'سؤال الأمان';
+            },
+            bytesToBase64(bytes) {
+                return btoa(String.fromCharCode(...new Uint8Array(bytes)));
+            },
+            base64ToBytes(value) {
+                return Uint8Array.from(atob(value), c => c.charCodeAt(0));
+            },
+            randomBytes(length = 16) {
+                const bytes = new Uint8Array(length);
+                crypto.getRandomValues(bytes);
+                return bytes;
+            },
+            normalizeAnswer(value) {
+                return String(value || '').normalize('NFKC').trim().replace(/\s+/g, ' ').toLocaleLowerCase();
+            },
+            // Backwards compatible: existing PINs use SHA-256; new secrets use PBKDF2.
+            async hashPin(pin, salt, algorithm = 'sha256-v1') {
+                if (!globalThis.crypto || !crypto.subtle) throw new Error('يتطلب تأمين كلمة السر بيئة HTTPS أو localhost تدعم التشفير');
+                const secret = new TextEncoder().encode(`${salt}:${pin}`);
+                if (algorithm === 'pbkdf2-sha256-v1') {
+                    const key = await crypto.subtle.importKey('raw', secret, 'PBKDF2', false, ['deriveBits']);
+                    const saltBytes = new TextEncoder().encode(salt);
+                    const bits = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: saltBytes, iterations: 150000 }, key, 256);
+                    return this.bytesToBase64(bits);
+                }
+                const digest = await crypto.subtle.digest('SHA-256', secret);
+                return this.bytesToBase64(digest);
+            },
+            async saveSettings() {
+                try {
+                    const pin = document.getElementById('protectionPin')?.value || '';
+                    const confirm = document.getElementById('protectionPinConfirm')?.value || '';
+                    const currentPin = document.getElementById('protectionCurrentPin')?.value || '';
+                    const firstQuestionId = document.getElementById('securityQuestion1')?.value || '';
+                    const secondQuestionId = document.getElementById('securityQuestion2')?.value || '';
+                    const firstAnswer = document.getElementById('securityAnswer1')?.value || '';
+                    const secondAnswer = document.getElementById('securityAnswer2')?.value || '';
+                    const old = State.settings.appProtection || {};
+                    const previousQuestions = Array.isArray(old.securityQuestions) ? old.securityQuestions : [];
+                    const hasQuestions = previousQuestions.length === 2;
+                    const next = { ...old,
+                        lockApp: !!document.getElementById('protectLockApp')?.checked,
+                        protectDeletion: !!document.getElementById('protectDeletion')?.checked
+                    };
+                    const changingPin = !!(pin || confirm);
+                    const changingToggle = next.lockApp !== !!old.lockApp || next.protectDeletion !== !!old.protectDeletion;
+                    const changingQuestions = !!(firstAnswer || secondAnswer) || (hasQuestions && (firstQuestionId !== previousQuestions[0].id || secondQuestionId !== previousQuestions[1].id));
+                    const mustChangeQuestions = !!(!hasQuestions && (changingPin || firstAnswer || secondAnswer));
+                    const sensitiveChange = changingPin || changingToggle || changingQuestions || mustChangeQuestions;
+                    if (old.pinHash && sensitiveChange && !(await this.verifyPin(currentPin))) {
+                        return UI.toast('يجب إدخال كلمة السر السابقة الصحيحة قبل تغيير كلمة السر أو إعدادات الحماية', 'error');
+                    }
+                    if (changingPin) {
+                        if (pin.length < 4) return UI.toast('كلمة السر الجديدة يجب أن تتكون من 4 خانات على الأقل', 'error');
+                        if (pin !== confirm) return UI.toast('كلمتا السر الجديدتان غير متطابقتين', 'error');
+                        const salt = this.bytesToBase64(this.randomBytes(16));
+                        next.pinSalt = salt;
+                        next.pinAlgo = 'pbkdf2-sha256-v1';
+                        next.pinHash = await this.hashPin(pin, salt, next.pinAlgo);
+                    }
+                    if (changingQuestions || mustChangeQuestions) {
+                        if (!next.pinHash) return UI.toast('أنشئ كلمة سر قبل إعداد سؤالَي الأمان', 'error');
+                        if (!firstQuestionId || !secondQuestionId || firstQuestionId === secondQuestionId) return UI.toast('اختر سؤالَي أمان مختلفين', 'error');
+                        if (this.normalizeAnswer(firstAnswer).length < 3 || this.normalizeAnswer(secondAnswer).length < 3) return UI.toast('يجب إدخال إجابة لكل سؤال من 3 أحرف على الأقل', 'error');
+                        const q1Salt = this.bytesToBase64(this.randomBytes(16));
+                        const q2Salt = this.bytesToBase64(this.randomBytes(16));
+                        next.securityQuestions = [
+                            { id: firstQuestionId, salt: q1Salt, hash: await this.hashPin(this.normalizeAnswer(firstAnswer), q1Salt, 'pbkdf2-sha256-v1') },
+                            { id: secondQuestionId, salt: q2Salt, hash: await this.hashPin(this.normalizeAnswer(secondAnswer), q2Salt, 'pbkdf2-sha256-v1') }
+                        ];
+                        next.recoveryFailures = 0;
+                        next.recoveryLockedUntil = 0;
+                    }
+                    if ((next.lockApp || next.protectDeletion) && !next.pinHash) return UI.toast('عيّن كلمة سر أولاً قبل تفعيل خيارات الحماية', 'error');
+                    if (changingPin && (!Array.isArray(next.securityQuestions) || next.securityQuestions.length !== 2)) return UI.toast('يجب إعداد سؤالَي الأمان لاستعادة كلمة السر الجديدة', 'error');
+                    State.settings.appProtection = next;
+                    await StorageEngine.saveState();
+                    UI.toast('تم حفظ إعدادات حماية التطبيق', 'success');
+                    AppNav.renderCurrent();
+                } catch (e) { UI.toast(e.message || 'تعذر حفظ إعدادات الحماية', 'error'); }
+            },
+            async verifyPin(pin) {
+                const cfg = State.settings.appProtection || {};
+                if (!cfg.pinHash || !cfg.pinSalt) return false;
+                return (await this.hashPin(pin, cfg.pinSalt, cfg.pinAlgo || 'sha256-v1')) === cfg.pinHash;
+            },
+            requirePinForDestructiveAction(message, onSuccess, actionName = 'هذه العملية') {
+                if (!State.settings.appProtection?.pinHash || !State.settings.appProtection?.pinSalt) {
+                    this.promptPinSetup(actionName);
+                    return false;
+                }
+                this.requestPin(message, onSuccess);
+                return true;
+            },
+            promptPinSetup(actionName = 'هذه العملية') {
+                this.pendingSuccess = null;
+                UI.openModal(`
+                    <div class="text-right space-y-3">
+                        <div class="flex items-center justify-between gap-2">
+                            <h3 class="font-extrabold text-base text-slate-900"><i class="fas fa-lock text-rose-600 ml-1"></i> يجب تعيين رمز الحماية أولاً</h3>
+                            <button type="button" onclick="UI.forceCloseModal()" class="text-slate-500 p-2" aria-label="إغلاق"><i class="fas fa-times"></i></button>
+                        </div>
+                        <p class="text-sm text-slate-600">لا يمكن تنفيذ ${AppEscape.text(actionName)} قبل إنشاء رمز حماية. لن تُحذف أي بيانات الآن.</p>
+                        <div class="flex flex-col gap-2">
+                            <button type="button" onclick="ProtectionController.goToPinSetup()" class="w-full bg-emerald-600 text-white rounded-xl py-3 font-extrabold"><i class="fas fa-key ml-1"></i> تعيين رمز الحماية</button>
+                            <button type="button" onclick="UI.forceCloseModal()" class="w-full bg-slate-100 text-slate-700 rounded-xl py-2.5 font-bold">إلغاء</button>
+                        </div>
+                    </div>`);
+            },
+            goToPinSetup() {
+                UI.forceCloseModal();
+                SettingsController.expandedSections.clear();
+                SettingsController.expandedSections.add('security');
+                SettingsController.passwordPanelOpen = true;
+                AppNav.navigate('settings');
+                requestAnimationFrame(() => {
+                    const section = document.querySelector('[data-settings-section="security"]');
+                    if (section) section.open = true;
+                    section?.scrollIntoView({behavior:'smooth',block:'start'});
+                    document.getElementById('protectionPin')?.focus({preventScroll:true});
+                });
+            },
+            requestPin(message, onSuccess) {
+                // Only display a verification screen if a PIN has actually been configured.
+                if (!State.settings.appProtection?.pinHash || !State.settings.appProtection?.pinSalt) {
+                    this.promptPinSetup('هذه العملية');
+                    return;
+                }
+                this.pendingSuccess = null;
+                UI.openModal(`
+                    <div class="text-right">
+                        <div class="flex items-center justify-between mb-3"><h3 class="font-extrabold text-base"><i class="fas fa-shield-halved text-emerald-600 ml-1"></i> التحقق من الحماية</h3><button onclick="UI.forceCloseModal()"><i class="fas fa-times text-slate-400"></i></button></div>
+                        <p class="text-xs text-slate-500 mb-3">${message}</p>
+                        <input id="protectionVerifyPin" type="password" inputmode="numeric" autocomplete="current-password" placeholder="أدخل رمز الحماية" class="w-full border border-slate-300 rounded-xl p-3 text-center text-lg tracking-widest mb-3">
+                        <button onclick="ProtectionController.verifyPromptPin()" class="w-full bg-emerald-600 text-white rounded-xl py-3 font-extrabold">تحقق</button>
+                        <button type="button" onclick="ProtectionController.openRecovery()" class="w-full text-center text-xs font-bold text-indigo-700 underline mt-3">نسيت رمز الحماية؟</button>
+                    </div>`);
+                this.pendingSuccess = onSuccess;
+            },
+            async verifyPromptPin() {
+                const pin = document.getElementById('protectionVerifyPin')?.value || '';
+                try {
+                    if (await this.verifyPin(pin)) {
+                        const callback = this.pendingSuccess;
+                        this.pendingSuccess = null;
+                        UI.forceCloseModal();
+                        if (callback) callback();
+                    } else UI.toast('رمز الحماية غير صحيح', 'error');
+                } catch (e) { UI.toast(e.message || 'تعذر التحقق من الرمز', 'error'); }
+            },
+            recoveryMarkup(isLocked) {
+                const cfg = State.settings.appProtection || {};
+                const questions = cfg.securityQuestions;
+                return `
+                    <div class="w-full max-w-sm bg-white rounded-2xl p-5 text-right shadow-xl mx-auto space-y-3">
+                        <div class="flex items-center justify-between gap-2 border-b pb-2">
+                            <h2 class="font-extrabold text-base text-slate-900"><i class="fas fa-shield-halved text-emerald-600 ml-1"></i> استعادة كلمة السر</h2>
+                            <button type="button" onclick="ProtectionController.cancelRecovery()" class="p-2 text-slate-500" aria-label="إلغاء الاستعادة"><i class="fas fa-times"></i></button>
+                        </div>
+                        <p class="text-xs text-slate-600">للتحقق من ملكية التطبيق، يجب الإجابة الصحيحة عن سؤالَي الأمان معاً قبل تعيين كلمة سر بديلة.</p>
+                        <div><label class="block text-xs font-bold mb-1">${this.questionLabel(questions[0].id)}</label><input id="recoveryAnswer1" type="password" autocomplete="off" class="w-full border border-slate-300 rounded-xl p-2.5 text-sm" placeholder="إجابة السؤال الأول"></div>
+                        <div><label class="block text-xs font-bold mb-1">${this.questionLabel(questions[1].id)}</label><input id="recoveryAnswer2" type="password" autocomplete="off" class="w-full border border-slate-300 rounded-xl p-2.5 text-sm" placeholder="إجابة السؤال الثاني"></div>
+                        <div><label class="block text-xs font-bold mb-1">كلمة السر الجديدة (4 خانات أو أكثر)</label><input id="recoveryNewPin" type="password" inputmode="numeric" autocomplete="new-password" minlength="4" class="w-full border border-slate-300 rounded-xl p-2.5 text-sm" placeholder="كلمة سر جديدة"></div>
+                        <div><label class="block text-xs font-bold mb-1">تأكيد كلمة السر الجديدة</label><input id="recoveryConfirmPin" type="password" inputmode="numeric" autocomplete="new-password" minlength="4" class="w-full border border-slate-300 rounded-xl p-2.5 text-sm" placeholder="إعادة كتابة كلمة السر"></div>
+                        <button type="button" onclick="ProtectionController.resetForgottenPin()" class="w-full py-3 rounded-xl bg-emerald-600 text-white font-extrabold text-sm"><i class="fas fa-key ml-1"></i> التحقق وإعادة تعيين كلمة السر</button>
+                        <p class="text-[10px] text-slate-500">تُحفظ الإجابات كبصمات تشفيرية محلياً، ولا يمكن عرض الإجابات الأصلية.</p>
+                    </div>`;
+            },
+            openRecovery() {
+                const cfg = State.settings.appProtection || {};
+                if (!cfg.pinHash || !Array.isArray(cfg.securityQuestions) || cfg.securityQuestions.length !== 2) {
+                    UI.toast('لم يتم إعداد سؤالَي أمان لهذا الرمز. يتطلب ضبطهما إدخال كلمة السر القديمة من الإعدادات.', 'error');
+                    return;
+                }
+                const lock = document.getElementById('appProtectionLock');
+                if (lock) lock.innerHTML = this.recoveryMarkup(true);
+                else UI.openModal(this.recoveryMarkup(false));
+            },
+            cancelRecovery() {
+                const lock = document.getElementById('appProtectionLock');
+                if (lock) {
+                    lock.remove();
+                    this.showAppLock();
+                } else UI.forceCloseModal();
+            },
+            async resetForgottenPin() {
+                try {
+                    const cfg = State.settings.appProtection || {};
+                    const qs = cfg.securityQuestions || [];
+                    if (qs.length !== 2) return UI.toast('لا يوجد سؤالا أمان محفوظان لاستعادة كلمة السر', 'error');
+                    const waitMs = (Number(cfg.recoveryLockedUntil) || 0) - Date.now();
+                    if (waitMs > 0) return UI.toast(`تم إيقاف محاولات الاستعادة مؤقتاً. أعد المحاولة بعد ${Math.ceil(waitMs / 60000)} دقائق`, 'error');
+                    const newPin = document.getElementById('recoveryNewPin')?.value || '';
+                    const confirmed = document.getElementById('recoveryConfirmPin')?.value || '';
+                    if (newPin.length < 4 || newPin !== confirmed) return UI.toast('أدخل كلمة سر جديدة من 4 خانات على الأقل وتأكيداً مطابقاً', 'error');
+                    const answers = [document.getElementById('recoveryAnswer1')?.value, document.getElementById('recoveryAnswer2')?.value];
+                    if (answers.some(a => !this.normalizeAnswer(a))) return UI.toast('أدخل إجابة سؤالَي الأمان', 'error');
+                    const checked = await Promise.all(qs.map((q, i) => this.hashPin(this.normalizeAnswer(answers[i]), q.salt, 'pbkdf2-sha256-v1')));
+                    if (checked.some((hash, i) => hash !== qs[i].hash)) {
+                        cfg.recoveryFailures = (Number(cfg.recoveryFailures) || 0) + 1;
+                        if (cfg.recoveryFailures >= 5) {
+                            cfg.recoveryFailures = 0;
+                            cfg.recoveryLockedUntil = Date.now() + 5 * 60 * 1000;
+                        }
+                        await StorageEngine.saveState();
+                        return UI.toast(cfg.recoveryLockedUntil > Date.now() ? 'خمس محاولات غير صحيحة؛ تم تعليق الاستعادة لمدة 5 دقائق' : 'إحدى إجابتَي الأمان غير صحيحة', 'error');
+                    }
+                    const salt = this.bytesToBase64(this.randomBytes(16));
+                    cfg.pinSalt = salt;
+                    cfg.pinAlgo = 'pbkdf2-sha256-v1';
+                    cfg.pinHash = await this.hashPin(newPin, salt, cfg.pinAlgo);
+                    cfg.recoveryFailures = 0;
+                    cfg.recoveryLockedUntil = 0;
+                    await StorageEngine.saveState();
+                    document.getElementById('appProtectionLock')?.remove();
+                    if (!document.getElementById('modalContainer')?.classList.contains('hidden')) UI.forceCloseModal();
+                    UI.toast('تم التحقق من سؤالَي الأمان وتعيين كلمة سر جديدة بنجاح', 'success');
+                    AppNav.renderCurrent();
+                } catch (e) { UI.toast(e.message || 'تعذر استعادة كلمة السر', 'error'); }
+            },
+            // Android BiometricPrompt callbacks originate from MainActivity; never trust a JS-only success flag.
+            nativeBiometricPending: new Map(),
+            async nativeBiometricAuthenticate() {
+                if (!window.NativeSecurity || typeof window.NativeSecurity.authenticate !== 'function') {
+                    throw new Error('بصمة الجهاز تعمل داخل تطبيق APK المخصص فقط؛ افتح التطبيق المثبت على أندرويد');
+                }
+                const requestId = this.bytesToBase64(this.randomBytes(12)).replace(/[^a-zA-Z0-9]/g, '');
+                return new Promise((resolve, reject) => {
+                    const timeout = setTimeout(() => {
+                        this.nativeBiometricPending.delete(requestId);
+                        reject(new Error('انتهت مهلة التحقق بالبصمة'));
+                    }, 70000);
+                    this.nativeBiometricPending.set(requestId, (success, reason) => {
+                        clearTimeout(timeout);
+                        if (success) resolve(true);
+                        else reject(new Error(reason || 'فشل أو أُلغي التحقق بالبصمة'));
+                    });
+                    try { window.NativeSecurity.authenticate(requestId, State.settings.language === 'en' ? 'en' : 'ar'); }
+                    catch (e) {
+                        clearTimeout(timeout);
+                        this.nativeBiometricPending.delete(requestId);
+                        reject(e);
+                    }
+                });
+            },
+            async registerFingerprint() {
+                const cfg = State.settings.appProtection || {};
+                if (!cfg.pinHash) return UI.toast('احفظ كلمة سر وسؤالَي أمان أولاً، ثم فعّل البصمة', 'error');
+                if (!window.NativeSecurity || typeof window.NativeSecurity.authenticate !== 'function') {
+                    return UI.toast('يجب فتح نسخة APK على هاتف أندرويد لتفعيل بصمة الجهاز', 'error');
+                }
+                this.requestPin('أدخل كلمة السر الحالية قبل تفعيل أو تحديث البصمة', async () => {
+                    try {
+                        await this.nativeBiometricAuthenticate();
+                        const current = State.settings.appProtection || {};
+                        current.fingerprintEnabled = true;
+                        current.fingerprintCredentialId = ''; // WebAuthn credential no longer used.
+                        current.lockApp = true;
+                        State.settings.appProtection = current;
+                        await StorageEngine.saveState();
+                        UI.toast('تم تفعيل البصمة الأصلية وقفل التطبيق بنجاح', 'success');
+                        AppNav.renderCurrent();
+                    } catch (e) { UI.toast(e.message || 'تعذر إعداد البصمة', 'error'); }
+                });
+            },
+            async verifyFingerprint() {
+                if (!State.settings.appProtection?.fingerprintEnabled) return false;
+                try {
+                    return await this.nativeBiometricAuthenticate();
+                } catch (e) {
+                    const error = document.getElementById('appUnlockError');
+                    if (error) error.textContent = e.message || 'تعذر التحقق بالبصمة';
+                    return false;
+                }
+            },
+            showAppLock() {
+                const cfg = State.settings.appProtection || {};
+                if (!cfg.lockApp || !cfg.pinHash || document.getElementById('appProtectionLock')) return;
+                const biometricReady = cfg.fingerprintEnabled === true && !!(window.NativeSecurity && typeof window.NativeSecurity.authenticate === 'function');
+                const overlay = document.createElement('div');
+                overlay.id = 'appProtectionLock';
+                overlay.className = 'fixed inset-0 z-[10000] bg-slate-950 flex items-center justify-center p-5';
+                overlay.innerHTML = `
+                    <div class="w-full max-w-sm bg-white rounded-3xl p-6 text-center shadow-2xl">
+                        <div class="w-16 h-16 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-3xl mx-auto mb-4"><i class="fas ${biometricReady ? 'fa-fingerprint' : 'fa-lock'}"></i></div>
+                        <h2 class="font-extrabold text-lg mb-1">التطبيق مقفل</h2>
+                        ${biometricReady ? `
+                            <p class="text-xs text-slate-500 mb-4">استخدم بصمة الإصبع لفتح التطبيق مباشرة</p>
+                            <p id="appUnlockError" class="text-xs text-rose-600 mb-2" role="alert"></p>
+                            <button type="button" id="retryAppBiometric" onclick="ProtectionController.unlockWithFingerprint()" class="w-full bg-emerald-600 text-white rounded-xl py-3 font-extrabold"><i class="fas fa-fingerprint ml-1"></i> التحقق بالبصمة</button>
+                            <button type="button" onclick="ProtectionController.showUnlockPin()" class="w-full mt-2 bg-slate-100 text-slate-800 rounded-xl py-3 font-bold">استخدام رمز الحماية</button>
+                        ` : `<p class="text-xs text-slate-500 mb-4">أدخل رمز الحماية للمتابعة</p><p id="appUnlockError" class="text-xs text-rose-600 mb-2" role="alert"></p>`}
+                        <div id="appUnlockPinPanel" class="${biometricReady ? 'hidden' : ''} mt-3">
+                            <input id="appUnlockPin" type="password" inputmode="numeric" autocomplete="current-password" onkeydown="if(event.key === 'Enter'){event.preventDefault();ProtectionController.unlockApp()}" placeholder="رمز الحماية" class="w-full border border-slate-300 rounded-xl p-3 text-center text-xl tracking-widest mb-3">
+                            <button type="button" onclick="ProtectionController.unlockApp()" class="w-full bg-slate-900 text-white rounded-xl py-3 font-extrabold">فتح التطبيق</button>
+                        </div>
+                        <button type="button" onclick="ProtectionController.openRecovery()" class="block mx-auto mt-4 text-xs font-bold text-indigo-700 underline"><i class="fas fa-life-ring ml-1"></i> نسيت كلمة السر؟</button>
+                    </div>`;
+                document.body.appendChild(overlay);
+                if (biometricReady) {
+                    // Wait until the overlay is visible. Android presents its genuine biometric prompt.
+                    requestAnimationFrame(() => {
+                        if (document.getElementById('appProtectionLock') === overlay) this.unlockWithFingerprint();
+                    });
+                } else {
+                    requestAnimationFrame(() => document.getElementById('appUnlockPin')?.focus());
+                }
+            },
+            showUnlockPin() {
+                const panel = document.getElementById('appUnlockPinPanel');
+                if (!panel) return;
+                panel.classList.remove('hidden');
+                const error = document.getElementById('appUnlockError');
+                if (error) error.textContent = '';
+                document.getElementById('appUnlockPin')?.focus();
+            },
+            async unlockApp() {
+                const pin = document.getElementById('appUnlockPin')?.value || '';
+                try {
+                    if (await this.verifyPin(pin)) {
+                        document.getElementById('appProtectionLock')?.remove();
+                    } else {
+                        const error = document.getElementById('appUnlockError');
+                        if (error) error.textContent = 'رمز الحماية غير صحيح';
+                    }
+                } catch (e) {
+                    const error = document.getElementById('appUnlockError');
+                    if (error) error.textContent = e.message || 'تعذر التحقق';
+                }
+            },
+            biometricUnlockInProgress: false,
+            async unlockWithFingerprint() {
+                if (this.biometricUnlockInProgress || !document.getElementById('appProtectionLock')) return;
+                this.biometricUnlockInProgress = true;
+                const button = document.getElementById('retryAppBiometric');
+                if (button) button.disabled = true;
+                try {
+                    if (await this.verifyFingerprint()) {
+                        // Authentication is enough: no additional confirmation button.
+                        document.getElementById('appProtectionLock')?.remove();
+                    } else {
+                        const error = document.getElementById('appUnlockError');
+                        if (error && !error.textContent) error.textContent = 'تعذر التحقق بالبصمة، استخدم رمز الحماية';
+                    }
+                } finally {
+                    this.biometricUnlockInProgress = false;
+                    if (button) button.disabled = false;
+                }
+            },
+            lockOnReturn() {
+                document.addEventListener('visibilitychange', () => {
+                    if (document.visibilityState === 'visible') this.showAppLock();
+                });
+            }
+        };
+
+        window.__nativeBiometricReply = function(requestId, success, reason) {
+            const callback = ProtectionController.nativeBiometricPending.get(requestId);
+            if (!callback) return;
+            ProtectionController.nativeBiometricPending.delete(requestId);
+            callback(success === true, reason);
+        };
+
+        /********************************************************************
+         * 11. INITIALIZE APPLICATION ON LOAD
+         ********************************************************************/
+        // Select numeric values automatically when the user focuses an input.
+        // This makes replacing quantities, prices, balances, rates and other numbers faster.
+        document.addEventListener('focusin', function (event) {
+            const field = event.target;
+            if (!(field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement)) return;
+            if (field.disabled || field.readOnly) return;
+            if (['password', 'file', 'date', 'datetime-local', 'time', 'checkbox', 'radio', 'button', 'submit', 'reset', 'hidden', 'search'].includes((field.type || '').toLowerCase())) return;
+
+            const numericMode = /^(number|decimal|numeric)$/i.test(field.type) || /^(decimal|numeric)$/i.test(field.inputMode || '');
+            const currentValue = String(field.value || '').trim();
+            const normalizedValue = currentValue
+                .replace(/[٠-٩]/g, digit => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)))
+                .replace(/[۰-۹]/g, digit => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(digit)))
+                .replace(/[٬,]/g, '')
+                .replace(/٫/g, '.')
+                .replace(/[−–]/g, '-');
+            const containsOnlyNumber = normalizedValue !== '' && /^[+-]?(?:\d+\.?\d*|\.\d+)$/.test(normalizedValue);
+
+            if (numericMode || containsOnlyNumber) {
+                requestAnimationFrame(() => {
+                    if (document.activeElement === field && typeof field.select === 'function') field.select();
+                });
+            }
+        }, true);
+
+        window.onload = async function () {
+            try {
+                await StorageEngine.init();
+            } catch (err) {
+                console.warn('IndexedDB fallback to in-memory state:', err);
+                await LicenseManager.syncFallbackStorage();
+            }
+            try {
+                history.replaceState({ appGuard: true, depth: 1 }, '');
+                history.pushState({ appGuard: true, depth: 1 }, '');
+            } catch (e) {}
+            BackupController.stageLatest(); // Stage existing IndexedDB data after first launch.
+            I18n.install();
+            AppNav.renderCurrent();
+            I18n.apply(document);
+            ProtectionController.showAppLock();
+            ProtectionController.lockOnReturn();
+        };
+        // Scanner stays open and batches all invoice barcodes until pressing ×.
+        window.__nativeBarcodeBatchResult = function (codes) {
+            InvoiceController.addItemsByBarcodeBatch(codes);
+        };
+        // Native offline barcode decoder callback, dispatched by Android after scanning.
+        window.__nativeBarcodeResult = function (target, code, message) {
+            if (message) {
+                UI.toast(message, 'error');
+                return;
+            }
+            const value = String(code || '').trim();
+            if (!value) return; // User cancelled scanner; don't change invoice or item.
+            if (target === 'item') {
+                const field = document.getElementById('itmBarcode');
+                if (!field) {
+                    UI.toast('ارجع إلى بطاقة المادة ثم أعد مسح الباركود', 'warn');
+                    return;
+                }
+                field.value = value;
+                ItemController.markItemDirty();
+                UI.toast('تمت قراءة الباركود؛ احفظ بطاقة المادة', 'success');
+            } else if (target === 'invoice') {
+                InvoiceController.addItemByBarcode(value);
+            }
+        };
+    

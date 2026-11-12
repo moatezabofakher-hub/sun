@@ -4,9 +4,9 @@ const fs=require('node:fs'), vm=require('node:vm'), path=require('node:path');
 const root=path.resolve(__dirname, '..');
 const html=fs.readFileSync(path.join(root,'app/src/main/assets/www/index.html'),'utf8');
 const range=(a,b)=>{const start=html.indexOf(a),end=html.indexOf(b,start+a.length);assert(start>=0 && end>start,a);return html.slice(start,end);};
-// Images intentionally appear in exactly three user-facing contexts.
-assert.equal((html.match(/ItemController\.photoThumb\(/g)||[]).length,2);
-assert.match(range('renderItems(main, params = {})','renderWarehouses(main'),/ItemController\.photoThumb\(item, 'list'\)/);
+// Photos appear in inventory list, inventory group grid, invoice grid and the editor.
+assert.equal((html.match(/ItemController\.photoThumb\(/g)||[]).length,3);
+assert.match(range('renderItems(main, params = {})','renderWarehouses(main'),/ItemController\.photoThumb\(item,\s*'list'\)/);
 assert.match(range('renderItemGridCards() {','selectItemFromGrid(itemId)'),/ItemController\.photoThumb\(itm, 'grid'\)/);
 assert.match(range('openItemModal(itemId = null)','renderUnitRows()'),/this\.photoEditorPreview\(\)/);
 assert.ok(!range('renderItemGridCards() {','selectItemFromGrid(itemId)').includes('<input type="file"'));

@@ -439,6 +439,128 @@
                 display: none !important;
             }
         }
+
+        /* v3.5.19: tactile 3D dashboard and simplified item explorer. */
+        body.ta-premium-ui {background:
+            radial-gradient(ellipse at top right,rgba(14,165,151,.11),transparent 44%),
+            linear-gradient(150deg,#f4f9fb,#eaf1f8 60%,#f7fbfc);}
+        #mainContent.ta-main {padding:17px 13px 122px;}
+        .ta-dashboard {gap:21px;}
+        .ta-dashboard > section {filter:drop-shadow(0 1px 0 rgba(255,255,255,.8));}
+        .ta-section-head {margin-bottom:13px;}
+        .ta-section-head h3 {font-size:15px;color:#17334a;}
+        .ta-section-mark {height:27px;width:5px;border-radius:6px;background:linear-gradient(180deg,#56e5ce,#007d7d);box-shadow:0 3px 0 #075a60;}
+        /* Raised surfaces and specular highlights are offline-only CSS. */
+        .ta-action-card,.ta-module-card {
+            isolation:isolate;overflow:hidden;border-radius:23px;
+            border:1px solid #d4e6ed;
+            background:linear-gradient(155deg,#ffffff 4%,#f8fcfe 58%,#edf6fa 100%);
+            box-shadow:0 6px 0 #d6e3eb,0 14px 20px rgba(16,51,79,.10),inset 0 2px 0 #fff;
+            transition:transform .13s ease,box-shadow .13s ease,border-color .13s ease;
+            transform:translateY(0);
+        }
+        .ta-action-card::before,.ta-module-card::before {
+            content:'';pointer-events:none;position:absolute;inset:0 0 auto;height:40%;
+            background:linear-gradient(180deg,rgba(255,255,255,.72),transparent);
+            border-radius:inherit;z-index:-1;
+        }
+        .ta-action-card{padding:16px;min-height:112px;gap:14px;}
+        .ta-action-card strong{font-size:13px;}
+        .ta-action-card .ta-card-description{font-size:11px;}
+        .ta-module-card {min-height:103px;padding:14px 4px 13px;gap:11px;}
+        .ta-module-card strong{font-size:11px;}
+        .ta-icon-box{
+            width:48px;height:48px;min-width:48px;border-radius:17px;
+            border:1px solid rgba(255,255,255,.78);
+            box-shadow:0 5px 0 rgba(17,68,80,.12),0 8px 12px rgba(17,68,80,.13),inset 1px 3px 2px rgba(255,255,255,.82);
+            text-shadow:0 2px 0 rgba(255,255,255,.45);
+        }
+        .ta-module-card .ta-icon-box {width:43px;height:43px;min-width:43px;border-radius:15px;font-size:19px;}
+        .ta-tone-teal{background:linear-gradient(150deg,#f3fffc,#a2e8dd);color:#08796f;}
+        .ta-tone-blue{background:linear-gradient(150deg,#f3faff,#b4d6ff);color:#235ca1;}
+        .ta-tone-purple{background:linear-gradient(150deg,#f9f4ff,#d8c4ff);color:#6c49b5;}
+        .ta-tone-orange{background:linear-gradient(150deg,#fff9eb,#ffddb0);color:#b16c13;}
+        .ta-tone-red{background:linear-gradient(150deg,#fff5f8,#ffcbda);color:#bb4166;}
+        .ta-tone-cyan{background:linear-gradient(150deg,#f4fdff,#b6eaf2);color:#14738b;}
+        .ta-module-grid{gap:13px 10px;}
+        .ta-action-grid{gap:14px 12px;}
+        .ta-action-card:active,.ta-module-card:active{
+            transform:translateY(5px) !important;
+            box-shadow:0 1px 0 #c4d5e1,0 4px 9px rgba(16,51,79,.08),inset 0 2px 0 #fff !important;
+        }
+        @media(hover:hover){.ta-action-card:hover,.ta-module-card:hover{
+            border-color:#a8d5d1;box-shadow:0 8px 0 #c8dbe3,0 17px 23px rgba(16,51,79,.13),inset 0 2px 0 #fff;
+            transform:translateY(-2px);
+        }}
+        /* Six compact dock slots, Settings immediately beside Reports in RTL. */
+        nav.ta-bottom-nav > div {display:grid;grid-template-columns:repeat(6,minmax(0,1fr));}
+        .ta-bottom-nav .nav-btn {margin:5px 1px;min-width:0;}
+        .ta-bottom-nav .nav-btn > i {width:29px;height:30px;font-size:16px !important;}
+        .ta-bottom-nav .nav-btn > span{font-size:9px;white-space:nowrap;}
+        #topAppBar.dashboard-header #headerTitleWrap {width:calc(100% - 120px);}
+        @media(max-width:380px){#topAppBar.dashboard-header #headerTitleWrap{width:calc(100% - 110px);}}
+        /* Materials: stock-only cards, list or grouped photo-grid. */
+        .ta-items-screen{display:flex;flex-direction:column;gap:14px;}
+        .ta-items-heading{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:4px 2px 1px;}
+        .ta-items-heading h2{font-size:19px;font-weight:900;color:#12384d;line-height:1.4;}
+        .ta-items-subtitle{font-size:10px;color:#128a83;font-weight:850;}
+        .ta-items-counter{color:#0f766e;background:#e0f5f0;border:1px solid #bae4dd;font-size:11px;font-weight:850;padding:8px 12px;border-radius:12px;white-space:nowrap;}
+        .ta-items-toolbar{display:grid;grid-template-columns:1.3fr 1fr;gap:9px;}
+        #mainContent .ta-primary-3d,#mainContent .ta-secondary-3d{
+            border-radius:15px;min-height:47px;display:flex;align-items:center;justify-content:center;gap:8px;font-size:12px;font-weight:900;
+            border:1px solid rgba(255,255,255,.38);
+            box-shadow:0 4px 0 #075f5d,0 8px 13px rgba(13,96,95,.19),inset 0 1px 0 rgba(255,255,255,.35);
+            transition:transform .12s,box-shadow .12s;
+        }
+        #mainContent .ta-primary-3d{background:linear-gradient(160deg,#28c3b0,#00847d);color:white;}
+        #mainContent .ta-secondary-3d{background:linear-gradient(160deg,#e8f4fc,#b7d5e8);color:#244a62;box-shadow:0 4px 0 #88abc2,0 8px 13px rgba(20,66,93,.13),inset 0 1px 0 #fff;}
+        #mainContent .ta-primary-3d:active,#mainContent .ta-secondary-3d:active{transform:translateY(3px);box-shadow:0 1px 0 #679999;}
+        .ta-items-warehouse{padding:11px 14px;background:linear-gradient(135deg,#f0f9ff,#e7f4f8);border:1px solid #cde2eb;border-radius:17px;display:flex;gap:10px;align-items:center;}
+        .ta-items-warehouse label{font-weight:850;color:#28566a;font-size:11px;white-space:nowrap;}
+        .ta-items-warehouse select{min-width:0;flex:1;padding:9px 12px;border-radius:11px;border:1px solid #cbdbe5;background:white;color:#24394a;font-size:12px;font-weight:800;}
+        .ta-items-filters{padding:12px;background:#fff;border:1px solid #dce9ee;border-radius:19px;box-shadow:0 5px 0 #dfebf0,0 10px 20px rgba(20,49,75,.055);display:grid;grid-template-columns:1fr 1fr;gap:9px;}
+        .ta-items-search{grid-column:1/-1;position:relative;}
+        .ta-items-search > i{position:absolute;right:13px;top:13px;color:#6b8995;font-size:13px;}
+        .ta-items-search input{width:100%;border:1px solid #dce6ef;border-radius:12px;padding:10px 35px 10px 10px;font-size:12px;background:#f7fafc;min-height:43px;}
+        .ta-items-filters > select{border:1px solid #dce6ef;border-radius:12px;min-width:0;padding:9px;font-size:11px;font-weight:800;background:#f7fafc;color:#25465c;}
+        .ta-view-switch{display:flex;gap:3px;background:#eaf0f4;padding:4px;border-radius:12px;}
+        .ta-view-switch button{min-width:0;flex:1;border-radius:9px;font-weight:850;font-size:10px;color:#617888;white-space:nowrap;padding:7px 4px;}
+        .ta-view-switch button.is-selected{background:linear-gradient(170deg,#fff,#ebf8f5);color:#087a71;box-shadow:0 2px 4px rgba(20,50,65,.10);border:1px solid #c5e3dd;}
+        .ta-stock-list{display:flex;flex-direction:column;gap:11px;}
+        .ta-stock-card{position:relative;border:1px solid #d9e8ef;background:linear-gradient(150deg,#fff,#f8fcff);border-radius:20px;
+            box-shadow:0 4px 0 #dfeaf1,0 9px 17px rgba(18,45,67,.065);}
+        .ta-stock-card.is-list{display:flex;align-items:center;gap:11px;padding:11px;min-height:89px;}
+        .ta-stock-card.is-list > .shrink-0{width:64px;height:64px;border-radius:14px;box-shadow:inset 0 1px 3px rgba(0,0,0,.06);}
+        .ta-stock-open{display:flex;flex-direction:column;gap:8px;text-align:right;min-width:0;flex:1;align-items:flex-start;}
+        .ta-stock-name{font-size:12px;font-weight:900;color:#1e364b;line-height:1.55;overflow-wrap:anywhere;}
+        .ta-item-stock{background:#e9f8f2;border:1px solid #c2e7db;border-radius:9px;padding:5px 8px;color:#087567;font-size:10px;font-weight:800;white-space:normal;text-align:right;}
+        .ta-item-stock b{font-weight:900;}
+        .ta-item-stock.is-low{color:#a65330;background:#fff3e9;border-color:#f5dec7;}
+        .ta-item-actions{display:flex;gap:6px;align-items:center;flex-shrink:0;}
+        .ta-item-actions button{width:34px;height:35px;display:flex;align-items:center;justify-content:center;background:#e9f2f6;border-radius:11px;border:1px solid #d5e4eb;color:#547185;}
+        .ta-item-actions button.ta-item-delete{background:#fff1f2;border-color:#fae0e2;color:#bd6071;}
+        .ta-stock-groups{display:flex;flex-direction:column;gap:18px;}
+        .ta-item-group-heading{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;padding:0 4px;}
+        .ta-item-group-heading > div{display:flex;align-items:center;gap:9px;color:#193a4e;font-size:13px;}
+        .ta-item-group-heading i{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:10px;color:#0d8a7a;background:#dcf6ed;}
+        .ta-item-group-heading > span{font-size:10px;font-weight:850;border-radius:10px;padding:6px 10px;background:#edf3f7;color:#61788a;}
+        .ta-stock-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;}
+        .ta-stock-card.is-grid{min-width:0;display:flex;flex-direction:column;align-items:stretch;padding:10px;gap:8px;}
+        .ta-stock-card.is-grid .ta-stock-open{width:100%;align-items:stretch;gap:7px;flex:1;}
+        .ta-stock-card.is-grid .ta-stock-open > div{height:95px;margin-bottom:0;border-radius:13px;background:linear-gradient(140deg,#f5fafb,#e9f4f6);}
+        .ta-stock-card.is-grid .ta-stock-name{font-size:12px;min-height:32px;}
+        .ta-stock-card.is-grid .ta-item-stock{align-self:flex-start;}
+        .ta-stock-card.is-grid .ta-item-actions{justify-content:flex-end;gap:7px;margin-top:3px;border-top:1px solid #edf2f5;padding-top:8px;}
+        .ta-stock-card.is-grid .ta-item-actions button{width:33px;height:31px;}
+        .ta-item-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:165px;background:#fff;border:1px dashed #ccdfe9;border-radius:17px;color:#678399;font-size:12px;gap:8px;text-align:center;padding:16px;}
+        .ta-item-empty.hidden{display:none !important;}
+        .ta-item-group.hidden{display:none !important;}
+        .ta-item-empty i{font-size:28px;color:#a1bac6;}
+        .ta-item-empty strong{color:#385669;}
+        .ta-item-empty p{font-size:11px;}
+        @media(max-width:360px){.ta-items-filters{grid-template-columns:1fr}.ta-view-switch{grid-column:1/-1}.ta-stock-card.is-list{gap:7px;padding:9px}.ta-stock-card.is-list > .shrink-0{width:50px;height:50px}.ta-item-actions button{width:30px;}}
+        @media(prefers-reduced-motion:reduce){.ta-action-card,.ta-module-card,.ta-primary-3d,.ta-secondary-3d{transition:none !important;}}
+
     </style>
 </head>
 <body class="ta-premium-ui bg-slate-100 text-slate-800 min-h-screen flex flex-col w-full max-w-full overflow-x-hidden">
@@ -501,7 +623,7 @@
 
     <!-- Bottom Taskbar / Navigation Bar (Intercepted by Unsaved Changes Guard) -->
     <nav class="ta-bottom-nav fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-30 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
-        <div class="max-w-3xl mx-auto grid grid-cols-5 h-16">
+        <div class="max-w-3xl mx-auto grid grid-cols-6 h-16">
             <button onclick="AppNav.navigate('dashboard')" data-nav="dashboard" class="nav-btn flex flex-col items-center justify-center gap-1 text-emerald-600 font-bold transition">
                 <i class="fas fa-home text-lg"></i>
                 <span class="text-[11px]">الرئيسية</span>
@@ -521,6 +643,10 @@
             <button onclick="AppNav.navigate('reports')" data-nav="reports" class="nav-btn flex flex-col items-center justify-center gap-1 text-slate-500 hover:text-slate-800 transition">
                 <i class="fas fa-chart-pie text-lg"></i>
                 <span class="text-[11px]">التقارير</span>
+            </button>
+            <button onclick="AppNav.navigate('settings')" data-nav="settings" class="nav-btn flex flex-col items-center justify-center gap-1 text-slate-500 hover:text-slate-800 transition" title="الضبط">
+                <i class="fas fa-sliders text-lg" aria-hidden="true"></i>
+                <span class="text-[11px]">الضبط</span>
             </button>
         </div>
     </nav>
@@ -1561,12 +1687,10 @@
                     const topAppBar = document.getElementById('topAppBar');
                     if (topAppBar) topAppBar.classList.toggle('dashboard-header', screen === 'dashboard');
                     backBtn.classList.toggle('dashboard-settings-button', screen === 'dashboard');
-                    backBtn.classList.remove('hidden');
+                    backBtn.classList.toggle('hidden', screen === 'dashboard');
                     if (screen === 'dashboard') {
-                        backBtn.setAttribute('title', 'الضبط');
-                        backBtn.setAttribute('aria-label', 'الضبط');
-                        backBtn.onclick = () => AppNav.navigate('settings');
-                        if (backIcon) backIcon.className = 'fas fa-sliders text-emerald-400 text-xl';
+                        // Settings lives beside Reports in the bottom dock.
+                        backBtn.onclick = null;
                     } else {
                         backBtn.setAttribute('title', 'رجوع');
                         backBtn.setAttribute('aria-label', 'رجوع');
@@ -2751,24 +2875,6 @@
 
                 main.innerHTML = `
                     <div class="ta-dashboard">
-                        <section class="ta-hero" aria-label="لوحة التحكم الرئيسية">
-                            <div class="ta-hero-content">
-                                <div class="ta-eyebrow"><i class="fas fa-arrow-trend-up ml-1"></i> مركز إدارة الأعمال</div>
-                                <h2>كل أعمالك، في مكان واحد</h2>
-                                <p>فواتير، أرصدة، ومستودعات — أدواتك الأساسية جاهزة للاستخدام دون اتصال.</p>
-                                <div class="ta-hero-stats">
-                                    <div class="ta-hero-stat">
-                                        <i class="fas fa-boxes-stacked" aria-hidden="true"></i>
-                                        <span><strong>${State.items.length}</strong><small>مادة مسجّلة</small></span>
-                                    </div>
-                                    <div class="ta-hero-stat">
-                                        <i class="fas fa-users" aria-hidden="true"></i>
-                                        <span><strong>${State.accounts.length}</strong><small>حساب عميل / مورد</small></span>
-                                    </div>
-                                </div>
-                            </div>
-                        </section>
-
                         <section aria-label="العمليات السريعة">
                             <div class="ta-section-head"><span class="ta-section-mark"></span><div><h3>العمليات السريعة</h3><p>ابدأ عملية جديدة بضغطة واحدة</p></div></div>
                             <div class="ta-action-grid">
@@ -2829,119 +2935,104 @@
 
             // ==================== 6.2 ITEMS & MULTI-UNIT WAREHOUSE ====================
             renderItems(main, params = {}) {
-                UI.setHeader('<i class="fas fa-boxes-stacked text-emerald-400"></i> <span>إدارة الأصناف والمستودع</span>', 'تحديد العملة المعتمدة لكل صنف وتعدد الوحدات والباركود');
+                UI.setHeader('<i class="fas fa-boxes-stacked text-emerald-400"></i> <span>المواد والمستودع</span>', 'قائمة بسيطة أو شبكة مرتبة حسب المجموعة');
 
-                const searchQ = (params.q || '').trim().toLowerCase();
+                const searchQ = (params.q || '').trim().toLocaleLowerCase();
                 const catFilter = params.cat || 'all';
-
+                const view = ItemController.viewMode === 'group_grid' ? 'group_grid' : 'list';
                 const filtered = State.items.filter(item => {
-                    const matchCat = catFilter === 'all' || item.category === catFilter;
-                    const matchQ = !searchQ || item.name.toLowerCase().includes(searchQ) || (item.barcode && item.barcode.toLowerCase().includes(searchQ));
-                    return matchCat && matchQ;
+                    const matchCat = catFilter === 'all' || (item.category || '') === catFilter;
+                    const searchable = `${item.name || ''} ${item.barcode || ''}`.toLocaleLowerCase();
+                    return matchCat && (!searchQ || searchable.includes(searchQ));
                 });
+                const orderedGroupNames = Array.from(new Set(filtered.map(item => item.category || 'بدون مجموعة')))
+                    .sort((a,b) => {
+                        const ai=State.categories.indexOf(a), bi=State.categories.indexOf(b);
+                        if (ai>=0 && bi>=0) return ai-bi;
+                        if (ai>=0) return -1;
+                        if (bi>=0) return 1;
+                        return a.localeCompare(b, 'ar');
+                    });
+                const buildCard = (item, isGrid) => {
+                    const baseStock = Accounting.getItemBaseStock(item.id, null, State.settings.selectedWarehouseId || 'wh_main');
+                    const baseUnit = Array.isArray(item.units) && item.units.length ? item.units[0] : { name:'وحدة', factor:1 };
+                    const low = baseStock <= (Number(item.minStockBase) || 0);
+                    // Only stock is shown next to each item's name. Other details stay in the item editor.
+                    const stock = `<span class="ta-item-stock ${low ? 'is-low' : ''}" aria-label="رصيد المادة">
+                        <i class="fas fa-box-open" aria-hidden="true"></i> رصيد: <b>${Accounting.formatItemQuantity(baseStock)} ${AppEscape.text(baseUnit.name)}</b>
+                    </span>`;
+                    const linked = State.invoices.some(inv => Array.isArray(inv.rows) && inv.rows.some(r => r.itemId === item.id));
+                    const safeId = AppEscape.text(JSON.stringify(String(item.id)));
+                    const actions = `<div class="ta-item-actions">
+                        <button type="button" onclick="ItemController.openItemModal(${safeId})" aria-label="تعديل ${AppEscape.text(item.name)}" title="تعديل المادة"><i class="fas fa-pen" aria-hidden="true"></i></button>
+                        <button type="button" onclick="ItemController.deleteItem(${safeId})" class="ta-item-delete" aria-label="${linked ? 'المادة محمية من الحذف' : 'حذف المادة'}" title="${linked ? 'محمي من الحذف' : 'حذف المادة'}"><i class="fas ${linked ? 'fa-lock' : 'fa-trash'}" aria-hidden="true"></i></button>
+                    </div>`;
+                    const attrs = `data-item-search="${encodeURIComponent(`${item.name} ${item.barcode || ''}`)}" data-item-category="${encodeURIComponent(item.category || '')}"`;
+                    return isGrid ? `
+                        <article ${attrs} class="ta-stock-card is-grid ${low ? 'ta-low-stock' : ''}">
+                            <button type="button" class="ta-stock-open" onclick="ItemController.openItemModal(${safeId})" aria-label="فتح بطاقة ${AppEscape.text(item.name)}">
+                                ${ItemController.photoThumb(item,'grid')}
+                                <strong class="ta-stock-name">${AppEscape.text(item.name)}</strong>
+                            </button>
+                            ${stock}
+                            ${actions}
+                        </article>` : `
+                        <article ${attrs} class="ta-stock-card is-list ${low ? 'ta-low-stock' : ''}">
+                            ${ItemController.photoThumb(item,'list')}
+                            <button type="button" class="ta-stock-open" onclick="ItemController.openItemModal(${safeId})" aria-label="فتح بطاقة ${AppEscape.text(item.name)}">
+                                <strong class="ta-stock-name">${AppEscape.text(item.name)}</strong>
+                                ${stock}
+                            </button>
+                            ${actions}
+                        </article>`;
+                };
+                const itemsMarkup = view === 'group_grid' ? orderedGroupNames.map(groupName => {
+                    const groupItems = filtered.filter(item => (item.category || 'بدون مجموعة') === groupName);
+                    return `<section class="ta-item-group" data-item-group-section>
+                        <div class="ta-item-group-heading">
+                            <div><i class="fas fa-layer-group" aria-hidden="true"></i><strong>${AppEscape.text(groupName)}</strong></div>
+                            <span data-group-count>${groupItems.length} مادة</span>
+                        </div>
+                        <div class="ta-stock-grid">${groupItems.map(item => buildCard(item,true)).join('')}</div>
+                    </section>`;
+                }).join('') : filtered.map(item => buildCard(item,false)).join('');
 
                 main.innerHTML = `
-                    <div class="flex flex-wrap gap-2 mb-3">
-                        <button onclick="ItemController.openItemModal()" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 px-4 rounded-xl text-xs sm:text-sm flex items-center justify-center gap-2 shadow-xs">
-                            <i class="fas fa-plus"></i>
-                            <span>إضافة صنف جديد (مع تحديد العملة والوحدات)</span>
-                        </button>
-                        <button onclick="ItemController.openCategoryModal()" class="bg-slate-800 hover:bg-slate-700 text-white font-bold py-2.5 px-3.5 rounded-xl text-xs flex items-center gap-1.5">
-                            <i class="fas fa-sitemap"></i>
-                            <span>المجموعات</span>
-                        </button>
-                    </div>
-
-                    <div class="rounded-xl bg-sky-50 border border-sky-200 p-3 mb-3">
-                        <label class="text-xs font-bold text-sky-900 block mb-1">المستودع المعروض</label>
-                        <select onchange="WarehouseController.selectWarehouse(this.value)" class="w-full rounded-lg border border-sky-300 p-2 text-xs bg-white">
-                            ${WarehouseController.options(State.settings.selectedWarehouseId)}
-                        </select>
-                        <button onclick="AppNav.navigate('warehouses')" class="text-xs font-bold text-sky-700 mt-2">إدارة المستودعات والمناقلات</button>
-                    </div>
-                    <div class="bg-white p-2.5 rounded-2xl border border-slate-200 mb-3 flex flex-col sm:flex-row gap-2">
-                        <div class="relative flex-1">
-                            <i class="fas fa-barcode absolute right-3 top-3 text-slate-400"></i>
-                            <input type="text" id="itemSearchInput" value="${params.q || ''}" oninput="ItemController.filterItems()" placeholder="ابحث باسم المادة أو امسح الباركود..." class="w-full pr-9 pl-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                    <div class="ta-items-screen">
+                        <div class="ta-items-heading">
+                            <div><span class="ta-items-subtitle">المخزون</span><h2>المواد المسجّلة</h2></div>
+                            <span class="ta-items-counter">${filtered.length} مادة</span>
                         </div>
-                        <select id="itemCatSelect" onchange="ItemController.filterItems()" class="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700">
-                            <option value="all">جميع المجموعات (${State.items.length})</option>
-                            ${State.categories.map(c => `<option value="${c}" ${catFilter === c ? 'selected' : ''}>${c}</option>`).join('')}
-                        </select>
-                    </div>
-
-                    <div class="space-y-2.5" id="itemCardsList">
-                        ${filtered.length === 0 ? `
-                            <div class="bg-white rounded-2xl border border-slate-200 p-8 text-center">
-                                <i class="fas fa-box-open text-4xl text-slate-300 mb-2"></i>
-                                <p class="font-bold text-sm text-slate-600">لا توجد أصناف مسجلة في المستودع</p>
-                                <p class="text-xs text-slate-400 mt-1">اضغط على "إضافة صنف جديد" لتعريف المواد وتحديد عملتها المعتمدة (SYP أو USD) ووحداتها</p>
+                        <div class="ta-items-toolbar">
+                            <button type="button" onclick="ItemController.openItemModal()" class="ta-primary-3d"><i class="fas fa-plus" aria-hidden="true"></i><span>إضافة مادة</span></button>
+                            <button type="button" onclick="ItemController.openCategoryModal()" class="ta-secondary-3d"><i class="fas fa-sitemap" aria-hidden="true"></i><span>المجموعات</span></button>
+                        </div>
+                        <div class="ta-items-warehouse">
+                            <label for="itemsWarehouse">المستودع المعروض</label>
+                            <select id="itemsWarehouse" onchange="WarehouseController.selectWarehouse(this.value)" aria-label="المستودع المعروض">
+                                ${WarehouseController.options(State.settings.selectedWarehouseId)}
+                            </select>
+                        </div>
+                        <div class="ta-items-filters">
+                            <div class="ta-items-search"><i class="fas fa-search" aria-hidden="true"></i>
+                                <input type="search" id="itemSearchInput" value="${AppEscape.text(params.q || '')}" oninput="ItemController.filterItems()" placeholder="ابحث عن مادة..." aria-label="البحث عن مادة">
                             </div>
-                        ` : filtered.map(item => {
-                            const baseStock = Accounting.getItemBaseStock(item.id, null, State.settings.selectedWarehouseId || 'wh_main');
-                            const baseStockDisp = Accounting.formatItemQuantity(baseStock);
-                            const baseUnit = item.units[0] || { name: 'كرتونة', factor: 1, salePrice: 0 };
-                            const isLow = baseStock <= (Number(item.minStockBase) || 0);
-                            const linkedInvoicesCount = State.invoices.filter(inv => Array.isArray(inv.rows) && inv.rows.some(r => r.itemId === item.id)).length;
-                            const linkedTransfersCount = (State.transfers || []).filter(tr => tr.itemId === item.id).length;
-
-                            const unitBadges = item.units.map((u, uIdx) => {
-                                const factor = Number(u.factor) || 1;
-                                const qtyInUnit = Accounting.formatItemQuantity(baseStock * factor);
-                                const unitTypeLabel = uIdx === 0 ? 'كبرى أساسية' : `تعبئة ${factor}`;
-                                return `<span class="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md text-[10px] font-bold">${u.name} (${unitTypeLabel}): ${Accounting.formatItemPrice(u.salePrice, item.currency)} | متاح: ${qtyInUnit}</span>`;
-                            }).join(' ');
-
-                            return `
-                                <div data-item-search="${encodeURIComponent(`${item.name} ${item.barcode || ''}`)}" data-item-category="${encodeURIComponent(item.category || '')}" class="bg-white rounded-2xl border ${isLow ? 'border-rose-300' : 'border-slate-200'} p-3 shadow-xs">
-                                    <div class="flex items-start justify-between gap-2">
-                                        <div class="min-w-0 flex-1">
-                                            <div class="flex items-start gap-2">
-                                                ${ItemController.photoThumb(item, 'list')}
-                                                <div class="min-w-0 flex-1">
-                                            <div class="flex items-center gap-1.5 flex-wrap">
-                                                <span class="font-bold text-sm text-slate-900">${item.name}</span>
-                                                <span class="text-[10px] font-extrabold px-2 py-0.5 rounded-md ${item.currency === 'USD' ? 'bg-amber-100 text-amber-800' : 'bg-blue-50 text-blue-700'}">
-                                                    عملة الصنف: ${item.currency === 'USD' ? 'دولار USD' : 'ليرة SYP'}
-                                                </span>
-                                                ${item.category ? `<span class="bg-emerald-50 text-emerald-700 text-[10px] font-bold px-2 py-0.5 rounded-md">${item.category}</span>` : ''}
-                                                ${linkedInvoicesCount > 0 ? `<span class="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded-md" title="محمي من الحذف لارتباطه بفواتير"><i class="fas fa-lock text-amber-600 ml-0.5"></i> مرتبط بـ ${linkedInvoicesCount} فاتورة</span>` : ''}
-                                                ${item.barcode ? `<span class="bg-slate-100 text-slate-500 text-[10px] px-1.5 py-0.5 rounded font-mono"><i class="fas fa-barcode mr-0.5"></i>${item.barcode}</span>` : ''}
-                                            </div>
-                                            <div class="flex flex-wrap gap-1 mt-2">
-                                                ${unitBadges}
-                                            </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div class="text-left shrink-0">
-                                            <div class="text-xs font-extrabold ${isLow ? 'text-rose-600' : 'text-emerald-700'}">
-                                                رصيد المستودع: ${baseStockDisp} ${baseUnit.name}
-                                                 <div class="text-[10px] text-slate-500 font-medium">جميع المستودعات: ${Accounting.formatItemQuantity(Accounting.getItemBaseStock(item.id))} ${baseUnit.name}</div>
-                                            </div>
-                                            ${isLow ? `<div class="text-[10px] text-rose-500 font-bold"><i class="fas fa-bell"></i> دون الحد الأدنى (${Accounting.formatItemQuantity(item.minStockBase)})</div>` : ''}
-                                            <div class="flex items-center justify-end gap-1.5 mt-2">
-                                                <button onclick="ItemController.openItemModal('${item.id}')" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold">
-                                                    <i class="fas fa-pen"></i> تعديل
-                                                </button>
-                                                <button onclick="ItemController.deleteItem('${item.id}')" class="px-2 py-1 ${linkedInvoicesCount > 0 ? 'bg-slate-100 text-slate-400' : 'bg-rose-50 hover:bg-rose-100 text-rose-600'} rounded-lg text-xs" title="${linkedInvoicesCount > 0 ? 'محمي من الحذف لارتباطه بعمليات' : 'حذف الصنف'}">
-                                                    <i class="fas ${linkedInvoicesCount > 0 ? 'fa-lock' : 'fa-trash'}"></i>
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            `;
-                        }).join('')}
-                        <div id="itemsSearchEmpty" class="hidden bg-white rounded-2xl border border-slate-200 p-6 text-center text-sm text-slate-500">
-                            <i class="fas fa-search text-2xl text-slate-300 mb-2"></i>
-                            <p class="font-bold">لا توجد أصناف مطابقة للبحث</p>
-                            <p class="text-xs text-slate-400 mt-1">جرّب اسماً آخر أو رقم باركود مختلفاً</p>
+                            <select id="itemCatSelect" onchange="ItemController.filterItems()" aria-label="تصفية المواد حسب المجموعة">
+                                <option value="all">جميع المجموعات (${State.items.length})</option>
+                                ${State.categories.map(c => `<option value="${AppEscape.text(c)}" ${catFilter===c?'selected':''}>${AppEscape.text(c)}</option>`).join('')}
+                            </select>
+                            <div class="ta-view-switch" role="group" aria-label="طريقة عرض المواد">
+                                <button type="button" class="${view==='list'?'is-selected':''}" aria-pressed="${view==='list'}" onclick="ItemController.setViewMode('list')"><i class="fas fa-table-list" aria-hidden="true"></i> قائمة</button>
+                                <button type="button" class="${view==='group_grid'?'is-selected':''}" aria-pressed="${view==='group_grid'}" onclick="ItemController.setViewMode('group_grid')"><i class="fas fa-table-cells-large" aria-hidden="true"></i> شبكة بالمجموعة</button>
+                            </div>
+                        </div>
+                        <div id="itemCardsList" class="${view==='group_grid'?'ta-stock-groups':'ta-stock-list'}">
+                            ${filtered.length ? itemsMarkup : `<div class="ta-item-empty"><i class="fas fa-box-open" aria-hidden="true"></i><strong>لا توجد مواد مطابقة</strong><p>أضف مادة جديدة أو غيّر المجموعة والبحث.</p></div>`}
+                            <div id="itemsSearchEmpty" class="ta-item-empty hidden"><i class="fas fa-search" aria-hidden="true"></i><strong>لا توجد مواد مطابقة</strong></div>
                         </div>
                     </div>
                 `;
             },
-
 
             // ==================== WAREHOUSES & INTERNAL TRANSFERS ====================
             renderWarehouses(main, params = {}) {
@@ -4283,6 +4374,18 @@
          * 7. ITEM & MULTI-UNIT CONTROLLER (WITH DEDICATED CURRENCY & GUARD)
          ********************************************************************/
         const ItemController = {
+            viewMode: 'list', // session-only view preference, no data migrations.
+            setViewMode(mode) {
+                if (!['list','group_grid'].includes(mode)) return;
+                this.viewMode = mode;
+                const active = AppNav.current();
+                if (active.screen !== 'items') return;
+                active.params = {...active.params,
+                    q: document.getElementById('itemSearchInput')?.value || '',
+                    cat: document.getElementById('itemCatSelect')?.value || 'all'
+                };
+                AppNav.renderCurrent();
+            },
             tempUnits: [],
             activeEditId: '',
             selectedCurrency: 'USD', // Updated from defaultItemCurrency on each new item
@@ -4303,7 +4406,7 @@
                 }
                 return `<div class="shrink-0 w-16 h-16 rounded-xl border border-slate-200 bg-slate-50 overflow-hidden flex items-center justify-center">
                     ${url ? `<img src="${url}" alt="صورة المادة" loading="lazy" class="w-full h-full object-cover">`
-                        : '<i class="fas fa-box text-xl text-slate-300" aria-hidden="true"></i>'}
+                        : '<i class="fas fa-box-open text-xl text-slate-300" aria-hidden="true"></i>'}
                 </div>`;
             },
 
@@ -4391,6 +4494,12 @@
                     if (matches) visible++;
                 });
 
+                document.querySelectorAll('#itemCardsList [data-item-group-section]').forEach(group => {
+                    const shown = group.querySelectorAll('[data-item-search]:not(.hidden)').length;
+                    group.classList.toggle('hidden', shown === 0);
+                    const counter = group.querySelector('[data-group-count]');
+                    if (counter) counter.textContent = `${shown} مادة`;
+                });
                 const empty = document.getElementById('itemsSearchEmpty');
                 if (empty) empty.classList.toggle('hidden', visible !== 0);
             },
