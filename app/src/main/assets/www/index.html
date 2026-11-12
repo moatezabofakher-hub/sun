@@ -300,6 +300,11 @@
                 language: 'ar',          // Persisted UI language: 'ar' or 'en'
                 allowNegativeStockSales: false, // Safety default: no sale beyond available inventory
                 defaultCurrency: 'USD',
+                defaultItemCurrency: 'USD', // New items only
+                primaryCurrency: 'USD', // Historic dual-currency ledger: USD / SYP
+                secondaryCurrency: 'SYP',
+                primaryOnlyMode: false,
+                addedCurrencies: [], // Other ISO codes are catalogued, not silently posted to a two-currency ledger
                 defaultInvoiceListType: 'sale',
                 itemQuantityDecimals: 2,
                 inventoryValuationCurrency: 'SYP', // Display currency for inventory cost valuation only
@@ -321,6 +326,48 @@
             warehouses: [{ id: 'wh_main', name: 'المستودع الرئيسي' }],
             transfers: [],
             expenses: []
+        };
+
+        /** Currency selection is deliberately separated from the existing USD/SYP double-entry ledger.
+         * Other ISO codes may be catalogued here; transactions remain USD/SYP until
+         * the ledger, settlements, statements and historic migrations support extra codes.
+         */
+        const CurrencyCatalog = {
+            popular: [
+                ['SYP','الليرة السورية','Syrian Pound'], ['USD','الدولار الأمريكي','US Dollar'],
+                ['EUR','اليورو','Euro'], ['GBP','الجنيه الإسترليني','British Pound'],
+                ['AED','الدرهم الإماراتي','UAE Dirham'], ['SAR','الريال السعودي','Saudi Riyal'],
+                ['TRY','الليرة التركية','Turkish Lira'], ['JOD','الدينار الأردني','Jordanian Dinar'],
+                ['IQD','الدينار العراقي','Iraqi Dinar'], ['LBP','الليرة اللبنانية','Lebanese Pound'],
+                ['EGP','الجنيه المصري','Egyptian Pound'], ['KWD','الدينار الكويتي','Kuwaiti Dinar'],
+                ['QAR','الريال القطري','Qatari Riyal'], ['BHD','الدينار البحريني','Bahraini Dinar'],
+                ['OMR','الريال العماني','Omani Rial'], ['CHF','الفرنك السويسري','Swiss Franc'],
+                ['CAD','الدولار الكندي','Canadian Dollar'], ['AUD','الدولار الأسترالي','Australian Dollar'],
+                ['JPY','الين الياباني','Japanese Yen'], ['CNY','اليوان الصيني','Chinese Yuan']
+            ],
+            ledgerCurrencies: ['SYP','USD'],
+            label(code) {
+                const found = this.popular.find(c=>c[0]===code) ||
+                    (Array.isArray(State.settings.addedCurrencies)?State.settings.addedCurrencies:[]).find(c=>c.code===code);
+                if (!found) return code;
+                return Array.isArray(found) ? `${found[1]} (${code})` : `${found.name} (${code})`;
+            },
+            options(selected, onlyLedger=true) {
+                const choices=onlyLedger ? this.ledgerCurrencies : this.popular.map(x=>x[0]).filter(code=>!this.ledgerCurrencies.includes(code));
+                return choices.map(code=>`<option value="${code}" ${selected===code?'selected':''}>${this.label(code)}</option>`).join('');
+            },
+            primary() {
+                return this.ledgerCurrencies.includes(State.settings.primaryCurrency) ? State.settings.primaryCurrency : 'USD';
+            },
+            secondary() { return this.primary()==='USD' ? 'SYP':'USD'; },
+            active() { return State.settings.primaryOnlyMode===true ? [this.primary()] : [this.primary(),this.secondary()]; },
+            canUse(currency,editing=false) { return editing || this.active().includes(currency); },
+            safeCode(value) { return String(value||'').trim().toUpperCase(); },
+            escapeText(value) { return String(value).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); },
+            renderAdditional() {
+                const extra=Array.isArray(State.settings.addedCurrencies)?State.settings.addedCurrencies:[];
+                return extra.length ? extra.map(c=>`<div class="flex items-center justify-between gap-2 border-b border-slate-100 py-1.5"><span class="text-xs font-bold">${this.escapeText(c.name)} <b dir="ltr">${c.code}</b></span><button type="button" class="text-rose-600 text-xs font-bold" onclick="SettingsController.removeCatalogCurrency('${c.code}')">إزالة</button></div>`).join('') : '<p class="text-[11px] text-slate-500">لم تُضف عملات جديدة إلى القائمة بعد.</p>';
+            }
         };
 
         const StorageEngine = {
@@ -659,6 +706,28 @@
             },
             formatItemPrice(value, currency = 'SYP') {
                 return this.formatItemPriceNumber(value) + (currency === 'USD' ? ' $' : ' ل.س');
+            },
+            // Never use accounting currency rounding (USD 2 / SYP 0) for per-unit item prices.
+            // Derived small-unit prices use the precision chosen under Settings -> Items (0–4).
+            roundDerivedItemPrice(value) {
+                const multiplier = 10 ** this.itemDisplayDecimals();
+                return Math.round((this.parseNum(value) + Number.EPSILON) * multiplier) / multiplier;
+            },
+            // Keep the decimal separator while typing (e.g. "1.") so Android's decimal
+            // keyboard can append more digits; only limit the fractional digits, not the model.
+            limitItemPriceInput(value) {
+                const raw = String(value ?? '')
+                    .replace(/[٠-٩]/g, d => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)))
+                    .replace(/[۰-۹]/g, d => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(d)))
+                    .replace(/[٫,]/g, '.');
+                const dotIndex = raw.indexOf('.');
+                if (dotIndex < 0) return raw;
+                const decimals = this.itemDisplayDecimals();
+                return decimals === 0 ? raw.slice(0, dotIndex) : raw.slice(0, dotIndex + decimals + 1);
+            },
+            itemPricePlaceholder() {
+                const decimals = this.itemDisplayDecimals();
+                return decimals ? '0.' + '0'.repeat(decimals) : '0';
             },
             // Editable fields cannot contain grouping commas (parseNum treats them as decimals).
             // On focus, show the full model value; on blur, show the configured precision.
@@ -1054,6 +1123,9 @@
 
             navigate(screen, params = {}, replace = false) {
                 const executeNavigation = () => {
+                    if (this.current().screen === 'settings' && screen !== 'settings') {
+                        SettingsController.closeAllSections();
+                    }
                     this.clearDirty();
                     this.clearModalDirty();
                     UI.forceCloseModal();
@@ -1177,6 +1249,7 @@
             },
 
             popScreen() {
+                if (this.current().screen === 'settings') SettingsController.closeAllSections();
                 if (this.stack.length > 1) {
                     this.stack.pop();
                 } else {
@@ -2407,10 +2480,6 @@
                             <i class="fas fa-box-open text-sky-600 text-base"></i>
                             <span class="text-[11px] font-bold text-slate-700">المستودعات والمناقلات</span>
                         </button>
-                        <button onclick="AppNav.navigate('expenses')" class="bg-white border border-slate-200 p-2.5 rounded-xl flex flex-col items-center gap-1 hover:bg-slate-50 active:scale-95">
-                            <i class="fas fa-receipt text-orange-600 text-base"></i>
-                            <span class="text-[11px] font-bold text-slate-700">المصاريف</span>
-                        </button>
                     </div>
                     <div class="grid grid-cols-2 gap-2 mb-5" aria-label="إضافات سريعة">
                         <button type="button" onclick="AppNav.navigate('warehouses', { action: 'add' })" class="ta-solid-action ta-action-warehouse flex items-center justify-center gap-2 bg-sky-600 hover:bg-sky-700 active:scale-95 text-white px-2 py-3 rounded-xl text-xs font-extrabold shadow-sm">
@@ -2491,7 +2560,10 @@
                             return `
                                 <div data-item-search="${encodeURIComponent(`${item.name} ${item.barcode || ''}`)}" data-item-category="${encodeURIComponent(item.category || '')}" class="bg-white rounded-2xl border ${isLow ? 'border-rose-300' : 'border-slate-200'} p-3 shadow-xs">
                                     <div class="flex items-start justify-between gap-2">
-                                        <div>
+                                        <div class="min-w-0 flex-1">
+                                            <div class="flex items-start gap-2">
+                                                ${ItemController.photoThumb(item, 'list')}
+                                                <div class="min-w-0 flex-1">
                                             <div class="flex items-center gap-1.5 flex-wrap">
                                                 <span class="font-bold text-sm text-slate-900">${item.name}</span>
                                                 <span class="text-[10px] font-extrabold px-2 py-0.5 rounded-md ${item.currency === 'USD' ? 'bg-amber-100 text-amber-800' : 'bg-blue-50 text-blue-700'}">
@@ -2503,6 +2575,8 @@
                                             </div>
                                             <div class="flex flex-wrap gap-1 mt-2">
                                                 ${unitBadges}
+                                            </div>
+                                                </div>
                                             </div>
                                         </div>
                                         <div class="text-left shrink-0">
@@ -2642,7 +2716,7 @@
                         <div class="grid grid-cols-2 gap-2 mb-2">
                             <div><label class="block text-xs font-bold mb-1">قيمة المصروف</label><input id="expenseAmount" type="number" inputmode="decimal" min="0.01" step="any" class="w-full border rounded-xl p-2.5" placeholder="المبلغ"></div>
                             <div><label class="block text-xs font-bold mb-1">العملة</label>
-                                <select id="expenseCurrency" class="w-full border rounded-xl p-2.5"><option value="SYP">ليرة سورية</option><option value="USD">دولار أمريكي</option></select></div>
+                                <select id="expenseCurrency" class="w-full border rounded-xl p-2.5">${CurrencyCatalog.active().map(code => `<option value="${code}" ${CurrencyCatalog.primary() === code ? 'selected' : ''}>${CurrencyCatalog.label(code)}</option>`).join('')}</select></div>
                             <div><label class="block text-xs font-bold mb-1">فئة المصروف</label>
                                 <select id="expenseCategory" class="w-full border rounded-xl p-2.5">
                                     ${['نقل ومحروقات','رواتب وأجور','إيجار','كهرباء ومياه','صيانة','تسويق','مصاريف إدارية','أخرى'].map(c=>`<option>${c}</option>`).join('')}
@@ -3533,9 +3607,8 @@
                     <div class="bg-white border border-slate-200 rounded-xl p-3 space-y-3">
                         <div>
                             <label for="setDefaultInvoiceCurrency" class="block text-xs font-extrabold text-slate-800 mb-1">العملة الافتراضية للفاتورة الجديدة</label>
-                            <select id="setDefaultInvoiceCurrency" onchange="SettingsController.setDefaultInvoiceCurrency(this.value)" class="w-full bg-white border border-slate-300 rounded-xl p-2.5 text-xs font-bold">
-                                <option value="USD" ${State.settings.defaultCurrency !== 'SYP' ? 'selected' : ''}>دولار أمريكي USD</option>
-                                <option value="SYP" ${State.settings.defaultCurrency === 'SYP' ? 'selected' : ''}>ليرة سورية SYP</option>
+                            <select id="setDefaultInvoiceCurrency" onchange="SettingsController.setDefaultInvoiceCurrency(this.value)" class="w-full bg-white border border-slate-300 rounded-xl p-2.5 text-xs font-bold" ${State.settings.primaryOnlyMode ? 'disabled' : ''}>
+                                ${CurrencyCatalog.options(State.settings.primaryOnlyMode ? CurrencyCatalog.primary() : (State.settings.defaultCurrency || 'USD'))}
                             </select>
                         </div>
                         <div>
@@ -3568,11 +3641,16 @@
                             <input type="checkbox" id="allowOutOfStockSales" onchange="SettingsController.setAllowOutOfStockSales(this.checked)" ${State.settings.allowNegativeStockSales === true ? 'checked' : ''} class="w-5 h-5 shrink-0 accent-emerald-600" />
                         </label>
                         <div class="border-t border-slate-100 pt-3">
+                            <label for="setDefaultItemCurrency" class="block text-xs font-bold text-slate-800">العملة الافتراضية عند إضافة مادة جديدة</label>
+                            <select id="setDefaultItemCurrency" onchange="SettingsController.setDefaultItemCurrency(this.value)" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-xs font-bold" ${State.settings.primaryOnlyMode ? 'disabled' : ''}>
+                                ${CurrencyCatalog.options(State.settings.primaryOnlyMode ? CurrencyCatalog.primary() : (State.settings.defaultItemCurrency || CurrencyCatalog.primary()))}
+                            </select>
+                            ${State.settings.primaryOnlyMode ? '<p class="text-[11px] text-slate-500">العملة الافتراضية مقفلة على العملة الرئيسية في وضع العملة الواحدة.</p>' : ''}
                             <label for="setItemQuantityDecimals" class="block text-xs font-extrabold text-slate-800 mb-1">عدد الخانات بعد الفاصلة العشرية للكميات والأسعار</label>
                             <select id="setItemQuantityDecimals" onchange="SettingsController.setItemQuantityDecimals(this.value)" class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2.5 text-xs font-bold">
                                 ${[0,1,2,3,4].map(n => `<option value="${n}" ${Number(State.settings.itemQuantityDecimals ?? 2) === n ? 'selected' : ''}>${n} ${n===1?'خانة':'خانات'}</option>`).join('')}
                             </select>
-                            <p class="text-[11px] text-slate-500 mt-1">يحدد عدد المنازل العشرية المعروضة لكميات المواد وأسعار البيع والشراء والأسعار الإفرادية على الشاشة والفواتير المطبوعة. عند تعديل السعر تظهر قيمته الأصلية كاملة، وتبقى القيم المحفوظة والحسابات دون تغيير. إجماليات الفواتير والأرصدة المالية تتبع دقة العملة المحاسبية.</p>
+                            <p class="text-[11px] text-slate-500 mt-1">يحدد عدد المنازل العشرية لعرض الكميات والأسعار، ويسمح بإدخال أسعار شراء وبيع المواد بهذا العدد من الخانات (0 إلى 4). تُحسب أسعار الوحدات الفرعية وفق الدقة المختارة. الأسعار المحفوظة سابقاً لا تتغير بمجرد تعديل الإعداد، وإجماليات الفواتير والأرصدة المالية تتبع دقة العملة المحاسبية.</p>
                             <div class="rounded-lg mt-2 px-3 py-2 bg-sky-50 border border-sky-100 flex items-center justify-between text-xs font-semibold text-sky-900">
                                 <span>مثال لعرض الكمية والسعر</span>
                                 <span dir="ltr">${Accounting.formatItemQuantity(12.3456)} | ${Accounting.formatItemPrice(12.3456, 'USD')}</span>
@@ -3698,6 +3776,11 @@
                             <span>حماية التطبيق</span>
                         </h3>
                         <p class="text-[11px] font-semibold text-rose-700 bg-rose-50 border border-rose-100 rounded-xl p-2.5">حذف اللوغو وتصفير قاعدة البيانات يتطلبان رمز حماية حتى عند إيقاف خيار الحماية من حذف البيانات. عند عدم تعيين رمز، يجب إنشاؤه أولاً.</p>
+                        <button type="button" onclick="SettingsController.togglePasswordPanel()" class="w-full border border-indigo-200 bg-indigo-50 text-indigo-900 rounded-xl p-3 text-xs font-extrabold flex items-center justify-between" aria-controls="passwordSecurityFields">
+                            <span><i class="fas fa-key ml-1"></i>${State.settings.appProtection?.pinHash ? 'تغيير كلمة السر وأسئلة الأمان' : 'تعيين كلمة السر وأسئلة الأمان'}</span>
+                            <i id="passwordSecurityToggleIcon" class="fas ${SettingsController.passwordPanelOpen ? 'fa-chevron-up' : 'fa-chevron-down'}"></i>
+                        </button>
+                        <div id="passwordSecurityFields" class="${SettingsController.passwordPanelOpen ? '' : 'hidden'} space-y-3">
                         <p class="text-[11px] text-slate-500">تغيير كلمة السر يتطلب إدخال الكلمة الحالية أولاً. عند تعيين كلمة سر جديدة، عيّن سؤالَي أمان مختلفين لتتمكن من استعادتها عند نسيانها. يتم حفظ الإجابات كبصمات مشفّرة بدلاً من نصوص واضحة.</p>
                         ${State.settings.appProtection?.pinHash ? `
                         <div>
@@ -3732,6 +3815,7 @@
                             </div>
                             <button type="button" onclick="ProtectionController.openRecovery()" class="text-xs text-indigo-700 font-extrabold underline"><i class="fas fa-life-ring ml-1"></i> نسيت كلمة السر؟ استعادتها عبر سؤالَي الأمان</button>
                         </div>
+                        </div><!-- /passwordSecurityFields -->
                         <label class="flex items-center justify-between gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200">
                             <span><span class="block text-xs font-extrabold text-slate-800">قفل التطبيق</span><span class="block text-[10px] text-slate-500">طلب الرمز عند فتح التطبيق أو العودة إليه</span></span>
                             <input id="protectLockApp" type="checkbox" ${State.settings.appProtection?.lockApp ? 'checked' : ''} class="w-5 h-5 accent-emerald-600">
@@ -3750,7 +3834,7 @@
                     </details>
                     <details class="settings-section" data-settings-section="backup" ontoggle="SettingsController.onSectionToggle(this)" ${SettingsController.expandedSections.has('backup') ? 'open' : ''}>
                         <summary class="settings-section-heading" aria-label="النسخ الاحتياطي">
-                            <span class="settings-section-leading"><i class="fas fa-database text-emerald-600" aria-hidden="true"></i><span><span class="settings-section-name">النسخ الاحتياطي</span><span class="settings-section-note">النسخ المحلي وGoogle Drive والاستعادة</span></span></span>
+                            <span class="settings-section-leading"><i class="fas fa-database text-emerald-600" aria-hidden="true"></i><span><span class="settings-section-name">النسخ الاحتياطي</span><span class="settings-section-note">النسخ المحلي والاستعادة</span></span></span>
                             <i class="fas fa-chevron-down settings-section-arrow text-slate-400" aria-hidden="true"></i>
                         </summary>
                         <div class="settings-section-body">
@@ -3772,9 +3856,7 @@
                             <h4 class="font-extrabold text-slate-800 text-xs">النسخ الاحتياطي التلقائي</h4>
                             ${BackupController.card('local','النسخ الاحتياطي المحلي','fa-folder-open',
                                 BackupController.status(), 'اختَر مجلداً على الهاتف؛ يمكن للنسخ أن تستمر عند إغلاق التطبيق.')}
-                            ${BackupController.card('drive','النسخ الاحتياطي إلى Google Drive','fa-cloud-arrow-up',
-                                BackupController.status(), 'يتطلب حساب Google واتصالاً بالإنترنت. تُحفظ الملفات داخل مجلد AlMohaseb_AlTaqni_Backups في Drive.')}
-                            <p class="text-[10px] text-slate-500 leading-relaxed">توقيت النسخ تقريبي وقد يتأخر بسبب توفير البطارية أو انقطاع الإنترنت. لا تغني النسخ الآلية عن حفظ نسخة يدوية قبل تحديث التطبيق أو حذفه.</p>
+                            <p class="text-[10px] text-slate-500 leading-relaxed">توقيت النسخ تقريبي وقد يتأخر بسبب توفير البطارية. لا تغني النسخ الآلية عن حفظ نسخة يدوية قبل تحديث التطبيق أو حذفه.</p>
                             ${!BackupController.status().supported?`<p class="text-xs font-bold text-rose-700">النسخ التلقائي يعمل داخل تطبيق أندرويد APK المحدّث فقط.</p>`:''}
                             ${BackupController.status().snapshotError?`<p class="text-xs text-rose-600">${BackupController.status().snapshotError}</p>`:''}
                         </div>
@@ -3787,7 +3869,38 @@
                             <i class="fas fa-chevron-down settings-section-arrow text-slate-400" aria-hidden="true"></i>
                         </summary>
                         <div class="settings-section-body">
-                    <div class="bg-white rounded-xl border border-slate-200 p-3 space-y-2">
+                    <div class="bg-white border border-slate-200 rounded-xl p-3 space-y-3 mb-3">
+                        <h3 class="text-sm font-extrabold text-slate-800">العملة الرئيسية والثانوية</h3>
+                        <label class="block text-xs font-bold">العملة الرئيسية</label>
+                        <select id="setPrimaryCurrency" onchange="SettingsController.setPrimaryCurrency(this.value)" class="w-full border border-slate-300 rounded-xl p-2.5 text-xs font-bold">
+                            ${CurrencyCatalog.options(CurrencyCatalog.primary())}
+                        </select>
+                        <label class="block text-xs font-bold">العملة الثانوية</label>
+                        <select id="setSecondaryCurrency" onchange="SettingsController.setSecondaryCurrency(this.value)" class="w-full border border-slate-300 rounded-xl p-2.5 text-xs font-bold" ${State.settings.primaryOnlyMode ? 'disabled' : ''}>
+                            ${CurrencyCatalog.options(CurrencyCatalog.secondary())}
+                        </select>
+                        <label class="flex gap-3 items-center border border-slate-200 bg-slate-50 p-3 rounded-xl cursor-pointer">
+                            <input id="setPrimaryOnlyMode" type="checkbox" ${State.settings.primaryOnlyMode ? 'checked' : ''} onchange="SettingsController.setPrimaryOnlyMode(this.checked)" class="w-5 h-5 accent-emerald-600">
+                            <span class="text-xs font-bold">التشغيل بالعملة الرئيسية فقط</span>
+                        </label>
+                        <p class="text-[11px] text-slate-600">عند التفعيل تقتصر العمليات الجديدة على العملة الرئيسية. تبقى سجلات الفواتير والأرصدة القديمة بعملاتها الأصلية.</p>
+                        <p class="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2">تدعم الحسابات والترحيلات المالية حالياً الدولار USD والليرة SYP فقط. إضافة عملة أخرى إلى القائمة لا تفعّل بها الفواتير قبل دعم ترحيلها المحاسبي.</p>
+                    </div>
+                    <div class="bg-white border border-slate-200 rounded-xl p-3 space-y-2 mb-3">
+                        <h3 class="text-sm font-extrabold text-slate-800">إضافة عملات جديدة واختصاراتها</h3>
+                        <label class="block text-xs font-bold">اختر عملة شائعة</label>
+                        <select id="catalogPopularCurrency" class="w-full border border-slate-300 rounded-xl p-2.5 text-xs font-bold">
+                            ${CurrencyCatalog.options('', false)}
+                        </select>
+                        <button type="button" class="w-full bg-indigo-700 text-white rounded-xl p-2.5 text-xs font-bold" onclick="SettingsController.addPopularCurrency()">إضافة العملة المختارة إلى القائمة</button>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div><label class="text-[11px] font-bold">رمز ISO من 3 أحرف</label><input id="customCurrencyCode" maxlength="3" dir="ltr" placeholder="مثال: SEK" class="w-full border border-slate-300 rounded-xl p-2 text-xs"></div>
+                            <div><label class="text-[11px] font-bold">اسم العملة</label><input id="customCurrencyName" maxlength="60" placeholder="اسم العملة" class="w-full border border-slate-300 rounded-xl p-2 text-xs"></div>
+                        </div>
+                        <button type="button" class="w-full bg-slate-800 text-white rounded-xl p-2.5 text-xs font-bold" onclick="SettingsController.addCustomCurrency()">إضافة عملة مخصصة</button>
+                        <div class="border-t border-slate-200 pt-2">${CurrencyCatalog.renderAdditional()}</div>
+                    </div>
+                    <div class="bg-white border border-slate-200 rounded-xl p-3 space-y-2">
                         <div class="text-xs font-bold text-slate-800">سعر صرف الدولار الحالي: <span dir="ltr" class="font-mono">${Number(State.settings.exchangeRate||0).toLocaleString('en-US')}</span> ل.س</div>
                         <button type="button" onclick="UI.openRateModal()" class="bg-slate-900 text-white text-xs font-bold rounded-xl px-4 py-2.5"><i class="fas fa-coins ml-1"></i> تعديل سعر الصرف</button>
                     </div>
@@ -3847,7 +3960,97 @@
         const ItemController = {
             tempUnits: [],
             activeEditId: '',
-            selectedCurrency: 'USD', // الافتراضي دولار عند إنشاء مادة جديدة
+            selectedCurrency: 'USD', // Updated from defaultItemCurrency on each new item
+            tempPhotoData: '', // JPEG data URL stored on each item; included in local JSON backups.
+
+            safePhotoData(item) {
+                const value = typeof item === 'string' ? item : item?.photoData;
+                return typeof value === 'string' && /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(value) ? value : '';
+            },
+
+            photoThumb(item, size = 'list') {
+                const url = this.safePhotoData(item);
+                if (size === 'grid') {
+                    return `<div class="h-24 mb-2 bg-white border border-slate-200 rounded-xl flex items-center justify-center overflow-hidden">
+                        ${url ? `<img src="${url}" alt="صورة المادة" loading="lazy" draggable="false" class="w-full h-full object-contain">`
+                            : '<i class="fas fa-box-open text-3xl text-slate-300" aria-hidden="true"></i>'}
+                    </div>`;
+                }
+                return `<div class="shrink-0 w-16 h-16 rounded-xl border border-slate-200 bg-slate-50 overflow-hidden flex items-center justify-center">
+                    ${url ? `<img src="${url}" alt="صورة المادة" loading="lazy" class="w-full h-full object-cover">`
+                        : '<i class="fas fa-box text-xl text-slate-300" aria-hidden="true"></i>'}
+                </div>`;
+            },
+
+            photoEditorPreview() {
+                const url = this.safePhotoData(this.tempPhotoData);
+                return url ? `<img src="${url}" class="w-full h-full object-contain" alt="صورة المادة الحالية">`
+                    : '<div class="text-center text-slate-400"><i class="fas fa-box-open text-3xl"></i><div class="text-[10px] mt-1">بدون صورة</div></div>';
+            },
+
+            refreshPhotoEditor() {
+                const preview = document.getElementById('itmPhotoPreview');
+                if (preview) preview.innerHTML = this.photoEditorPreview();
+                const remove = document.getElementById('itmPhotoRemove');
+                if (remove) remove.classList.toggle('hidden', !this.safePhotoData(this.tempPhotoData));
+            },
+
+            clearItemPhoto() {
+                this.tempPhotoData = '';
+                this.markItemDirty();
+                this.refreshPhotoEditor();
+            },
+
+            async onItemPhotoSelected(event) {
+                const input = event?.target;
+                const file = input?.files?.[0];
+                if (input) input.value = ''; // allows choosing the same file again after cancel/edit
+                if (!file) return;
+                if (!/^image\/(jpeg|png|webp|gif|bmp|heic|heif)$/i.test(file.type || '')) {
+                    UI.toast('اختر ملف صورة صالحاً (JPG أو PNG أو WebP)', 'error');
+                    return;
+                }
+                if (file.size > 12 * 1024 * 1024) {
+                    UI.toast('حجم الصورة كبير جداً؛ اختر صورة أصغر من 12 ميغابايت', 'error');
+                    return;
+                }
+                try {
+                    const img = await new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onerror = () => reject(new Error('تعذر قراءة الصورة'));
+                        reader.onload = () => {
+                            const picture = new Image();
+                            picture.onload = () => resolve(picture);
+                            picture.onerror = () => reject(new Error('نوع الصورة غير مدعوم على هذا الهاتف'));
+                            picture.src = reader.result;
+                        };
+                        reader.readAsDataURL(file);
+                    });
+                    const renderJpeg = (edge, quality) => {
+                        const ratio = Math.min(1, edge / Math.max(img.naturalWidth || img.width, img.naturalHeight || img.height));
+                        const canvas = document.createElement('canvas');
+                        canvas.width = Math.max(1, Math.round((img.naturalWidth || img.width) * ratio));
+                        canvas.height = Math.max(1, Math.round((img.naturalHeight || img.height) * ratio));
+                        const ctx = canvas.getContext('2d');
+                        if (!ctx) throw new Error('تعذر معالجة الصورة');
+                        ctx.fillStyle = '#ffffff';
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                        return canvas.toDataURL('image/jpeg', quality);
+                    };
+                    let photo = renderJpeg(420, 0.7);
+                    if (photo.length > 240000) photo = renderJpeg(320, 0.6);
+                    if (photo.length > 320000 || !this.safePhotoData(photo))
+                        throw new Error('تعذر ضغط الصورة للحفظ');
+                    if (!document.getElementById('itmPhotoPreview')) return; // Edit modal closed while loading.
+                    this.tempPhotoData = photo;
+                    this.markItemDirty();
+                    this.refreshPhotoEditor();
+                    UI.toast('تم تجهيز صورة المادة؛ اضغط حفظ لتثبيتها', 'success');
+                } catch (err) {
+                    UI.toast(err?.message || 'تعذر قراءة الصورة', 'error');
+                }
+            },
 
             filterItems() {
                 const q = (document.getElementById('itemSearchInput')?.value || '').trim().toLocaleLowerCase();
@@ -3874,6 +4077,7 @@
             },
 
             setItemBaseCurrency(curr) {
+                if (State.settings.primaryOnlyMode && !this.activeEditId && curr !== CurrencyCatalog.primary()) return;
                 this.selectedCurrency = curr;
                 this.markItemDirty();
                 const btnSyp = document.getElementById('btnCurrSYP');
@@ -3963,7 +4167,8 @@
             openItemModal(itemId = null) {
                 const existing = itemId ? State.items.find(i => i.id === itemId) : null;
                 this.activeEditId = existing ? existing.id : '';
-                this.selectedCurrency = existing ? existing.currency : 'USD';
+                this.tempPhotoData = existing ? this.safePhotoData(existing) : '';
+                this.selectedCurrency = existing ? existing.currency : (State.settings.primaryOnlyMode ? CurrencyCatalog.primary() : (State.settings.defaultItemCurrency || CurrencyCatalog.primary()));
                 this.tempUnits = existing ? JSON.parse(JSON.stringify(existing.units)) : [
                     { name: 'كرتونة', factor: 1, salePrice: '', costPrice: '', barcode: '' }
                 ];
@@ -3977,12 +4182,12 @@
                     </div>
                     <div class="space-y-3 text-xs">
                         <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
-                            <label class="block font-extrabold text-slate-800 mb-1.5"><i class="fas fa-coins text-amber-500 ml-1"></i> العملة المعتمدة لتسعير هذا الصنف (الافتراضي USD) *</label>
+                            <label class="block font-extrabold text-slate-800 mb-1.5"><i class="fas fa-coins text-amber-500 ml-1"></i> عملة تسعير الصنف (الافتراضية ${State.settings.defaultItemCurrency || 'USD'}) *</label>
                             <div class="flex gap-2">
-                                <button type="button" id="btnCurrSYP" onclick="ItemController.setItemBaseCurrency('SYP')" class="${this.selectedCurrency === 'SYP' ? 'flex-1 py-2 rounded-xl font-extrabold text-xs bg-emerald-600 text-white shadow-xs transition' : 'flex-1 py-2 rounded-xl font-bold text-xs bg-slate-100 text-slate-600 hover:bg-slate-200 transition'}">
+                                <button type="button" id="btnCurrSYP" ${State.settings.primaryOnlyMode && !existing && CurrencyCatalog.primary() !== 'SYP' ? 'disabled hidden' : ''} onclick="ItemController.setItemBaseCurrency('SYP')" class="${this.selectedCurrency === 'SYP' ? 'flex-1 py-2 rounded-xl font-extrabold text-xs bg-emerald-600 text-white shadow-xs transition' : 'flex-1 py-2 rounded-xl font-bold text-xs bg-slate-100 text-slate-600 hover:bg-slate-200 transition'}">
                                     ليرة سورية (SYP)
                                 </button>
-                                <button type="button" id="btnCurrUSD" onclick="ItemController.setItemBaseCurrency('USD')" class="${this.selectedCurrency === 'USD' ? 'flex-1 py-2 rounded-xl font-extrabold text-xs bg-amber-500 text-slate-950 shadow-xs transition' : 'flex-1 py-2 rounded-xl font-bold text-xs bg-slate-100 text-slate-600 hover:bg-slate-200 transition'}">
+                                <button type="button" id="btnCurrUSD" ${State.settings.primaryOnlyMode && !existing && CurrencyCatalog.primary() !== 'USD' ? 'disabled hidden' : ''} onclick="ItemController.setItemBaseCurrency('USD')" class="${this.selectedCurrency === 'USD' ? 'flex-1 py-2 rounded-xl font-extrabold text-xs bg-amber-500 text-slate-950 shadow-xs transition' : 'flex-1 py-2 rounded-xl font-bold text-xs bg-slate-100 text-slate-600 hover:bg-slate-200 transition'}">
                                     دولار أمريكي (USD $)
                                 </button>
                             </div>
@@ -4002,6 +4207,30 @@
                             </div>
                         </div>
 
+                        <!-- Item images appear ONLY in item cards, item editor and invoice item grid. -->
+                        <div class="bg-white border border-slate-200 rounded-xl p-3 flex gap-3 items-center">
+                            <div id="itmPhotoPreview" class="w-24 h-24 shrink-0 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-center overflow-hidden">
+                                ${this.photoEditorPreview()}
+                            </div>
+                            <div class="min-w-0 flex-1 space-y-2">
+                                <div class="font-extrabold text-xs text-slate-800">صورة المادة (اختياري)</div>
+                                <div class="flex flex-wrap gap-1.5">
+                                    <label class="cursor-pointer bg-emerald-600 text-white px-2.5 py-2 rounded-lg text-[11px] font-bold">
+                                        <i class="fas fa-images"></i> من المعرض
+                                        <input type="file" accept="image/*" onchange="ItemController.onItemPhotoSelected(event)" class="hidden">
+                                    </label>
+                                    <label class="cursor-pointer bg-sky-700 text-white px-2.5 py-2 rounded-lg text-[11px] font-bold">
+                                        <i class="fas fa-camera"></i> التقاط صورة
+                                        <input type="file" accept="image/*" capture="environment" onchange="ItemController.onItemPhotoSelected(event)" class="hidden">
+                                    </label>
+                                    <button type="button" id="itmPhotoRemove" onclick="ItemController.clearItemPhoto()" class="${this.tempPhotoData ? '' : 'hidden'} bg-rose-50 text-rose-700 px-2.5 py-2 rounded-lg text-[11px] font-bold">
+                                        <i class="fas fa-trash"></i> إزالة الصورة
+                                    </button>
+                                </div>
+                                <p class="text-[10px] text-slate-500">ستظهر الصورة في العرض الشبكي وقائمة المواد فقط، ولن تُطبع مع الفاتورة.</p>
+                            </div>
+                        </div>
+
                         <!-- حقول واضحة ومباشرة لتحديد سعر التكلفة وسعر المبيع للوحدة الكبرى الأساسية -->
                         <div class="bg-emerald-50/70 border-2 border-emerald-500/40 p-3 rounded-2xl">
                             <div class="font-extrabold text-emerald-950 mb-2 flex items-center justify-between">
@@ -4011,13 +4240,14 @@
                             <div class="grid grid-cols-2 gap-2.5">
                                 <div>
                                     <label class="block font-extrabold text-slate-700 mb-1">تكلفة الوحدة الكبرى (<span class="unit-curr-label">${currSym}</span>)</label>
-                                    <input type="text" inputmode="decimal" dir="ltr" id="itmMainCostPrice" value="${baseU.costPrice !== undefined && baseU.costPrice !== null ? Accounting.formatEditableItemPrice(baseU.costPrice) : ''}" placeholder="0.00" onfocus="this.value=ItemController.tempUnits[0].costPrice;this.select()" onblur="this.value=Accounting.formatEditableItemPrice(ItemController.tempUnits[0].costPrice)" oninput="ItemController.onUnitPriceInput(0, 'costPrice', this.value)" class="w-full border-2 border-slate-300 focus:border-emerald-600 rounded-xl px-3 py-2 text-sm font-extrabold text-center bg-white shadow-2xs focus:outline-none">
+                                    <input type="text" inputmode="decimal" dir="ltr" id="itmMainCostPrice" value="${baseU.costPrice !== undefined && baseU.costPrice !== null ? Accounting.formatEditableItemPrice(baseU.costPrice) : ''}" placeholder="${Accounting.itemPricePlaceholder()}" onfocus="this.value=ItemController.tempUnits[0].costPrice;this.select()" onblur="this.value=Accounting.formatEditableItemPrice(ItemController.tempUnits[0].costPrice)" oninput="ItemController.onUnitPriceInput(0, 'costPrice', this.value, this)" class="w-full border-2 border-slate-300 focus:border-emerald-600 rounded-xl px-3 py-2 text-sm font-extrabold text-center bg-white shadow-2xs focus:outline-none">
                                 </div>
                                 <div>
                                     <label class="block font-extrabold text-emerald-800 mb-1">مبيع الوحدة الكبرى (<span class="unit-curr-label">${currSym}</span>) *</label>
-                                    <input type="text" inputmode="decimal" dir="ltr" id="itmMainSalePrice" value="${baseU.salePrice !== undefined && baseU.salePrice !== null ? Accounting.formatEditableItemPrice(baseU.salePrice) : ''}" placeholder="0.00" onfocus="this.value=ItemController.tempUnits[0].salePrice;this.select()" onblur="this.value=Accounting.formatEditableItemPrice(ItemController.tempUnits[0].salePrice)" oninput="ItemController.onUnitPriceInput(0, 'salePrice', this.value)" class="w-full border-2 border-emerald-500 focus:border-emerald-700 rounded-xl px-3 py-2 text-sm font-extrabold text-center bg-white text-emerald-900 shadow-2xs focus:outline-none">
+                                    <input type="text" inputmode="decimal" dir="ltr" id="itmMainSalePrice" value="${baseU.salePrice !== undefined && baseU.salePrice !== null ? Accounting.formatEditableItemPrice(baseU.salePrice) : ''}" placeholder="${Accounting.itemPricePlaceholder()}" onfocus="this.value=ItemController.tempUnits[0].salePrice;this.select()" onblur="this.value=Accounting.formatEditableItemPrice(ItemController.tempUnits[0].salePrice)" oninput="ItemController.onUnitPriceInput(0, 'salePrice', this.value, this)" class="w-full border-2 border-emerald-500 focus:border-emerald-700 rounded-xl px-3 py-2 text-sm font-extrabold text-center bg-white text-emerald-900 shadow-2xs focus:outline-none">
                                 </div>
                             </div>
+                            <p class="text-[11px] font-semibold text-emerald-800 mt-2">عدد الخانات العشرية المسموح بها عند إدخال أسعار المواد: <span dir="ltr" class="font-extrabold">${Accounting.itemDisplayDecimals()}</span></p>
                         </div>
 
                         <div class="grid grid-cols-3 gap-2">
@@ -4082,20 +4312,22 @@
                             </div>
                             <div>
                                 <label class="text-[10px] text-slate-600 font-bold block mb-0.5">التكلفة (<span class="unit-curr-label">${currSym}</span>)</label>
-                                <input type="text" inputmode="decimal" dir="ltr" id="unitCost_${idx}" value="${u.costPrice !== undefined && u.costPrice !== null ? Accounting.formatEditableItemPrice(u.costPrice) : ''}" placeholder="0.00" onfocus="this.value=ItemController.tempUnits[${idx}].costPrice;this.select()" onblur="this.value=Accounting.formatEditableItemPrice(ItemController.tempUnits[${idx}].costPrice)" oninput="ItemController.onUnitPriceInput(${idx}, 'costPrice', this.value)" class="w-full border border-slate-300 focus:border-emerald-500 rounded-lg px-2.5 py-1.5 text-xs font-extrabold text-center bg-white">
+                                <input type="text" inputmode="decimal" dir="ltr" id="unitCost_${idx}" value="${u.costPrice !== undefined && u.costPrice !== null ? Accounting.formatEditableItemPrice(u.costPrice) : ''}" placeholder="${Accounting.itemPricePlaceholder()}" onfocus="this.value=ItemController.tempUnits[${idx}].costPrice;this.select()" onblur="this.value=Accounting.formatEditableItemPrice(ItemController.tempUnits[${idx}].costPrice)" oninput="ItemController.onUnitPriceInput(${idx}, 'costPrice', this.value, this)" class="w-full border border-slate-300 focus:border-emerald-500 rounded-lg px-2.5 py-1.5 text-xs font-extrabold text-center bg-white">
                             </div>
                             <div>
                                 <label class="text-[10px] text-emerald-800 font-bold block mb-0.5">المبيع (<span class="unit-curr-label">${currSym}</span>)</label>
-                                <input type="text" inputmode="decimal" dir="ltr" id="unitSale_${idx}" value="${u.salePrice !== undefined && u.salePrice !== null ? Accounting.formatEditableItemPrice(u.salePrice) : ''}" placeholder="0.00" onfocus="this.value=ItemController.tempUnits[${idx}].salePrice;this.select()" onblur="this.value=Accounting.formatEditableItemPrice(ItemController.tempUnits[${idx}].salePrice)" oninput="ItemController.onUnitPriceInput(${idx}, 'salePrice', this.value)" class="w-full border border-emerald-400 focus:border-emerald-600 rounded-lg px-2.5 py-1.5 text-xs font-extrabold text-center bg-white">
+                                <input type="text" inputmode="decimal" dir="ltr" id="unitSale_${idx}" value="${u.salePrice !== undefined && u.salePrice !== null ? Accounting.formatEditableItemPrice(u.salePrice) : ''}" placeholder="${Accounting.itemPricePlaceholder()}" onfocus="this.value=ItemController.tempUnits[${idx}].salePrice;this.select()" onblur="this.value=Accounting.formatEditableItemPrice(ItemController.tempUnits[${idx}].salePrice)" oninput="ItemController.onUnitPriceInput(${idx}, 'salePrice', this.value, this)" class="w-full border border-emerald-400 focus:border-emerald-600 rounded-lg px-2.5 py-1.5 text-xs font-extrabold text-center bg-white">
                             </div>
                         </div>
                     </div>
                 `).join('');
             },
 
-            onUnitPriceInput(idx, field, val) {
+            onUnitPriceInput(idx, field, val, inputEl = null) {
                 this.markItemDirty();
-                const num = Accounting.parseNum(val);
+                const limited = Accounting.limitItemPriceInput(val);
+                if (inputEl && inputEl.value !== limited) inputEl.value = limited;
+                const num = Accounting.parseNum(limited);
                 this.tempUnits[idx][field] = num;
 
                 // مزامنة الحقول العلوية الأساسية للوحدة الكبرى وحساب أسعار الوحدات الصغرى بالقسمة على عدد التعبئة
@@ -4110,7 +4342,7 @@
 
                     for (let i = 1; i < this.tempUnits.length; i++) {
                         const factor = Accounting.parseNum(this.tempUnits[i].factor) || 1;
-                        const calcVal = Accounting.round(num / factor, this.selectedCurrency);
+                        const calcVal = Accounting.roundDerivedItemPrice(num / factor);
                         this.tempUnits[i][field] = calcVal;
 
                         const targetInputId = field === 'salePrice' ? `unitSale_${i}` : `unitCost_${i}`;
@@ -4128,8 +4360,8 @@
                 this.tempUnits[idx].factor = factor;
                 const base = this.tempUnits[0];
                 if (base) {
-                    const newCost = Accounting.round(Accounting.parseNum(base.costPrice) / factor, this.selectedCurrency);
-                    const newSale = Accounting.round(Accounting.parseNum(base.salePrice) / factor, this.selectedCurrency);
+                    const newCost = Accounting.roundDerivedItemPrice(Accounting.parseNum(base.costPrice) / factor);
+                    const newSale = Accounting.roundDerivedItemPrice(Accounting.parseNum(base.salePrice) / factor);
                     this.tempUnits[idx].costPrice = newCost;
                     this.tempUnits[idx].salePrice = newSale;
 
@@ -4148,8 +4380,8 @@
                 this.tempUnits.push({
                     name: 'قطعة',
                     factor: defaultFactor,
-                    costPrice: Accounting.round(Accounting.parseNum(base.costPrice) / defaultFactor, this.selectedCurrency),
-                    salePrice: Accounting.round(Accounting.parseNum(base.salePrice) / defaultFactor, this.selectedCurrency),
+                    costPrice: Accounting.roundDerivedItemPrice(Accounting.parseNum(base.costPrice) / defaultFactor),
+                    salePrice: Accounting.roundDerivedItemPrice(Accounting.parseNum(base.salePrice) / defaultFactor),
                     barcode: ''
                 });
                 this.renderUnitRows();
@@ -4287,6 +4519,7 @@
                         State.items[idx] = {
                             ...State.items[idx],
                             name, category, currency, openingStockBase, minStockBase, barcode,
+                            photoData: this.safePhotoData(this.tempPhotoData),
                             units: this.tempUnits
                         };
                     }
@@ -4294,6 +4527,7 @@
                     State.items.push({
                         id: 'itm_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
                         name, category, currency, openingStockBase, minStockBase, barcode,
+                        photoData: this.safePhotoData(this.tempPhotoData),
                         units: this.tempUnits
                     });
                     await LicenseManager.recordNewOperation();
@@ -4496,6 +4730,8 @@
                 if (!Number.isFinite(amount) || amount <= 0 || amount > 1e15)
                     return UI.toast('أدخل قيمة مصروف موجبة وصحيحة', 'error');
                 if (currency !== 'SYP' && currency !== 'USD') return UI.toast('اختر العملة الصحيحة', 'error');
+                if (!id && State.settings.primaryOnlyMode && currency !== CurrencyCatalog.primary())
+                    return UI.toast('المصاريف الجديدة بالعملة الرئيسية فقط', 'warn');
                 if (!category || !/^\d{4}-\d{2}-\d{2}$/.test(date||''))
                     return UI.toast('فئة المصروف أو تاريخه غير صحيح', 'error');
                 if (!(exchangeRate > 0) || !Number.isFinite(exchangeRate)) return UI.toast('أدخل سعر صرف صحيحاً', 'error');
@@ -4522,6 +4758,13 @@
                 const put=(elementId,value)=>{const el=document.getElementById(elementId);if(el)el.value=value;};
                 put('expenseId',exp.id);
                 put('expenseAmount',exp.amount);
+                const editCurrencySelect=document.getElementById('expenseCurrency');
+                if (editCurrencySelect && !Array.from(editCurrencySelect.options).some(o=>o.value===exp.currency)) {
+                    const option=document.createElement('option');
+                    option.value=exp.currency;
+                    option.textContent=CurrencyCatalog.label(exp.currency)+' (عملية سابقة)';
+                    editCurrencySelect.appendChild(option);
+                }
                 put('expenseCurrency',exp.currency);
                 put('expenseCategory',exp.category);
                 put('expenseDate',exp.date);
@@ -4666,7 +4909,7 @@
                         warehouseId: State.settings.selectedWarehouseId || 'wh_main',
                         date: nowIso,
                         accountId: '',
-                        currency: State.settings.defaultCurrency || 'SYP',
+                        currency: State.settings.primaryOnlyMode ? CurrencyCatalog.primary() : (State.settings.defaultCurrency || CurrencyCatalog.primary()),
                         exchangeRate: State.settings.exchangeRate || 15000,
                         paymentMethod: 'cash',
                         rows: [],
@@ -4922,6 +5165,7 @@
                                 </span>
                             ` : ''}
                             <div>
+                                ${ItemController.photoThumb(itm, 'grid')}
                                 <div class="flex items-center justify-between gap-1 mb-1">
                                     <span class="text-[9px] font-extrabold px-1.5 py-0.5 rounded ${itm.currency === 'USD' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-700'}">
                                         ${itm.currency}
@@ -4957,6 +5201,9 @@
             },
 
             toggleInvoiceCurrency() {
+                if (State.settings.primaryOnlyMode) {
+                    return UI.toast('وضع العملة الرئيسية فقط مفعّل', 'warn');
+                }
                 const oldCurr = this.draft.currency;
                 const newCurr = oldCurr === 'SYP' ? 'USD' : 'SYP';
                 const rate = Number(this.draft.exchangeRate) || State.settings.exchangeRate || 15000;
@@ -5217,10 +5464,10 @@
                                 </select>
                             </div>
 
-                            <button type="button" onclick="InvoiceController.toggleInvoiceCurrency()" class="bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 px-2 py-1 rounded-lg text-[10px] font-extrabold flex items-center gap-1 transition active:scale-95">
+                            <button type="button" ${State.settings.primaryOnlyMode ? 'disabled' : ''} onclick="InvoiceController.toggleInvoiceCurrency()" class="bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900 px-2 py-1 rounded-lg text-[10px] font-extrabold flex items-center gap-1 transition active:scale-95">
                                 <i class="fas fa-coins text-amber-600 text-[10px]"></i>
                                 <span>${cur === 'SYP' ? 'ليرة سورية' : 'دولار'}</span>
-                                <span class="text-[9px] bg-white px-1 py-0.5 rounded border">تبديل</span>
+                                ${State.settings.primaryOnlyMode ? '' : '<span class="text-[9px] bg-white px-1 py-0.5 rounded border">تبديل</span>'}
                             </button>
                         </div>
 
@@ -5723,7 +5970,7 @@
             openAccountVoucherModal(type, accountId) {
                 const nextNum = State.vouchers.length > 0 ? Math.max(...State.vouchers.map(v => Number(v.number) || 0)) + 1 : 1;
                 const nowIso = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-                this.draft = { id: 'vch_' + Date.now(), number: nextNum, type, date: nowIso, accountId, currency: 'SYP', amount: 0, exchangeRate: State.settings.exchangeRate || 15000, accountCurrency: 'SYP', accountAmount: 0, note: '', isEditing: false };
+                this.draft = { id: 'vch_' + Date.now(), number: nextNum, type, date: nowIso, accountId, currency: CurrencyCatalog.primary(), amount: 0, exchangeRate: State.settings.exchangeRate || 15000, accountCurrency: CurrencyCatalog.primary(), accountAmount: 0, note: '', isEditing: false };
                 this.modalMode = true;
                 UI.openModal(`
                     <div class="flex items-center justify-between border-b pb-2 mb-3">
@@ -5750,10 +5997,10 @@
                         type: params.type || 'receipt',
                         date: nowIso,
                         accountId: '',
-                        currency: 'SYP',
+                        currency: CurrencyCatalog.primary(),
                         amount: 0,
                         exchangeRate: State.settings.exchangeRate || 15000,
-                        accountCurrency: 'SYP',
+                        accountCurrency: CurrencyCatalog.primary(),
                         accountAmount: 0,
                         note: '',
                         isEditing: false
@@ -5814,8 +6061,8 @@
                             <div>
                                 <label class="block font-bold text-slate-700 mb-1">عملة الدفع بالصندوق</label>
                                 <select onchange="VoucherController.draft.currency = this.value; VoucherController.draft.accountCurrency = this.value; VoucherController.markModified(); VoucherController.paintVoucherForm(document.getElementById('mainContent'))" class="w-full border border-slate-300 rounded-xl px-2 py-2 font-bold bg-white">
-                                    <option value="SYP" ${d.currency === 'SYP' ? 'selected' : ''}>ليرة سورية (SYP)</option>
-                                    <option value="USD" ${d.currency === 'USD' ? 'selected' : ''}>دولار (USD)</option>
+                                    ${!State.settings.primaryOnlyMode || d.isEditing || CurrencyCatalog.primary() === 'SYP' ? `<option value="SYP" ${d.currency === 'SYP' ? 'selected' : ''}>ليرة سورية (SYP)</option>` : ''}
+                                    ${!State.settings.primaryOnlyMode || d.isEditing || CurrencyCatalog.primary() === 'USD' ? `<option value="USD" ${d.currency === 'USD' ? 'selected' : ''}>دولار (USD)</option>` : ''}
                                 </select>
                             </div>
                             <div>
@@ -5837,8 +6084,8 @@
                                 <div>
                                     <label class="block text-[11px] text-slate-600 mb-1">عملة الترحيل في كشف الحساب</label>
                                     <select onchange="VoucherController.draft.accountCurrency = this.value; VoucherController.markModified(); VoucherController.recalcClearing()" class="w-full border border-slate-300 rounded-xl px-2.5 py-1.5 font-bold bg-white">
-                                        <option value="SYP" ${d.accountCurrency === 'SYP' ? 'selected' : ''}>ترحيل بالليرة السورية (SYP)</option>
-                                        <option value="USD" ${d.accountCurrency === 'USD' ? 'selected' : ''}>ترحيل بالدولار الأمريكي (USD)</option>
+                                        ${!State.settings.primaryOnlyMode || d.isEditing || CurrencyCatalog.primary() === 'SYP' ? `<option value="SYP" ${d.accountCurrency === 'SYP' ? 'selected' : ''}>ترحيل بالليرة السورية (SYP)</option>` : ''}
+                                        ${!State.settings.primaryOnlyMode || d.isEditing || CurrencyCatalog.primary() === 'USD' ? `<option value="USD" ${d.accountCurrency === 'USD' ? 'selected' : ''}>ترحيل بالدولار الأمريكي (USD)</option>` : ''}
                                     </select>
                                 </div>
                                 <div>
@@ -6036,11 +6283,37 @@
 
         const SettingsController = {
             expandedSections: new Set(),
+            passwordPanelOpen: false,
+            closeAllSections() {
+                this.expandedSections.clear();
+                this.passwordPanelOpen = false;
+                if (typeof document.querySelectorAll === 'function') {
+                    document.querySelectorAll('details.settings-section[open]').forEach(el => { el.open = false; });
+                }
+            },
             onSectionToggle(details) {
                 const key = details?.dataset?.settingsSection;
                 if (!key) return;
-                if (details.open) this.expandedSections.add(key);
-                else this.expandedSections.delete(key);
+                if (details.open) {
+                    // Only one accordion pane is allowed, including after rerender.
+                    const sections = typeof document.querySelectorAll === 'function'
+                        ? document.querySelectorAll('details.settings-section') : [];
+                    for (const el of Array.from(sections)) {
+                        if (el !== details && el.open) el.open = false;
+                    }
+                    this.expandedSections.clear();
+                    this.expandedSections.add(key);
+                } else {
+                    this.expandedSections.delete(key);
+                }
+            },
+            togglePasswordPanel() {
+                this.passwordPanelOpen = !this.passwordPanelOpen;
+                const panel = document.getElementById('passwordSecurityFields');
+                if (panel) panel.classList.toggle('hidden', !this.passwordPanelOpen);
+                const icon = document.getElementById('passwordSecurityToggleIcon');
+                if (icon) icon.className = this.passwordPanelOpen ? 'fas fa-chevron-up' : 'fas fa-chevron-down';
+                if (this.passwordPanelOpen) document.getElementById('protectionCurrentPin')?.focus({preventScroll:true});
             },
             async setItemQuantityDecimals(value) {
                 const decimals = Number(value);
@@ -6048,10 +6321,81 @@
                 State.settings.itemQuantityDecimals = decimals;
                 await StorageEngine.saveState();
                 AppNav.renderCurrent();
-                UI.toast('تم حفظ عدد المنازل العشرية لعرض الكميات والأسعار', 'success');
+                UI.toast('تم حفظ عدد المنازل العشرية لإدخال وعرض أسعار المواد والكميات', 'success');
+            },
+            async setDefaultItemCurrency(value) {
+                if (!CurrencyCatalog.ledgerCurrencies.includes(value)) return;
+                if (State.settings.primaryOnlyMode) value = CurrencyCatalog.primary();
+                State.settings.defaultItemCurrency = value;
+                await StorageEngine.saveState();
+                UI.toast('تم حفظ العملة الافتراضية للمواد الجديدة', 'success');
+            },
+            async setPrimaryCurrency(value) {
+                if (!CurrencyCatalog.ledgerCurrencies.includes(value)) return;
+                State.settings.primaryCurrency = value;
+                State.settings.secondaryCurrency = CurrencyCatalog.secondary();
+                if (State.settings.primaryOnlyMode) {
+                    State.settings.defaultCurrency = value;
+                    State.settings.defaultItemCurrency = value;
+                }
+                await StorageEngine.saveState();
+                AppNav.renderCurrent();
+                UI.toast('تم تحديث العملة الرئيسية دون تغيير السجلات القديمة', 'success');
+            },
+            async setSecondaryCurrency(value) {
+                if (!CurrencyCatalog.ledgerCurrencies.includes(value) || State.settings.primaryOnlyMode) return;
+                if (value === CurrencyCatalog.primary()) {
+                    UI.toast('لا يمكن أن تكون العملتان الرئيسية والثانوية متطابقتين', 'warn');
+                    AppNav.renderCurrent(); return;
+                }
+                State.settings.secondaryCurrency = value;
+                await StorageEngine.saveState();
+                UI.toast('تم تحديث العملة الثانوية', 'success');
+            },
+            async setPrimaryOnlyMode(enabled) {
+                State.settings.primaryOnlyMode = enabled === true;
+                if (State.settings.primaryOnlyMode) {
+                    State.settings.defaultCurrency = CurrencyCatalog.primary();
+                    State.settings.defaultItemCurrency = CurrencyCatalog.primary();
+                }
+                await StorageEngine.saveState();
+                AppNav.renderCurrent();
+                UI.toast(State.settings.primaryOnlyMode ? 'العمليات الجديدة بالعملة الرئيسية فقط' : 'تم تفعيل العملة الثانوية', 'success');
+            },
+            async addPopularCurrency() {
+                const code = document.getElementById('catalogPopularCurrency')?.value;
+                const known = CurrencyCatalog.popular.find(c => c[0] === code);
+                if (!known) return;
+                await this.addCatalogCurrency(known[0], known[1]);
+            },
+            async addCustomCurrency() {
+                const code = CurrencyCatalog.safeCode(document.getElementById('customCurrencyCode')?.value);
+                const name = String(document.getElementById('customCurrencyName')?.value || '').trim();
+                if (!/^[A-Z]{3}$/.test(code)) return UI.toast('أدخل رمز عملة من ثلاثة أحرف لاتينية', 'error');
+                if (name.length < 2 || name.length > 60 || /[<>]/.test(name)) return UI.toast('أدخل اسماً صالحاً للعملة', 'error');
+                await this.addCatalogCurrency(code, name);
+            },
+            async addCatalogCurrency(code, name) {
+                code = CurrencyCatalog.safeCode(code);
+                if (!/^[A-Z]{3}$/.test(code)) return;
+                const added = Array.isArray(State.settings.addedCurrencies) ? State.settings.addedCurrencies : [];
+                if (CurrencyCatalog.ledgerCurrencies.includes(code)) return UI.toast('هذه عملة أساسية مدعومة مسبقاً', 'warn');
+                if (added.some(c=>c.code===code)) return UI.toast('العملة موجودة بالفعل في القائمة', 'warn');
+                if (added.length >= 50) return UI.toast('الحد الأقصى 50 عملة إضافية', 'warn');
+                State.settings.addedCurrencies = [...added,{code,name}];
+                await StorageEngine.saveState();
+                AppNav.renderCurrent();
+                UI.toast(`تمت إضافة ${code} إلى قائمة العملات`, 'success');
+            },
+            async removeCatalogCurrency(code) {
+                State.settings.addedCurrencies = (Array.isArray(State.settings.addedCurrencies)?State.settings.addedCurrencies:[]).filter(c=>c.code!==code);
+                await StorageEngine.saveState();
+                AppNav.renderCurrent();
+                UI.toast('تمت إزالة العملة من القائمة', 'success');
             },
             async setDefaultInvoiceCurrency(value) {
                 if (value !== 'USD' && value !== 'SYP') return;
+                if (State.settings.primaryOnlyMode) value = CurrencyCatalog.primary();
                 State.settings.defaultCurrency = value;
                 await StorageEngine.saveState();
                 UI.toast('تم تحديث العملة الافتراضية للفواتير الجديدة', 'success');
@@ -6432,7 +6776,9 @@
             },
             goToPinSetup() {
                 UI.forceCloseModal();
+                SettingsController.expandedSections.clear();
                 SettingsController.expandedSections.add('security');
+                SettingsController.passwordPanelOpen = true;
                 AppNav.navigate('settings');
                 requestAnimationFrame(() => {
                     const section = document.querySelector('[data-settings-section="security"]');

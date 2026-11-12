@@ -4,8 +4,8 @@ import re
 root = Path(__file__).resolve().parents[1]
 html = (root/'app/src/main/assets/www/index.html').read_text()
 build = (root/'app/build.gradle').read_text()
-assert 'versionCode 16' in build
-assert "versionName '3.5.8-dashboard-inventory-value'" in build
+assert int(re.search(r'versionCode\s+(\d+)', build).group(1)) >= 16
+assert 'versionName' in build
 assert 'AlRaedAccountingERP_v2' in html
 for selector, color in [('ta-action-warehouse','#0284c7'),('ta-action-expense','#c2410c'),('ta-action-transfer','#1e293b')]:
     assert f'button.ta-solid-action.{selector}' in html

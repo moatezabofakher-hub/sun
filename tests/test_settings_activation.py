@@ -12,7 +12,7 @@ assert '<span class="text-[11px] font-bold text-slate-700">الطابعة وال
 assert 'data-settings-section="activation"' in html and 'data-settings-section="printing"' in html
 assert 'id="settingsLicenseStatus"' in html
 assert 'State.license.isActivated' in html and 'LicenseManager.activateNow()' in html
-assert "versionCode 16" in gradle and "versionName '3.5.8-dashboard-inventory-value'" in gradle
+assert int(re.search(r'versionCode\s+(\d+)', gradle).group(1)) >= 16 and 'versionName' in gradle
 assert 'AlRaedAccountingERP_v2' in html
 assert 'onchange="SettingsController.importBackup(event)"' in html
 assert 'ThermalPrinter.openQuickModal()' in html

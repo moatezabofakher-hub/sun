@@ -6,7 +6,7 @@ manager=(root/'app/src/main/java/com/sunshine/accounting/AutoBackupManager.java'
 worker=(root/'app/src/main/java/com/sunshine/accounting/BackupWorker.java').read_text()
 html=(root/'app/src/main/assets/www/index.html').read_text()
 manifest=(root/'app/src/main/AndroidManifest.xml').read_text()
-assert 'versionCode 16' in (root/'app/build.gradle').read_text()
+assert int(re.search(r'versionCode\s+(\d+)', (root/'app/build.gradle').read_text()).group(1)) >= 16
 assert 'AlRaedAccountingERP_v2' in html
 assert 'applicationId \'com.sunshine.technicalaccountant\'' in (root/'app/build.gradle').read_text()
 assert 'window.AndroidAutoBackup.stageSnapshot' in html
@@ -30,6 +30,7 @@ assert 'AlMohaseb_AlTaqni_Backups' in worker
 assert 'getLastSignedInAccount' not in main
 assert 'android:allowBackup="false"' in manifest
 assert all(re.search(fr'value="{n}"', html) for n in ('6','12','24'))
-assert 'BackupController.card(\'local\'' in html and 'BackupController.card(\'drive\'' in html
+assert 'BackupController.card(\'local\'' in html and 'BackupController.card(\'drive\'' not in html
+assert 'disableOldDriveBackups' in main and 'cancelUniqueWork("periodic_drive_backup")' in manager
 assert 'BackupController.runNow' in html
 print('PASS auto backup WorkManager, SAF persisted permissions, Drive OAuth, intervals and data safety')

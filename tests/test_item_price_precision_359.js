@@ -25,7 +25,7 @@ const ctx={console,Map,Set,Math,Number,Date,JSON,String,Array,Promise,Intl,
   document:{getElementById:id=>els[id]||null}
 };ctx.globalThis=ctx;
 const saveCode=cut('            async saveItem(existingId) {','\n            deleteItem(itemId) {');
-vm.runInNewContext(cut('const State =','const StorageEngine =')+'\n'+cut('const Accounting =','const AppNav =')+'\n'+`const ItemController={tempUnits:[{name:'Pack',factor:1,costPrice:1.23456,salePrice:12.3456}],selectedCurrency:'USD',${saveCode}};`+ '\n'+i18n+'\nglobalThis.Test={State,Accounting,ItemController,I18n}',ctx,{timeout:7000});
+vm.runInNewContext(cut('const State =','const StorageEngine =')+'\n'+cut('const Accounting =','const AppNav =')+'\n'+`const ItemController={tempUnits:[{name:'Pack',factor:1,costPrice:1.23456,salePrice:12.3456}],selectedCurrency:'USD',safePhotoData:()=>'',${saveCode}};`+ '\n'+i18n+'\nglobalThis.Test={State,Accounting,ItemController,I18n}',ctx,{timeout:7000});
 const {State,Accounting,ItemController,I18n}=ctx.Test;
 assert.equal(Accounting.formatItemQuantity(12.3456),'12.35');
 assert.equal(Accounting.formatItemPriceNumber(12.3456),'12.35');

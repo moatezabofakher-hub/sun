@@ -39,6 +39,12 @@ public final class AutoBackupManager {
 
     public static boolean validHours(int hours) { return hours == 6 || hours == 12 || hours == 24; }
 
+    /** Drive backup has been removed from user settings. Migrate old schedules safely. */
+    public static void disableOldDriveBackups(Context ctx) {
+        prefs(ctx).edit().putBoolean("driveEnabled", false).apply();
+        WorkManager.getInstance(ctx).cancelUniqueWork("periodic_drive_backup");
+    }
+
     static File snapshotFile(Context ctx) { return new File(ctx.getFilesDir(), SNAPSHOT); }
 
     /** Serializes writes to avoid older JSON snapshots overwriting newer commits. */
@@ -133,7 +139,7 @@ public final class AutoBackupManager {
 
     /** Returns an actionable error or an empty string when the preference was saved. */
     public static String configure(Context ctx, String kind, boolean enabled, int hours) {
-        if (!"local".equals(kind) && !"drive".equals(kind)) return "نوع نسخ غير معروف";
+        if (!"local".equals(kind)) return "النسخ الاحتياطي إلى Google Drive غير متاح في هذا الإصدار";
         if (!validHours(hours)) return "اختر 6 أو 12 أو 24 ساعة";
         SharedPreferences p = prefs(ctx);
         if (enabled && "local".equals(kind) && p.getString("localFolder", "").isEmpty())
@@ -163,7 +169,7 @@ public final class AutoBackupManager {
     }
 
     public static void runNow(Context ctx, String kind) {
-        if (!"local".equals(kind) && !"drive".equals(kind)) return;
+        if (!"local".equals(kind)) return;
         if (!prefs(ctx).getBoolean(kind + "Enabled", false)) return;
         Constraints.Builder constraints = new Constraints.Builder();
         if ("drive".equals(kind)) constraints.setRequiredNetworkType(NetworkType.CONNECTED);

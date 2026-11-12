@@ -22,6 +22,10 @@ import android.graphics.Color;
 import android.view.View;
 import android.widget.FrameLayout;
 import android.content.Intent;
+import android.content.ClipData;
+import android.provider.MediaStore;
+import androidx.core.content.FileProvider;
+import java.io.File;
 import android.net.Uri;
 import android.os.Bundle;
 import android.webkit.JavascriptInterface;
@@ -60,10 +64,12 @@ public final class MainActivity extends FragmentActivity {
     private static final String APP_URL = "https://" + HOST + "/assets/www/index.html";
     private static final int PICK_IMPORT = 2401;
     private static final int SAVE_BACKUP = 2402;
+    private static final int REQUEST_ITEM_CAMERA = 2404;
     private WebView webView;
     private NativeBluetoothPrinter bluetoothPrinter;
     private BiometricPrompt biometricPrompt;
     private ValueCallback<Uri[]> pendingFileChooser;
+    private Uri pendingItemPhotoCameraUri;
     private String pendingBackupJson;
 
     // Local Storage Access Framework folder (persisted permission) and Drive authorization.
@@ -141,6 +147,8 @@ public final class MainActivity extends FragmentActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        // Stop legacy Google Drive periodic backups when upgrading; local schedules remain intact.
+        AutoBackupManager.disableOldDriveBackups(this);
         // Android 15+ enforces edge-to-edge. Reserve system-bar and cutout space
         // using WebView LAYOUT MARGINS (not WebView internal padding) so its CSS
         // viewport and fixed header/footer never extend behind Android bars.
@@ -236,12 +244,21 @@ public final class MainActivity extends FragmentActivity {
                                              FileChooserParams params) {
                 if (pendingFileChooser != null) pendingFileChooser.onReceiveValue(null);
                 pendingFileChooser = callback;
-                try {
-                    startActivityForResult(params.createIntent(), PICK_IMPORT);
-                } catch (Exception e) {
-                    pendingFileChooser = null;
-                    callback.onReceiveValue(null);
-                    Toast.makeText(MainActivity.this, "لا يمكن فتح منتقي الملفات", Toast.LENGTH_LONG).show();
+                if (params.isCaptureEnabled() && acceptsImage(params)) {
+                    if (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.CAMERA)
+                            == PackageManager.PERMISSION_GRANTED) {
+                        startItemPhotoCamera();
+                    } else {
+                        requestPermissions(new String[]{Manifest.permission.CAMERA}, REQUEST_ITEM_CAMERA);
+                    }
+                } else {
+                    try {
+                        startActivityForResult(params.createIntent(), PICK_IMPORT);
+                    } catch (Exception e) {
+                        pendingFileChooser = null;
+                        callback.onReceiveValue(null);
+                        Toast.makeText(MainActivity.this, "لا يمكن فتح منتقي الملفات", Toast.LENGTH_LONG).show();
+                    }
                 }
                 return true;
             }
@@ -315,6 +332,37 @@ public final class MainActivity extends FragmentActivity {
         }
     }
 
+    private boolean acceptsImage(WebChromeClient.FileChooserParams params) {
+        String[] types = params.getAcceptTypes();
+        if (types == null) return false;
+        for (String type : types) {
+            if (type != null && (type.startsWith("image/") || "image/*".equals(type))) return true;
+        }
+        return false;
+    }
+
+    private void startItemPhotoCamera() {
+        if (pendingFileChooser == null) return;
+        try {
+            File folder = new File(getCacheDir(), "item_images");
+            if (!folder.isDirectory() && !folder.mkdirs()) throw new IOException("Unable to create image folder");
+            File photo = File.createTempFile("item_photo_", ".jpg", folder);
+            pendingItemPhotoCameraUri = FileProvider.getUriForFile(
+                    this, getPackageName() + ".fileprovider", photo);
+            Intent camera = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+            camera.putExtra(MediaStore.EXTRA_OUTPUT, pendingItemPhotoCameraUri);
+            camera.setClipData(ClipData.newRawUri("Item photo", pendingItemPhotoCameraUri));
+            camera.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+            startActivityForResult(camera, PICK_IMPORT);
+        } catch (Exception ex) {
+            pendingItemPhotoCameraUri = null;
+            ValueCallback<Uri[]> callback = pendingFileChooser;
+            pendingFileChooser = null;
+            if (callback != null) callback.onReceiveValue(null);
+            Toast.makeText(this, "تعذر فتح كاميرا صور المواد", Toast.LENGTH_LONG).show();
+        }
+    }
+
     private void replyBarcode(String target, String barcode, String message) {
         runOnUiThread(() -> {
             if (!isLocalPage()) return;
@@ -382,6 +430,19 @@ public final class MainActivity extends FragmentActivity {
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == REQUEST_ITEM_CAMERA) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED
+                    && isLocalPage()) {
+                startItemPhotoCamera();
+            } else {
+                ValueCallback<Uri[]> callback = pendingFileChooser;
+                pendingFileChooser = null;
+                pendingItemPhotoCameraUri = null;
+                if (callback != null) callback.onReceiveValue(null);
+                Toast.makeText(this, "اسمح بالكاميرا لتصوير المادة", Toast.LENGTH_LONG).show();
+            }
+            return;
+        }
         if (requestCode == REQUEST_WEB_CAMERA) {
             PermissionRequest request = pendingWebCameraPermission;
             pendingWebCameraPermission = null;
@@ -606,9 +667,15 @@ public final class MainActivity extends FragmentActivity {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == PICK_IMPORT) {
             if (pendingFileChooser != null) {
-                pendingFileChooser.onReceiveValue(
-                        WebChromeClient.FileChooserParams.parseResult(resultCode, data));
+                Uri[] selected = null;
+                if (resultCode == Activity.RESULT_OK && pendingItemPhotoCameraUri != null) {
+                    selected = new Uri[]{pendingItemPhotoCameraUri};
+                } else if (resultCode == Activity.RESULT_OK) {
+                    selected = WebChromeClient.FileChooserParams.parseResult(resultCode, data);
+                }
+                pendingFileChooser.onReceiveValue(selected);
                 pendingFileChooser = null;
+                pendingItemPhotoCameraUri = null;
             }
         } else if (requestCode == SAVE_BACKUP) {
             String json = pendingBackupJson;
