@@ -10,8 +10,8 @@ android {
         applicationId 'com.sunshine.technicalaccountant'
         minSdk 26
         targetSdk 35
-        versionCode 28
-        versionName '3.5.21-invoices-reports-profiles'
+        versionCode 29
+        versionName '3.5.22-security-save-dialog'
     }
 
     // A permanent signing key is required for in-place updates. The keystore is

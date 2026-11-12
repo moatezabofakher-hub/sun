@@ -14,8 +14,8 @@ assert(nav.indexOf('data-nav="reports"')>=0 && nav.indexOf('data-nav="settings"'
 assert(!html.includes("backBtn.onclick = () => AppNav.navigate('settings')"),'no duplicate header setting');
 assert(html.includes('ta-action-card:active,.ta-module-card:active') && html.includes('translateY(5px)'),'tactile 3D pressed state');
 assert.match(build,/applicationId 'com\.sunshine\.technicalaccountant'/);
-assert.match(build,/versionCode 28/);
-assert.match(build,/versionName '3\.5\.21-invoices-reports-profiles'/);
+assert.ok(Number(build.match(/versionCode\s+(\d+)/)?.[1]) >= 29, 'Android versionCode must increase for in-place updates');
+assert.match(build,/versionName '3\.5\.\d+[^']*'/, 'Android release version retained');
 assert(html.includes("const DB_NAME = 'AlRaedAccountingERP_v2'"));
 assert(html.includes('id="trialStatusBar"'),'trial ribbon preserved');
 for(const icon of ['fa-search','fa-table-list','fa-table-cells-large','fa-layer-group','fa-box-open']) assert(icons.includes('"'+icon+'":'),icon);

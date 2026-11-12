@@ -15,8 +15,8 @@ assert.match(html,/#topAppBar\.dashboard-header #headerTitleWrap/,'home brand ce
 assert.match(html,/data-nav="settings"/,'settings in bottom dock');
 assert.match(html,/onclick="AppNav\.navigate\('settings'\)"/,'settings dock action available');
 assert.match(gradle,/applicationId 'com\.sunshine\.technicalaccountant'/,'same package');
-assert.match(gradle,/versionCode 28/);
-assert.match(gradle,/versionName '3\.5\.21-invoices-reports-profiles'/);
+assert.ok(Number(gradle.match(/versionCode\s+(\d+)/)?.[1]) >= 29, 'Android versionCode must increase for in-place updates');
+assert.match(gradle,/versionName '3\.5\.\d+[^']*'/, 'Android release version retained');
 assert.match(html,/const DB_NAME = 'AlRaedAccountingERP_v2'/,'same DB');
 assert.match(workflow,/TA_KEYSTORE_BASE64/);
 assert.match(workflow,/assembleRelease/);

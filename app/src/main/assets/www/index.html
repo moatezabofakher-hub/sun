@@ -4599,12 +4599,7 @@
                             <i id="passwordSecurityToggleIcon" class="fas ${SettingsController.passwordPanelOpen ? 'fa-chevron-up' : 'fa-chevron-down'}"></i>
                         </button>
                         <div id="passwordSecurityFields" class="${SettingsController.passwordPanelOpen ? '' : 'hidden'} space-y-3">
-                        <p class="text-[11px] text-slate-500">تغيير كلمة السر يتطلب إدخال الكلمة الحالية أولاً. عند تعيين كلمة سر جديدة، عيّن سؤالَي أمان مختلفين لتتمكن من استعادتها عند نسيانها. يتم حفظ الإجابات كبصمات مشفّرة بدلاً من نصوص واضحة.</p>
-                        ${State.settings.appProtection?.pinHash ? `
-                        <div>
-                            <label class="block text-xs font-extrabold text-slate-700 mb-1"><i class="fas fa-lock ml-1 text-emerald-600"></i> كلمة السر الحالية (مطلوبة عند تغيير كلمة السر أو إعدادات الحماية)</label>
-                            <input id="protectionCurrentPin" type="password" inputmode="numeric" autocomplete="current-password" placeholder="أدخل كلمة السر السابقة" class="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-center tracking-widest">
-                        </div>` : ''}
+                        <p class="text-[11px] text-slate-500">عند الضغط على «حفظ إعدادات الحماية» ستظهر نافذة تطلب كلمة السر الحالية تلقائياً. عند تعيين كلمة سر جديدة، عيّن سؤالَي أمان مختلفين لاستعادتها عند نسيانها. تُحفظ الإجابات كبصمات مشفّرة بدلاً من نصوص واضحة.</p>
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             <div>
                                 <label class="block text-xs font-bold text-slate-600 mb-1">${State.settings.appProtection?.pinHash ? 'كلمة السر الجديدة (اختياري)' : 'إنشاء كلمة سر (4 خانات أو أكثر)'}</label>
@@ -7209,7 +7204,7 @@
                 if (panel) panel.classList.toggle('hidden', !this.passwordPanelOpen);
                 const icon = document.getElementById('passwordSecurityToggleIcon');
                 if (icon) icon.className = this.passwordPanelOpen ? 'fas fa-chevron-up' : 'fas fa-chevron-down';
-                if (this.passwordPanelOpen) document.getElementById('protectionCurrentPin')?.focus({preventScroll:true});
+                if (this.passwordPanelOpen) document.getElementById('protectionPin')?.focus({preventScroll:true});
             },
             async setItemQuantityDecimals(value) {
                 const decimals = Number(value);
@@ -7560,11 +7555,19 @@
                 const digest = await crypto.subtle.digest('SHA-256', secret);
                 return this.bytesToBase64(digest);
             },
-            async saveSettings() {
+            async saveSettings(verifiedCurrentPin = null) {
                 try {
+                    // Use the existing PIN-verification dialog; never force the user to
+                    // expand the password-change panel just to save a protection toggle.
+                    // Do not save or rerender anything until verification succeeds.
+                    if (State.settings.appProtection?.pinHash && verifiedCurrentPin === null) {
+                        this.requestPin('أدخل كلمة السر الحالية لتأكيد حفظ إعدادات الحماية',
+                            confirmedPin => this.saveSettings(confirmedPin));
+                        return;
+                    }
                     const pin = document.getElementById('protectionPin')?.value || '';
                     const confirm = document.getElementById('protectionPinConfirm')?.value || '';
-                    const currentPin = document.getElementById('protectionCurrentPin')?.value || '';
+                    const currentPin = verifiedCurrentPin || '';
                     const firstQuestionId = document.getElementById('securityQuestion1')?.value || '';
                     const secondQuestionId = document.getElementById('securityQuestion2')?.value || '';
                     const firstAnswer = document.getElementById('securityAnswer1')?.value || '';
@@ -7665,11 +7668,12 @@
                     <div class="text-right">
                         <div class="flex items-center justify-between mb-3"><h3 class="font-extrabold text-base"><i class="fas fa-shield-halved text-emerald-600 ml-1"></i> التحقق من الحماية</h3><button onclick="UI.forceCloseModal()"><i class="fas fa-times text-slate-400"></i></button></div>
                         <p class="text-xs text-slate-500 mb-3">${message}</p>
-                        <input id="protectionVerifyPin" type="password" inputmode="numeric" autocomplete="current-password" placeholder="أدخل رمز الحماية" class="w-full border border-slate-300 rounded-xl p-3 text-center text-lg tracking-widest mb-3">
+                        <input id="protectionVerifyPin" type="password" inputmode="numeric" autocomplete="current-password" placeholder="أدخل رمز الحماية" onkeydown="if(event.key==='Enter'){event.preventDefault();ProtectionController.verifyPromptPin();}" class="w-full border border-slate-300 rounded-xl p-3 text-center text-lg tracking-widest mb-3">
                         <button onclick="ProtectionController.verifyPromptPin()" class="w-full bg-emerald-600 text-white rounded-xl py-3 font-extrabold">تحقق</button>
                         <button type="button" onclick="ProtectionController.openRecovery()" class="w-full text-center text-xs font-bold text-indigo-700 underline mt-3">نسيت رمز الحماية؟</button>
                     </div>`);
                 this.pendingSuccess = onSuccess;
+                requestAnimationFrame(() => document.getElementById('protectionVerifyPin')?.focus({ preventScroll: true }));
             },
             async verifyPromptPin() {
                 const pin = document.getElementById('protectionVerifyPin')?.value || '';
@@ -7678,7 +7682,7 @@
                         const callback = this.pendingSuccess;
                         this.pendingSuccess = null;
                         UI.forceCloseModal();
-                        if (callback) callback();
+                        if (callback) await callback(pin);
                     } else UI.toast('رمز الحماية غير صحيح', 'error');
                 } catch (e) { UI.toast(e.message || 'تعذر التحقق من الرمز', 'error'); }
             },
