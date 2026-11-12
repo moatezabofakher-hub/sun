@@ -14,5 +14,9 @@ for label in ['إضافة مستودع','إضافة مصروف','مناقلة م
     assert label in html
 for onclick in ["AppNav.navigate('warehouses', { action: 'add' })", "AppNav.navigate('expenses', { action: 'add' })", "Views.jumpToEntry('warehouseCreatePanel','newWarehouseName')", "Views.jumpToEntry('warehouseTransferPanel','transferItem')", "WarehouseController.addWarehouse()", "ExpenseController.startNewExpense()", "ExpenseController.saveExpense()"]:
     m = re.search(r'<button\b[^>]*\bonclick="'+re.escape(onclick)+r'"[^>]*>',html)
-    assert m and 'ta-solid-action' in m.group(0), onclick
+    assert m, onclick
+    if onclick in ("AppNav.navigate('warehouses', { action: 'add' })", "AppNav.navigate('expenses', { action: 'add' })"):
+        assert 'ta-service-button' in m.group(0), onclick
+    else:
+        assert 'ta-solid-action' in m.group(0), onclick
 print('PASS: v3.5.2 high-contrast action buttons and unchanged data key')

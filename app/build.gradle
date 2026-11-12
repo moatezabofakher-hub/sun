@@ -10,8 +10,8 @@ android {
         applicationId 'com.sunshine.technicalaccountant'
         minSdk 26
         targetSdk 35
-        versionCode 24
-        versionName '3.5.17-debts-tabs-signed'
+        versionCode 25
+        versionName '3.5.18-trial-premium-ui'
     }
 
     // A permanent signing key is required for in-place updates. The keystore is

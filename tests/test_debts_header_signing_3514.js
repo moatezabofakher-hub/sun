@@ -15,8 +15,8 @@ assert.match(html,/#topAppBar\.dashboard-header #headerTitleWrap/,'home brand ce
 assert.match(html,/dashboard-settings-button/,'home settings bigger');
 assert.match(html,/backBtn\.onclick = \(\) => AppNav\.navigate\('settings'\)/,'settings shortcut stays');
 assert.match(gradle,/applicationId 'com\.sunshine\.technicalaccountant'/,'same package');
-assert.match(gradle,/versionCode 24/);
-assert.match(gradle,/versionName '3\.5\.17-debts-tabs-signed'/);
+assert.match(gradle,/versionCode 25/);
+assert.match(gradle,/versionName '3\.5\.18-trial-premium-ui'/);
 assert.match(html,/const DB_NAME = 'AlRaedAccountingERP_v2'/,'same DB');
 assert.match(workflow,/TA_KEYSTORE_BASE64/);
 assert.match(workflow,/assembleRelease/);

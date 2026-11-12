@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <meta name="theme-color" content="#0f172a">
+    <meta name="theme-color" content="#0b1d31">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <title>المحاسب التقني</title>
@@ -207,6 +207,209 @@
         #mainContent button > i.text-base { font-size: 0.94rem !important; }
         #mainContent button > i, nav button > i, header button > i { font-weight: 900; }
 
+
+        /* =============================================================
+         * v3.5.18 / Professional UI: offline-first, mobile-native visual system.
+         * Tokens, generous tap targets, accessible focus, dark navy + teal.
+         * These visual styles do not change ledger, forms or stored data.
+         * ============================================================= */
+        :root {
+            --ta-navy:#0b1d31;
+            --ta-ink:#15263c;
+            --ta-muted:#65788e;
+            --ta-teal:#087c76;
+            --ta-sea:#0da79a;
+            --ta-canvas:#f3f7fb;
+            --ta-line:#dfe8f0;
+            --ta-radius:20px;
+        }
+        body.ta-premium-ui {
+            color:var(--ta-ink);
+            background:radial-gradient(circle at 10% -5%, rgba(45,212,191,.11), transparent 38%),
+                       linear-gradient(180deg,#f5f9fc 0%,#eef4f9 100%);
+            letter-spacing:-.006em;
+        }
+        .ta-app-header {
+            background:linear-gradient(113deg,#0a1c30 0%,#102b42 58%,#0a343e 100%) !important;
+            border-bottom:1px solid rgba(125,211,210,.18);
+            box-shadow:0 6px 24px rgba(7,30,49,.18);
+            isolation:isolate;
+        }
+        #topAppBar {min-height:64px;}
+        #screenTitle {font-size:14px;font-weight:850;letter-spacing:-.025em;}
+        #screenTitle > i {
+            width:30px;height:30px;min-width:30px;
+            border-radius:10px;border:1px solid rgba(153,246,228,.23);
+            background:rgba(48,196,181,.13);
+            display:inline-flex;align-items:center;justify-content:center;
+            color:#6de6d3 !important;
+        }
+        #screenSubtitle {color:#b4cbd4;letter-spacing:0;}
+        #topBarRateButton {
+            border:1px solid rgba(167,243,208,.19) !important;
+            background:rgba(255,255,255,.075) !important;
+            border-radius:13px;min-height:38px;
+            backdrop-filter:blur(6px);
+        }
+        #topBarRateButton:active {background:rgba(255,255,255,.14) !important;}
+        #headerBackBtn {min-height:38px;min-width:38px;border-radius:12px;}
+        #headerBackBtn.dashboard-settings-button {
+            border-color:rgba(110,231,183,.32);
+            background:rgba(13,148,136,.22);
+            color:#b4f7e1;
+        }
+        #topAppBar.dashboard-header #screenTitle > i {width:24px;height:24px;min-width:24px;border:0;background:transparent;}
+        #topAppBar.dashboard-header #headerTitleWrap {width:calc(100% - 198px);}
+        @media(max-width:380px){#topAppBar.dashboard-header #headerTitleWrap{width:calc(100% - 174px);}}
+
+        /* Trial strip is INSIDE the top header, collapses to zero when activated. */
+        .ta-trial-bar[hidden], .ta-trial-bar.hidden {display:none !important;}
+        .ta-trial-bar {
+            display:flex;align-items:center;gap:9px;justify-content:space-between;
+            padding:8px max(12px,calc((100% - 738px)/2));
+            border-top:1px solid rgba(255,255,255,.1);
+            background:linear-gradient(90deg,rgba(35,58,68,.96),rgba(18,53,64,.96));
+            color:#f7f4e7;
+        }
+        .ta-trial-status {display:flex;align-items:center;gap:8px;min-width:0;flex-shrink:0;}
+        .ta-trial-emblem {display:inline-flex;align-items:center;justify-content:center;
+            width:32px;height:32px;min-width:32px;border-radius:11px;
+            background:rgba(251,191,36,.13);color:#fbd38d;font-size:14px;}
+        .ta-trial-copy {display:flex;flex-direction:column;gap:1px;line-height:1.25;white-space:nowrap;}
+        .ta-trial-copy strong{font-size:11px;font-weight:850;letter-spacing:0;}
+        .ta-trial-copy span{font-size:10px;color:#c5dbdd;font-weight:650;}
+        .ta-trial-progress{height:5px;min-width:25px;max-width:130px;flex:1;
+            border-radius:99px;background:rgba(255,255,255,.17);overflow:hidden;}
+        #trialProgressFill {display:block;width:0;height:100%;border-radius:inherit;
+            background:linear-gradient(90deg,#fbbf24,#7de3c7);transition:width .2s ease;}
+        #trialActivateButton {display:inline-flex;align-items:center;justify-content:center;gap:6px;
+            font-size:10px;font-weight:800;color:#163b3d;background:#d9f8ee;
+            border:1px solid rgba(255,255,255,.35);
+            border-radius:10px;padding:7px 9px;min-height:32px;cursor:pointer;white-space:nowrap;}
+        #trialActivateButton:active{background:white;}
+        @media(max-width:360px) {
+            .ta-trial-bar{gap:5px;padding-inline:8px;}
+            .ta-trial-emblem{width:27px;height:27px;min-width:27px;}
+            .ta-trial-copy strong{font-size:10px;}
+            .ta-trial-copy span{font-size:9px;}
+            #trialActivateButton{font-size:9px;padding:6px 5px;}
+        }
+
+        #mainContent.ta-main {padding:15px 13px 116px;}
+        .ta-dashboard {display:flex;flex-direction:column;gap:17px;}
+        .ta-dashboard .ta-hero {
+            position:relative;overflow:hidden;
+            background:linear-gradient(120deg,#0b293d 0%,#0a5554 100%);
+            border:1px solid rgba(12,98,103,.28);border-radius:24px;
+            box-shadow:0 13px 26px rgba(20,60,76,.15);
+            padding:21px 19px 18px;color:#fff;
+        }
+        .ta-hero:before {content:'';position:absolute;left:-54px;top:-85px;
+            width:205px;height:205px;border:35px solid rgba(126,231,211,.09);border-radius:50%;pointer-events:none;}
+        .ta-hero:after {content:'';position:absolute;left:30px;bottom:-105px;
+            width:190px;height:190px;background:radial-gradient(circle,rgba(69,226,213,.10),transparent 72%);pointer-events:none;}
+        .ta-hero-content {position:relative;z-index:1;}
+        .ta-eyebrow {font-size:10px;font-weight:850;letter-spacing:.06em;color:#9defe4;}
+        .ta-hero h2 {font-size:21px;letter-spacing:-.04em;font-weight:900;line-height:1.45;margin:7px 0 5px;}
+        .ta-hero p {font-size:11px;color:#c7e6e5;line-height:1.8;}
+        .ta-hero-stats{display:flex;gap:9px;margin-top:17px;}
+        .ta-hero-stat {display:flex;align-items:center;gap:9px;flex:1;min-width:0;
+            padding:10px 11px;border:1px solid rgba(213,255,249,.18);border-radius:14px;
+            background:rgba(245,255,255,.08);backdrop-filter:blur(4px);}
+        .ta-hero-stat i {color:#93e6d8;font-size:16px;}
+        .ta-hero-stat strong{display:block;font-size:15px;font-weight:900;line-height:1.2;}
+        .ta-hero-stat small{display:block;font-size:10px;color:#c9e6e5;margin-top:3px;}
+        .ta-section-head {display:flex;align-items:center;gap:10px;padding:0 2px;margin:0 0 11px;}
+        .ta-section-mark {height:22px;width:4px;border-radius:3px;background:linear-gradient(#11b4a1,#0d7472);flex-shrink:0;}
+        .ta-section-head h3 {font-size:13px;line-height:1.5;font-weight:900;color:#213549;}
+        .ta-section-head p {font-size:10px;margin-top:2px;color:#8091a0;}
+        .ta-action-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px;}
+        .ta-action-card,.ta-module-card {
+            position:relative;display:flex;border:1px solid #dfebf0;
+            background:#fff;border-radius:19px;text-align:right;color:#24374b;
+            box-shadow:0 4px 13px rgba(33,65,85,.052);
+            transition:transform .14s ease,border-color .14s ease,box-shadow .14s ease;
+            cursor:pointer;
+        }
+        .ta-action-card {padding:13px;min-height:103px;align-items:flex-start;flex-direction:column;gap:11px;}
+        .ta-action-card .ta-card-footer{display:flex;align-items:center;justify-content:space-between;width:100%;gap:8px;}
+        .ta-action-card strong {font-size:12px;font-weight:900;line-height:1.5;}
+        .ta-action-card .ta-card-chevron{color:#9eb0bc;font-size:12px;}
+        .ta-action-card .ta-card-description{font-size:10px;color:#8798a6;margin-top:2px;}
+        .ta-icon-box {display:inline-flex;align-items:center;justify-content:center;
+            width:43px;height:43px;min-width:43px;border-radius:15px;font-size:19px;}
+        .ta-tone-teal{background:#e3f8f3;color:#0d867d;}
+        .ta-tone-blue{background:#e6f1ff;color:#2369aa;}
+        .ta-tone-purple{background:#f1eafe;color:#7852bd;}
+        .ta-tone-orange{background:#fff2df;color:#bb7319;}
+        .ta-tone-red{background:#ffe9ef;color:#c95671;}
+        .ta-tone-cyan{background:#e3f8fc;color:#157a9d;}
+        .ta-tone-slate{background:#ebf1f7;color:#475c71;}
+        .ta-module-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;}
+        .ta-module-card{align-items:center;justify-content:center;flex-direction:column;
+            gap:9px;padding:13px 5px 12px;min-height:99px;text-align:center;}
+        .ta-module-card .ta-icon-box{width:39px;height:39px;min-width:39px;border-radius:13px;font-size:17px;}
+        .ta-module-card strong {font-size:10.5px;font-weight:850;line-height:1.6;color:#354b60;max-width:100%;overflow-wrap:anywhere;}
+        .ta-small-alert{position:absolute;left:5px;top:5px;padding:2px 5px;
+            background:#fff1f2;color:#be123c;border-radius:7px;font-size:9px;font-weight:800;}
+        .ta-service-grid {display:grid;grid-template-columns:1fr 1fr;gap:9px;}
+        #mainContent .ta-service-grid .ta-service-button {
+            display:flex;align-items:center;justify-content:center;gap:8px;min-height:48px;
+            padding:8px 10px;border-radius:14px;background:#e9f7f5;color:#116862;
+            border:1px solid #c9e8e5;font-size:11px;font-weight:850;
+            box-shadow:0 2px 5px rgba(10,70,65,.035);
+        }
+        #mainContent .ta-service-grid .ta-service-button.ta-service-expense {
+            background:#fff2e8;color:#a65721;border-color:#f6deca;
+        }
+        .ta-action-card:active,.ta-module-card:active{transform:scale(.975);}
+        @media(hover:hover){.ta-action-card:hover,.ta-module-card:hover{border-color:#8ed5ca;box-shadow:0 8px 19px rgba(33,65,85,.10);transform:translateY(-1px);}}
+
+        /* Consistent detail screens, inputs, dialogs and bottom navigation. */
+        #mainContent .settings-section{border-color:#e0e9f0;border-radius:18px;
+            box-shadow:0 3px 13px rgba(28,65,85,.045);}
+        #mainContent .settings-section-heading{min-height:72px;padding:15px;}
+        #mainContent .settings-section-leading > i{border-radius:13px;background:#e5f6f3;color:#087e74;}
+        #mainContent .settings-section[open]{border-color:#87d2c5;box-shadow:0 5px 18px rgba(13,112,103,.09);}
+        #mainContent .settings-section-body{background:#fbfdfe;border-top-color:#edf2f6;}
+        #mainContent input:not([type=checkbox]):not([type=radio]),
+        #mainContent select,#mainContent textarea,
+        #modalBox input:not([type=checkbox]):not([type=radio]),
+        #modalBox select,#modalBox textarea {
+            accent-color:#0b9485;border-radius:12px;
+        }
+        #mainContent button:focus-visible,#modalBox button:focus-visible,
+        .ta-bottom-nav button:focus-visible,#trialActivateButton:focus-visible,
+        #topBarRateButton:focus-visible,#headerBackBtn:focus-visible {
+            outline:3px solid #45cbbb !important;outline-offset:2px;
+        }
+        #mainContent input:focus-visible,#mainContent select:focus-visible,
+        #modalBox input:focus-visible,#modalBox select:focus-visible {
+            outline:2px solid #13a89b;outline-offset:1px;
+        }
+        #modalBox,#dialogBox{border:1px solid #e4edf3;border-radius:23px;
+            box-shadow:0 20px 65px rgba(5,32,49,.24);}
+        #mainContent .bg-white.rounded-xl,#mainContent .bg-white.rounded-2xl {
+            border-color:#e4ecf2;box-shadow:0 2px 9px rgba(23,55,77,.038);
+        }
+        nav.ta-bottom-nav{background:rgba(255,255,255,.96);
+            border-top:1px solid #e1eaf1;
+            box-shadow:0 -7px 24px rgba(13,40,64,.07);
+            backdrop-filter:blur(14px);padding-bottom:env(safe-area-inset-bottom,0px);}
+        nav.ta-bottom-nav .nav-btn{position:relative;gap:4px;color:#72849a;
+            font-weight:750;border-radius:13px;margin:6px 2px;padding:5px 1px;
+            transition:background .14s,color .14s;}
+        nav.ta-bottom-nav .nav-btn > i{width:32px;height:32px;display:inline-flex;
+            align-items:center;justify-content:center;border-radius:11px;font-size:18px !important;}
+        nav.ta-bottom-nav .nav-btn > span{font-size:10px;font-weight:800;}
+        nav.ta-bottom-nav .nav-btn.is-active{color:#0b8679 !important;
+            background:#e9f7f4;}
+        nav.ta-bottom-nav .nav-btn.is-active > i{background:#d0efe8;color:#087c72;}
+        nav.ta-bottom-nav .nav-btn:active{background:#d9eee9;}
+        @media(prefers-reduced-motion:reduce){
+            .ta-action-card,.ta-module-card,#trialProgressFill,nav.ta-bottom-nav .nav-btn{transition:none !important;}
+        }
+
         @media print {
             @page {
                 margin: 0;
@@ -238,10 +441,10 @@
         }
     </style>
 </head>
-<body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col w-full max-w-full overflow-x-hidden">
+<body class="ta-premium-ui bg-slate-100 text-slate-800 min-h-screen flex flex-col w-full max-w-full overflow-x-hidden">
 
     <!-- Top App Bar (Android Style) -->
-    <header class="bg-slate-900 text-white sticky top-0 z-30 shadow-md w-full">
+    <header class="ta-app-header bg-slate-900 text-white sticky top-0 z-30 shadow-md w-full">
         <div id="topAppBar" class="max-w-3xl mx-auto px-2.5 py-2.5 flex items-center justify-between gap-1.5">
             <div class="flex items-center gap-2 min-w-0 flex-1">
                 <button id="headerBackBtn" onclick="AppNav.handleBackButton()" class="w-8 h-8 shrink-0 rounded-full flex items-center justify-center hover:bg-slate-800 active:bg-slate-700 transition" title="رجوع / خروج">
@@ -272,15 +475,32 @@
 
             </div>
         </div>
+        <!-- v3.5.18: automatically hidden as soon as a valid activation is verified. -->
+        <div id="trialStatusBar" class="ta-trial-bar hidden" hidden role="status" aria-live="polite" aria-label="حالة النسخة التجريبية">
+            <div class="ta-trial-status">
+                <span class="ta-trial-emblem" aria-hidden="true"><i class="fas fa-clock"></i></span>
+                <div class="ta-trial-copy">
+                    <strong id="trialStatusTitle">نسخة تجريبية</strong>
+                    <span id="trialOperationsCounter" dir="auto">0 / 100 عملية</span>
+                </div>
+            </div>
+            <div class="ta-trial-progress" role="progressbar" aria-label="العمليات المستهلكة" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                <span id="trialProgressFill"></span>
+            </div>
+            <button type="button" id="trialActivateButton" onclick="LicenseManager.openActivationModal()" aria-label="تفعيل النسخة الكاملة">
+                <span id="trialRemainingCounter">100 متبقية</span>
+                <i class="fas fa-arrow-right" aria-hidden="true"></i>
+            </button>
+        </div>
     </header>
 
     <!-- Main Dynamic Viewport -->
-    <main id="mainContent" class="flex-1 max-w-3xl w-full mx-auto p-3 pb-28 overflow-x-hidden">
+    <main id="mainContent" class="ta-main flex-1 max-w-3xl w-full mx-auto p-3 pb-28 overflow-x-hidden">
         <!-- Rendered dynamically by JavaScript -->
     </main>
 
     <!-- Bottom Taskbar / Navigation Bar (Intercepted by Unsaved Changes Guard) -->
-    <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-30 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
+    <nav class="ta-bottom-nav fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-30 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
         <div class="max-w-3xl mx-auto grid grid-cols-5 h-16">
             <button onclick="AppNav.navigate('dashboard')" data-nav="dashboard" class="nav-btn flex flex-col items-center justify-center gap-1 text-emerald-600 font-bold transition">
                 <i class="fas fa-home text-lg"></i>
@@ -622,13 +842,43 @@
                 await StorageEngine.saveState();
             },
             updateBadgeUI() {
-                // License status is displayed in Settings, not in the top application bar.
-                // When Settings is visible, keep its information synchronized.
+                const active = State.license.isActivated === true;
+                const used = this.getTotalOpsUsed();
+                const limit = this.MAX_TRIAL_OPS;
+                const remaining = Math.max(0, limit - used);
+                const english = document.documentElement?.lang === 'en';
+
+                // Read the same durable counter already used for licensing. Never create
+                // a separate counter that can disagree with the trial enforcement.
+                const ribbon = document.getElementById('trialStatusBar');
+                if (ribbon) {
+                    ribbon.hidden = active;
+                    ribbon.classList.toggle('hidden', active);
+                    ribbon.setAttribute('aria-hidden', String(active));
+                    if (!active) {
+                        const title = document.getElementById('trialStatusTitle');
+                        const counter = document.getElementById('trialOperationsCounter');
+                        const left = document.getElementById('trialRemainingCounter');
+                        const progress = document.getElementById('trialProgressFill');
+                        const bar = ribbon.querySelector('.ta-trial-progress');
+                        if (title) title.textContent = english ? 'Trial version' : 'نسخة تجريبية';
+                        if (counter) counter.textContent = english
+                            ? `${used} / ${limit} operations` : `${used} / ${limit} عملية`;
+                        if (left) left.textContent = english
+                            ? `${remaining} left · Activate` : `${remaining} متبقية · تفعيل`;
+                        if (progress) progress.style.width = `${Math.min(100, used / limit * 100)}%`;
+                        if (bar) {
+                            bar.setAttribute('aria-valuenow', String(Math.min(used, limit)));
+                            bar.setAttribute('aria-valuemax', String(limit));
+                        }
+                    }
+                }
+
+                // Settings continues showing the full license state.
                 const status = document.getElementById('settingsLicenseStatus');
-                if (!status) return;
-                status.textContent = State.license.isActivated
+                if (status) status.textContent = active
                     ? 'النسخة مفعّلة بالكامل مدى الحياة'
-                    : `نسخة تجريبية: استهلكت ${this.getTotalOpsUsed()} من أصل ${this.MAX_TRIAL_OPS} عملية`;
+                    : `نسخة تجريبية: استهلكت ${used} من أصل ${limit} عملية`;
             },
             openActivationModal(lockedAlert = false) {
                 const used = this.getTotalOpsUsed();
@@ -1331,9 +1581,11 @@
                         (navTarget === 'invoices_list' && (screen === 'invoice_form' || screen === 'invoice_print')) ||
                         (navTarget === 'accounts' && (screen === 'vouchers_list' || screen === 'voucher_form' || screen === 'account_statement'));
                     if (isActive) {
-                        btn.className = 'nav-btn flex flex-col items-center justify-center gap-1 text-emerald-600 font-bold transition';
+                        btn.className = 'nav-btn is-active flex flex-col items-center justify-center gap-1 text-emerald-600 font-bold transition';
+                        btn.setAttribute('aria-current', 'page');
                     } else {
                         btn.className = 'nav-btn flex flex-col items-center justify-center gap-1 text-slate-500 hover:text-slate-800 transition';
+                        btn.removeAttribute('aria-current');
                     }
                 });
 
@@ -2160,6 +2412,7 @@
                 document.getElementById('screenTitle').innerHTML = title;
                 document.getElementById('screenSubtitle').textContent = subtitle;
                 document.getElementById('topBarRate').textContent = Number(State.settings.exchangeRate).toLocaleString('en-US');
+                LicenseManager.updateBadgeUI();
             },
 
             openModal(html) {
@@ -2497,64 +2750,79 @@
                 }
 
                 main.innerHTML = `
-                    
+                    <div class="ta-dashboard">
+                        <section class="ta-hero" aria-label="لوحة التحكم الرئيسية">
+                            <div class="ta-hero-content">
+                                <div class="ta-eyebrow"><i class="fas fa-arrow-trend-up ml-1"></i> مركز إدارة الأعمال</div>
+                                <h2>كل أعمالك، في مكان واحد</h2>
+                                <p>فواتير، أرصدة، ومستودعات — أدواتك الأساسية جاهزة للاستخدام دون اتصال.</p>
+                                <div class="ta-hero-stats">
+                                    <div class="ta-hero-stat">
+                                        <i class="fas fa-boxes-stacked" aria-hidden="true"></i>
+                                        <span><strong>${State.items.length}</strong><small>مادة مسجّلة</small></span>
+                                    </div>
+                                    <div class="ta-hero-stat">
+                                        <i class="fas fa-users" aria-hidden="true"></i>
+                                        <span><strong>${State.accounts.length}</strong><small>حساب عميل / مورد</small></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
 
-                    <!-- Quick Field Action Buttons -->
-                    <h2 class="font-bold text-xs text-slate-500 mb-2 px-1">العمليات السريعة (الفواتير والسندات)</h2>
-                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-4">
-                        <button onclick="AppNav.navigate('invoice_form', { type: 'sale' })" class="bg-emerald-600 hover:bg-emerald-700 active:scale-98 text-white p-3.5 rounded-2xl shadow-sm flex flex-col items-center justify-center gap-1.5 transition">
-                            <i class="fas fa-cart-plus text-2xl"></i>
-                            <span class="font-bold text-xs sm:text-sm">فاتورة مبيعات</span>
-                        </button>
-                        <button onclick="AppNav.navigate('invoice_form', { type: 'purchase' })" class="bg-blue-600 hover:bg-blue-700 active:scale-98 text-white p-3.5 rounded-2xl shadow-sm flex flex-col items-center justify-center gap-1.5 transition">
-                            <i class="fas fa-truck-ramp-box text-2xl"></i>
-                            <span class="font-bold text-xs sm:text-sm">فاتورة مشتريات</span>
-                        </button>
-                        <button onclick="AppNav.navigate('voucher_form', { type: 'receipt' })" class="bg-teal-600 hover:bg-teal-700 active:scale-98 text-white p-3.5 rounded-2xl shadow-sm flex flex-col items-center justify-center gap-1.5 transition">
-                            <i class="fas fa-hand-holding-dollar text-2xl"></i>
-                            <span class="font-bold text-xs sm:text-sm">سند قبض</span>
-                        </button>
-                        <button onclick="AppNav.navigate('voucher_form', { type: 'payment' })" class="bg-amber-600 hover:bg-amber-700 active:scale-98 text-white p-3.5 rounded-2xl shadow-sm flex flex-col items-center justify-center gap-1.5 transition">
-                            <i class="fas fa-money-bill-transfer text-2xl"></i>
-                            <span class="font-bold text-xs sm:text-sm">سند دفع</span>
-                        </button>
-                    </div>
+                        <section aria-label="العمليات السريعة">
+                            <div class="ta-section-head"><span class="ta-section-mark"></span><div><h3>العمليات السريعة</h3><p>ابدأ عملية جديدة بضغطة واحدة</p></div></div>
+                            <div class="ta-action-grid">
+                                <button type="button" onclick="AppNav.navigate('invoice_form', { type: 'sale' })" class="ta-action-card">
+                                    <span class="ta-icon-box ta-tone-teal"><i class="fas fa-cart-plus" aria-hidden="true"></i></span>
+                                    <span class="ta-card-footer"><span><strong>فاتورة مبيعات</strong><span class="ta-card-description block">تسجيل عملية بيع</span></span><i class="fas fa-arrow-right ta-card-chevron" aria-hidden="true"></i></span>
+                                </button>
+                                <button type="button" onclick="AppNav.navigate('invoice_form', { type: 'purchase' })" class="ta-action-card">
+                                    <span class="ta-icon-box ta-tone-blue"><i class="fas fa-truck-ramp-box" aria-hidden="true"></i></span>
+                                    <span class="ta-card-footer"><span><strong>فاتورة مشتريات</strong><span class="ta-card-description block">إضافة مواد للمخزون</span></span><i class="fas fa-arrow-right ta-card-chevron" aria-hidden="true"></i></span>
+                                </button>
+                                <button type="button" onclick="AppNav.navigate('voucher_form', { type: 'receipt' })" class="ta-action-card">
+                                    <span class="ta-icon-box ta-tone-purple"><i class="fas fa-hand-holding-dollar" aria-hidden="true"></i></span>
+                                    <span class="ta-card-footer"><span><strong>سند قبض</strong><span class="ta-card-description block">تسجيل مبلغ وارد</span></span><i class="fas fa-arrow-right ta-card-chevron" aria-hidden="true"></i></span>
+                                </button>
+                                <button type="button" onclick="AppNav.navigate('voucher_form', { type: 'payment' })" class="ta-action-card">
+                                    <span class="ta-icon-box ta-tone-orange"><i class="fas fa-money-bill-transfer" aria-hidden="true"></i></span>
+                                    <span class="ta-card-footer"><span><strong>سند دفع</strong><span class="ta-card-description block">تسجيل مبلغ مدفوع</span></span><i class="fas fa-arrow-right ta-card-chevron" aria-hidden="true"></i></span>
+                                </button>
+                            </div>
+                        </section>
 
-                    <!-- Secondary Modules Grid -->
-                    <div class="grid grid-cols-3 gap-2 mb-5">
-                        <button onclick="AppNav.navigate('invoice_form', { type: 'sale_return' })" class="bg-white border border-slate-200 p-2.5 rounded-xl flex flex-col items-center gap-1 hover:bg-slate-50 active:scale-95">
-                            <i class="fas fa-rotate-left text-rose-500 text-base"></i>
-                            <span class="text-[11px] font-bold text-slate-700">مردود مبيعات</span>
-                        </button>
-                        <button onclick="AppNav.navigate('invoice_form', { type: 'purchase_return' })" class="bg-white border border-slate-200 p-2.5 rounded-xl flex flex-col items-center gap-1 hover:bg-slate-50 active:scale-95">
-                            <i class="fas fa-rotate-right text-indigo-500 text-base"></i>
-                            <span class="text-[11px] font-bold text-slate-700">مردود مشتريات</span>
-                        </button>
-                        <button onclick="AppNav.navigate('vouchers_list')" class="bg-white border border-slate-200 p-2.5 rounded-xl flex flex-col items-center gap-1 hover:bg-slate-50 active:scale-95">
-                            <i class="fas fa-receipt text-amber-600 text-base"></i>
-                            <span class="text-[11px] font-bold text-slate-700">سجل السندات (${State.vouchers.length})</span>
-                        </button>
-                        <button onclick="AppNav.navigate('items')" class="bg-white border border-slate-200 p-2.5 rounded-xl flex flex-col items-center gap-1 hover:bg-slate-50 active:scale-95 relative">
-                            <i class="fas fa-boxes-stacked text-emerald-600 text-base"></i>
-                            <span class="text-[11px] font-bold text-slate-700">المواد (${State.items.length})</span>
-                            ${lowStockCount > 0 ? `<span class="absolute top-1 left-1 bg-rose-500 text-white text-[9px] font-bold px-1.5 rounded-full">${lowStockCount} نواقص</span>` : ''}
-                        </button>
-                        <button onclick="Views.openDebtsChoiceModal()" class="bg-white border border-slate-200 p-2.5 rounded-xl flex flex-col items-center gap-1 hover:bg-slate-50 active:scale-95">
-                            <i class="fas fa-scale-balanced text-rose-600 text-base"></i>
-                            <span class="text-[11px] font-bold text-slate-700">الديون</span>
-                        </button>
-                        <button onclick="AppNav.navigate('warehouses')" class="bg-white border border-slate-200 p-2.5 rounded-xl flex flex-col items-center gap-1 hover:bg-slate-50 active:scale-95">
-                            <i class="fas fa-box-open text-sky-600 text-base"></i>
-                            <span class="text-[11px] font-bold text-slate-700">المستودعات والمناقلات</span>
-                        </button>
-                    </div>
-                    <div class="grid grid-cols-2 gap-2 mb-5" aria-label="إضافات سريعة">
-                        <button type="button" onclick="AppNav.navigate('warehouses', { action: 'add' })" class="ta-solid-action ta-action-warehouse flex items-center justify-center gap-2 bg-sky-600 hover:bg-sky-700 active:scale-95 text-white px-2 py-3 rounded-xl text-xs font-extrabold shadow-sm">
-                            <i class="fas fa-plus text-sm"></i><span>إضافة مستودع</span>
-                        </button>
-                        <button type="button" onclick="AppNav.navigate('expenses', { action: 'add' })" class="ta-solid-action ta-action-expense flex items-center justify-center gap-2 bg-orange-600 hover:bg-orange-700 active:scale-95 text-white px-2 py-3 rounded-xl text-xs font-extrabold shadow-sm">
-                            <i class="fas fa-plus text-sm"></i><span>إضافة مصروف</span>
-                        </button>
+                        <section aria-label="أقسام التطبيق">
+                            <div class="ta-section-head"><span class="ta-section-mark"></span><div><h3>إدارة الأعمال</h3><p>وصول سريع إلى الأقسام والتقارير</p></div></div>
+                            <div class="ta-module-grid">
+                                <button type="button" onclick="AppNav.navigate('invoice_form', { type: 'sale_return' })" class="ta-module-card">
+                                    <span class="ta-icon-box ta-tone-red"><i class="fas fa-rotate-left" aria-hidden="true"></i></span><strong>مردود مبيعات</strong>
+                                </button>
+                                <button type="button" onclick="AppNav.navigate('invoice_form', { type: 'purchase_return' })" class="ta-module-card">
+                                    <span class="ta-icon-box ta-tone-purple"><i class="fas fa-rotate-right" aria-hidden="true"></i></span><strong>مردود مشتريات</strong>
+                                </button>
+                                <button type="button" onclick="AppNav.navigate('vouchers_list')" class="ta-module-card">
+                                    <span class="ta-icon-box ta-tone-orange"><i class="fas fa-receipt" aria-hidden="true"></i></span><strong>السندات (${State.vouchers.length})</strong>
+                                </button>
+                                <button type="button" onclick="AppNav.navigate('items')" class="ta-module-card">
+                                    ${lowStockCount > 0 ? `<span class="ta-small-alert">${lowStockCount} نواقص</span>` : ''}
+                                    <span class="ta-icon-box ta-tone-teal"><i class="fas fa-boxes-stacked" aria-hidden="true"></i></span><strong>المواد (${State.items.length})</strong>
+                                </button>
+                                <button type="button" onclick="Views.openDebtsChoiceModal()" class="ta-module-card">
+                                    <span class="ta-icon-box ta-tone-red"><i class="fas fa-scale-balanced" aria-hidden="true"></i></span><strong>الديون</strong>
+                                </button>
+                                <button type="button" onclick="AppNav.navigate('warehouses')" class="ta-module-card">
+                                    <span class="ta-icon-box ta-tone-cyan"><i class="fas fa-box-open" aria-hidden="true"></i></span><strong>المستودعات والمناقلات</strong>
+                                </button>
+                            </div>
+                        </section>
+
+                        <section aria-label="إضافات سريعة">
+                            <div class="ta-section-head"><span class="ta-section-mark"></span><div><h3>إضافات سريعة</h3><p>إدارة المصاريف والمستودعات</p></div></div>
+                            <div class="ta-service-grid">
+                                <button type="button" onclick="AppNav.navigate('warehouses', { action: 'add' })" class="ta-service-button"><i class="fas fa-plus" aria-hidden="true"></i> إضافة مستودع</button>
+                                <button type="button" onclick="AppNav.navigate('expenses', { action: 'add' })" class="ta-service-button ta-service-expense"><i class="fas fa-plus" aria-hidden="true"></i> إضافة مصروف</button>
+                            </div>
+                        </section>
                     </div>
                 `;
             },
