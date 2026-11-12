@@ -43,7 +43,7 @@ assert.equal(Accounting.formatItemQuantity(8), '8');
 assert.equal(Accounting.formatItemQuantity(12.3456),'12.35');
 assert.equal(Accounting.formatItemQuantity(-0.005),'-0.01');
 assert.equal(I18n.translate('إعدادات الشركة'),'Company settings');
-assert.equal(I18n.translate('عدد الخانات بعد الفاصلة العشرية للمواد'),'Decimal places for item quantities');
+assert.equal(I18n.translate('عدد الخانات بعد الفاصلة العشرية للكميات والأسعار'),'Decimal places for quantities and prices');
 (async()=>{
  await SettingsController.setItemQuantityDecimals('4');
  assert.equal(State.settings.itemQuantityDecimals,4);
