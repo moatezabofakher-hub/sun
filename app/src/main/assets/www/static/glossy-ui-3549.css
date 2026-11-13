@@ -1,0 +1,23 @@
+/* 3.5.49: restrained glossy depth, accessible bottom navigation, matching safety dialogs. */
+body.ta-3d-v3524 .ta-icon-box{overflow:hidden;border-color:#fff;box-shadow:0 5px 0 #b9d3dd,0 10px 17px #16455b2b,inset 0 2px 2px #fff,inset 0 -2px 4px #21576b18!important;}
+body.ta-3d-v3524 .ta-icon-box::before{content:"";position:absolute;pointer-events:none;top:2px;left:3px;right:3px;height:40%;border-radius:inherit;background:linear-gradient(180deg,#ffffffb8,#ffffff05);z-index:0;}
+body.ta-3d-v3524 nav.ta-bottom-nav .nav-btn {margin:2px 2px;min-width:0;gap:2px;border-radius:13px;}
+body.ta-3d-v3524 nav.ta-bottom-nav .nav-btn > i {width:31px;height:31px;font-size:17px!important;border-radius:11px;background:linear-gradient(155deg,#fff 0%,#e6f2f8 60%,#c6dfe9);box-shadow:0 3px 0 #b0c9d3,0 6px 9px #15405520,inset 0 2px #fff,inset 0 -1px #6c99a322;}
+body.ta-3d-v3524 nav.ta-bottom-nav .nav-btn.is-active > i {background:linear-gradient(155deg,#ecfffb,#a6e7d9);box-shadow:0 3px 0 #67ac9c,0 6px 11px #0f766e35,inset 0 2px white;}
+body.ta-3d-v3524 nav.ta-bottom-nav .nav-btn > span{font-size:9px;line-height:1.12;white-space:nowrap;}
+#headerNotificationsBtn .ta-alert-count {position:absolute;top:-6px;left:-6px;min-width:19px;height:19px;z-index:2;background:linear-gradient(160deg,#ff4b6c,#ca143c);box-shadow:0 2px 0 #830f28,0 3px 7px #a80f376b;border:2px solid #fff;font-size:10px;}
+#headerNotificationsBtn .ta-alert-count[hidden]{display:none!important;}
+#dialogContainer[data-dialog-type="exit"] #dialogBox,#dialogContainer[data-dialog-type="unsaved"] #dialogBox{position:relative;overflow:hidden;max-width:352px;padding:24px 19px 26px;background:linear-gradient(155deg,#fff 0%,#f1f9ff 58%,#dcecf3 100%);border:1px solid #fff;border-radius:25px;box-shadow:0 8px 0 #a7bdc9,0 25px 45px #071d3366,inset 0 2px #fff;}
+#dialogContainer[data-dialog-type="exit"] #dialogBox::before,#dialogContainer[data-dialog-type="unsaved"] #dialogBox::before{content:"";position:absolute;inset:0 0 auto;height:46%;background:linear-gradient(180deg,#ffffffb0,#ffffff03);pointer-events:none;}
+#dialogContainer[data-dialog-type="exit"] .ta-exit-icon,#dialogContainer[data-dialog-type="unsaved"] .ta-decision-icon{position:relative;display:flex;align-items:center;justify-content:center;width:57px;height:57px;margin:4px auto 13px;border-radius:18px;background:linear-gradient(150deg,#33d3be,#0a857f 65%,#07616b);color:white;font-size:23px;border:1px solid #b7fff1;box-shadow:0 5px 0 #09615e,0 12px 18px #086d7345,inset 0 2px #ffffff80;}
+#dialogContainer[data-dialog-type="unsaved"] .ta-decision-icon{background:linear-gradient(155deg,#ffd78a,#e69b2a 65%,#ba6615);border-color:#ffedc7;box-shadow:0 5px 0 #9b5f16,0 12px 18px #7d480d40,inset 0 2px #fff9;}
+.ta-decision-title,.ta-exit-title{position:relative;color:#15364b;font-size:17px;font-weight:900;margin:0 0 8px;text-align:center;}
+.ta-decision-subtitle{position:relative;font-size:12px;color:#577489;margin:0 0 17px;text-align:center;}
+.ta-decision-actions{position:relative;display:grid;grid-template-columns:1fr 1fr;gap:11px;}
+.ta-decision-actions button,#dialogContainer[data-dialog-type="exit"] .ta-exit-actions button{min-height:46px;border-radius:14px;font-size:12px;font-weight:900;transition:transform .12s ease,box-shadow .12s ease;}
+.ta-decision-save,.ta-decision-stay{background:linear-gradient(150deg,#15bfac,#087b7b);color:#fff;border:1px solid #51ddcf;box-shadow:0 4px 0 #085d62,0 8px 12px #12676832,inset 0 1px #ffffff6c;}
+.ta-decision-stay{background:linear-gradient(150deg,#fff,#e3f0f5);color:#19465b;border:1px solid #bbd6df;box-shadow:0 4px 0 #a6c2ce,0 8px 12px #14465f20,inset 0 1px white;}
+.ta-decision-discard{grid-column:1/-1;background:linear-gradient(150deg,#fff4f5,#ffd9de);color:#a11e39;border:1px solid #fac0cb;box-shadow:0 4px 0 #dfa2af,0 9px 12px #9532481b,inset 0 1px white;}
+.ta-decision-actions button:active,#dialogContainer[data-dialog-type="exit"] .ta-exit-actions button:active{transform:translateY(3px);box-shadow:0 1px 0 #99b1bf!important;}
+@media(max-width:355px){body.ta-3d-v3524 nav.ta-bottom-nav .nav-btn{margin:2px 1px;}body.ta-3d-v3524 nav.ta-bottom-nav .nav-btn > i{width:29px;height:29px;font-size:16px!important;}}
+@media(prefers-reduced-motion:reduce){.ta-decision-actions button,#dialogContainer .ta-exit-actions button{transition:none;}}

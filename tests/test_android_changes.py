@@ -11,7 +11,7 @@ manifest = (root/'app/src/main/AndroidManifest.xml').read_text()
 build = (root/'app/build.gradle').read_text()
 
 checks = {
-    'App name': 'android:label="المحاسب التقني"' in manifest,
+    'App name': 'android:label="@string/app_name"' in manifest and 'Tiqany Acc' in (root/'app/src/main/res/values/strings.xml').read_text() and 'المحاسب التقني' in (root/'app/src/main/res/values-ar/strings.xml').read_text(),
     'Native margin-based safe insets': 'WindowInsetsCompat.Type.displayCutout()' in java and 'params.setMargins(bars.left, bars.top, bars.right, bars.bottom)' in java,
     'Android back confirmation': 'UI.showExitAppDialog();' in html,
     'Native exit confirmation fallback': 'showNativeExitConfirmation' in java,

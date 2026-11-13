@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+    <!-- Monochrome calculator silhouette from launcher. Android tints all solid pixels. -->
+    <path android:fillColor="#00000000" android:strokeColor="#FFFFFFFF"
+      android:strokeWidth="2.1" android:pathData="M5,2.5h14a2.5,2.5 0,0 1,2.5 2.5v14a2.5,2.5 0,0 1,-2.5 2.5h-14a2.5,2.5 0,0 1,-2.5 -2.5v-14a2.5,2.5 0,0 1,2.5 -2.5z" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M5,6h14v3.1h-14z M5,11.3h4v3.5h-4z M10,11.3h4v3.5h-4z M15,11.3h4v3.5h-4z M5,16.2h4v3.1h-4z M10,16.2h4v3.1h-4z M15,16.2h4v3.1h-4z" />
+</vector>

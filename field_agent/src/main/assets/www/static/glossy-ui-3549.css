@@ -1,0 +1,17 @@
+/* 3.5.49: subtle consistent icon gloss and six-point spacing; keep 44px+ targets. */
+.tile .glyph,.mark,.header-tool,.item-pick .qty{position:relative;isolation:isolate;border:1px solid #fff9;box-shadow:0 4px 0 #80b6bd,0 10px 14px #14567526,inset 0 2px #fffd,inset 0 -2px #124f5d16;}
+.tile .glyph::before,.mark::before{content:"";position:absolute;pointer-events:none;inset:2px 3px auto;height:42%;background:linear-gradient(180deg,#ffffffac,transparent);border-radius:inherit;}
+.tile{background:linear-gradient(155deg,#fff,#f7fcff 55%,#e4f1f8);box-shadow:0 5px 0 #c7d7e3,0 13px 20px #10364f1e,inset 0 2px #fff;}
+.tile:active{transform:translateY(2px);box-shadow:0 2px 0 #b8d0d9,0 4px 9px #14374d15;}
+.bottom{gap:5px;padding-inline:8px;}
+.bottom button{min-width:0;min-height:46px;gap:2px;padding:1px 1px;border:1px solid transparent;border-radius:12px;}
+.bottom button span{display:grid;place-items:center;width:31px;height:31px;border-radius:10px;font-size:23px;line-height:1;color:#315f78;background:linear-gradient(145deg,#fff,#dceaf2);border:1px solid #fff;box-shadow:0 3px 0 #bad1dc,0 5px 9px #13415d24,inset 0 2px #fff;}
+.bottom button.active span{color:#08796e;background:linear-gradient(155deg,#eafffa,#a9e4d5);box-shadow:0 3px 0 #75b9aa,0 6px 9px #0c67542d,inset 0 2px #fff;}
+@media(max-width:350px){.bottom{gap:3px;padding-inline:5px}.bottom button span{width:29px;height:29px;font-size:21px;}}
+@media(prefers-reduced-motion:reduce){.tile,.bottom button{transition:none;}}
+/* Agent confirmation and unsaved-entry overlays use the same polished visual language. */
+.dialog-mask .dialog-card{position:relative;border:1px solid #fff;border-radius:24px;background:linear-gradient(158deg,#fff 4%,#f4fbff 54%,#dcecf5);box-shadow:0 7px 0 #aac3d1,0 22px 42px #092c4960,inset 0 2px #fff;}
+.dialog-mask .dialog-card>h3{color:#173f58;font-weight:900;}
+.dialog-mask .dialog-actions .primary{background:linear-gradient(145deg,#28cbb8,#087e7b);box-shadow:0 4px 0 #07645f,0 9px 15px #136a6a36,inset 0 2px #ffffff72;}
+.dialog-mask .dialog-actions .secondary{background:linear-gradient(145deg,#fff,#dfedf5);box-shadow:0 4px 0 #a7c2d0,0 9px 13px #0a3e5c22,inset 0 1px white;}
+.dialog-mask .dialog-actions button:active{transform:translateY(2px);box-shadow:0 1px 0 #93b3c4;}

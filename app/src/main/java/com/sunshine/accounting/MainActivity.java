@@ -873,7 +873,8 @@ public final class MainActivity extends FragmentActivity {
         PendingIntent tap=PendingIntent.getActivity(this,id.hashCode(),intent,
                 PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
         Notification notification=new Notification.Builder(this,ALERT_CHANNEL)
-                .setSmallIcon(android.R.drawable.ic_dialog_info)
+                .setSmallIcon(R.drawable.ic_stat_tiqany)
+                .setLargeIcon(android.graphics.BitmapFactory.decodeResource(getResources(),R.mipmap.ic_launcher))
                 .setContentTitle(String.valueOf(title))
                 .setContentText(String.valueOf(detail))
                 .setStyle(new Notification.BigTextStyle().bigText(String.valueOf(detail)))

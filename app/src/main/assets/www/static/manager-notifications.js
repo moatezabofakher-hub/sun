@@ -32,6 +32,39 @@ const ManagerNotifications = {
     this.updateBadge();
     this.openNativePending();
   },
+  // The old authoritative document is stored with each accepted revision.
+  // Never infer a change from the new document alone or from balances.
+  changesForEdit(operation){
+    if(operation?.kind!=='document_edit'||!operation.replacement)return [];
+    const audit=(State.fieldSync?.revisionAudit||[]).find(x=>x.id===operation.id);
+    const old=audit?.previousDocument;
+    if(!old)return ['تم تعديل المستند؛ تفاصيل المقارنة التاريخية غير متوفرة'];
+    const next=operation.replacement, changes=[];
+    const n=v=>Number(v||0),different=(a,b)=>Math.abs(n(a)-n(b))>0.000001;
+    const money=(v,c)=>n(v).toLocaleString('en-US',{maximumFractionDigits:4})+' '+String(c||next.currency||old.currency||'');
+    const oldC=old.currency||next.currency,newC=next.currency||old.currency;
+    const addAmount=(label,a,b)=>{if(different(a,b))changes.push('تم تغيير '+label+' من '+money(a,oldC)+' إلى '+money(b,newC));};
+    const paymentMode=(total,paid)=>{
+      if(n(paid)<=0.000001)return 'آجل';
+      if(n(paid)+0.000001>=n(total))return 'نقدي';
+      return 'دفعة جزئية';
+    };
+    if(['sale','sale_return'].includes(operation.originalKind)){
+      addAmount('إجمالي الفاتورة',old.netTotal,next.netTotal);
+      addAmount('المبلغ المسدد',old.paidAmount,next.paidAmount);
+      const a=paymentMode(old.netTotal,old.paidAmount),b=paymentMode(next.netTotal,next.paidAmount);
+      if(a!==b)changes.push('تم تحويل الدفع في الفاتورة من '+a+' إلى '+b);
+      const rows=x=>(x||[]).map(row=>[String(row.itemId||''),n(row.qty),n(row.unitFactor||1),n(row.price??row.unitPrice)]);
+      if(JSON.stringify(rows(old.rows))!==JSON.stringify(rows(next.rows)))changes.push('تم تعديل الأصناف أو الكميات أو أسعارها');
+    }else if(['receipt','payment'].includes(operation.originalKind)){
+      addAmount('مبلغ السند',old.accountAmount??old.amount,next.amount);
+    }
+    if(String(old.currency||'')!==String(next.currency||''))changes.push('تم تغيير العملة من '+old.currency+' إلى '+next.currency);
+    if(String(old.accountId||'')!==String(next.accountId||''))changes.push('تم تغيير حساب الزبون');
+    if(String(old.note||'')!==String(next.note||''))changes.push('تم تعديل البيان');
+    if(String(old.date||'')!==String(next.date||''))changes.push('تم تغيير التاريخ');
+    return changes.length?changes:['تم تعديل بيانات المستند دون تغيير مالي مسجل'];
+  },
   alertForOperation(imported,operation){
     const kind=String(imported.kind||operation?.kind||'');
     const agentId=String(imported.agentId||operation?.agentId||'');
@@ -50,9 +83,11 @@ const ManagerNotifications = {
       :target==='expense'?'field_'+String(originalId||'')
       :target==='customer'?String(operation?.account?.id||''):String(originalId||'');
     const title=`${verb} ${docLabel} بواسطة ${agentName}`;
-    const detail=`${agentName} · ${docLabel} ${ref} · ${edit?'مراجعة رقم '+String(operation?.revision||''):deleted?'تم إلغاؤها أو حذفها':'وصلت من تطبيق المندوب'}`;
+    const changes=edit?this.changesForEdit(operation):[];
+    const detail=`${agentName} · ${docLabel} ${ref} · ${edit?changes.slice(0,4).join('؛ '):deleted?'تم إلغاؤها أو حذفها':'وصلت من تطبيق المندوب'}`;
     return {id:'agent:'+String(imported.id),type:'agent',action:verb,agentId,agentName,
       operationId:String(imported.id),target,targetId,docKind,title,detail,
+      changes,revision:edit?Number(operation?.revision||0):null,
       at:String(imported.receivedAt||new Date().toISOString()),read:false};
   },
   prepareForSave(){
@@ -147,7 +182,7 @@ const ManagerNotifications = {
   },
   saved(created){
     this.updateBadge();
-    if(AppNav.current().screen==='notifications')AppNav.renderCurrent();
+    if(created.length && AppNav.current().screen==='notifications')AppNav.refreshAfterSync?.();
     for(const entry of created){
       try{window.AndroidAlerts?.show?.(entry.id,entry.title,entry.detail);}catch(e){console.warn('Android alert unavailable',e);}
     }

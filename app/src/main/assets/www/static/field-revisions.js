@@ -44,7 +44,7 @@ F.commitOperationsWithRevisions=async function(agent,ops){
        rows:next.rows.map((r,i)=>({...r,rowId:'fieldrow_'+edit.targetOperationId+'_'+i,discount:0})),
        subTotal:next.subTotal,discountValue:next.discountValue,discountType:next.discountType,discountAmount:next.discountAmount,
        taxValue:next.taxValue,taxType:next.taxType,taxAmount:next.taxAmount,netTotal:next.netTotal,
-       paidAmount:next.paidAmount,remainingAmount:FieldProtocol.money(next.netTotal-next.paidAmount,next.currency),note:next.note||'',
+       paidAmount:next.paidAmount,paymentMethod:Number(next.paidAmount)>=Number(next.netTotal)?'cash':Number(next.paidAmount)>0?'partial':'credit',remainingAmount:FieldProtocol.money(next.netTotal-next.paidAmount,next.currency),note:next.note||'',
        fieldRevision:edit.revision,fieldOrigin:{...old.fieldOrigin,editedByAgent:true,lastAgentEditAt:edit.date,revision:edit.revision}};
    } else {
      coll[index]={...old,date:next.date,accountId:next.accountId,currency:next.currency,accountCurrency:next.currency,

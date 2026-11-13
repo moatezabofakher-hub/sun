@@ -298,7 +298,7 @@ const FieldSync = {
         knownIds:config.imported.filter(x=>x.agentId===agent.id).map(x=>x.id),catalog:snapshot,requestNonce:payload.nonce,serverAt:new Date().toISOString()};
       answer=await FieldLanCrypto.pack(ack,agent.key,config.companyId,agent.id);
       if(count)UI.toast('تم ترحيل '+count+' عملية من '+agent.name,'success');
-      if(count && typeof AppNav!=='undefined' && ['agent_detail','agent_activity'].includes(AppNav.current?.()?.screen)) AppNav.renderCurrent?.();
+      if(count && typeof AppNav!=='undefined') AppNav.refreshAfterSync?.();
       const st=document.getElementById('fieldLanStatus');if(st)st.textContent='✅ تمت المزامنة مع '+agent.name+': استلام '+count+' عملية وإرسال تحديثات السيارة والمواد والعملاء';
     }catch(e){answer={error:'تعذر ترحيل البيانات: '+e.message};
       const st=document.getElementById('fieldLanStatus');if(st)st.textContent=answer.error;
@@ -418,6 +418,7 @@ const FieldSync = {
       if(!State.license.isActivated)State.license.opsUsedCount+=fresh.length;
       await StorageEngine.saveState();
       this.staged=null;UI.forceCloseModal();UI.toast('تم استلام وترحيل '+fresh.length+' عملية باسم '+agent.name,'success');
+      if(typeof AppNav!=='undefined')AppNav.refreshAfterSync?.();
       // Let owner transfer ACK back to agent through Quick Share / Bluetooth.
       await this.exportAck(agent.id);
     }catch(e){State.accounts=old.accounts;State.invoices=old.invoices;State.vouchers=old.vouchers;State.expenses=old.expenses;c.imported=old.imported;c.events=old.events;c.operationHistory=old.history;State.license.opsUsedCount=old.opsUsedCount;UI.toast('لم يتم ترحيل البيانات: '+e.message,'error');}

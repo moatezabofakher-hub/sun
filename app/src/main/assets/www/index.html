@@ -930,6 +930,24 @@
 .ta-cash-inflow .ta-cash-title {color:#065f46!important;}
 .ta-cash-outflow .ta-cash-title {color:#9f1239!important;}
 </style>
+<style id="ta-live-sync-exit-style-3548">
+/* The section headings and action labels already explain the home screen. */
+#screenSubtitle, .ta-dashboard .ta-section-head p, .ta-dashboard .ta-card-description {display:none!important;}
+#dialogContainer[data-dialog-type="exit"] #dialogBox {max-width:340px;text-align:center;padding:23px 20px 24px;}
+#dialogContainer[data-dialog-type="exit"] .ta-exit-icon {width:54px;height:54px;border-radius:17px;margin:4px auto 12px;
+  background:linear-gradient(145deg,#0d9488,#0e7490);border:1px solid #5eead4;box-shadow:0 4px 0 #115e59,0 11px 19px #0e749033;
+  display:flex;align-items:center;justify-content:center;color:#fff;font-size:23px;}
+#dialogContainer[data-dialog-type="exit"] .ta-exit-title {color:#15364b;font-size:17px;font-weight:900;margin:0 0 20px;}
+#dialogContainer[data-dialog-type="exit"] .ta-exit-actions {display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+#dialogContainer[data-dialog-type="exit"] .ta-exit-actions button {min-height:46px;border-radius:13px;font-size:13px;font-weight:900;
+  transition:transform .14s,box-shadow .14s;}
+#dialogContainer[data-dialog-type="exit"] .ta-exit-stay {color:#fff;background:linear-gradient(145deg,#0d9488,#0e7490);
+  border:1px solid #5eead4;box-shadow:0 4px 0 #115e59,0 8px 14px #0e749022;}
+#dialogContainer[data-dialog-type="exit"] .ta-exit-leave {color:#184259;background:linear-gradient(145deg,#f9fdff,#e2edf5);
+  border:1px solid #b9d2de;box-shadow:0 4px 0 #a8bfce,0 8px 14px #0e749017;}
+#dialogContainer[data-dialog-type="exit"] .ta-exit-actions button:active {transform:translateY(2px);box-shadow:0 1px 0 #115e59;}
+</style>
+    <link rel="stylesheet" href="static/glossy-ui-3549.css">
 </head>
 <body class="ta-premium-ui ta-3d-v3524 bg-slate-100 text-slate-800 min-h-screen flex flex-col w-full max-w-full overflow-x-hidden">
 
@@ -941,7 +959,7 @@
                     <i class="fas fa-sliders" aria-hidden="true"></i>
                 </button>
                 <button id="headerNotificationsBtn" type="button" onclick="AppNav.navigate('notifications')" class="ta-header-notifications shrink-0 flex items-center justify-center transition active:scale-95" title="الإشعارات" aria-label="فتح الإشعارات">
-                    <i class="fas fa-bell" aria-hidden="true"></i><span id="headerNotificationsCount" class="ta-alert-count" hidden>0</span>
+                    <i class="fas fa-bell" aria-hidden="true"></i><span id="headerNotificationsCount" class="ta-alert-count" role="status" aria-live="polite" hidden>0</span>
                 </button>
                 <button id="headerBackBtn" onclick="AppNav.handleBackButton()" class="w-8 h-8 shrink-0 rounded-full flex items-center justify-center hover:bg-slate-800 active:bg-slate-700 transition" title="رجوع / خروج">
                     <i id="headerBackIcon" class="fas fa-arrow-right text-base"></i>
@@ -2125,6 +2143,67 @@
 
         const AppNav = {
             stack: [{ screen: 'dashboard', params: {} }],
+            pendingSyncRefresh: false,
+            syncRefreshTimer: null,
+
+            // Refresh live ledger screens after a successful, saved LAN/file import.
+            // Never replace a draft or interrupt an open dialog. Reuse the current
+            // route and its date/type/warehouse filters instead of navigating away.
+            refreshAfterSync() {
+                this.pendingSyncRefresh = true;
+                if (this.syncRefreshTimer !== null) return;
+                this.syncRefreshTimer = setTimeout(() => this.applySyncRefresh(), 120);
+            },
+            applySyncRefresh() {
+                this.syncRefreshTimer = null;
+                if (!this.pendingSyncRefresh) return;
+                const main = document.getElementById('mainContent');
+                const route = this.current();
+                if (!main || !route) return;
+                const modal = document.getElementById('modalContainer');
+                const dialog = document.getElementById('dialogContainer');
+                const active = document.activeElement;
+                const activeInput = active && main.contains(active) &&
+                    /^(INPUT|SELECT|TEXTAREA)$/.test(active.tagName || '');
+                const transferPanel = document.getElementById('warehouseTransferPanel');
+                const createPanel = document.getElementById('warehouseCreatePanel');
+                const warehouseEditorOpen = route.screen === 'warehouses' &&
+                    ((transferPanel && !transferPanel.hidden) || (createPanel && !createPanel.hidden));
+                const editingScreen = ['invoice_form', 'voucher_form', 'settings'].includes(route.screen);
+                if (this.isDirty || this.isModalDirty || this.activeOperationGuard ||
+                    editingScreen || warehouseEditorOpen || activeInput ||
+                    (modal && !modal.classList.contains('hidden')) ||
+                    (dialog && !dialog.classList.contains('hidden'))) {
+                    this.syncRefreshTimer = setTimeout(() => this.applySyncRefresh(), 800);
+                    return;
+                }
+                this.pendingSyncRefresh = false;
+                const scrollY = window.scrollY || document.scrollingElement?.scrollTop || 0;
+                const innerScroll = main.scrollTop;
+                // Search strings are UI-only filters, not part of the navigation route.
+                // Reapply them to newly received rows after rendering the same route.
+                const searches = [...main.querySelectorAll('input[id][oninput]')]
+                    .filter(el => /search|filter/i.test(el.id))
+                    .map(el => ({id:el.id, value:el.value}));
+                try {
+                    Views.render(route.screen, route.params || {});
+                    for (const filter of searches) {
+                        const next = document.getElementById(filter.id);
+                        if (next && next.tagName === 'INPUT') {
+                            next.value = filter.value;
+                            next.dispatchEvent(new Event('input', {bubbles:true}));
+                        }
+                    }
+                    if (typeof ManagerNotifications !== 'undefined') ManagerNotifications.updateBadge();
+                    requestAnimationFrame(() => {
+                        main.scrollTop = innerScroll;
+                        window.scrollTo(0, scrollY);
+                    });
+                } catch (error) {
+                    console.error('تعذر تحديث الصفحة بعد المزامنة:', error);
+                    UI.toast('وصلت بيانات جديدة، لكن تعذر تحديث العرض', 'warn');
+                }
+            },
             isDirty: false,
             dirtySaveHandler: null,
             isModalDirty: false,
@@ -3285,36 +3364,32 @@
             showUnsavedDialog(onSave, onDiscard) {
                 const c = document.getElementById('dialogContainer');
                 const b = document.getElementById('dialogBox');
+                c.setAttribute('data-dialog-type','unsaved');
                 b.innerHTML = `
-                    <div class="w-14 h-14 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mx-auto mb-3 text-2xl shadow-inner">
-                        <i class="fas fa-shield-halved"></i>
-                    </div>
-                    <h3 class="font-extrabold text-base text-slate-900 mb-1">حماية العملية من الخروج العرضي</h3>
-                    <p class="text-xs text-slate-600 mb-5 leading-relaxed">لقد قمت بالضغط على رجوع/خروج قبل حفظ العملية الحالية. هل تريد حفظ التغييرات قبل الإغلاق؟</p>
-                    <div class="flex flex-col gap-2">
-                        <button id="dlgSaveBtn" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-extrabold text-sm shadow-xs transition">
-                            <i class="fas fa-floppy-disk ml-1"></i> حفظ العملية الآن
-                        </button>
-                        <button id="dlgCancelBtn" class="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold text-sm transition">
-                            <i class="fas fa-arrow-rotate-right ml-1"></i> البقاء في العملية (إلغاء الخروج)
-                        </button>
-                        <button id="dlgDiscardBtn" class="w-full py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl font-bold text-xs transition mt-1">
-                            <i class="fas fa-trash-can ml-1"></i> تجاهل التغييرات والخروج بدون حفظ
-                        </button>
+                    <div class="ta-decision-icon" aria-hidden="true"><i class="fas fa-shield-halved"></i></div>
+                    <h3 class="ta-decision-title">عملية غير مكتملة</h3>
+                    <p class="ta-decision-subtitle">لديك تغييرات لم تُحفظ</p>
+                    <div class="ta-decision-actions">
+                        <button type="button" id="dlgSaveBtn" class="ta-decision-save"><i class="fas fa-floppy-disk ml-1" aria-hidden="true"></i> حفظ</button>
+                        <button type="button" id="dlgCancelBtn" class="ta-decision-stay"><i class="fas fa-arrow-rotate-right ml-1" aria-hidden="true"></i> البقاء</button>
+                        <button type="button" id="dlgDiscardBtn" class="ta-decision-discard"><i class="fas fa-trash-can ml-1" aria-hidden="true"></i> تجاهل التغييرات</button>
                     </div>
                 `;
                 c.classList.remove('hidden');
 
                 document.getElementById('dlgSaveBtn').onclick = () => {
                     c.classList.add('hidden');
+                    c.removeAttribute('data-dialog-type');
                     if (onSave) onSave();
                 };
                 document.getElementById('dlgDiscardBtn').onclick = () => {
                     c.classList.add('hidden');
+                    c.removeAttribute('data-dialog-type');
                     if (onDiscard) onDiscard();
                 };
                 document.getElementById('dlgCancelBtn').onclick = () => {
                     c.classList.add('hidden');
+                    c.removeAttribute('data-dialog-type');
                 };
             },
 
@@ -3323,18 +3398,11 @@
                 const b = document.getElementById('dialogBox');
                 c.setAttribute('data-dialog-type', 'exit');
                 b.innerHTML = `
-                    <div class="w-14 h-14 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto mb-3 text-2xl shadow-inner">
-                        <i class="fas fa-power-off"></i>
-                    </div>
-                    <h3 class="font-extrabold text-base text-slate-900 mb-1">تأكيد الخروج من التطبيق</h3>
-                    <p class="text-xs text-slate-600 mb-5 leading-relaxed">هل تريد الخروج من تطبيق المحاسب التقني؟ سيتم حفظ الحالة الحالية قبل الإغلاق.</p>
-                    <div class="grid grid-cols-2 gap-2.5">
-                        <button onclick="UI.closeExitDialog()" class="py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold text-sm transition">
-                            البقاء في التطبيق
-                        </button>
-                        <button onclick="UI.confirmExitAction()" class="py-2.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-extrabold text-sm shadow-xs transition">
-                            نعم، خروج
-                        </button>
+                    <div class="ta-exit-icon" aria-hidden="true"><i class="fas fa-power-off"></i></div>
+                    <h3 class="ta-exit-title">تأكيد الخروج</h3>
+                    <div class="ta-exit-actions">
+                        <button type="button" class="ta-exit-stay" onclick="UI.closeExitDialog()"><i class="fas fa-rotate-left ml-1" aria-hidden="true"></i> البقاء</button>
+                        <button type="button" class="ta-exit-leave" onclick="UI.confirmExitAction()"><i class="fas fa-arrow-right ml-1" aria-hidden="true"></i> خروج</button>
                     </div>
                 `;
                 c.classList.remove('hidden');
