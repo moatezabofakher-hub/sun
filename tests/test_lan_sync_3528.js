@@ -17,7 +17,7 @@ const state = {fieldSync:{companyId:namespace.companyId,agents:[agent],imported:
 };
 const vmScope = {FieldProtocol,FieldLanCrypto,State:state,AppEscape:{text:String},
   WarehouseController:{name:()=>''},
-  Accounting:{getItemBaseStock:()=>100},
+  Accounting:{getItemBaseStock:()=>100,getAccountStatement:()=>({sypBalance:0,usdBalance:0})},
   LicenseManager:{MAX_TRIAL_OPS:100},
   UI:{toast:()=>{},forceCloseModal:()=>{}},
   document:{getElementById:()=>null},

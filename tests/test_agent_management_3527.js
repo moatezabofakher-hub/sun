@@ -7,8 +7,8 @@ const source=fs.readFileSync('app/src/main/assets/www/static/field-main.js','utf
 const field={id:'agent_XYZ12345',name:'المندوب الأول',vehicleName:'سيارة 1',warehouseId:'wh_van_1',key:FieldProtocol.b64u(require('node:crypto').randomBytes(32)),disabled:false};
 const State={settings:{companyName:'شركة تجريبية'},license:{isActivated:true,opsUsedCount:0},categories:['شامبو'],items:[],accounts:[],warehouses:[{id:'wh_van_1',name:'سيارة 1'}],invoices:[],vouchers:[],fieldSync:{companyId:'company_1',agents:[field],imported:[{id:'old_operation_001',agentId:field.id}],events:[]}};
 const inputs={editFieldAgentName:{value:'مندوب التوزيع الجديد'},editFieldAgentVehicle:{value:'سيارة المدينة'}};
-let fail=false, saved=0, modals=[],warnings=[];
-const sandbox={State,FieldProtocol,console,window:{},document:{getElementById:id=>inputs[id]},StorageEngine:{async saveState(){saved++;if(fail)throw Error('disk full')}},UI:{openModal(x){modals.push(x)},toast(x){warnings.push(x)},forceCloseModal(){}},AppEscape:{text:x=>String(x).replaceAll('"','&quot;')},WarehouseController:{name:()=> 'السيارة'},Date,Map,Set,Array,Object,JSON,Number,String,Promise};
+let fail=false, saved=0, modals=[],warnings=[],passwordRequests=[];
+const sandbox={ProtectionController:{requirePinForDestructiveAction(msg,callback){passwordRequests.push({msg,callback});},async verifyPin(pin){return pin==='1234';}},State,FieldProtocol,console,window:{},document:{getElementById:id=>inputs[id]},StorageEngine:{async saveState(){saved++;if(fail)throw Error('disk full')}},UI:{openModal(x){modals.push(x)},toast(x){warnings.push(x)},forceCloseModal(){}},AppEscape:{text:x=>String(x).replaceAll('"','&quot;')},WarehouseController:{name:()=> 'السيارة'},Date,Map,Set,Array,Object,JSON,Number,String,Promise};
 vm.createContext(sandbox);vm.runInContext(source+'\nglobalThis.FieldSync=FieldSync;',sandbox);
 (async()=>{
  const controller=sandbox.FieldSync;
@@ -22,7 +22,12 @@ vm.createContext(sandbox);vm.runInContext(source+'\nglobalThis.FieldSync=FieldSy
  assert.equal(State.fieldSync.imported.length,1);
  controller.confirmRemoveAgent(field.id);
  assert(modals.at(-1).includes('سجلاته'));
- await controller.removeAgent(field.id);
+ controller.removeAgent(field.id);
+ assert.equal(field.archived,undefined,'must not delete until password validated');
+ assert.equal(passwordRequests.length,1);
+ await controller.removeAgentAuthorized(field.id,'wrong');
+ assert.equal(field.archived,undefined,'wrong PIN must not delete');
+ await passwordRequests[0].callback('1234');
  assert.equal(field.archived,true);assert.equal(field.disabled,true);
  assert.equal(State.fieldSync.imported.length,1,'historic imports preserved');
  assert.equal(State.fieldSync.agents.length,1,'historic agent identity preserved');
@@ -31,7 +36,8 @@ vm.createContext(sandbox);vm.runInContext(source+'\nglobalThis.FieldSync=FieldSy
  fail=true;inputs.editFieldAgentName.value='اسم لا يجب حفظه';
  await controller.saveAgentEdit(field.id);
  assert.equal(field.name,'مندوب التوزيع الجديد','failed write rolls back edit');
- await controller.removeAgent(field.id);
+ controller.removeAgent(field.id);
+ await passwordRequests.at(-1).callback('1234');
  assert.equal(field.archived,false,'failed write rolls back deletion');
  assert(saved>=5);
  console.log('PASS agent edit, vehicle, safe archival, restored agent, preserved ledger IDs, atomic rollback.');

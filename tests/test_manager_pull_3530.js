@@ -12,7 +12,7 @@ const state={fieldSync:{companyId,agents:[agent],imported:[],events:[]},
  license:{isActivated:true,opsUsedCount:0}};
 let saved=0,response;
 const scope={State:state,FieldProtocol:protocol,FieldLanCrypto:lan,AppEscape:{text:String},WarehouseController:{name:()=>''},
- Accounting:{getItemBaseStock:()=>19},LicenseManager:{MAX_TRIAL_OPS:100},StorageEngine:{saveState:async()=>{saved++}},
+ Accounting:{getItemBaseStock:()=>19,getAccountStatement:()=>({sypBalance:0,usdBalance:0})},LicenseManager:{MAX_TRIAL_OPS:100},StorageEngine:{saveState:async()=>{saved++}},
  UI:{toast:()=>{}},document:{getElementById:()=>null},window:{AndroidLocalSync:{reply:(_,ans)=>{response=JSON.parse(ans)}}},
  crypto:crypto.webcrypto,TextEncoder,TextDecoder,atob,btoa,console,setTimeout,clearTimeout};
 vm.createContext(scope);

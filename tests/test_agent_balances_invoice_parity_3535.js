@@ -1,0 +1,47 @@
+'use strict';
+const assert=require('node:assert/strict');
+const fs=require('node:fs'),vm=require('node:vm'),crypto=require('node:crypto');
+const FieldProtocol=require('../app/src/main/assets/www/static/field-protocol.js');
+const agentRoot='field_agent/src/main/assets/www/static/';
+const doc={getElementById:()=>null,addEventListener:()=>{},querySelectorAll:()=>[]};
+const window={};
+const scope={window,document:doc,FieldProtocol,console,Date,Number,String,Set,Map,Array,Object,JSON,Promise,TextEncoder,TextDecoder,crypto:crypto.webcrypto,setTimeout,clearTimeout};
+vm.createContext(scope);
+for(const f of ['agent.js','agent-experience.js','agent-invoice-parity.js'])vm.runInContext(fs.readFileSync(agentRoot+f,'utf8'),scope,{filename:f});
+const A=vm.runInContext('Agent',scope);
+A.state={companyId:'company_1234',agentId:'agent_1234',warehouseId:'car_1234',key:'abc',companyName:'SUN SHINE',agentName:'مندوب',vehicleName:'سيارة',exchangeRate:15000,
+ accounts:[{id:'c1',name:'عميل 1',type:'customer',usdBalance:12,sypBalance:10000}],
+ items:[{id:'i1',name:'منظف',currency:'USD',units:[{name:'عبوة',factor:1,salePrice:100}]}],stock:{i1:100},categories:[],ops:[],snapshotIds:[],knownIds:[]};
+A.draft=[];A.currency='USD';A.draftKind='sale';
+assert.match(A.renderHome(),/أرصدة الحسابات/,'account balance shortcut must show on agent homepage');
+const page=A.renderInvoice();
+for(const text of ['invoice-entry-top','فاتورة مبيعات','invoice-added-items','إضافة مواد','invSubTotalTxt','invoiceDiscount','invoiceTax','invPaidInput','حفظ وطباعة بلوتوث'])assert(page.includes(text),'missing invoice visual field: '+text);
+assert.match(A.renderAccounts(),/أرصدة الحسابات/);
+assert.equal(A.balanceFor('c1').usd,12);
+const owed={id:'op_local_sale_1',kind:'sale',accountId:'c1',currency:'USD',netTotal:30,paidAmount:10,rows:[]};
+const received={id:'op_local_pay_1',kind:'receipt',accountId:'c1',currency:'USD',amount:3};
+A.state.ops.push(owed,received);
+assert.equal(A.balanceFor('c1').usd,29,'unacked sale and receipt must be reflected');
+A.state.snapshotIds.push(owed.id,received.id);
+assert.equal(A.balanceFor('c1').usd,12,'accepted operations must not be double counted');
+A.state.snapshotIds=[];A.state.ops=[];
+A.invoiceMeta={accountId:'c1',currency:'USD',paymentMode:'partial',paid:'25',date:'2026-11-13T13:00',note:'اختبار',discountValue:10,discountType:'percent',taxValue:5,taxType:'percent'};
+A.draft=[{itemId:'i1',itemName:'منظف',unitName:'عبوة',unitFactor:1,qty:1,price:100,total:100}];
+const totals=A.invoiceCalc();
+assert.equal(totals.subTotal,100);assert.equal(totals.discountAmount,10);assert.equal(totals.taxAmount,4.5);assert.equal(totals.netTotal,94.5);assert.equal(totals.remainingAmount,69.5);
+const pending=[];const warnings=[];
+A.active=async()=>true;A.appendOperation=async op=>{pending.push(op);A.state.ops.push(op);};A.closeInvoiceItemGrid=()=>{};A.show=async()=>{};A.toast=msg=>warnings.push(msg);
+(async()=>{
+ await A.saveInvoice();
+ assert.equal(pending.length,1,'saving must create exactly one invoice operation');
+ const op=pending[0];
+ assert.equal(op.netTotal,94.5);assert.equal(op.discountValue,10);assert.equal(op.taxValue,5);assert.equal(op.paidAmount,25);
+ const validated=FieldProtocol.validateOps([op],A.state.agentId,A.state.companyId,A.state.warehouseId,A.state.items,A.state.accounts);
+ assert.equal(validated[0].netTotal,94.5);
+ const ledger=FieldProtocol.toLedgerDocuments(validated,{id:A.state.agentId,name:'مندوب',warehouseId:A.state.warehouseId},0,0);
+ assert.equal(ledger.invoices[0].netTotal,94.5);assert.equal(ledger.invoices[0].discountAmount,10);assert.equal(ledger.invoices[0].taxAmount,4.5);
+ assert.equal(ledger.invoices[0].remainingAmount,69.5);
+ assert.equal(A.state.ops.length,1);
+ assert(warnings.some(x=>x.includes('حُفظت')),'must confirm saved to user');
+ console.log('PASS 3.5.35: account balance snapshot and pending deltas, invoice layout, discount/tax totals, saved operation and main ledger conversion.');
+})().catch(e=>{console.error(e);process.exitCode=1});

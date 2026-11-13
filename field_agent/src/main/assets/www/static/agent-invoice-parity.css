@@ -1,0 +1,27 @@
+/* Match the manager's invoice palette, spacing, controls and selected-row panel. */
+.agent-main-invoice{font-size:12px;color:#0f172a;line-height:1.5}
+.agent-main-invoice .invoice-entry-top{background:linear-gradient(145deg,#fff,#f3f8fd);border:1px solid #cbd5e1;box-shadow:0 8px 20px rgba(15,23,42,.08),inset 0 1px #fff}
+.agent-main-invoice .invoice-entry-top select,.agent-main-invoice .invoice-entry-top input{min-height:34px}
+.agent-main-invoice .invoice-added-items{background:#eaf5ff;border:1px solid #7dd3fc;box-shadow:0 6px 16px #07598514}
+.agent-main-invoice .invoice-added-items .invoice-added-title{background:#bae6fd;color:#075985;border-bottom:1px solid #7dd3fc}
+.agent-main-invoice .invoice-added-row{background:#f5faff;border-bottom:2px dashed #86b9d6;margin:0 7px;border-radius:8px;padding:12px 7px}
+.agent-main-invoice .invoice-added-row:nth-child(odd){background:#eaf4ff}
+.agent-main-invoice .invoice-row-index{background:#0f766e;color:#fff;padding:3px 7px;border-radius:8px;font-weight:900}
+.agent-main-invoice input,.agent-main-invoice select,.agent-main-invoice textarea{box-sizing:border-box;min-width:0;max-width:100%}
+.agent-main-invoice .grid>div{min-width:0}
+.agent-picker-mask{position:fixed;inset:0;background:#0f172a99;z-index:51;display:flex;align-items:center;justify-content:center;padding:12px}
+.agent-picker-content{direction:rtl;width:min(100%,580px);max-height:90vh;overflow-y:auto;background:#fff;border-radius:18px;padding:16px;box-shadow:0 20px 60px #0005;color:#0f172a}
+.agent-picker-content .invoice-grid-decrement{position:absolute;top:9px;right:9px;z-index:2;width:24px;height:24px;border-radius:9px;border:1px solid #fda4af;background:#ffe4e6;color:#9f1239;font-size:19px;font-weight:900}
+.agent-picker-content button{margin:0;min-height:auto}
+.agent-picker-content #agentPickerItems [role="button"]{min-width:0}
+.agent-main-invoice .bg-emerald-600,.agent-picker-content .bg-emerald-600{background-color:#059669}
+.agent-main-invoice .bg-slate-900,.agent-picker-content .bg-slate-900{background-color:#0f172a}
+.agent-main-invoice .text-white{color:#fff}
+.agent-main-invoice .rounded-2xl{border-radius:16px}
+.agent-main-invoice button{margin:0;min-height:auto}
+.agent-main-invoice .grid{display:grid}
+.agent-main-invoice .flex{display:flex}
+.agent-main-invoice .grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+.agent-main-invoice .grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.agent-main-invoice .grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}
+@media(max-width:360px){.agent-main-invoice .grid-cols-4{gap:3px}.agent-main-invoice .invoice-added-row{padding:10px 4px}}

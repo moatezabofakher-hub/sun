@@ -83,11 +83,25 @@ const FieldSync = {
   catalog(a){
     const config=this.data();
     const known=config.imported.filter(i=>i.agentId===a.id).map(i=>i.id);
+    // Limit optional image payloads to keep periodic encrypted sync reliable on LAN.
+    let imageBudget=650000;
     return {kind:'provision',format:FieldProtocol.FORMAT,companyId:config.companyId,companyName:State.settings.companyName,agentId:a.id,agentName:a.name,vehicleName:a.vehicleName,warehouseId:a.warehouseId,key:a.key,
       issuedAt:new Date().toISOString(),exchangeRate:Number(State.settings.exchangeRate),
       categories:(State.categories||[]).slice(),
-      items:State.items.map(it=>({id:it.id,name:it.name,category:it.category||'',barcode:it.barcode||'',currency:it.currency,units:(it.units||[]).map(u=>({name:u.name,factor:u.factor,salePrice:u.salePrice}))})),
-      accounts:State.accounts.filter(acc=>acc.type==='customer').map(acc=>({id:acc.id,name:acc.name,type:acc.type})),
+      items:State.items.map(it=>{
+        const image=String(it.photoData||'');
+        const photoData=/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(image) && image.length<120000 && image.length<imageBudget ? image : '';
+        imageBudget-=photoData.length;
+        return {id:it.id,name:it.name,category:it.category||'',barcode:it.barcode||'',currency:it.currency,
+          photoData,units:(it.units||[]).map(u=>({name:u.name,factor:u.factor,salePrice:u.salePrice}))};
+      }),
+      accounts:State.accounts.filter(acc=>acc.type==='customer').map(acc=>{
+        // Export balances derived from the same posted double-entry ledger as the main app.
+        // The agent adjusts only operations not represented in this synchronized snapshot.
+        const st=Accounting.getAccountStatement(acc.id);
+        return {id:acc.id,name:acc.name,type:acc.type,
+          sypBalance:st.sypBalance,usdBalance:st.usdBalance};
+      }),
       stock:Object.fromEntries(State.items.map(it=>[it.id,Accounting.getItemBaseStock(it.id,null,a.warehouseId)])),
       knownIds:known};
   },
@@ -119,15 +133,23 @@ const FieldSync = {
       <h3 class="text-lg font-black text-rose-800">حذف المندوب: ${this.escape(a.name)}</h3>
       <p class="text-xs text-rose-800">سيُمنع استقبال عمليات جديدة من هذا المندوب، ويُخفى من القائمة النشطة. ستبقى سجلاته وسنداته المرحّلة (${imported}) محفوظة في الأرشيف لأغراض التدقيق.</p>
       <p class="text-xs text-amber-800">لا يمكن سحب الترخيص فورًا من هاتف يعمل دون اتصال؛ المنع يُطبق عند محاولة المزامنة.</p>
-      <button type="button" class="w-full bg-rose-700 text-white p-3 rounded-xl font-black" onclick="FieldSync.removeAgent('${a.id}')">تأكيد الحذف الآمن</button>
+      <button type="button" class="w-full bg-rose-700 text-white p-3 rounded-xl font-black" onclick="FieldSync.removeAgent('${a.id}')">متابعة إلى التحقق من كلمة السر</button>
       <button type="button" class="w-full bg-slate-100 p-3 rounded-xl" onclick="FieldSync.open()">إلغاء</button>
     </div>`);
   },
-  async removeAgent(id){
+  removeAgent(id){
+    const a=this.data().agents.find(x=>x.id===id&&!x.archived);if(!a)return;
+    // The phone need not be online. Revocation is written locally and enforced on its next sync.
+    ProtectionController.requirePinForDestructiveAction(
+      'أدخل كلمة سر حماية التطبيق الرئيسي لتأكيد حذف المندوب «'+this.escape(a.name)+'» حتى لو كان غير متصل. العمليات غير المرسلة من جهازه لن تُستقبل بعد الحذف.',
+      async(pin)=>this.removeAgentAuthorized(id,pin), 'حذف مندوب غير متصل');
+  },
+  async removeAgentAuthorized(id,pin){
+    if(!pin || !await ProtectionController.verifyPin(pin))return UI.toast('كلمة السر غير صحيحة، لم يتم حذف المندوب','error');
     const a=this.data().agents.find(x=>x.id===id&&!x.archived);if(!a)return;
     const old={archived:a.archived,disabled:a.disabled,deletedAt:a.deletedAt};
     a.archived=true;a.disabled=true;a.deletedAt=new Date().toISOString();
-    try{await StorageEngine.saveState();this.open();UI.toast('حُذف المندوب من القائمة النشطة مع حفظ الأرشيف','success');}
+    try{await StorageEngine.saveState();this.open();UI.toast('تم إلغاء صلاحية المندوب وأرشفته؛ سيُرفض اتصاله عند العودة للشبكة','success');}
     catch(e){Object.assign(a,old);UI.toast('تعذر حذف المندوب: '+e.message,'error');}
   },
   async restoreAgent(id){

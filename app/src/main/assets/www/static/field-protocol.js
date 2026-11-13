@@ -60,13 +60,29 @@
           return {itemId:r.itemId,itemName:itm.name,unitName:r.unitName,unitFactor:factor,qty,price,total,
             baseCurrency:itm.currency,basePrice:Number(unit.salePrice)||0};
         });
-        const sum=money(rows.reduce((a,r)=>a+r.total,0),code);
+        const subTotal=money(rows.reduce((a,r)=>a+r.total,0),code);
+        const discountType=op.discountType==='percent'?'percent':'amount';
+        const taxType=op.taxType==='amount'?'amount':'percent';
+        const rawDiscount=Number(op.discountValue||0),rawTax=Number(op.taxValue||0);
+        if(!Number.isFinite(rawDiscount)||!Number.isFinite(rawTax)||rawDiscount<0||rawTax<0||rawDiscount>1e10||rawTax>1e10)
+          throw Error('الحسم أو الضريبة غير صالح');
+        // Percentages may have more than two decimals; currency amounts may not.
+        const discountValue=discountType==='percent'?rawDiscount:money(rawDiscount,code);
+        const taxValue=taxType==='percent'?rawTax:money(rawTax,code);
+        if(discountType==='percent'&&discountValue>100)throw Error('نسبة الحسم تجاوزت 100%');
+        if(taxType==='percent'&&taxValue>100)throw Error('نسبة الضريبة تجاوزت 100%');
+        const discountAmount=money(discountType==='percent'?subTotal*discountValue/100:discountValue,code);
+        if(discountAmount>subTotal)throw Error('الحسم أكبر من إجمالي الأصناف');
+        const taxAmount=money(taxType==='percent'?(subTotal-discountAmount)*taxValue/100:taxValue,code);
+        const sum=money(subTotal-discountAmount+taxAmount,code);
+        if(op.netTotal!=null&&Math.abs(sum-Number(op.netTotal))>(code==='USD'?0.011:0.51))throw Error('صافي الفاتورة لا يطابق الحسم والضريبة');
         const paid=money(op.paidAmount||0,code);
         if(paid>sum)throw Error('المقبوض أكبر من قيمة الفاتورة');
         if(op.accountId && !accMap.has(op.accountId))throw Error('الزبون غير موجود');
         if(paid<sum && !op.accountId)throw Error('الفاتورة الآجلة تحتاج حساب عميل');
         if(op.accountId && accMap.get(op.accountId).type!=='customer')throw Error('الفاتورة مرتبطة بغير حساب عميل');
-        return {...op,rows,netTotal:sum,paidAmount:paid,exchangeRate:rate};
+        return {...op,rows,subTotal,discountType,discountValue,discountAmount,
+          taxType,taxValue,taxAmount,netTotal:sum,paidAmount:paid,exchangeRate:rate};
       }
       if(!op.accountId||!accMap.has(op.accountId))throw Error('السند يحتاج حسابًا صحيحًا');
       const value=money(op.amount,code);if(value<=0)throw Error('مبلغ السند يجب أن يكون أكبر من الصفر');
@@ -79,7 +95,7 @@
       const origin={agentId:agent.id,agentName:agent.name,vehicleName:agent.vehicleName||'',operationId:op.id,localNumber:op.localNumber||'',receivedAt:new Date().toISOString()};
       if(op.kind==='sale'||op.kind==='sale_return'){
         const net=op.netTotal,paid=op.paidAmount;
-        invoices.push({id:'field_'+op.id,number:++startingInvoice,type:op.kind,warehouseId:agent.warehouseId,date:op.date,accountId:op.accountId||'',currency:op.currency,exchangeRate:op.exchangeRate,paymentMethod:paid>=net?'cash':paid>0?'partial':'credit',rows:op.rows.map((r,i)=>({...r,rowId:'fieldrow_'+op.id+'_'+i,discount:0})),subTotal:net,discountValue:0,discountType:'amount',discountAmount:0,taxValue:0,taxType:'percent',taxAmount:0,netTotal:net,paidAmount:paid,remainingAmount:money(net-paid,op.currency),note:op.note||'',fieldOrigin:origin});
+        invoices.push({id:'field_'+op.id,number:++startingInvoice,type:op.kind,warehouseId:agent.warehouseId,date:op.date,accountId:op.accountId||'',currency:op.currency,exchangeRate:op.exchangeRate,paymentMethod:paid>=net?'cash':paid>0?'partial':'credit',rows:op.rows.map((r,i)=>({...r,rowId:'fieldrow_'+op.id+'_'+i,discount:0})),subTotal:op.subTotal??net,discountValue:op.discountValue||0,discountType:op.discountType||'amount',discountAmount:op.discountAmount||0,taxValue:op.taxValue||0,taxType:op.taxType||'percent',taxAmount:op.taxAmount||0,netTotal:net,paidAmount:paid,remainingAmount:money(net-paid,op.currency),note:op.note||'',fieldOrigin:origin});
       }else{
         vouchers.push({id:'field_'+op.id,number:++startingVoucher,type:op.kind,date:op.date,accountId:op.accountId,currency:op.currency,amount:op.amount,exchangeRate:op.exchangeRate,accountCurrency:op.currency,accountAmount:op.amount,note:op.note||'',linkedInvoiceId:op.linkedInvoiceOpId?'field_'+op.linkedInvoiceOpId:'',fieldOrigin:{...origin,linkedInvoiceOperationId:op.linkedInvoiceOpId||''}});
       }

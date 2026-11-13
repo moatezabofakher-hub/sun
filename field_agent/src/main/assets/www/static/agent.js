@@ -243,7 +243,7 @@ const Agent={
       this.lanSyncMessage='✅ تمت المزامنة بالاتجاهين: '+newCount+' عملية مؤكدة، وتحديث '+itemsChanged+' مادة و'+accountsChanged+' عميل و'+stockChanged+' رصيد. المتبقي '+this.pending.length+'.';
       if(!this.lanSyncQuiet)this.toast(this.lanSyncMessage);
       // Never erase an invoice, voucher, or payment form being edited.
-      if(['home','ops','stock','sync'].includes(this.screen) &&
+      if(['home','ops','stock','sync','accounts'].includes(this.screen) &&
           (newCount||itemsChanged||accountsChanged||stockChanged||(!this.lanSyncQuiet&&this.screen==='sync')))await this.show(this.screen);
       success=true;
     }catch(e){this.lanSyncMessage='لم تكتمل المزامنة: '+e.message;if(!this.lanSyncQuiet)this.toast(this.lanSyncMessage);}
@@ -264,7 +264,11 @@ const Agent={
     if(!window.AndroidPrinter?.printBase64){this.toast('الطباعة الحرارية تحتاج نسخة Android');return;}
     try{
       const width=this.state.printerWidth===58?384:576,lines=[this.state.companyName,'فاتورة المندوب: '+this.state.agentName,'السيارة: '+this.state.vehicleName,o.localNumber+'  '+o.date.slice(0,16),'----------------------------------'];
-      if(o.rows){o.rows.forEach((r,i)=>lines.push((i+1)+' - '+r.itemName+'  '+r.qty+' '+r.unitName+'  '+r.total+' '+o.currency));lines.push('----------------------------------');lines.push('الإجمالي: '+o.rows.reduce((a,r)=>a+r.total,0)+' '+o.currency);lines.push('نقداً: '+o.paidAmount+' '+o.currency);}else lines.push('سند '+(o.kind==='receipt'?'قبض':'دفع')+' : '+o.amount+' '+o.currency);
+      if(o.rows){o.rows.forEach((r,i)=>lines.push((i+1)+' - '+r.itemName+'  '+r.qty+' '+r.unitName+'  '+r.total+' '+o.currency));lines.push('----------------------------------');lines.push('إجمالي الأصناف: '+o.rows.reduce((a,r)=>a+Number(r.total),0)+' '+o.currency);
+        if(Number(o.discountValue||0))lines.push('الحسم: '+o.discountValue+(o.discountType==='percent'?' %':' '+o.currency));
+        if(Number(o.taxValue||0))lines.push('الإضافات: '+o.taxValue+(o.taxType==='percent'?' %':' '+o.currency));
+        lines.push('صافي الفاتورة: '+(o.netTotal??o.rows.reduce((a,r)=>a+Number(r.total),0))+' '+o.currency);
+        lines.push('المدفوع: '+o.paidAmount+' '+o.currency);}else lines.push('سند '+(o.kind==='receipt'?'قبض':'دفع')+' : '+o.amount+' '+o.currency);
       const lh=43,height=lines.length*lh+65,canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;const ctx=canvas.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,width,height);ctx.fillStyle='#000';ctx.textAlign='center';ctx.direction='rtl';ctx.font='bold 23px system-ui';
       lines.forEach((line,i)=>ctx.fillText(line,width/2,40+i*lh,width-26));
       const pixels=ctx.getImageData(0,0,width,height).data,bytes=[27,64];

@@ -10,8 +10,8 @@ android {
         applicationId 'com.sunshine.technicalaccountant.agent'
         minSdk 26
         targetSdk 35
-        versionCode 7
-        versionName '1.2.4-auto-enrollment'
+        versionCode 8
+        versionName '1.2.5-main-invoice-parity'
     }
 
     // A permanent signing key is required for in-place updates. The keystore is
