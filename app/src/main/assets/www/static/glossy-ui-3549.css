@@ -21,3 +21,19 @@ body.ta-3d-v3524 nav.ta-bottom-nav .nav-btn > span{font-size:9px;line-height:1.1
 .ta-decision-actions button:active,#dialogContainer[data-dialog-type="exit"] .ta-exit-actions button:active{transform:translateY(3px);box-shadow:0 1px 0 #99b1bf!important;}
 @media(max-width:355px){body.ta-3d-v3524 nav.ta-bottom-nav .nav-btn{margin:2px 1px;}body.ta-3d-v3524 nav.ta-bottom-nav .nav-btn > i{width:29px;height:29px;font-size:16px!important;}}
 @media(prefers-reduced-motion:reduce){.ta-decision-actions button,#dialogContainer .ta-exit-actions button{transition:none;}}
+
+/* 3.5.50: enlarge the actual pictograms while preserving six separated 56px tabs. */
+body.ta-3d-v3524 nav.ta-bottom-nav > div{column-gap:2px;}
+body.ta-3d-v3524 nav.ta-bottom-nav .nav-btn{margin:1px 2px;gap:2px;padding:0;min-width:0;min-height:44px;}
+body.ta-3d-v3524 nav.ta-bottom-nav .nav-btn > i{
+    box-sizing:border-box;width:40px;height:40px;font-size:23px!important;
+    display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;
+    border-radius:12px;
+}
+body.ta-3d-v3524 nav.ta-bottom-nav .nav-btn > span{font-size:10px;line-height:1.05;font-weight:800;}
+@media(max-width:355px){
+  body.ta-3d-v3524 nav.ta-bottom-nav > div{column-gap:1px;}
+  body.ta-3d-v3524 nav.ta-bottom-nav .nav-btn{margin:1px 1px;}
+  body.ta-3d-v3524 nav.ta-bottom-nav .nav-btn > i{width:36px;height:36px;font-size:21px!important;}
+  body.ta-3d-v3524 nav.ta-bottom-nav .nav-btn > span{font-size:9px;}
+}

@@ -583,6 +583,15 @@ public final class MainActivity extends FragmentActivity {
 
     private final class ExitBridge {
         @JavascriptInterface
+        public String getAppVersionName() {
+            try {
+                return getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
+            } catch (Exception ignored) {
+                return "";
+            }
+        }
+
+        @JavascriptInterface
         public void exitApp() {
             runOnUiThread(() -> { if (isLocalPage()) finish(); });
         }

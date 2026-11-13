@@ -10,8 +10,8 @@ android {
         applicationId 'com.sunshine.technicalaccountant.agent'
         minSdk 26
         targetSdk 35
-        versionCode 19
-        versionName '3.5.49-visual-notification-details'
+        versionCode 20
+        versionName '3.5.50-navigation-version-fix'
     }
 
     // A permanent signing key is required for in-place updates. The keystore is
