@@ -61,9 +61,20 @@ public final class NativeLocalSync {
         this.nsd = (NsdManager) activity.getSystemService(Context.NSD_SERVICE);
     }
 
+    // JavascriptInterface methods execute on WebView's private JavaBridge thread,
+    // NOT on the UI thread. Never call WebView.getUrl() from those methods:
+    // Android throws a thread-affinity exception before Wi-Fi can start.
+    // The host Activity updates this cached main-frame origin on the UI thread.
+    private volatile boolean trustedMainFrame = false;
+
+    public void onMainFrameUrlChanged(String url) {
+        if (android.os.Looper.myLooper() != android.os.Looper.getMainLooper())
+            throw new IllegalStateException("Main frame URL must be updated on UI thread");
+        trustedMainFrame = url != null && url.startsWith(ORIGIN);
+    }
+
     private boolean isTrustedPage() {
-        final String url = webView.getUrl();
-        return url != null && url.startsWith(ORIGIN);
+        return trustedMainFrame && !closing;
     }
 
     private static boolean isCompany(String id) {

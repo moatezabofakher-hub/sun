@@ -201,6 +201,18 @@ public final class MainActivity extends FragmentActivity {
 
         webView.setWebViewClient(new WebViewClient() {
             @Override
+            public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+                super.onPageStarted(view, url, favicon);
+                if (nativeLocalSync != null) nativeLocalSync.onMainFrameUrlChanged(url);
+            }
+
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                super.onPageFinished(view, url);
+                if (nativeLocalSync != null) nativeLocalSync.onMainFrameUrlChanged(url);
+            }
+
+            @Override
             public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
                 Uri uri = request.getUrl();
                 if ("https".equals(uri.getScheme()) && HOST.equals(uri.getHost())) {

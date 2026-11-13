@@ -17,6 +17,6 @@ assert(native.includes('public void pairPrinter()')&&native.includes('BluetoothD
 assert(manifest.includes('android.permission.BLUETOOTH_SCAN')&&manifest.includes('android.permission.BLUETOOTH_CONNECT'));
 assert(old.includes('TA_FIELD_SYNC_1')===false);
 assert(old.includes('async importFile(input)')&&old.includes('renderStock')); 
-assert(fs.readFileSync('field_agent/build.gradle','utf8').includes('versionCode 3'));
-assert(fs.readFileSync('app/build.gradle','utf8').includes('versionCode 35'));
+assert(fs.readFileSync('field_agent/build.gradle','utf8').includes('versionCode 4'));
+assert(fs.readFileSync('app/build.gradle','utf8').includes('versionCode 36'));
 console.log('PASS field parity modules, same visual system, OS back, native pairing and file synchronization.');
