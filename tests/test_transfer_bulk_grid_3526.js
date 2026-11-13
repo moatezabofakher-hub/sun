@@ -48,7 +48,7 @@ const almost=(x,y)=>assert.ok(Math.abs(x-y)<1e-8,`${x} != ${y}`);
  assert.equal(State.transfers[0].batchId,State.transfers[1].batchId);
  assert.equal(W.transferDocuments().length,1,'one review document holds the entire batch');
  assert.match(W.renderTransferHistoryHtml(),/2 صنف/);
- assert.match(W.renderTransferHistoryHtml(),/حفظ ملف المناقلة/);
+ assert.match(W.renderTransferHistoryHtml(),/تعديل الفاتورة/);
  assert.equal(State.transfers[0].unitName,'كرتونة');
  assert.equal(State.transfers[1].unitName,'عبوة');
  almost(Accounting.getItemBaseStock('soap',null,'wh_main'),18);
@@ -63,7 +63,7 @@ const almost=(x,y)=>assert.ok(Math.abs(x-y)<1e-8,`${x} != ${y}`);
  W.toggleTransferItem('shampoo');W.updateTransferDraftQty('shampoo','99');
  const before=State.transfers.length;
  await W.saveTransfer();assert.equal(State.transfers.length,before);assert.equal(saveCalls,1);
- assert.ok(msgs.some(x=>/شامبو/.test(x.m)&&/تتجاوز/.test(x.m)));
+ assert.ok(msgs.some(x=>/شامبو/.test(x.m)&&/الرصيد غير كافٍ/.test(x.m)));
  // No data changed when storage fails during one-batch commit.
  W.updateTransferDraftQty('shampoo','1');
  failSave=true;const old=State.license.opsUsedCount;await W.saveTransfer();

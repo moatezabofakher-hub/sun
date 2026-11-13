@@ -45,6 +45,22 @@
 #warehouseTransferPanel #transferSaveButton:not(:disabled):active{transform:translateY(3px);box-shadow:0 2px 0 #075b60!important;}
 #warehouseTransferPanel #transferSaveButton:focus-visible,#warehouseTransferPanel .ta-transfer-card:focus-visible{outline:3px solid #e9a330;outline-offset:2px;}
 @media(max-width:350px){#warehouseTransferPanel .ta-transfer-filter{grid-template-columns:1fr;}#warehouseTransferPanel .ta-transfer-draft-fields{gap:5px;}}
+
+/* v3.5.33 — editable warehouse transfer invoices */
+#warehouseTransferPanel .ta-transfer-edit-banner{border:1px solid #0f766e;background:#e6f8f2;color:#134e4a;border-radius:12px;padding:11px;margin-bottom:12px;font-size:12px;}
+#warehouseTransferPanel .ta-transfer-edit-banner[hidden],#transferCancelEditButton[hidden]{display:none!important;}
+.ta-transfer-invoice{margin:10px 0;border:1px solid #bccfda!important;border-radius:15px!important;background:#fff!important;box-shadow:0 3px 10px #17334810;overflow:hidden;}
+.ta-transfer-invoice>summary{list-style:none;cursor:pointer;padding:13px;background:linear-gradient(155deg,#f7fbff,#e9f6fb);}
+.ta-transfer-invoice>summary::-webkit-details-marker{display:none;}
+.ta-transfer-invoice .ta-transfer-invoice-no{font-size:12px;font-weight:900;color:#134e4a;}
+.ta-transfer-invoice .ta-transfer-invoice-sub{font-size:10px;color:#586f81;line-height:1.7;margin-top:3px;}
+.ta-transfer-invoice .ta-transfer-invoice-table{width:100%;border-collapse:collapse;font-size:11px;text-align:right;}
+.ta-transfer-invoice .ta-transfer-invoice-table th{background:#f1f6fa;color:#34576d;padding:9px 7px;text-align:right;}
+.ta-transfer-invoice .ta-transfer-invoice-table td{padding:9px 7px;border-top:1px solid #e2edf4;}
+.ta-transfer-invoice .ta-transfer-invoice-actions{display:flex;gap:8px;padding:11px;}
+.ta-transfer-invoice .ta-transfer-invoice-actions button{flex:1;min-height:43px;border-radius:10px;font-size:12px;font-weight:800;}
+.ta-transfer-invoice .ta-transfer-invoice-edit{background:#047d77;color:#fff;}
+.ta-transfer-invoice .ta-transfer-invoice-cancel{background:#fff1f2;color:#a11d37;border:1px solid #fecdd3;}
 </style>
 
     <meta charset="UTF-8">
@@ -3795,8 +3811,9 @@
                         </div>
                     </div>
                     <div id="warehouseTransferPanel" class="rounded-2xl p-3 mb-3 scroll-mt-4">
-                        <h3 class="ta-transfer-title"><i class="fas fa-boxes-stacked text-teal-700 ml-2"></i> مناقلة أصناف بين المستودعات</h3>
-                        <p class="ta-transfer-subtitle">حدد المستودعين، ثم اضغط على الصنف لزيادة كميته واحدة في كل ضغطة. استخدم × لحذفه، ويمكن تعديل الكمية والوحدة أدناه قبل الحفظ.</p>
+                        <h3 class="ta-transfer-title"><i class="fas fa-file-invoice text-teal-700 ml-2"></i> <span id="transferFormTitle">فاتورة مناقلة جديدة</span></h3>
+                        <div id="transferEditBanner" class="ta-transfer-edit-banner" hidden><div class="font-extrabold">تعديل فاتورة مناقلة محفوظة</div><div class="mt-1" id="transferEditingRef"></div><div class="mt-1">بعد الحفظ تُحدث الأرصدة وتبقى الفاتورة بنفس رقمها في سجل المناقلات.</div></div>
+                        <p class="ta-transfer-subtitle">مناقلة أصناف بين المستودعات: حدد المستودعين، ثم اضغط على الصنف لزيادة كميته واحدة في كل ضغطة. استخدم × لحذفه، ويمكن تعديل الكمية والوحدة أدناه قبل الحفظ.</p>
                         <div class="grid grid-cols-2 gap-2 mb-2">
                             <div><label class="block text-xs font-bold mb-1" for="transferFrom">من المستودع</label>
                                 <select id="transferFrom" onchange="WarehouseController.refreshTransferAvailability()" class="w-full border rounded-xl p-2.5 text-xs">${WarehouseController.options(State.settings.selectedWarehouseId)}</select></div>
@@ -3828,16 +3845,18 @@
                             <div><label class="block text-xs font-bold mb-1" for="transferNote">ملاحظة المناقلة</label><input id="transferNote" maxlength="200" class="w-full border rounded-xl p-2.5 text-sm" placeholder="ملاحظة اختيارية لجميع الأصناف"></div>
                         </div>
                         <button type="button" id="transferSaveButton" onclick="WarehouseController.saveTransfer()" disabled>
-                            <i class="fas fa-check-circle" aria-hidden="true"></i><span>حفظ المناقلة (<span id="transferSaveCount">0</span> صنف)</span>
+                            <i class="fas fa-check-circle" aria-hidden="true"></i><span id="transferSaveLabel">حفظ فاتورة المناقلة (<span id="transferSaveCount">0</span> صنف)</span>
                         </button>
+                        <button type="button" id="transferCancelEditButton" onclick="WarehouseController.cancelTransferEdit()" hidden class="mt-2 w-full rounded-xl bg-slate-100 border border-slate-300 text-slate-700 text-xs font-extrabold p-3">إلغاء التعديل والعودة لفاتورة جديدة</button>
                     </div>
                     <div class="rounded-2xl bg-white border p-3 ta-transfer-history">
                         <h3 class="font-extrabold text-sm mb-2">سجل المناقلات (${WarehouseController.transferDocuments().length} عملية)</h3>
-                        <p class="text-[11px] text-slate-500 mb-2">كل مناقلة محفوظة كمستند واحد يضم جميع أصنافها، ويمكن فتح تفاصيلها أو حفظها في ملف واحد للمراجعة.</p>
+                        <p class="text-[11px] text-slate-500 mb-2">كل عملية تظهر كفاتورة واحدة قابلة للفتح والتعديل لاحقاً. اضغط «فتح الفاتورة» ثم «تعديل الفاتورة» لتعديل موادها ومستودعاتها وتاريخها.</p>
                         ${WarehouseController.renderTransferHistoryHtml()}
                     </div>
                 `;
                 WarehouseController.transferDraft = [];
+                WarehouseController.editingTransferBatchId = null;
                 WarehouseController.filterTransferGrid();
                 WarehouseController.refreshTransferAvailability();
                 WarehouseController.renderTransferDraft();
@@ -4742,8 +4761,8 @@
                 UI.setHeader('<i class="fas fa-sliders text-emerald-400"></i> <span>الضبط</span>', 'اضغط على القسم المطلوب لعرض خياراته');
                 const mode = State.settings.btPrintMode || 'auto';
                 main.innerHTML = `
-                    <div class="mb-3 flex items-center justify-between gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2" data-app-build="3.5.32">
-                        <span class="font-black text-xs text-emerald-800"><i class="fas fa-check-circle ml-1"></i> إصدار التطبيق: 3.5.32</span>
+                    <div class="mb-3 flex items-center justify-between gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2" data-app-build="3.5.33">
+                        <span class="font-black text-xs text-emerald-800"><i class="fas fa-check-circle ml-1"></i> إصدار التطبيق: 3.5.33</span>
                         <span class="text-[10px] font-bold text-emerald-700">مظهر ثلاثي الأبعاد موحّد</span>
                     </div>
                     <div class="mb-3 text-[11px] text-slate-500 font-semibold px-1">جميع خيارات التطبيق مرتبة ضمن فئات. اضغط على اسم أي فئة لفتحها أو إغلاقها.</div>
@@ -5832,6 +5851,20 @@
                 });
             },
             transferDraft: [],
+            editingTransferBatchId: null,
+            availableTransferStock(itemId, warehouseId) {
+                let stock=Number(Accounting.getItemBaseStock(itemId,null,warehouseId))||0;
+                if(this.editingTransferBatchId){
+                    const doc=this.transferDocuments().find(d=>d.id===this.editingTransferBatchId);
+                    if(doc)for(const tr of doc.lines){
+                        if(tr.itemId!==itemId)continue;
+                        const qty=Number(tr.quantityBase)||0;
+                        if(tr.fromWarehouseId===warehouseId)stock+=qty;
+                        if(tr.toWarehouseId===warehouseId)stock-=qty;
+                    }
+                }
+                return Math.round((stock+Number.EPSILON)*10000)/10000;
+            },
             selectedTransferItem(itemId) {
                 return (this.transferDraft||[]).find(r=>r.itemId===itemId);
             },
@@ -5855,7 +5888,7 @@
                 if(!item)return;
                 if(!Array.isArray(this.transferDraft))this.transferDraft=[];
                 const from=document.getElementById('transferFrom')?.value;
-                const available=Number(Accounting.getItemBaseStock(itemId,null,from))||0;
+                const available=this.availableTransferStock(itemId,from);
                 if(!(available>0.000001))return UI.toast('هذا الصنف ليس له رصيد في المستودع المصدر','warn');
                 const existing=this.selectedTransferItem(itemId);
                 if(existing){
@@ -5930,7 +5963,7 @@
                     document.querySelectorAll('[data-transfer-card]').forEach(card=>{
                         const item=State.items.find(i=>i.id===card.dataset.itemId);
                         if(!item)return;
-                        const stock=Number(Accounting.getItemBaseStock(item.id,null,from))||0;
+                        const stock=this.availableTransferStock(item.id,from);
                         const label=card.querySelector?.('[data-transfer-stock]');
                         if(label)label.textContent=`رصيد المصدر: ${Accounting.formatItemQuantity(stock)} ${item.units?.[0]?.name||'وحدة'}`;
                         card.classList.toggle('is-unavailable',stock<=0.000001);
@@ -5939,11 +5972,67 @@
                         const item=State.items.find(i=>i.id===el.dataset.transferRow);
                         const row=item?this.selectedTransferItem(item.id):null;
                         if(!item||!row)return;
-                        const stock=Number(Accounting.getItemBaseStock(item.id,null,from))||0;
+                        const stock=this.availableTransferStock(item.id,from);
                         const label=el.querySelector?.('[data-transfer-row-stock]');
                         if(label)label.textContent=`رصيد المصدر: ${Accounting.formatItemQuantity(stock)} ${item.units?.[0]?.name||'وحدة'} — المتاح بالوحدة المختارة: ${Accounting.formatItemQuantity(stock*Number(row.factor||1))}`;
                     });
                 }
+            },
+            editTransferBatch(id){
+                const doc=this.transferDocuments().find(d=>d.id===String(id));
+                if(!doc)return UI.toast('لم يتم العثور على فاتورة المناقلة','error');
+                if(!(State.warehouses||[]).some(w=>w.id===doc.fromWarehouseId)||!(State.warehouses||[]).some(w=>w.id===doc.toWarehouseId))
+                    return UI.toast('أحد المستودعين في هذه الفاتورة لم يعد موجوداً','error');
+                const missing=doc.lines.find(tr=>!State.items.some(i=>i.id===tr.itemId));
+                if(missing)return UI.toast('لا يمكن تعديل فاتورة تحتوي على مادة محذوفة','error');
+                // Preserve the historical base quantity when a unit was renamed or removed.
+                const draft=doc.lines.map(tr=>{
+                    const item=State.items.find(i=>i.id===tr.itemId);
+                    const units=Array.isArray(item.units)&&item.units.length?item.units:[{name:'وحدة كبرى',factor:1}];
+                    const qty=Number(tr.quantity),base=Number(tr.quantityBase);
+                    const factorFromHistory=Number(tr.unitFactor)>0?Number(tr.unitFactor):(qty>0&&base>0?qty/base:NaN);
+                    const matching=units.find(u=>(Number(u.factor)||1)===factorFromHistory)
+                        ||units.find(u=>u.name===tr.unitName);
+                    const factor=Number(matching?.factor)||Number(units[0].factor)||1;
+                    const keepQty=matching&&Number.isFinite(qty)&&qty>0&&Math.abs(qty/factor-base)<0.00001;
+                    return {itemId:tr.itemId,qty:String(keepQty?qty:Math.round(base*factor*10000)/10000),factor:String(factor)};
+                });
+                this.editingTransferBatchId=doc.id;
+                this.transferDraft=draft;
+                for(const [field,value] of [['transferFrom',doc.fromWarehouseId],['transferTo',doc.toWarehouseId],['transferDate',doc.date],['transferNote',doc.note||'']]){
+                    const element=document.getElementById(field);if(element)element.value=value;
+                }
+                const title=document.getElementById('transferFormTitle');if(title)title.textContent='تعديل فاتورة مناقلة';
+                const editing=document.getElementById('transferEditBanner');if(editing)editing.hidden=false;
+                const editingRef=document.getElementById('transferEditingRef');if(editingRef)editingRef.textContent='رقم الفاتورة: '+doc.id;
+                const cancel=document.getElementById('transferCancelEditButton');if(cancel)cancel.hidden=false;
+                this.updateTransferGridSelections();this.renderTransferDraft();
+                if(typeof Views.jumpToEntry==='function')Views.jumpToEntry('warehouseTransferPanel','transferDate');
+            },
+            cancelTransferEdit(){
+                this.editingTransferBatchId=null;
+                this.transferDraft=[];
+                AppNav.renderCurrent();
+                if(typeof Views.jumpToEntry==='function')Views.jumpToEntry('warehouseTransferPanel','transferSearchInput');
+            },
+            transferStockAdjustments(originalLines, nextRows, from, to){
+                const changes=new Map();
+                const add=(itemId,warehouseId,value)=>{
+                    const key=String(itemId)+'\u001f'+String(warehouseId);
+                    if(!changes.has(key))changes.set(key,{itemId,warehouseId,delta:0});
+                    changes.get(key).delta+=value;
+                };
+                // Reverse the old invoice, then apply the new invoice to a virtual balance.
+                for(const t of originalLines){
+                    const q=Number(t.quantityBase)||0;
+                    add(t.itemId,t.fromWarehouseId,q);
+                    add(t.itemId,t.toWarehouseId,-q);
+                }
+                for(const row of nextRows){
+                    add(row.itemId,from,-row.quantityBase);
+                    add(row.itemId,to,row.quantityBase);
+                }
+                return [...changes.values()];
             },
             async saveTransfer() {
                 if(this.saving)return;
@@ -5960,49 +6049,68 @@
                     if(!/^\d{4}-\d{2}-\d{2}$/.test(date||'')||!Number.isFinite(Date.parse(date+'T12:00:00')))return UI.toast('تاريخ المناقلة غير صحيح','error');
                     const rows=this.transferDraft||[];
                     if(rows.length===0)return UI.toast('اختر مادة واحدة على الأقل من الشبكة','warn');
-                    if(!State.license.isActivated && LicenseManager.getRemainingTrialOps()<rows.length){
+                    const originalDoc=this.editingTransferBatchId?this.transferDocuments().find(d=>d.id===this.editingTransferBatchId):null;
+                    if(this.editingTransferBatchId&&!originalDoc)return UI.toast('تعذر العثور على فاتورة المناقلة المطلوب تعديلها','error');
+                    const originalLines=originalDoc?.lines||[];
+                    const oldItemIds=new Set(originalLines.map(t=>t.itemId));
+                    const newItems=rows.filter(r=>!oldItemIds.has(r.itemId)).length;
+                    const neededOps=originalDoc?newItems:rows.length;
+                    if(!State.license.isActivated&&LicenseManager.getRemainingTrialOps()<neededOps){
                         LicenseManager.openActivationModal(true);
-                        return UI.toast('عدد العمليات المتبقية في التجربة لا يكفي لحفظ جميع الأصناف','warn');
+                        return UI.toast('عدد العمليات المتبقية في التجربة لا يكفي لإضافة الأصناف','warn');
                     }
-                    const seen=new Set();
-                    const validated=[];
+                    const seen=new Set(),validated=[];
                     for(const row of rows){
                         if(seen.has(row.itemId))return UI.toast('تم تكرار الصنف داخل المناقلة','error');
                         seen.add(row.itemId);
                         const item=State.items.find(it=>it.id===row.itemId);
                         if(!item)return UI.toast('يوجد صنف غير موجود في قاعدة المواد','error');
-                        const qty=Accounting.parseNum(row.qty);
-                        const factor=Number(row.factor);
+                        const qty=Accounting.parseNum(row.qty),factor=Number(row.factor);
                         const units=Array.isArray(item.units)&&item.units.length?item.units:[{name:'وحدة كبرى',factor:1}];
                         const unit=units.find(u=>(Number(u.factor)||1)===factor);
                         if(!Number.isFinite(qty)||qty<=0||Math.abs(Math.round(qty*10000)-qty*10000)>0.000001)
                             return UI.toast('الكمية غير صالحة للصنف: '+item.name,'error');
                         if(!unit||!(factor>0)||!Number.isFinite(factor))return UI.toast('وحدة قياس غير صالحة للصنف: '+item.name,'error');
                         const quantityBase=qty/factor;
-                        const available=Accounting.getItemBaseStock(item.id,null,from);
-                        if(!Number.isFinite(quantityBase)||quantityBase>available+0.00001)
-                            return UI.toast('الكمية تتجاوز رصيد المصدر للصنف: '+item.name,'error');
-                        validated.push({itemId:item.id,quantity:qty,quantityBase,unitName:unit.name});
+                        if(!Number.isFinite(quantityBase))return UI.toast('الكمية غير صالحة للصنف: '+item.name,'error');
+                        validated.push({itemId:item.id,quantity:qty,quantityBase,unitName:unit.name,unitFactor:factor});
                     }
-                    if(!LicenseManager.canPerformOperation())return;
+                    // Check the combined post-edit warehouse balances. Checking current source
+                    // stock alone would incorrectly reject an unchanged invoice during editing.
+                    for(const change of this.transferStockAdjustments(originalLines,validated,from,to)){
+                        const current=Accounting.getItemBaseStock(change.itemId,null,change.warehouseId);
+                        if(current+change.delta < -0.00001){
+                            const item=State.items.find(it=>it.id===change.itemId);
+                            return UI.toast('الرصيد غير كافٍ في '+this.name(change.warehouseId)+' للصنف '+(item?.name||change.itemId)+' بعد التعديل','error');
+                        }
+                    }
+                    if(neededOps>0&&!LicenseManager.canPerformOperation())return;
                     const now=new Date().toISOString();
-                    const batchId='tb_'+Date.now()+'_'+Math.random().toString(36).slice(2,8);
-                    const transfers=validated.map((row,index)=>({id:'tr_'+Date.now()+'_'+index+'_'+Math.random().toString(36).slice(2,7),batchId,...row,fromWarehouseId:from,toWarehouseId:to,date,note,createdAt:now}));
+                    const batchId=originalDoc?.id||('tb_'+Date.now()+'_'+Math.random().toString(36).slice(2,8));
+                    const previousByItem=new Map(originalLines.map(t=>[t.itemId,t]));
+                    const transfers=validated.map((row,index)=>{
+                        const previous=previousByItem.get(row.itemId);
+                        return {...previous,id:previous?.id||('tr_'+Date.now()+'_'+index+'_'+Math.random().toString(36).slice(2,7)),
+                            batchId,...row,fromWarehouseId:from,toWarehouseId:to,date,note,
+                            createdAt:originalDoc?.createdAt||now,updatedAt:now};
+                    });
+                    const original=State.transfers;
                     const oldCount=State.license.opsUsedCount;
-                    const oldLen=State.transfers.length;
+                    const retained=originalDoc?original.filter(t=>String(t.batchId||t.id)!==batchId):original.slice();
+                    State.transfers=retained.concat(transfers);
                     try{
-                        State.transfers.push(...transfers);
-                        State.license.opsUsedCount=LicenseManager.getTotalOpsUsed()+transfers.length;
+                        if(neededOps>0)State.license.opsUsedCount=LicenseManager.getTotalOpsUsed()+neededOps;
                         await StorageEngine.saveState();
                     }catch(e){
-                        State.transfers.length=oldLen;
+                        State.transfers=original;
                         State.license.opsUsedCount=oldCount;
                         if(typeof LicenseManager.persistFallbackStorage==='function')LicenseManager.persistFallbackStorage();
-                        return UI.toast('لم تُحفظ المناقلة؛ لم يتغير المخزون: '+e.message,'error');
+                        return UI.toast('فشل حفظ الفاتورة ولم تتغير الأرصدة: '+e.message,'error');
                     }
                     LicenseManager.updateBadgeUI();
                     this.transferDraft=[];
-                    UI.toast('تمت مناقلة '+transfers.length+' صنف بنجاح دون تغيير المخزون الإجمالي','success');
+                    this.editingTransferBatchId=null;
+                    UI.toast(originalDoc?'تم تعديل فاتورة المناقلة وحفظ جميع أصنافها وأرصدتها':'تم حفظ فاتورة المناقلة بنجاح','success');
                     AppNav.renderCurrent();
                 }finally{
                     this.saving=false;
@@ -6020,14 +6128,21 @@
             },
             renderTransferHistoryHtml(){
                 const docs=this.transferDocuments();
-                if(!docs.length)return '<p class="text-xs text-slate-400">لا توجد مناقلات بعد.</p>';
+                if(!docs.length)return '<p class="text-xs text-slate-400">لا توجد فواتير مناقلة بعد.</p>';
                 return docs.map((doc,index)=>{
-                    const safeId=AppEscape.text(JSON.stringify(doc.id));
+                    const safeId=AppEscape.text(JSON.stringify(String(doc.id)));
                     const shortNo=AppEscape.text(doc.id);
-                    return `<details><summary><div class="flex justify-between gap-2 items-center"><div class="min-w-0"><strong class="text-xs text-slate-900">مناقلة #${docs.length-index} · ${doc.lines.length} صنف</strong><div class="text-[11px] text-slate-500">${AppEscape.text(this.name(doc.fromWarehouseId))} ← ${AppEscape.text(this.name(doc.toWarehouseId))} · ${AppEscape.text(doc.date)}</div></div><i class="fas fa-folder-open text-teal-700" aria-hidden="true"></i></div></summary>
-                      <div class="px-3 pb-2 text-[10px] text-slate-500">رقم المستند: ${shortNo}${doc.note?' · '+AppEscape.text(doc.note):''}</div>
-                      ${doc.lines.map(t=>`<div class="ta-transfer-history-row"><b>${AppEscape.text(State.items.find(i=>i.id===t.itemId)?.name||'مادة محذوفة')}</b><span>${t.quantity&&t.unitName?`${Accounting.formatItemQuantity(t.quantity)} ${AppEscape.text(t.unitName)}`:`${Accounting.formatItemQuantity(t.quantityBase)} وحدة كبرى`}</span></div>`).join('')}
-                      <div class="p-3 flex gap-2"><button type="button" onclick="WarehouseController.exportTransferBatch(${safeId})" class="flex-1 rounded-xl border bg-teal-50 text-teal-800 p-2 text-xs font-bold">حفظ ملف المناقلة</button><button type="button" onclick="WarehouseController.deleteTransferBatch(${safeId})" class="flex-1 rounded-xl border bg-rose-50 text-rose-700 p-2 text-xs font-bold">إلغاء المناقلة كاملة</button></div></details>`;
+                    return `<details class="ta-transfer-invoice"><summary>
+                       <div class="flex justify-between gap-2 items-center"><div class="min-w-0">
+                         <div class="ta-transfer-invoice-no"><i class="fas fa-file-invoice ml-1" aria-hidden="true"></i>فاتورة مناقلة #${shortNo}</div>
+                         <div class="ta-transfer-invoice-sub">من ${AppEscape.text(this.name(doc.fromWarehouseId))} إلى ${AppEscape.text(this.name(doc.toWarehouseId))} · التاريخ: ${AppEscape.text(doc.date)} · ${doc.lines.length} صنف</div>
+                       </div><span class="text-teal-800 text-xs font-bold shrink-0">فتح الفاتورة <i class="fas fa-chevron-down mr-1" aria-hidden="true"></i></span></div>
+                      </summary>
+                      <div class="p-3 text-xs border-t border-slate-200"><div class="font-extrabold text-slate-700 mb-1">${AppEscape.text(State.settings.companyName||'المحاسب التقني')}</div><div class="text-[11px] text-slate-500">رقم الفاتورة: ${shortNo} | التاريخ: ${AppEscape.text(doc.date)}</div><div class="mt-1 text-[11px]">من: <b>${AppEscape.text(this.name(doc.fromWarehouseId))}</b> — إلى: <b>${AppEscape.text(this.name(doc.toWarehouseId))}</b></div></div>
+                      <table class="ta-transfer-invoice-table"><thead><tr><th>#</th><th>الصنف</th><th>الكمية</th><th>الوحدة</th></tr></thead><tbody>${doc.lines.map((t,n)=>`<tr><td>${n+1}</td><td>${AppEscape.text(State.items.find(i=>i.id===t.itemId)?.name||'مادة محذوفة')}</td><td>${Accounting.formatItemQuantity(t.quantity&&t.unitName?t.quantity:t.quantityBase)}</td><td>${AppEscape.text(t.unitName||'وحدة كبرى')}</td></tr>`).join('')}</tbody></table>
+                      ${doc.note?`<p class="p-3 text-[11px] text-slate-600">ملاحظة: ${AppEscape.text(doc.note)}</p>`:''}
+                      <div class="ta-transfer-invoice-actions"><button type="button" onclick="WarehouseController.editTransferBatch(${safeId})" class="ta-transfer-invoice-edit"><i class="fas fa-pen ml-1" aria-hidden="true"></i>تعديل الفاتورة</button><button type="button" onclick="WarehouseController.deleteTransferBatch(${safeId})" class="ta-transfer-invoice-cancel">إلغاء الفاتورة</button></div>
+                    </details>`;
                 }).join('');
             },
             exportTransferBatch(id){
