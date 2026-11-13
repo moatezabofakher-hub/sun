@@ -13,9 +13,9 @@ for (const icon of ['fa-chart-bar','fa-whatsapp','fa-headset','fa-chevron-up','f
   assert(icons.includes('"'+icon+'"'),`Offline icon missing ${icon}`);
 }
 assert.match(html,/svg\[fill="none"\]/,'The fix for outlined icon SVGs must remain');
-assert.match(html,/إصدار التطبيق: 3\.5\.38/);
-assert.match(gradle,/versionCode 45/);
-assert.match(gradle,/versionName '3\.5\.38-field-expense-invoice-balance-nav'/);
+assert.match(html,/إصدار التطبيق: 3\.5\.39/);
+assert.match(gradle,/versionCode 46/);
+assert.match(gradle,/versionName '3\.5\.39-agent-hub-default-period'/);
 assert.match(gradle,/applicationId 'com\.sunshine\.technicalaccountant'/);
 assert.match(html,/const DB_NAME = 'AlRaedAccountingERP_v2'/);
 assert(html.includes('LedgerReports.openHomePrint(\'sales_summary\')') && html.includes('LedgerReports.openHomePrint(\'debts_summary\')'));

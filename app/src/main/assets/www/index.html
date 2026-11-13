@@ -88,6 +88,7 @@
     <script defer src="static/field-main.js"></script>
     <script defer src="static/field-pair-manager.js"></script>
     <script defer src="static/field-cash.js"></script>
+    <script defer src="static/manager-agent-hub.js"></script>
     <style>
         * {
             font-family: system-ui, 'Noto Sans Arabic', sans-serif;
@@ -960,7 +961,7 @@
 
     <!-- Bottom Taskbar / Navigation Bar (Intercepted by Unsaved Changes Guard) -->
     <nav class="ta-bottom-nav fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-30 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
-        <div class="max-w-3xl mx-auto grid grid-cols-6 h-16">
+        <div class="max-w-3xl mx-auto grid grid-cols-7 h-16">
             <button onclick="AppNav.navigate('dashboard')" data-nav="dashboard" class="nav-btn flex flex-col items-center justify-center gap-1 text-emerald-600 font-bold transition">
                 <i class="fas fa-home text-lg"></i>
                 <span class="text-[11px]">الرئيسية</span>
@@ -971,11 +972,15 @@
             </button>
             <button onclick="AppNav.navigate('items')" data-nav="items" class="nav-btn flex flex-col items-center justify-center gap-1 text-slate-500 hover:text-slate-800 transition">
                 <i class="fas fa-boxes-stacked text-lg"></i>
-                <span class="text-[11px]">المستودع</span>
+                <span class="text-[10px]">المواد</span>
             </button>
             <button onclick="AppNav.navigate('accounts')" data-nav="accounts" class="nav-btn flex flex-col items-center justify-center gap-1 text-slate-500 hover:text-slate-800 transition">
                 <i class="fas fa-users text-lg"></i>
                 <span class="text-[11px]">الحسابات</span>
+            </button>
+            <button onclick="AppNav.navigate('agent_hub')" data-nav="agent_hub" class="nav-btn flex flex-col items-center justify-center gap-1 text-slate-500 hover:text-slate-800 transition" title="إدارة المندوب">
+                <i class="fas fa-truck text-lg" aria-hidden="true"></i>
+                <span class="text-[10px]">المندوب</span>
             </button>
             <button onclick="AppNav.navigate('reports')" data-nav="reports" class="nav-btn flex flex-col items-center justify-center gap-1 text-slate-500 hover:text-slate-800 transition">
                 <i class="fas fa-chart-pie text-lg"></i>
@@ -1034,6 +1039,9 @@
                 primaryOnlyMode: false,
                 addedCurrencies: [], // Other ISO codes are catalogued, not silently posted to a two-currency ledger
                 defaultInvoiceListType: 'sale',
+                defaultViewPeriod: 'today', // Shared initial filter for invoices, vouchers and period-based reports
+                defaultViewStart: '',
+                defaultViewEnd: '',
                 itemQuantityDecimals: 2,
                 inventoryValuationCurrency: 'SYP', // Display currency for inventory cost valuation only
                 selectedWarehouseId: 'wh_main',
@@ -1059,6 +1067,35 @@
 
         // Immutable template for a newly created business ledger. The activation is device-wide.
         const DEFAULT_PROFILE = JSON.parse(JSON.stringify(State));
+
+        // 3.5.39: a single stored default date range for document lists and flow reports.
+        // Stock and outstanding debt balances remain point-in-time snapshots; do not
+        // reinterpret their current balance as a historical period total.
+        const TimeFilter = {
+            modes: [{id:'today',name:'اليوم'}, {id:'yesterday',name:'الأمس'},
+                {id:'week',name:'هذا الأسبوع'}, {id:'month',name:'هذا الشهر'},
+                {id:'all',name:'كل المدة'}, {id:'custom',name:'تاريخ محدد'}, {id:'range',name:'من تاريخ إلى تاريخ'}],
+            localDate(d=new Date()){return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10);},
+            mode(value){return this.modes.some(m=>m.id===value)?value:'today';},
+            defaultMode(){return this.mode(State.settings?.defaultViewPeriod||'today');},
+            defaultStart(){const x=String(State.settings?.defaultViewStart||'');return /^\d{4}-\d{2}-\d{2}$/.test(x)?x:this.localDate();},
+            defaultEnd(){const x=String(State.settings?.defaultViewEnd||'');return /^\d{4}-\d{2}-\d{2}$/.test(x)?x:this.defaultStart();},
+            label(mode){return this.modes.find(m=>m.id===mode)?.name||'اليوم';},
+            options(value){return this.modes.map(m=>`<option value="${m.id}" ${m.id===value?'selected':''}>${m.name}</option>`).join('');},
+            matches(value,mode,start='',end=''){
+                const date=String(value||'').slice(0,10); if(!/^\d{4}-\d{2}-\d{2}$/.test(date))return mode==='all';
+                const now=new Date(),today=this.localDate(now);
+                if(mode==='all')return true;
+                if(mode==='today')return date===today;
+                if(mode==='yesterday'){const y=new Date(now);y.setDate(y.getDate()-1);return date===this.localDate(y);}
+                if(mode==='week'){const monday=new Date(now);monday.setDate(monday.getDate()-(monday.getDay()+6)%7);return date>=this.localDate(monday)&&date<=today;}
+                if(mode==='month')return date.slice(0,7)===today.slice(0,7)&&date<=today;
+                if(mode==='custom')return date===String(start||this.defaultStart()).slice(0,10);
+                if(mode==='range')return !!start&&!!end&&start<=end&&date>=start&&date<=end;
+                return true;
+            }
+        };
+
 
         /** Currency selection is deliberately separated from the existing USD/SYP double-entry ledger.
          * Other ISO codes may be catalogued here; transactions remain USD/SYP until
@@ -2113,7 +2150,7 @@
                     this.clearDirty();
                     this.clearModalDirty();
                     UI.forceCloseModal();
-                    const bottomDestinations = new Set(['dashboard','invoices_list','items','accounts','reports','settings']);
+                    const bottomDestinations = new Set(['dashboard','invoices_list','items','accounts','agent_hub','reports','settings']);
                     if (screen === 'dashboard') {
                         this.stack = [{ screen: 'dashboard', params: {} }];
                     } else if (bottomDestinations.has(screen) && !replace) {
@@ -2277,7 +2314,8 @@
                     const navTarget = btn.getAttribute('data-nav');
                     const isActive = (navTarget === screen) ||
                         (navTarget === 'invoices_list' && (screen === 'invoice_form' || screen === 'invoice_print')) ||
-                        (navTarget === 'accounts' && (screen === 'vouchers_list' || screen === 'voucher_form' || screen === 'account_statement'));
+                        (navTarget === 'accounts' && (screen === 'vouchers_list' || screen === 'voucher_form' || screen === 'account_statement')) ||
+                        (navTarget === 'agent_hub' && (screen === 'agent_detail' || screen === 'agent_activity'));
                     if (isActive) {
                         btn.className = 'nav-btn is-active flex flex-col items-center justify-center gap-1 text-emerald-600 font-bold transition';
                         btn.setAttribute('aria-current', 'page');
@@ -2295,7 +2333,7 @@
                     console.error('Application screen render failed:', screen, error);
                     const main = document.getElementById('mainContent');
                     if (main) {
-                        main.innerHTML = `<div class="m-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-right"><div class="font-bold text-rose-700 mb-2">تعذر عرض هذه الصفحة</div><div class="text-xs text-rose-600">حدث خطأ أثناء تجهيز التقرير. ارجع خطوة ثم حاول مرة أخرى.</div><button type="button" onclick="AppNav.navigate('reports',{tab:'pnl',period:'all',view:'invoices'},true)" class="mt-3 rounded-xl bg-rose-600 px-4 py-2 text-white text-sm font-bold">إعادة فتح تقرير الأرباح</button></div>`;
+                        main.innerHTML = `<div class="m-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-right"><div class="font-bold text-rose-700 mb-2">تعذر عرض هذه الصفحة</div><div class="text-xs text-rose-600">حدث خطأ أثناء تجهيز التقرير. ارجع خطوة ثم حاول مرة أخرى.</div><button type="button" onclick="AppNav.navigate('reports',{tab:'pnl',view:'invoices'},true)" class="mt-3 rounded-xl bg-rose-600 px-4 py-2 text-white text-sm font-bold">إعادة فتح تقرير الأرباح</button></div>`;
                     }
                 }
             }
@@ -3475,13 +3513,9 @@
             localDate(d=new Date()) { return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10); },
             inPeriod(date, period, selected='', end='') {
                 const v=String(date||'').slice(0,10), today=this.localDate();
-                if (period==='today') return v===today;
-                if (period==='yesterday') {const y=new Date();y.setDate(y.getDate()-1);return v===this.localDate(y);}
-                if (period==='custom') return v===selected;
-                if (period==='range') return !!selected && !!end && selected<=v && v<=end;
-                return true;
+                return TimeFilter.matches(date,period,selected,end);
             },
-            sales(period='today',date='',end='',agentId='all') {
+            sales(period=TimeFilter.defaultMode(),date='',end='',agentId='all') {
                 const grouped=new Map(), totals={USD:0,SYP:0}, invoiceTotals={USD:0,SYP:0};
                 for (const inv of State.invoices) {
                     if (!inv || !['sale','sale_return'].includes(inv.type) || !this.inPeriod(inv.date,period,date,end) || !ReportAgentFilter.matches(inv,agentId)) continue;
@@ -3530,24 +3564,24 @@
                 this.params={...params};
                 const sale=params.tab==='sales_summary';
                 const side=params.side==='credit'?'credit':'debit';
-                const period=params.period||'today';
-                const date=params.date||this.localDate();
-                const end=params.end||date;
+                const period=params.period||TimeFilter.defaultMode();
+                const date=params.date||TimeFilter.defaultStart();
+                const end=params.end||TimeFilter.defaultEnd();
                 const agentId=ReportAgentFilter.active(params.agentId);
                 const agentArg=AppEscape.text(JSON.stringify(agentId));
                 const summary=sale?this.sales(period,date,end,agentId):this.debts(side);
                 UI.setHeader(`<i class="fas fa-receipt text-emerald-400"></i> ${sale?'تقرير المواد المباعة':'تقرير الذمم المالية'}`,'تقرير مطابق للسجلات المالية المحفوظة');
-                const periodButtons=['today','yesterday','all','custom','range'].map((p,i)=>`<button type="button" onclick="LedgerReports.goPeriod('${p}')" class="report-period-pill ${period===p?'active':''}">${['اليوم','الأمس','الكل','تاريخ','من / إلى'][i]}</button>`).join('');
+                const periodButtons=TimeFilter.modes.map((m,i)=>`<button type="button" onclick="LedgerReports.goPeriod('${m.id}')" class="report-period-pill ${period===m.id?'active':''}">${m.name}</button>`).join('');
                 main.innerHTML=`<div class="space-y-3 pb-6">
                   <div class="report-card p-3"><h2 class="text-base font-black text-slate-900">${sale?'ملخص حركة المواد المباعة':'إجمالي الذمم'}</h2><p class="text-[11px] text-slate-500 mt-1">${AppEscape.text(State.settings.companyName)}</p></div>
-                  ${sale?`<div class="report-card p-3"><label class="block text-xs font-extrabold text-slate-700 mb-2">تقرير مبيعات المندوب</label><select class="w-full border rounded-xl bg-white p-2.5 text-xs mb-3" aria-label="اختيار المندوب لتقرير المبيعات" onchange="AppNav.navigate('reports',{...LedgerReports.params,agentId:this.value},true)">${ReportAgentFilter.options(agentId)}</select><div class="grid grid-cols-5 gap-1.5">${periodButtons}</div>${period==='custom'||period==='range'?`<div class="grid grid-cols-${period==='range'?'2':'1'} gap-2 mt-3"><label class="text-[11px] font-bold">${period==='range'?'من':'التاريخ'}<input type="date" value="${AppEscape.text(date)}" onchange="LedgerReports.goDate(this.value,'start')" class="mt-1 w-full border rounded-xl p-2 text-xs"></label>${period==='range'?`<label class="text-[11px] font-bold">إلى<input type="date" value="${AppEscape.text(end)}" onchange="LedgerReports.goDate(this.value,'end')" class="mt-1 w-full border rounded-xl p-2 text-xs"></label>`:''}</div>`:''}</div>`:
+                  ${sale?`<div class="report-card p-3"><label class="block text-xs font-extrabold text-slate-700 mb-2">تقرير مبيعات المندوب</label><select class="w-full border rounded-xl bg-white p-2.5 text-xs mb-3" aria-label="اختيار المندوب لتقرير المبيعات" onchange="AppNav.navigate('reports',{...LedgerReports.params,agentId:this.value},true)">${ReportAgentFilter.options(agentId)}</select><div class="grid grid-cols-4 gap-1.5">${periodButtons}</div>${period==='custom'||period==='range'?`<div class="grid grid-cols-${period==='range'?'2':'1'} gap-2 mt-3"><label class="text-[11px] font-bold">${period==='range'?'من':'التاريخ'}<input type="date" value="${AppEscape.text(date)}" onchange="LedgerReports.goDate(this.value,'start')" class="mt-1 w-full border rounded-xl p-2 text-xs"></label>${period==='range'?`<label class="text-[11px] font-bold">إلى<input type="date" value="${AppEscape.text(end)}" onchange="LedgerReports.goDate(this.value,'end')" class="mt-1 w-full border rounded-xl p-2 text-xs"></label>`:''}</div>`:''}</div>`:
                     `<div class="report-card p-2 flex gap-2"><button class="flex-1 py-3 rounded-xl font-black text-xs ${side==='debit'?'bg-emerald-700 text-white':'bg-slate-100 text-slate-700'}" onclick="LedgerReports.goSide('debit')">لنا</button><button class="flex-1 py-3 rounded-xl font-black text-xs ${side==='credit'?'bg-amber-600 text-white':'bg-slate-100 text-slate-700'}" onclick="LedgerReports.goSide('credit')">علينا</button></div>`}
                   <div class="grid grid-cols-2 gap-2"><div class="report-card p-3"><div class="text-xs text-slate-500 font-bold">الإجمالي بالدولار</div><div dir="ltr" class="text-base font-black text-emerald-800 mt-1">${Accounting.format(summary.totals.USD,'USD')}</div></div><div class="report-card p-3"><div class="text-xs text-slate-500 font-bold">الإجمالي بالليرة</div><div dir="ltr" class="text-base font-black text-emerald-800 mt-1">${Accounting.format(summary.totals.SYP,'SYP')}</div></div></div>
                   <div class="report-card overflow-hidden"><div class="p-3 bg-slate-100 flex justify-between text-xs font-black"><span>${sale?'الصنف · الوحدة':'الحساب'}</span><span>${sale?'صافي الكمية والقيمة':'الرصيد المستحق'}</span></div><div class="divide-y divide-dashed divide-slate-200">${(sale?summary.items:summary.accounts).length? (sale?summary.items.map((r,i)=>`<div class="p-3 text-xs flex gap-2 items-start"><span class="rounded-lg text-[11px] font-black text-slate-600 bg-slate-100 p-1">${i+1}</span><div class="min-w-0 flex-1"><b>${AppEscape.text(r.name)}</b><p class="text-slate-500 text-[11px] mt-1">${AppEscape.text(r.unit)}</p></div><div class="text-left"><b>${Accounting.formatItemQuantity(r.qty)}</b><p class="text-emerald-800 font-black mt-1" dir="ltr">${Accounting.format(r.total,r.currency)}</p></div></div>`):summary.accounts.map((r,i)=>`<div class="p-3 text-xs flex gap-2"><span class="text-slate-400">${i+1}</span><b class="flex-1">${AppEscape.text(r.name)}</b><div class="text-left font-bold"><div dir="ltr">${Accounting.format(r.USD,'USD')}</div><div dir="ltr">${Accounting.format(r.SYP,'SYP')}</div></div></div>`)).join(''):`<div class="p-6 text-center text-sm text-slate-500">لا توجد عمليات مطابقة</div>`}</div></div>
                   ${sale?`<p class="text-[11px] text-slate-500 px-2 leading-relaxed">القيم صافية بعد الحسم والضرائب والمردود، موزعة على بنود الفواتير، بكل عملة على حدة. تُعرض الوحدة كما وردت في الفاتورة دون جمع وحدات مختلفة.</p>`:'<p class="text-[11px] text-slate-500 px-2">الأرصدة محسوبة حتى اللحظة من سجلات الفواتير والسندات، بما فيها الأرصدة الافتتاحية.</p>'}
                 </div>`;
             },
-            goPeriod(period) {AppNav.navigate('reports',{...this.params,tab:'sales_summary',period,date:this.params.date||this.localDate(),end:this.params.end||this.localDate()},true);},
+            goPeriod(period) {AppNav.navigate('reports',{...this.params,tab:'sales_summary',period,date:this.params.date||TimeFilter.defaultStart(),end:this.params.end||TimeFilter.defaultEnd()},true);},
             goDate(value,which){const opts={...this.params};opts[which==='end'?'end':'date']=value;AppNav.navigate('reports',opts,true);},
             goSide(side){AppNav.navigate('reports',{tab:'debts_summary',side},true);},
             openHomePrint(tab){
@@ -3557,10 +3591,10 @@
                     <p class="text-xs text-slate-500">اختر تفاصيل التقرير، ثم اطبعه أو احفظه PDF لتشاركه مباشرة. من الصفحة الرئيسية فقط.</p>
                     ${sale?`<label class="block text-xs font-bold">الفترة
                       <select id="homePrintPeriod" class="w-full p-2.5 border rounded-xl mt-1" onchange="document.getElementById('homePrintDates').hidden=!['custom','range'].includes(this.value)">
-                      <option value="today">اليوم</option><option value="yesterday">الأمس</option><option value="all">جميع الفترات</option><option value="custom">تاريخ معين</option><option value="range">من تاريخ إلى تاريخ</option></select></label>
-                      <div id="homePrintDates" hidden class="grid grid-cols-2 gap-2">
-                        <label class="text-xs font-bold">من<input id="homePrintDate" type="date" value="${this.localDate()}" class="w-full border rounded-xl p-2 mt-1"></label>
-                        <label class="text-xs font-bold">إلى<input id="homePrintEnd" type="date" value="${this.localDate()}" class="w-full border rounded-xl p-2 mt-1"></label></div>
+                      ${TimeFilter.options(TimeFilter.defaultMode())}</select></label>
+                      <div id="homePrintDates" ${['custom','range'].includes(TimeFilter.defaultMode())?'':'hidden'} class="grid grid-cols-2 gap-2">
+                        <label class="text-xs font-bold">من<input id="homePrintDate" type="date" value="${TimeFilter.defaultStart()}" class="w-full border rounded-xl p-2 mt-1"></label>
+                        <label class="text-xs font-bold">إلى<input id="homePrintEnd" type="date" value="${TimeFilter.defaultEnd()}" class="w-full border rounded-xl p-2 mt-1"></label></div>
                       <label class="block text-xs font-bold">المندوب
                         <select id="homePrintAgent" class="w-full p-2.5 border rounded-xl mt-1">${ReportAgentFilter.options('all')}</select></label>`:
                       `<label class="block text-xs font-bold">نوع الديون<select id="homePrintSide" class="w-full p-2.5 border rounded-xl mt-1"><option value="debit">لنا</option><option value="credit">علينا</option></select></label>`}
@@ -3573,16 +3607,17 @@
             },
             async confirmHomePrint(tab,mode='print'){
                 const val=id=>document.getElementById(id)?.value;
-                const p=tab==='sales_summary'?{tab,period:val('homePrintPeriod')||'today',date:val('homePrintDate')||this.localDate(),
-                  end:val('homePrintEnd')||this.localDate(),agentId:val('homePrintAgent')||'all'}:
+                const p=tab==='sales_summary'?{tab,period:val('homePrintPeriod')||TimeFilter.defaultMode(),date:val('homePrintDate')||TimeFilter.defaultStart(),
+                  end:val('homePrintEnd')||TimeFilter.defaultEnd(),agentId:val('homePrintAgent')||'all'}:
                   {tab:'debts_summary',side:val('homePrintSide')||'debit'};
+                if(p.tab==='sales_summary' && p.period==='range' && p.date>p.end) return UI.toast('أدخل فترة صحيحة لحفظ التقرير','warn');
                 this.params=p;
                 UI.forceCloseModal();
                 if(mode==='pdf') await this.savePdf(); else await this.print();
             },
             reportContent(){
                 const p=this.params, sale=p.tab==='sales_summary';
-                const data=sale?this.sales(p.period||'today',p.date||this.localDate(),p.end||p.date||this.localDate(),ReportAgentFilter.active(p.agentId)):this.debts(p.side||'debit');
+                const data=sale?this.sales(p.period||TimeFilter.defaultMode(),p.date||this.localDate(),p.end||p.date||this.localDate(),ReportAgentFilter.active(p.agentId)):this.debts(p.side||'debit');
                 const rows=sale?data.items.map((r,i)=>({name:`${i+1}. ${r.name} (${r.unit})`,detail:`${Accounting.formatItemQuantity(r.qty)} × ${Accounting.format(r.total,r.currency)}`})):data.accounts.map((r,i)=>({name:`${i+1}. ${r.name}`,detail:`${Accounting.format(r.USD,'USD')} | ${Accounting.format(r.SYP,'SYP')}`}));
                 const title=sale?'تقرير المواد - '+ReportAgentFilter.label(ReportAgentFilter.active(p.agentId)):`تقرير الديون ${p.side==='credit'?'علينا':'لنا'}`;
                 const periodNames={today:'اليوم',yesterday:'الأمس',all:'كافة الفترات',custom:'تاريخ محدد',range:'من / إلى'};
@@ -3632,6 +3667,7 @@
                     case 'account_statement': return this.renderAccountStatement(main, params);
                     case 'vouchers_list': return this.renderVouchersList(main, params);
                     case 'voucher_form': return VoucherController.renderForm(main, params);
+                    case 'agent_hub': case 'agent_detail': case 'agent_activity': return AgentHub.render(main, params);
                     case 'reports': return this.renderReports(main, params);
                     case 'settings': return this.renderSettings(main);
                     default: return this.renderDashboard(main);
@@ -3919,7 +3955,17 @@
                 WarehouseController.refreshTransferAvailability();
                 WarehouseController.renderTransferDraft();
                 if (params.action === 'add') WarehouseController.toggleWarehouseCreate();
-                if (params.action === 'transfer') WarehouseController.openTransferForm();
+                if (params.action === 'transfer') {
+                    WarehouseController.openTransferForm();
+                    const selectedAgent=(State.fieldSync?.agents||[]).find(a=>a.id===params.transferAgentId);
+                    if(selectedAgent && selectedAgent.warehouseId!=='wh_main'){
+                        const toAgent=params.transferDirection!=='fromAgent';
+                        const source=document.getElementById('transferFrom'),target=document.getElementById('transferTo');
+                        if(source)source.value=toAgent?'wh_main':selectedAgent.warehouseId;
+                        if(target)target.value=toAgent?selectedAgent.warehouseId:'wh_main';
+                        WarehouseController.refreshTransferAvailability();
+                    }
+                }
             },
 
             // ==================== EXPENSE ACCOUNT & REGISTER ====================
@@ -3987,12 +4033,13 @@
 
                 const filterType = ['all', 'sale', 'purchase', 'sale_return', 'purchase_return'].includes(params.type) ? params.type : (['sale','purchase','all'].includes(State.settings.defaultInvoiceListType) ? State.settings.defaultInvoiceListType : 'sale');
                 const localToday = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
-                const dateMode = ['today', 'yesterday', 'custom', 'all'].includes(params.dateMode) ? params.dateMode : 'today';
-                const customDate = params.dateValue || localToday;
+                const dateMode = TimeFilter.mode(params.dateMode || TimeFilter.defaultMode());
+                const customDate = params.dateValue || TimeFilter.defaultStart();
+                const endDate = params.endDate || TimeFilter.defaultEnd();
                 const yesterdayDate = (() => { const d = new Date(); d.setDate(d.getDate()-1); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
                 const targetDate = dateMode === 'today' ? localToday : dateMode === 'yesterday' ? yesterdayDate : dateMode === 'custom' ? customDate : null;
                 const typeFiltered = State.invoices.filter(i => filterType === 'all' || i.type === filterType);
-                const list = typeFiltered.filter(i => !targetDate || String(i.date || '').slice(0, 10) === targetDate).slice().reverse();
+                const list = typeFiltered.filter(i => TimeFilter.matches(i.date,dateMode,customDate,endDate)).slice().reverse();
                 const totalUSD = list.filter(i => i.currency === 'USD').reduce((sum, i) => sum + (Number(i.netTotal) || 0), 0);
                 const totalSYP = list.filter(i => i.currency === 'SYP').reduce((sum, i) => sum + (Number(i.netTotal) || 0), 0);
                 const navFilter = (type, mode = dateMode, date = customDate) => `AppNav.navigate('invoices_list', { type: '${type}', dateMode: '${mode}', dateValue: '${date}' }, true)`;
@@ -4005,7 +4052,7 @@
                         </button>
                         <button type="button" onclick="InvoiceController.openInvoiceDateFilter('${filterType}','${dateMode}','${customDate}')" class="bg-white border border-slate-200 rounded-xl p-3 text-right shadow-xs">
                             <span class="block text-[10px] text-slate-500 font-bold mb-1">الفترة الزمنية</span>
-                            <span class="text-xs font-extrabold text-slate-800">${({all:'كل المدة',today:'اليوم',yesterday:'الأمس',custom:'تاريخ محدد'})[dateMode] || 'اليوم'} <i class="fas fa-chevron-down text-slate-400 mr-1"></i></span>
+                            <span class="text-xs font-extrabold text-slate-800">${TimeFilter.label(dateMode)} <i class="fas fa-chevron-down text-slate-400 mr-1"></i></span>
                         </button>
                     </div>
 
@@ -4032,7 +4079,7 @@
 
                     <div class="flex items-center justify-between mb-2 px-1">
                         <span class="text-xs text-slate-500 font-bold">عدد الفواتير: ${list.length}</span>
-                        <span class="text-[11px] text-slate-400">${targetDate ? targetDate : 'كل التواريخ'}</span>
+                        <span class="text-[11px] text-slate-400">${dateMode==='range' ? customDate+' ← '+endDate : (dateMode==='custom'?customDate:TimeFilter.label(dateMode))}</span>
                     </div>
                     <div class="space-y-2.5" id="invoiceCardsList">
                         ${list.length === 0 ? `
@@ -4563,10 +4610,12 @@
             },
 
             // ==================== 6.7 VOUCHERS LIST ====================
-            renderVouchersList(main) {
+            renderVouchersList(main,params={}) {
                 UI.setHeader('<i class="fas fa-receipt text-emerald-400"></i> <span>سجل سندات القبض والدفع</span>', 'تعديل كامل مع دعم المقاصة بين العملات');
 
-                const list = State.vouchers.slice().reverse();
+                const period=TimeFilter.mode(params.period||TimeFilter.defaultMode());
+                const date=params.date||TimeFilter.defaultStart(),end=params.end||TimeFilter.defaultEnd();
+                const list = State.vouchers.filter(v=>TimeFilter.matches(v.date,period,date,end)).slice().reverse();
                 main.innerHTML = `
                     <div class="grid grid-cols-2 gap-2 mb-3">
                         <button onclick="AppNav.navigate('voucher_form', { type: 'receipt' })" class="bg-teal-600 text-white font-bold py-2.5 rounded-xl text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-xs">
@@ -4577,6 +4626,12 @@
                         </button>
                     </div>
 
+                    <div class="bg-white border rounded-2xl p-3 mb-3 space-y-2">
+                        <label class="text-xs font-extrabold">فترة عرض السندات</label>
+                        <select aria-label="فترة عرض السندات" class="w-full border rounded-xl p-2.5 text-xs" onchange="AppNav.navigate('vouchers_list',{period:this.value,date:'${AppEscape.text(date)}',end:'${AppEscape.text(end)}'},true)">${TimeFilter.options(period)}</select>
+                        ${['custom','range'].includes(period)?`<div class="grid grid-cols-2 gap-2"><label class="text-xs font-bold">من<input class="w-full border p-2 rounded-xl" type="date" value="${AppEscape.text(date)}" onchange="AppNav.navigate('vouchers_list',{period:'${period}',date:this.value,end:'${AppEscape.text(end)}'},true)"></label>${period==='range'?`<label class="text-xs font-bold">إلى<input class="w-full border p-2 rounded-xl" type="date" value="${AppEscape.text(end)}" onchange="AppNav.navigate('vouchers_list',{period:'range',date:'${AppEscape.text(date)}',end:this.value},true)"></label>`:''}</div>`:''}
+                        <p class="text-[11px] text-slate-500">${list.length} سند ضمن ${TimeFilter.label(period)}</p>
+                    </div>
                     <div class="space-y-2.5">
                         ${list.length === 0 ? `
                             <div class="bg-white rounded-2xl border border-slate-200 p-8 text-center text-slate-400">
@@ -4625,10 +4680,11 @@
                 const cash = tab === 'cashbox'
                     ? FieldCash.summary(cashScope)
                     : { sypCash: 0, usdCash: 0, movements: [] };
-                const period = params.period || 'all';
+                const period = TimeFilter.mode(params.period || TimeFilter.defaultMode());
                 const agentId = ReportAgentFilter.active(params.agentId);
                 const agentArg = AppEscape.text(JSON.stringify(agentId));
-                const selectedDate = params.date || new Date().toISOString().slice(0, 10);
+                const selectedDate = params.date || TimeFilter.defaultStart();
+                const endDate = params.end || TimeFilter.defaultEnd();
                 const profitView = params.view || 'invoices';
                 const inventoryWarehouseId = params.warehouseId || State.settings.selectedWarehouseId || 'wh_main';
                 const inventoryValuationCurrency = ['SYP', 'USD'].includes(State.settings.inventoryValuationCurrency) ? State.settings.inventoryValuationCurrency : 'SYP';
@@ -4640,10 +4696,7 @@
                 const yesterday = asLocalDate(yesterdayDate);
                 const reportInvoices = (Array.isArray(State.invoices) ? State.invoices : []).filter(inv => {
                     if (!inv || typeof inv !== 'object' || !ReportAgentFilter.matches(inv,agentId)) return false;
-                    if (period === 'today') return String(inv.date || '').slice(0, 10) === today;
-                    if (period === 'yesterday') return String(inv.date || '').slice(0, 10) === yesterday;
-                    if (period === 'custom') return String(inv.date || '').slice(0, 10) === selectedDate;
-                    return true;
+                    return TimeFilter.matches(inv.date,period,selectedDate,endDate);
                 });
 
                 let salesSyp = 0, salesUsd = 0, purchasesSyp = 0, purchasesUsd = 0, estimatedProfitUsd = 0;
@@ -4692,11 +4745,9 @@
                 }
                 const reportExpenses = (Array.isArray(State.expenses) ? State.expenses : []).filter(exp => {
                     if (!exp || typeof exp !== 'object' || !ReportAgentFilter.matches(exp,agentId)) return false;
-                    if (period === 'today') return String(exp.date || '').slice(0, 10) === today;
-                    if (period === 'yesterday') return String(exp.date || '').slice(0, 10) === yesterday;
-                    if (period === 'custom') return String(exp.date || '').slice(0, 10) === selectedDate;
-                    return true;
+                    return TimeFilter.matches(exp.date,period,selectedDate,endDate);
                 });
+                const visibleCashMovements = tab==='cashbox' ? cash.movements.filter(m=>TimeFilter.matches(m.date,period,selectedDate,endDate)) : [];
                 const expenseTotalUsd = reportExpenses.reduce((total, exp) => {
                     const amount = Number(exp.amount) || 0;
                     const originalRate = Number(exp.exchangeRate) > 0
@@ -4714,22 +4765,22 @@
                 });
                 const reportExchangeRate = Number(State.settings && State.settings.exchangeRate) || 1;
                 const moneyDual = usd => `<div class="font-extrabold text-emerald-700">${Accounting.format(usd, 'USD')}</div><div class="text-[10px] text-slate-500">${Accounting.format(usd * reportExchangeRate, 'SYP')}</div>`;
-                const active = (v, label) => `<button onclick="AppNav.navigate('reports',{tab:'pnl',period:'${period}',date:'${selectedDate}',agentId:${agentArg},view:'${v}',reveal:${revealProfits}},true)" class="px-3 py-2 rounded-xl text-xs font-bold ${profitView === v ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 border'}">${label}</button>`;
+                const active = (v, label) => `<button onclick="AppNav.navigate('reports',{tab:'pnl',period:'${period}',date:'${selectedDate}',end:'${endDate}',agentId:${agentArg},view:'${v}',reveal:${revealProfits}},true)" class="px-3 py-2 rounded-xl text-xs font-bold ${profitView === v ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 border'}">${label}</button>`;
 
                 main.innerHTML = `
                     <div class="grid grid-cols-3 gap-1.5 bg-white p-1.5 rounded-2xl border border-slate-200 mb-4 text-xs font-bold">
                         <button onclick="AppNav.navigate('reports', { tab: 'cashbox' }, true)" class="py-2 rounded-xl ${tab === 'cashbox' ? 'bg-slate-900 text-white' : 'text-slate-600'}">حركة الصندوق</button>
                         <button onclick="AppNav.navigate('reports', { tab: 'inventory' }, true)" class="py-2 rounded-xl ${tab === 'inventory' ? 'bg-slate-900 text-white' : 'text-slate-600'}">جرد المستودع</button>
-                        <button type="button" onclick="AppNav.navigate('reports', { tab: 'pnl', period: 'all', view: 'invoices' }, true)" class="py-2 rounded-xl ${tab === 'pnl' ? 'bg-slate-900 text-white' : 'text-slate-600'}">الأرباح والمبيعات</button>
+                        <button type="button" onclick="AppNav.navigate('reports', { tab: 'pnl', view: 'invoices' }, true)" class="py-2 rounded-xl ${tab === 'pnl' ? 'bg-slate-900 text-white' : 'text-slate-600'}">الأرباح والمبيعات</button>
                     </div>
                     <div class="grid grid-cols-2 gap-2 mb-4">
-                       <button type="button" onclick="AppNav.navigate('reports',{tab:'sales_summary',period:'today'},true)" class="bg-slate-100 rounded-xl p-3 text-xs font-bold">عرض ملخص المبيعات</button>
+                       <button type="button" onclick="AppNav.navigate('reports',{tab:'sales_summary'},true)" class="bg-slate-100 rounded-xl p-3 text-xs font-bold">عرض ملخص المبيعات</button>
                        <button type="button" onclick="AppNav.navigate('reports',{tab:'debts_summary',side:'debit'},true)" class="bg-slate-100 rounded-xl p-3 text-xs font-bold">عرض ملخص الديون</button>
                     </div>
                     ${tab === 'cashbox' ? `
                         <div class="bg-white border border-teal-200 rounded-2xl p-3 mb-3 space-y-2">
                           <label class="block text-xs font-extrabold text-slate-800">عرض حركة الصندوق حسب المندوب</label>
-                          <select id="cashboxAgentFilter" class="w-full border rounded-xl bg-white p-3 text-sm" onchange="AppNav.navigate('reports',{tab:'cashbox',cashAgentId:this.value},true)">
+                          <select id="cashboxAgentFilter" class="w-full border rounded-xl bg-white p-3 text-sm" onchange="AppNav.navigate('reports',{tab:'cashbox',cashAgentId:this.value,period:'${period}',date:'${AppEscape.text(selectedDate)}',end:'${AppEscape.text(endDate)}'},true)">
                             <option value="all" ${cashScope==='all'?'selected':''}>الصندوق الإجمالي — كل الصناديق</option>
                             <option value="office" ${cashScope==='office'?'selected':''}>الصندوق الرئيسي فقط</option>
                             ${(State.fieldSync?.agents||[]).map(a=>`<option value="${AppEscape.text(a.id)}" ${cashScope===a.id?'selected':''}>${AppEscape.text(a.name||'مندوب')}${a.archived?' (أرشيف)':''}</option>`).join('')}
@@ -4739,12 +4790,18 @@
                             <button type="button" class="rounded-xl bg-blue-800 text-white p-3" onclick="FieldCash.openTransfer('toAgent','${AppEscape.text(cashScope)}')">↗ إعطاء دفعة</button>
                           </div>
                         </div>
+                        <div class="rounded-xl bg-white border p-3 mb-3 space-y-2 text-xs">
+                            <label class="font-extrabold">الفترة الزمنية للحركات</label>
+                            <select class="w-full border rounded-xl p-2" onchange="AppNav.navigate('reports',{tab:'cashbox',cashAgentId:'${AppEscape.text(cashScope)}',period:this.value,date:'${AppEscape.text(selectedDate)}',end:'${AppEscape.text(endDate)}'},true)">${TimeFilter.options(period)}</select>
+                            ${['custom','range'].includes(period)?`<div class="grid grid-cols-2 gap-2"><label>من<input type="date" class="w-full border rounded p-2" value="${AppEscape.text(selectedDate)}" onchange="AppNav.navigate('reports',{tab:'cashbox',cashAgentId:'${AppEscape.text(cashScope)}',period:'${period}',date:this.value,end:'${AppEscape.text(endDate)}'},true)"></label>${period==='range'?`<label>إلى<input type="date" class="w-full border rounded p-2" value="${AppEscape.text(endDate)}" onchange="AppNav.navigate('reports',{tab:'cashbox',cashAgentId:'${AppEscape.text(cashScope)}',period:'range',date:'${AppEscape.text(selectedDate)}',end:this.value},true)"></label>`:''}</div>`:''}
+                            <p class="text-[11px] text-slate-500">الرصيد الحالي للصندوق من كل الحركات، أما السجل أدناه فيُفلتر حسب الفترة.</p>
+                        </div>
                         <div class="grid grid-cols-2 gap-2.5 mb-3">
                             <div class="bg-emerald-700 text-white p-3.5 rounded-2xl"><span class="text-xs opacity-80 block">صافي صندوق الليرة السورية</span><span class="font-extrabold text-base sm:text-lg">${Accounting.format(cash.sypCash, 'SYP')}</span></div>
                             <div class="bg-slate-900 text-white p-3.5 rounded-2xl"><span class="text-xs opacity-80 block">صافي صندوق الدولار الأمريكي</span><span class="font-extrabold text-base sm:text-lg text-amber-300">${Accounting.format(cash.usdCash, 'USD')}</span></div>
                         </div>
                         <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden"><div class="p-3 font-bold text-xs border-b border-slate-100">سجل المقبوضات والمدفوعات النقدية</div>
-                        ${cash.movements.length === 0 ? `<div class="p-6 text-center text-xs text-slate-400">لا توجد حركات صندوق مسجلة</div>` : `<div class="divide-y divide-slate-100 text-xs">${cash.movements.map(m => `<div class="p-3 flex items-center justify-between"><div><div class="font-bold text-slate-800">${m.ref} - ${m.party}</div><div class="text-[11px] text-slate-500">${m.desc} | ${m.date.replace('T', ' ')}</div></div><div class="font-extrabold ${m.inflow > 0 ? 'text-emerald-600' : 'text-rose-600'}">${m.inflow > 0 ? '+ ' + Accounting.format(m.inflow, m.currency) : '- ' + Accounting.format(m.outflow, m.currency)}</div></div>`).join('')}</div>`}</div>
+                        ${visibleCashMovements.length === 0 ? `<div class="p-6 text-center text-xs text-slate-400">لا توجد حركات صندوق مسجلة</div>` : `<div class="divide-y divide-slate-100 text-xs">${visibleCashMovements.map(m => `<div class="p-3 flex items-center justify-between"><div><div class="font-bold text-slate-800">${m.ref} - ${m.party}</div><div class="text-[11px] text-slate-500">${m.desc} | ${m.date.replace('T', ' ')}</div></div><div class="font-extrabold ${m.inflow > 0 ? 'text-emerald-600' : 'text-rose-600'}">${m.inflow > 0 ? '+ ' + Accounting.format(m.inflow, m.currency) : '- ' + Accounting.format(m.outflow, m.currency)}</div></div>`).join('')}</div>`}</div>
                     ` : tab === 'inventory' ? `
                         <div class="bg-sky-50 border border-sky-200 rounded-xl p-3 mb-3">
                             <label class="text-xs font-bold text-sky-900 block mb-1">عرض جرد مستودع محدد أو جميع المستودعات</label>
@@ -4774,7 +4831,7 @@
                         <div class="bg-white border border-slate-200 rounded-2xl p-3 mb-3 space-y-3">
                             <div class="flex items-center justify-between gap-2">
                                 <div class="font-extrabold text-sm">فترة تقرير الأرباح</div>
-                                <button type="button" onclick="AppNav.navigate('reports',{tab:'pnl',period:'${period}',date:'${selectedDate}',agentId:${agentArg},view:'${profitView}',reveal:${!revealProfits}},true)" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-extrabold ${revealProfits ? 'bg-slate-100 text-slate-800 border border-slate-200' : 'bg-emerald-600 text-white'}" title="${revealProfits ? 'إخفاء الأرباح' : 'إظهار الأرباح'}" aria-label="${revealProfits ? 'إخفاء الأرباح' : 'إظهار الأرباح'}">
+                                <button type="button" onclick="AppNav.navigate('reports',{tab:'pnl',period:'${period}',date:'${selectedDate}',end:'${endDate}',agentId:${agentArg},view:'${profitView}',reveal:${!revealProfits}},true)" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-extrabold ${revealProfits ? 'bg-slate-100 text-slate-800 border border-slate-200' : 'bg-emerald-600 text-white'}" title="${revealProfits ? 'إخفاء الأرباح' : 'إظهار الأرباح'}" aria-label="${revealProfits ? 'إخفاء الأرباح' : 'إظهار الأرباح'}">
                                     <i class="fas ${revealProfits ? 'fa-eye-slash' : 'fa-eye'}"></i>
                                     <span>${revealProfits ? 'إخفاء الأرباح' : 'إظهار الأرباح'}</span>
                                 </button>
@@ -4785,7 +4842,9 @@
                                 <button onclick="AppNav.navigate('reports',{tab:'pnl',period:'all',agentId:${agentArg},view:'${profitView}',reveal:${revealProfits}},true)" class="py-2 rounded-lg ${period==='all'?'bg-emerald-600 text-white':'bg-slate-100'}">كل الفترة</button>
                                 <button onclick="AppNav.navigate('reports',{tab:'pnl',period:'custom',date:'${selectedDate}',agentId:${agentArg},view:'${profitView}',reveal:${revealProfits}},true)" class="py-2 rounded-lg ${period==='custom'?'bg-emerald-600 text-white':'bg-slate-100'}">تاريخ محدد</button>
                             </div>
-                            ${period==='custom' ? `<input type="date" value="${selectedDate}" onchange="AppNav.navigate('reports',{tab:'pnl',period:'custom',date:this.value,agentId:${agentArg},view:'${profitView}',reveal:${revealProfits}},true)" class="w-full border rounded-xl p-2 text-sm font-bold" aria-label="اختر تاريخ التقرير">` : ''}
+                            ${period==='custom'||period==='range' ? `<input type="date" value="${selectedDate}" onchange="AppNav.navigate('reports',{tab:'pnl',period:'${period}',date:this.value,end:'${endDate}',agentId:${agentArg},view:'${profitView}',reveal:${revealProfits}},true)" class="w-full border rounded-xl p-2 text-sm font-bold" aria-label="اختر تاريخ التقرير">` : ''}
+                            ${period==='range' ? `<input type="date" value="${endDate}" onchange="AppNav.navigate('reports',{tab:'pnl',period:'range',date:'${selectedDate}',end:this.value,agentId:${agentArg},view:'${profitView}',reveal:${revealProfits}},true)" class="w-full border rounded-xl p-2 text-sm font-bold" aria-label="إلى تاريخ">` : ''}
+                            <div class="grid grid-cols-3 gap-2 text-xs font-bold mt-2"><button onclick="AppNav.navigate('reports',{tab:'pnl',period:'week',agentId:${agentArg},view:'${profitView}',reveal:${revealProfits}},true)" class="rounded-lg p-2 ${period==='week'?'bg-emerald-600 text-white':'bg-slate-100'}">الأسبوع</button><button onclick="AppNav.navigate('reports',{tab:'pnl',period:'month',agentId:${agentArg},view:'${profitView}',reveal:${revealProfits}},true)" class="rounded-lg p-2 ${period==='month'?'bg-emerald-600 text-white':'bg-slate-100'}">الشهر</button><button onclick="AppNav.navigate('reports',{tab:'pnl',period:'range',date:'${selectedDate}',end:'${endDate}',agentId:${agentArg},view:'${profitView}',reveal:${revealProfits}},true)" class="rounded-lg p-2 ${period==='range'?'bg-emerald-600 text-white':'bg-slate-100'}">من / إلى</button></div>
                         </div>
                         <div class="bg-white border border-slate-200 rounded-2xl p-3 mb-3">
                             <label class="text-xs font-extrabold text-slate-700 block mb-2" for="profitAgentFilter">تحديد المندوب لتقرير الأرباح والمبيعات</label>
@@ -4833,8 +4892,8 @@
                 UI.setHeader('<i class="fas fa-sliders text-emerald-400"></i> <span>الضبط</span>', 'اضغط على القسم المطلوب لعرض خياراته');
                 const mode = State.settings.btPrintMode || 'auto';
                 main.innerHTML = `
-                    <div class="mb-3 flex items-center justify-between gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2" data-app-build="3.5.38">
-                        <span class="font-black text-xs text-emerald-800"><i class="fas fa-check-circle ml-1"></i> إصدار التطبيق: 3.5.38</span>
+                    <div class="mb-3 flex items-center justify-between gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2" data-app-build="3.5.39">
+                        <span class="font-black text-xs text-emerald-800"><i class="fas fa-check-circle ml-1"></i> إصدار التطبيق: 3.5.39</span>
                         <span class="text-[10px] font-bold text-emerald-700">مظهر ثلاثي الأبعاد موحّد</span>
                     </div>
                     <div class="mb-3 text-[11px] text-slate-500 font-semibold px-1">جميع خيارات التطبيق مرتبة ضمن فئات. اضغط على اسم أي فئة لفتحها أو إغلاقها.</div>
@@ -4882,9 +4941,25 @@
                                 <option value="purchase" ${State.settings.defaultInvoiceListType === 'purchase' ? 'selected' : ''}>فواتير الشراء</option>
                                 <option value="all" ${State.settings.defaultInvoiceListType === 'all' ? 'selected' : ''}>المبيعات والمشتريات معاً</option>
                             </select>
-                            <p class="text-[11px] text-slate-500 mt-1">يُعرض سجل الفواتير افتراضياً بتاريخ اليوم، ويمكن تغيير الفلتر داخل السجل في أي وقت.</p>
+                            <p class="text-[11px] text-slate-500 mt-1">يتبع تاريخ سجل الفواتير الفترة الافتراضية المختارة من الضبط، ويمكن تغييره من داخل السجل في أي وقت.</p>
                         </div>
                     </div>
+                        </div>
+                    </details>
+                    <details class="settings-section" data-settings-section="default_period" ontoggle="SettingsController.onSectionToggle(this)" ${SettingsController.expandedSections.has('default_period') ? 'open' : ''}>
+                        <summary class="settings-section-heading" aria-label="الفترة الافتراضية">
+                            <span class="settings-section-leading"><i class="fas fa-calendar-days text-emerald-600" aria-hidden="true"></i><span><span class="settings-section-name">الفترة الافتراضية</span><span class="settings-section-note">الفواتير والسندات والتقارير</span></span></span>
+                            <i class="fas fa-chevron-down settings-section-arrow text-slate-400" aria-hidden="true"></i>
+                        </summary>
+                        <div class="settings-section-body space-y-3">
+                            <label class="text-xs font-bold">الفترة التي تُعرض تلقائياً عند فتح الصفحات</label>
+                            <select id="setDefaultViewPeriod" class="w-full border rounded-xl p-3 text-xs" onchange="SettingsController.previewDefaultViewPeriod(this.value)">${TimeFilter.options(TimeFilter.defaultMode())}</select>
+                            <div id="defaultViewDateFields" class="grid grid-cols-2 gap-2" ${['custom','range'].includes(TimeFilter.defaultMode())?'':'hidden'}>
+                                <label class="text-xs font-bold">من تاريخ<input id="setDefaultViewStart" type="date" value="${TimeFilter.defaultStart()}" class="mt-1 w-full rounded-xl border p-2"></label>
+                                <label class="text-xs font-bold" id="defaultViewEndLabel" ${TimeFilter.defaultMode()==='range'?'':'hidden'}>إلى تاريخ<input id="setDefaultViewEnd" type="date" value="${TimeFilter.defaultEnd()}" class="mt-1 w-full rounded-xl border p-2"></label>
+                            </div>
+                            <button type="button" onclick="SettingsController.saveDefaultViewPeriod()" class="w-full rounded-xl bg-emerald-700 text-white font-extrabold p-3">حفظ الفترة الافتراضية</button>
+                            <p class="text-[11px] text-slate-500">تُطبّق على العرض الأول في سجلات الفواتير والسندات وتقارير الحركة، ويمكن تغيير الفترة مؤقتاً من كل صفحة. تقارير أرصدة الديون والجرد تُظهر الرصيد الحالي دائماً. صفحة المندوب تبدأ بكل المدة.</p>
                         </div>
                     </details>
                     <details class="settings-section" data-settings-section="items" ontoggle="SettingsController.onSectionToggle(this)" ${SettingsController.expandedSections.has('items') ? 'open' : ''}>
@@ -6455,28 +6530,31 @@
                         <h3 class="font-extrabold text-base">نوع الفواتير</h3>
                         <button onclick="UI.forceCloseModal()" class="text-slate-400"><i class="fas fa-times"></i></button>
                     </div>
-                    <div class="space-y-2">${types.map(t=>`<button onclick="AppNav.navigate('invoices_list',{type:'${t.id}',dateMode:'${dateMode}',dateValue:'${customDate}'},true)" class="w-full text-right p-3 rounded-xl text-sm font-bold ${filterType===t.id?'bg-emerald-600 text-white':'bg-slate-100 text-slate-700'}">${t.label}${filterType===t.id?' ✓':''}</button>`).join('')}</div>
+                    <div class="space-y-2">${types.map(t=>`<button onclick="AppNav.navigate('invoices_list',{type:'${t.id}',dateMode:'${dateMode}',dateValue:'${customDate}',endDate:AppNav.current().params.endDate||TimeFilter.defaultEnd()},true)" class="w-full text-right p-3 rounded-xl text-sm font-bold ${filterType===t.id?'bg-emerald-600 text-white':'bg-slate-100 text-slate-700'}">${t.label}${filterType===t.id?' ✓':''}</button>`).join('')}</div>
                 `);
             },
 
             openInvoiceDateFilter(filterType, dateMode, customDate) {
-                const modes = [{id:'all',label:'كل المدة'},{id:'today',label:'اليوم'},{id:'yesterday',label:'الأمس'},{id:'custom',label:'تاريخ محدد'}];
+                const modes = TimeFilter.modes.map(m=>({id:m.id,label:m.name}));
                 UI.openModal(`
                     <div class="flex items-center justify-between border-b pb-3 mb-3">
                         <h3 class="font-extrabold text-base">الفترة الزمنية</h3>
                         <button onclick="UI.forceCloseModal()" class="text-slate-400"><i class="fas fa-times"></i></button>
                     </div>
-                    <div class="space-y-2">${modes.map(t=>`<button onclick="InvoiceController.applyInvoiceDateFilter('${filterType}','${t.id}','${customDate}')" class="w-full text-right p-3 rounded-xl text-sm font-bold ${dateMode===t.id?'bg-emerald-600 text-white':'bg-slate-100 text-slate-700'}">${t.label}${dateMode===t.id?' ✓':''}</button>`).join('')}</div>
+                    <div class="space-y-2">${modes.map(t=>`<button onclick="InvoiceController.applyInvoiceDateFilter('${filterType}','${t.id}','${customDate}',AppNav.current().params.endDate||TimeFilter.defaultEnd())" class="w-full text-right p-3 rounded-xl text-sm font-bold ${dateMode===t.id?'bg-emerald-600 text-white':'bg-slate-100 text-slate-700'}">${t.label}${dateMode===t.id?' ✓':''}</button>`).join('')}</div>
                     <div class="mt-3 border-t pt-3">
                         <label class="block text-xs font-bold mb-1">تاريخ مخصص</label>
                         <input id="invoiceFilterCustomDate" type="date" value="${customDate}" class="w-full border border-slate-300 rounded-xl p-2.5">
                         <button onclick="InvoiceController.applyInvoiceDateFilter('${filterType}','custom',document.getElementById('invoiceFilterCustomDate').value)" class="w-full mt-2 bg-slate-900 text-white rounded-xl py-2.5 font-bold text-sm">تطبيق التاريخ</button>
+                        <label class="block text-xs font-bold mb-1 mt-3">إلى تاريخ</label><input id="invoiceFilterEndDate" type="date" value="${AppEscape.text(AppNav.current().params.endDate||TimeFilter.defaultEnd())}" class="w-full border rounded-xl p-2.5">
+                        <button onclick="InvoiceController.applyInvoiceDateFilter('${filterType}','range',document.getElementById('invoiceFilterCustomDate').value,document.getElementById('invoiceFilterEndDate').value)" class="w-full mt-2 bg-teal-700 text-white rounded-xl py-2.5 font-bold text-sm">تطبيق المدة من / إلى</button>
                     </div>
                 `);
             },
 
-            applyInvoiceDateFilter(filterType, dateMode, customDate) {
-                AppNav.navigate('invoices_list',{type:filterType,dateMode,dateValue:customDate},true);
+            applyInvoiceDateFilter(filterType, dateMode, customDate, endDate='') {
+                if(dateMode==='range'&&(!customDate||!endDate||customDate>endDate))return UI.toast('أدخل فترة زمنية صحيحة','warn');
+                AppNav.navigate('invoices_list',{type:filterType,dateMode,dateValue:customDate,endDate:endDate||TimeFilter.defaultEnd()},true);
             },
 
             renderForm(main, params = {}) {
@@ -8046,6 +8124,20 @@
                 State.settings.defaultCurrency = value;
                 await StorageEngine.saveState();
                 UI.toast('تم تحديث العملة الافتراضية للفواتير الجديدة', 'success');
+            },
+            previewDefaultViewPeriod(value){
+                const panel=document.getElementById('defaultViewDateFields');if(panel)panel.hidden=!['custom','range'].includes(value);
+                const until=document.getElementById('defaultViewEndLabel');if(until)until.hidden=value!=='range';
+            },
+            async saveDefaultViewPeriod(){
+                const mode=TimeFilter.mode(document.getElementById('setDefaultViewPeriod')?.value);
+                const start=document.getElementById('setDefaultViewStart')?.value||TimeFilter.localDate();
+                const end=document.getElementById('setDefaultViewEnd')?.value||start;
+                if(mode==='range'&&start>end)return UI.toast('تاريخ البداية يجب ألا يكون بعد تاريخ النهاية','warn');
+                const previous={period:State.settings.defaultViewPeriod,start:State.settings.defaultViewStart,end:State.settings.defaultViewEnd};
+                State.settings.defaultViewPeriod=mode;State.settings.defaultViewStart=start;State.settings.defaultViewEnd=end;
+                try{await StorageEngine.saveState();UI.toast('تم حفظ الفترة الافتراضية للفواتير والسندات والتقارير','success');AppNav.renderCurrent();}
+                catch(err){Object.assign(State.settings,{defaultViewPeriod:previous.period,defaultViewStart:previous.start,defaultViewEnd:previous.end});UI.toast('تعذر حفظ الفترة الافتراضية','error');}
             },
             async setDefaultInvoiceListType(value) {
                 if (!['sale','purchase','all'].includes(value)) return;

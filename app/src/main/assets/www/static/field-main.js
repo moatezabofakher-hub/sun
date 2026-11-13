@@ -298,6 +298,7 @@ const FieldSync = {
         knownIds:config.imported.filter(x=>x.agentId===agent.id).map(x=>x.id),catalog:snapshot,requestNonce:payload.nonce,serverAt:new Date().toISOString()};
       answer=await FieldLanCrypto.pack(ack,agent.key,config.companyId,agent.id);
       if(count)UI.toast('تم ترحيل '+count+' عملية من '+agent.name,'success');
+      if(count && typeof AppNav!=='undefined' && ['agent_detail','agent_activity'].includes(AppNav.current?.()?.screen)) AppNav.renderCurrent?.();
       const st=document.getElementById('fieldLanStatus');if(st)st.textContent='✅ تمت المزامنة مع '+agent.name+': استلام '+count+' عملية وإرسال تحديثات السيارة والمواد والعملاء';
     }catch(e){answer={error:'تعذر ترحيل البيانات: '+e.message};
       const st=document.getElementById('fieldLanStatus');if(st)st.textContent=answer.error;

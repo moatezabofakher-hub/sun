@@ -29,7 +29,7 @@ const sandbox={State,console,Map,Date,JSON,Math,Number,String,Intl,
  UI:{setHeader(){}},AppNav:{navigate(){}},ThermalPrinter:{printSummaryReport(){}}
 };
 vm.createContext(sandbox);
-vm.runInContext(html.slice(a,b)+'\n globalThis.LedgerReports=LedgerReports;',sandbox);
+vm.runInContext(html.slice(html.indexOf('const TimeFilter = {'),html.indexOf('/** Currency selection'))+'\n'+html.slice(a,b)+'\n globalThis.LedgerReports=LedgerReports;',sandbox);
 const r=sandbox.LedgerReports;
 const day=r.sales('custom','2026-11-13');
 assert.equal(day.totals.USD,18,'returns and discount/tax allocation must reconcile');

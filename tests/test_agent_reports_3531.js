@@ -17,7 +17,7 @@ const sandbox={State,console,Date,Math,Map,Set,Array,Object,Number,String,JSON,I
  AppEscape:{text:x=>String(x).replace(/&/g,'&amp;').replace(/</g,'&lt;')},
  UI:{setHeader(){}},AppNav:{navigate:(...args)=>calls.push(args)},ThermalPrinter:{printSummaryReport:(v)=>{calls.push(v);return v}}
 };sandbox.globalThis=sandbox;
-vm.runInNewContext(cut('const ReportAgentFilter =','const Views =')+'\nglobalThis.R={ReportAgentFilter,LedgerReports}',sandbox);
+vm.runInNewContext(cut('const TimeFilter =','/** Currency selection')+'\n'+cut('const ReportAgentFilter =','const Views =')+'\nglobalThis.R={ReportAgentFilter,LedgerReports}',sandbox);
 const {ReportAgentFilter:F,LedgerReports:R}=sandbox.R;
 assert.equal(F.entries().length,2);
 assert.match(F.label('agent_b'),/مؤرشف/);
