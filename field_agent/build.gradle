@@ -10,8 +10,8 @@ android {
         applicationId 'com.sunshine.technicalaccountant.agent'
         minSdk 26
         targetSdk 35
-        versionCode 21
-        versionName '3.5.51-assembly-pricing-agent-scope'
+        versionCode 22
+        versionName '3.5.53-fullwidth-consumer-tier'
     }
 
     // A permanent signing key is required for in-place updates. The keystore is

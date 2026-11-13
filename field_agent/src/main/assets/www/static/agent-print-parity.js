@@ -275,8 +275,10 @@ const AgentInvoicePrint={
 
                 y += 4;
                 if(inv.accountId){
-                    for(const c of ['USD','SYP'])drawTotalRow('الرصيد قبل الفاتورة ('+c+')',dualFmt(snapshots.before[c]??null,c),fBalPrev,false);
-                    for(const c of ['USD','SYP'])drawTotalRow('الرصيد النهائي ('+c+')',dualFmt(snapshots.after[c]??null,c),fBalFinal,true);
+                    // Print only the ledger belonging to the invoice currency.
+                    const c=inv.currency==='SYP'?'SYP':'USD';
+                    drawTotalRow('الرصيد قبل الفاتورة ('+c+')',dualFmt(snapshots.before[c]??null,c),fBalPrev,false);
+                    drawTotalRow('الرصيد النهائي ('+c+')',dualFmt(snapshots.after[c]??null,c),fBalFinal,true);
                 }
 
                 y += 6;

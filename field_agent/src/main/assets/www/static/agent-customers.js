@@ -40,7 +40,7 @@ A.saveNewCustomer=async function(){if(this.busy)return;this.busy=true;
   if(this.customerDuplicate({name,phone:phoneValue}))throw Error('يوجد حساب زبون مطابق؛ اختره بدلاً من إنشاء حساب مكرر');
   const date=new Date().toISOString();
   const account={id:'acc_field_'+FieldProtocol.uuid(),name,phone:phoneValue,address,paymentTerms,
-    type:'customer',creditLimitUsd:0,openingSyp:0,openingUsd:0,createdAt:date.slice(0,10),sypBalance:0,usdBalance:0,pendingSync:true};
+    type:'customer',creditLimitUsd:0,openingSyp:0,openingUsd:0,priceTier:'settings',createdAt:date.slice(0,10),sypBalance:0,usdBalance:0,pendingSync:true};
   const op={id:'op_'+FieldProtocol.uuid(),kind:'customer_create',date,companyId:this.state.companyId,agentId:this.state.agentId,
     warehouseId:this.state.warehouseId,currency:'USD',exchangeRate:Number(this.state.exchangeRate),localNumber:'C-'+(this.state.ops.length+1),account};
   FieldProtocol.validateOps([op],this.state.agentId,this.state.companyId,this.state.warehouseId,this.state.items,this.state.accounts);

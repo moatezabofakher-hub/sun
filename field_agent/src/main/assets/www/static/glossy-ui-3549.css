@@ -28,3 +28,32 @@
   .bottom{gap:3px;padding-inline:5px;}
   .bottom button span{width:37px;height:37px;font-size:25px;}
 }
+
+/* 3.5.53: fill dock from edge to edge, with larger icons occupying its height. */
+.bottom{
+    box-sizing:border-box;left:0;right:0;width:100%;max-width:none;
+    gap:2px;padding:2px 2px max(2px,env(safe-area-inset-bottom,0px));
+}
+.bottom button{
+    box-sizing:border-box;flex:1 1 0;min-width:0;min-height:57px;
+    margin:0;padding:1px 0;gap:1px;border:1px solid #e2edf4;
+    border-radius:11px;background:linear-gradient(165deg,#fbfeff,#edf5f9);
+    font-size:11px;line-height:1;font-weight:900;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+}
+.bottom button.active{background:linear-gradient(155deg,#e7fff7,#c9efe3);}
+.bottom button span{
+    box-sizing:border-box;flex:0 0 auto;
+    width:44px;height:43px;font-size:34px;line-height:1;
+    border-radius:12px;display:grid;place-items:center;
+}
+@media(max-width:350px){
+  .bottom{gap:1px;padding-inline:1px;}
+  .bottom button{font-size:10px;}
+  .bottom button span{width:40px;height:41px;font-size:31px;}
+}
+
+
+/* 3.5.53 - icon-only actions never disappear into their background. */
+.ta-field-icon-button{min-width:35px;min-height:35px;display:inline-flex;align-items:center;justify-content:center;color:#9e2244;background:linear-gradient(155deg,#fff8f8,#ffdae4);border:1px solid #ffe5ec;box-shadow:0 3px 0 #d3a2b2,0 6px 9px #8a334323,inset 0 2px #fff;border-radius:10px;}
+.ta-field-icon-button:active{transform:translateY(2px);box-shadow:0 1px 0 #d3a2b2;}

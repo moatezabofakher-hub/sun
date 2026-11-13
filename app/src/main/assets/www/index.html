@@ -70,6 +70,39 @@
 .ta-transfer-invoice .ta-transfer-invoice-cancel{background:#fff1f2;color:#a11d37;border:1px solid #fecdd3;}
 </style>
 
+    <!-- Item card camera action: explicit styling for offline WebView (not dependent on generated utilities). -->
+    <style id="ta-item-photo-camera-visible-3552">
+      .ta-item-photo-camera {
+        display: inline-flex !important;
+        align-items: center;
+        justify-content: center;
+        gap: 7px;
+        min-height: 37px;
+        padding: 8px 13px;
+        border-radius: 10px;
+        border: 1px solid #1e40af !important;
+        background: linear-gradient(155deg, #2563eb 0%, #1d4ed8 65%, #1e40af 100%) !important;
+        background-color: #1d4ed8 !important;
+        color: #fff !important;
+        -webkit-text-fill-color: #fff !important;
+        font-size: 12px;
+        font-weight: 800;
+        line-height: 1.25;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.48), 0 3px 0 #1e3a8a, 0 5px 11px rgba(30,64,175,.2);
+        cursor: pointer;
+      }
+      .ta-item-photo-camera .fa-camera {
+        color: #fff !important;
+        -webkit-text-fill-color: #fff !important;
+        font-size: 15px;
+        filter: drop-shadow(0 1px 1px rgba(0,0,0,.3));
+      }
+      .ta-item-photo-camera:active {
+        transform: translateY(2px);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.38), 0 1px 0 #1e3a8a;
+      }
+      .ta-item-photo-camera:focus-within { outline: 3px solid #93c5fd; outline-offset: 2px; }
+    </style>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="theme-color" content="#0b1d31">
@@ -1089,6 +1122,7 @@
                 primaryOnlyMode: false,
                 addedCurrencies: [], // Other ISO codes are catalogued, not silently posted to a two-currency ledger
                 defaultInvoiceListType: 'sale',
+                defaultPriceTier: 'wholesale', // Default sale tier only for accounts set to follow invoice settings
                 defaultViewPeriod: 'today', // Shared initial filter for invoices, vouchers and period-based reports
                 defaultViewStart: '',
                 defaultViewEnd: '',
@@ -1849,21 +1883,30 @@
                 },0);
                 return perBase/(Number(unit?.factor)||1);
             },
+            invoicePricingTier(accountId,tierOverride=null){
+                const choices=['wholesale','center','consumer'];
+                if(choices.includes(tierOverride))return tierOverride;
+                const account=State.accounts.find(a=>a.id===accountId);
+                // Only an explicit account selection overrides the shared invoice default.
+                // Legacy accounts with no selection follow the default; explicit historical
+                // 'wholesale' selections remain fixed after changing that default.
+                if(choices.includes(account?.priceTier))return account.priceTier;
+                return choices.includes(State.settings?.defaultPriceTier)?State.settings.defaultPriceTier:'wholesale';
+            },
             itemSalePrice(item,unit,accountId,tierOverride=null){
-                const acc=State.accounts.find(a=>a.id===accountId);
-                const tier=tierOverride==='center'||tierOverride==='wholesale'?tierOverride:(acc?.priceTier==='center'?'center':'wholesale');
+                const tier=this.invoicePricingTier(accountId,tierOverride);
                 const mode=item?.isBundle?item.bundlePricing?.mode:'manual';
                 if(mode==='component_sum'){
                     const sum=(item.bundleComponents||[]).reduce((value,b)=>{
                         const component=State.items.find(x=>x.id===b.itemId);if(!component)return value;
                         const base=component.units?.[0]||{};
-                        const raw=tier==='center'?(base.centerPrice??base.salePrice):(base.wholesalePrice??base.salePrice);
+                        const raw=tier==='consumer'?(base.consumerPrice??base.centerPrice??base.salePrice):(tier==='center'?(base.centerPrice??base.salePrice):(base.wholesalePrice??base.salePrice));
                         return value+this.convert(Number(raw)||0,component.currency,item.currency,State.settings.exchangeRate)*Number(b.quantity);
                     },0);
                     return this.roundDerivedItemPrice(sum/(Number(unit?.factor)||1));
                 }
                 if(mode==='cost_markup')return this.roundDerivedItemPrice(this.itemCostPrice(item,unit)*(1+(Number(item.bundlePricing?.markup)||0)/100));
-                return Number(tier==='center'?(unit?.centerPrice??unit?.salePrice):(unit?.wholesalePrice??unit?.salePrice))||0;
+                return Number(tier==='consumer'?(unit?.consumerPrice??unit?.centerPrice??unit?.salePrice):(tier==='center'?(unit?.centerPrice??unit?.salePrice):(unit?.wholesalePrice??unit?.salePrice)))||0;
             },
             // Legacy stock and invoices belong to the main warehouse. Null warehouseId = total.
             getItemBaseStock(itemId, excludeInvoiceId = null, warehouseId = null) {
@@ -2647,7 +2690,7 @@
                             <i class="fab fa-bluetooth text-blue-600 text-lg"></i>
                             <span>اتصال وإعداد طابعة البلوتوث الحرارية</span>
                         </h3>
-                        <button onclick="UI.forceCloseModal()" class="text-slate-400 hover:text-slate-700"><i class="fas fa-times"></i></button>
+                        <button onclick="UI.forceCloseModal()" class="ta-glossy-icon-button text-slate-400 hover:text-slate-700"><i class="fas fa-times"></i></button>
                     </div>
 
                     <div class="space-y-3 text-xs">
@@ -3276,10 +3319,11 @@
 
                 y += 4;
                 if(acc){
-                    drawTotalRow('الرصيد قبل الفاتورة (دولار)',dualText(dual.before.USD,'USD'),fBalPrev);
-                    drawTotalRow('الرصيد قبل الفاتورة (ليرة)',dualText(dual.before.SYP,'SYP'),fBalPrev);
-                    drawTotalRow('الرصيد النهائي (دولار)',dualText(dual.after.USD,'USD'),fBalFinal,true);
-                    drawTotalRow('الرصيد النهائي (ليرة)',dualText(dual.after.SYP,'SYP'),fBalFinal,true);
+                    // Display only the currency affected by this invoice, not both ledgers.
+                    const balanceCurrency = inv.currency === 'SYP' ? 'SYP' : 'USD';
+                    const balanceCurrencyLabel = balanceCurrency === 'SYP' ? 'ليرة' : 'دولار';
+                    drawTotalRow(`الرصيد قبل الفاتورة (${balanceCurrencyLabel})`,dualText(dual.before[balanceCurrency],balanceCurrency),fBalPrev);
+                    drawTotalRow(`الرصيد النهائي (${balanceCurrencyLabel})`,dualText(dual.after[balanceCurrency],balanceCurrency),fBalFinal,true);
                 }
 
                 y += 6;
@@ -3599,7 +3643,7 @@
                             <i class="fas fa-coins text-amber-500"></i>
                             <span>تحديث سعر الصرف اللحظي</span>
                         </h3>
-                        <button onclick="UI.requestCloseModal()" class="text-slate-400 hover:text-slate-700"><i class="fas fa-times"></i></button>
+                        <button onclick="UI.requestCloseModal()" class="ta-glossy-icon-button text-slate-400 hover:text-slate-700"><i class="fas fa-times"></i></button>
                     </div>
                     <p class="text-xs text-slate-500 mb-3">يُعتمد هذا السعر كافتراضي للفواتير والسندات الجديدة ولإعادة احتساب أسعار الأصناف وتقييم الأرصدة (1 دولار أمريكي مقابل الليرة السورية):</p>
                     <div class="mb-4">
@@ -4471,8 +4515,8 @@
                             </div>
 
                             <div class="pt-2 space-y-1">
-                                ${acc?['USD','SYP'].map(c=>`<div class="flex justify-between items-center text-sm sm:text-base font-bold"><span>الرصيد السابق (${c})</span><span>${dualFmt(dual.before[c],c)}</span></div>`).join(''):''}
-                                ${acc?['USD','SYP'].map(c=>`<div class="flex justify-between items-center text-base sm:text-lg font-black"><span>الرصيد النهائي (${c})</span><span>${dualFmt(dual.after[c],c)}</span></div>`).join(''):''}
+                                ${acc?`<div class="flex justify-between items-center text-sm sm:text-base font-bold"><span>الرصيد قبل الفاتورة (${inv.currency})</span><span>${dualFmt(dual.before[inv.currency],inv.currency)}</span></div>`:''}
+                                ${acc?`<div class="flex justify-between items-center text-base sm:text-lg font-black"><span>الرصيد النهائي (${inv.currency})</span><span>${dualFmt(dual.after[inv.currency],inv.currency)}</span></div>`:''}
                             </div>
                         </div>
 
@@ -5082,6 +5126,15 @@
                                 ${CurrencyCatalog.options(State.settings.primaryOnlyMode ? CurrencyCatalog.primary() : (State.settings.defaultCurrency || 'USD'))}
                             </select>
                         </div>
+                        <div class="rounded-xl border border-teal-200 bg-teal-50 p-3">
+                            <label for="setDefaultPriceTier" class="block text-xs font-extrabold text-teal-900 mb-1">طريقة التسعير الافتراضية لفواتير المبيع</label>
+                            <select id="setDefaultPriceTier" onchange="SettingsController.setDefaultPriceTier(this.value)" class="w-full bg-white border border-teal-300 rounded-xl p-2.5 text-xs font-bold">
+                                <option value="wholesale" ${!['center','consumer'].includes(State.settings.defaultPriceTier) ? 'selected' : ''}>سعر الجملة</option>
+                                <option value="center" ${State.settings.defaultPriceTier === 'center' ? 'selected' : ''}>سعر المركز</option>
+                                <option value="consumer" ${State.settings.defaultPriceTier === 'consumer' ? 'selected' : ''}>سعر المستهلك</option>
+                            </select>
+                            <p class="text-[11px] text-teal-900 mt-1">يُطبق على الحسابات المحددة «حسب الإعدادات» فقط، ولا يغيّر أسعار الفواتير المحفوظة أو الحسابات ذات التسعير الخاص.</p>
+                        </div>
                         <div>
                             <label for="setDefaultInvoiceListType" class="block text-xs font-extrabold text-slate-800 mb-1">النوع الافتراضي في سجل الفواتير</label>
                             <select id="setDefaultInvoiceListType" onchange="SettingsController.setDefaultInvoiceListType(this.value)" class="w-full bg-white border border-slate-300 rounded-xl p-2.5 text-xs font-bold">
@@ -5599,7 +5652,7 @@
                 UI.openModal(`
                     <div class="flex items-center justify-between border-b pb-2.5 mb-3">
                         <h3 class="font-bold text-sm">إدارة مجموعات وتصنيفات الأصناف</h3>
-                        <button onclick="UI.requestCloseModal()"><i class="fas fa-times text-slate-400"></i></button>
+                        <button onclick="UI.requestCloseModal()" class="ta-glossy-icon-button"><i class="fas fa-times text-slate-400"></i></button>
                     </div>
                     <div class="flex gap-2 mb-3">
                         <input type="text" id="newCatInput" placeholder="اسم المجموعة الجديدة (مثال: غذائيات، زيوت...)" class="flex-1 border border-slate-300 rounded-xl px-3 py-2 text-xs">
@@ -5679,7 +5732,7 @@
                 UI.openModal(`
                     <div class="flex items-center justify-between border-b pb-2.5 mb-3">
                         <h3 class="font-bold text-sm">${existing ? 'تعديل بطاقة صنف: ' + existing.name : 'تعريف بطاقة صنف جديد (الوحدة الكبرى هي الأساسية)'}</h3>
-                        <button onclick="UI.requestCloseModal()"><i class="fas fa-times text-slate-400"></i></button>
+                        <button onclick="UI.requestCloseModal()" class="ta-glossy-icon-button"><i class="fas fa-times text-slate-400"></i></button>
                     </div>
                     <div class="space-y-3 text-xs">
                         <div class="flex items-center justify-between gap-2 rounded-lg bg-slate-50 p-2 border">
@@ -5713,7 +5766,7 @@
                                         <i class="fas fa-images"></i> من المعرض
                                         <input type="file" accept="image/*" onchange="ItemController.onItemPhotoSelected(event)" class="hidden">
                                     </label>
-                                    <label class="cursor-pointer bg-sky-700 text-white px-2.5 py-2 rounded-lg text-[11px] font-bold">
+                                    <label class="ta-item-photo-camera" title="فتح الكاميرا لتصوير المادة">
                                         <i class="fas fa-camera"></i> التقاط صورة
                                         <input type="file" accept="image/*" capture="environment" onchange="ItemController.onItemPhotoSelected(event)" class="hidden">
                                     </label>
@@ -5744,8 +5797,11 @@
                               <label class="text-[11px] font-bold text-slate-800">سعر المركز
                                 <input type="text" inputmode="decimal" dir="ltr" id="itmCenterPrice" value="${Accounting.formatEditableItemPrice(baseU.centerPrice ?? baseU.salePrice ?? 0)}" oninput="ItemController.onUnitPriceInput(0,'centerPrice',this.value,this)" class="w-full rounded-lg border p-2 bg-white text-center font-bold" />
                               </label>
+                              <label class="text-[11px] font-bold text-slate-800 col-span-2">سعر المستهلك
+                                <input type="text" inputmode="decimal" dir="ltr" id="itmConsumerPrice" value="${Accounting.formatEditableItemPrice(baseU.consumerPrice ?? baseU.centerPrice ?? baseU.salePrice ?? 0)}" oninput="ItemController.onUnitPriceInput(0,'consumerPrice',this.value,this)" class="w-full rounded-lg border p-2 bg-white text-center font-bold" />
+                              </label>
                             </div>
-                            <p class="text-[11px] text-slate-500">سعر المبيع القديم محفوظ كسعر الجملة. يمكن تخصيص المركز بشكل مستقل.</p>
+                            <p class="text-[11px] text-slate-500">سعر المبيع القديم محفوظ كسعر الجملة؛ سعر المستهلك مستقل، والمواد القديمة تستخدم المركز كقيمة افتراضية له حتى تغييره.</p>
                             <p class="text-[11px] font-semibold text-emerald-800 mt-2">عدد الخانات العشرية المسموح بها عند إدخال أسعار المواد: <span dir="ltr" class="font-extrabold">${Accounting.itemDisplayDecimals()}</span></p>
                         </div>
 
@@ -5765,8 +5821,22 @@
                             <label class="text-xs font-bold block">هامش الربح % (عند اختيار التكلفة + الهامش)
                               <input id="itmBundleMarkup" type="number" min="0" max="10000" step="0.1" value="${existing?.bundlePricing?.markup ?? 0}" onchange="ItemController.updateBundlePricing()" class="w-full border rounded-lg p-2 mt-1" />
                             </label>
+                            <div class="flex items-center justify-between gap-2">
+                              <span class="text-xs font-extrabold text-teal-900">مكوّنات التجميعة والكميات لكل وحدة كبرى</span>
+                              <span id="itmBundleSelectedCount" class="text-[10px] font-bold text-cyan-800"></span>
+                            </div>
                             <div id="itmBundleLines" class="space-y-1 max-h-64 overflow-y-auto"></div>
-                            <button type="button" onclick="ItemController.addBundleLine()" class="w-full rounded-lg bg-cyan-700 text-white px-3 py-2 font-bold text-xs">+ اختيار مادة من القائمة</button>
+                            <button type="button" onclick="ItemController.addBundleLine()" class="ta-bundle-picker-toggle ta-glossy-icon-button w-full rounded-xl px-3 py-2.5 font-bold text-xs flex items-center justify-center gap-2" aria-controls="itmBundlePicker" aria-expanded="false" id="itmBundlePickerToggle"><i class="fas fa-th-large" aria-hidden="true"></i> اختيار المواد من الشبكة</button>
+                            <section id="itmBundlePicker" class="hidden ta-bundle-picker rounded-xl border border-cyan-200 p-2 space-y-2" aria-label="شبكة اختيار مكونات المادة التجميعية">
+                              <div class="grid grid-cols-[minmax(0,1fr)_minmax(0,130px)] gap-2">
+                                <label class="sr-only" for="itmBundlePickerSearch">البحث عن مادة</label>
+                                <input id="itmBundlePickerSearch" type="search" oninput="ItemController.renderBundlePickerGrid()" placeholder="بحث باسم المادة أو الباركود" class="min-w-0 w-full bg-white rounded-xl border border-cyan-300 px-3 py-2 text-xs" />
+                                <label class="sr-only" for="itmBundlePickerCategory">تصفية حسب المجموعة</label>
+                                <select id="itmBundlePickerCategory" onchange="ItemController.renderBundlePickerGrid()" class="min-w-0 w-full bg-white rounded-xl border border-cyan-300 px-2 py-2 text-xs font-bold"></select>
+                              </div>
+                              <p class="text-[10px] text-cyan-900">اضغط على صورة المادة أو اسمها لإضافتها، ثم حدّد كميتها في القائمة أعلاه.</p>
+                              <div id="itmBundlePickerGrid" class="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-[40vh] overflow-y-auto p-1" role="group" aria-label="المواد المتاحة للتجميع"></div>
+                            </section>
                             <div id="itmBundleComputed" class="text-xs text-teal-900 font-bold"></div>
                           </div>
                         </section>
@@ -5826,28 +5896,92 @@
                 wrapper.querySelectorAll('[data-curr]').forEach(btn=>btn.onclick=()=>{this.setItemBaseCurrency(btn.dataset.curr);document.getElementById('itmCurrencySelect').textContent=btn.dataset.curr+' ▾';wrapper.remove();});
                 wrapper.querySelector('[data-close]').onclick=()=>wrapper.remove();document.body.append(wrapper);
             },
-            addBundleLine() {
-                const available=State.items.filter(x=>!x.isBundle && x.id!==this.activeEditId && !(this.tempBundle||[]).some(r=>r.itemId===x.id));
-                if(!available.length)return UI.toast('لا توجد مواد أخرى متاحة للتجميع','warn');
-                this.tempBundle=this.tempBundle||[];this.tempBundle.push({itemId:available[0].id,quantity:1});this.markItemDirty();this.renderBundleLines();
+            // Open a real, searchable item grid rather than silently choosing the first item.
+            addBundleLine(){
+                const picker=document.getElementById('itmBundlePicker');
+                if(!picker)return;
+                const opening=picker.classList.contains('hidden');
+                picker.classList.toggle('hidden',!opening);
+                const toggle=document.getElementById('itmBundlePickerToggle');
+                if(toggle)toggle.setAttribute('aria-expanded',String(opening));
+                if(opening){this.renderBundlePickerGrid();document.getElementById('itmBundlePickerSearch')?.focus();}
             },
-            bundleLineUpdate(idx,key,value){this.tempBundle[idx][key]=key==='quantity'?Accounting.parseNum(value):value;this.markItemDirty();this.updateBundlePricing();},
-            bundleLineRemove(idx){this.tempBundle.splice(idx,1);this.markItemDirty();this.renderBundleLines();},
+            renderBundlePickerGrid(){
+                const grid=document.getElementById('itmBundlePickerGrid');
+                const category=document.getElementById('itmBundlePickerCategory');
+                if(!grid || !category)return;
+                const q=(document.getElementById('itmBundlePickerSearch')?.value||'').trim().toLocaleLowerCase();
+                const prevCategory=category.value||'all';
+                const candidates=State.items.filter(it=>!it.isBundle && it.id!==this.activeEditId);
+                const categories=[...new Set(candidates.map(it=>it.category||'بدون مجموعة'))].sort((a,b)=>a.localeCompare(b,'ar'));
+                category.innerHTML='<option value="all">كل المجموعات</option>'+categories.map((c,i)=>`<option value="${i}">${AppEscape.text(c)}</option>`).join('');
+                // Store selected group by index, avoiding unsafe inline JS interpolation of names.
+                let selected=prevCategory==='all'?'all':prevCategory;
+                if(selected!=='all' && !(Number(selected)>=0 && Number(selected)<categories.length))selected='all';
+                category.value=selected;
+                const selectedCategory=selected==='all'?null:categories[Number(selected)];
+                const found=candidates.filter(it=>(!selectedCategory||(it.category||'بدون مجموعة')===selectedCategory) && (!q || String(it.name||'').toLocaleLowerCase().includes(q) || String(it.barcode||'').toLocaleLowerCase().includes(q)));
+                if(!found.length){grid.innerHTML='<div class="col-span-full text-center text-xs font-bold text-slate-500 py-5">لا توجد مواد مطابقة للبحث.</div>';return;}
+                const chosen=new Set((this.tempBundle||[]).map(r=>String(r.itemId)));
+                grid.innerHTML=found.map(it=>{
+                    const taken=chosen.has(String(it.id));
+                    const photo=this.safePhotoData(it);
+                    const pic=photo?`<img loading="lazy" src="${photo}" alt="" class="w-full h-full object-contain"/>`:'<i class="fas fa-box-open text-3xl text-cyan-400" aria-hidden="true"></i>';
+                    return `<button type="button" class="ta-bundle-grid-card ${taken?'is-picked':''} flex flex-col items-center gap-1 rounded-xl border p-2 text-center" data-item-id="${AppEscape.text(String(it.id))}" onclick="ItemController.pickBundleComponent(this.dataset.itemId)" ${taken?'aria-pressed="true"':'aria-pressed="false"'}>
+                      <span class="ta-bundle-grid-thumb w-full rounded-lg flex items-center justify-center overflow-hidden">${pic}</span>
+                      <strong class="text-xs w-full break-words leading-tight">${AppEscape.text(it.name||'مادة')}</strong>
+                      <span class="text-[10px] text-slate-600 w-full truncate">${AppEscape.text(it.category||'بدون مجموعة')}</span>
+                      <span class="ta-bundle-grid-status text-[10px] font-bold">${taken?'✓ مضافة':'＋ إضافة للتجميعة'}</span>
+                    </button>`;
+                }).join('');
+            },
+            pickBundleComponent(itemId){
+                const it=State.items.find(x=>String(x.id)===String(itemId));
+                if(!it || it.isBundle || String(it.id)===String(this.activeEditId))return;
+                this.tempBundle=this.tempBundle||[];
+                const found=this.tempBundle.findIndex(r=>String(r.itemId)===String(itemId));
+                if(found!==-1){
+                    const input=document.querySelector(`#itmBundleLines [data-bundle-index="${found}"] input`);
+                    input?.focus();input?.select();
+                    return;
+                }
+                this.tempBundle.push({itemId:it.id,quantity:1});
+                this.markItemDirty();this.renderBundleLines();
+                this.renderBundlePickerGrid();
+            },
+            bundleLineUpdate(idx,key,value){
+                if(!this.tempBundle?.[idx])return;
+                this.tempBundle[idx][key]=key==='quantity'?Accounting.parseNum(value):value;
+                this.markItemDirty();this.updateBundlePricing();
+            },
+            bundleLineRemove(idx){
+                if(!this.tempBundle?.[idx])return;
+                this.tempBundle.splice(idx,1);this.markItemDirty();this.renderBundleLines();this.renderBundlePickerGrid();
+            },
             renderBundleLines(){
                 const box=document.getElementById('itmBundleLines');if(!box)return;
-                const opts=State.items.filter(it=>!it.isBundle && it.id!==this.activeEditId);
-                box.innerHTML=(this.tempBundle||[]).map((r,i)=>`<div class="grid grid-cols-[1fr_80px_32px] gap-1 items-center"><select class="border rounded-lg p-2 text-xs min-w-0" onchange="ItemController.bundleLineUpdate(${i},'itemId',this.value)">${opts.map(it=>`<option value="${AppEscape.text(it.id)}" ${it.id===r.itemId?'selected':''}>${AppEscape.text(it.name)}</option>`).join('')}</select><input type="number" min="0.0001" step="any" value="${r.quantity}" class="border rounded-lg p-2 text-xs w-full" aria-label="كمية المكوّن" onchange="ItemController.bundleLineUpdate(${i},'quantity',this.value)"/><button type="button" onclick="ItemController.bundleLineRemove(${i})" class="text-rose-600 font-extrabold">×</button></div>`).join('') || '<p class="text-xs text-slate-500">لم تُحدّد مكوّنات بعد.</p>';
+                box.innerHTML=(this.tempBundle||[]).map((r,i)=>{
+                    const it=State.items.find(x=>String(x.id)===String(r.itemId));
+                    const name=AppEscape.text(it?.name||'مادة محذوفة');
+                    return `<div class="ta-bundle-component-row grid grid-cols-[minmax(0,1fr)_90px_40px] gap-1 items-center rounded-xl border border-cyan-100 p-1.5" data-bundle-index="${i}">
+                        <div class="text-xs font-bold min-w-0 truncate pr-1" title="${name}"><i class="fas fa-box text-cyan-700 ml-1" aria-hidden="true"></i>${name}</div>
+                        <input type="number" min="0.0001" step="any" value="${r.quantity}" class="border border-cyan-200 bg-white rounded-lg p-2 text-xs w-full text-center" aria-label="كمية ${name}" oninput="ItemController.bundleLineUpdate(${i},'quantity',this.value)"/>
+                        <button type="button" onclick="ItemController.bundleLineRemove(${i})" class="ta-bundle-remove ta-glossy-icon-button font-extrabold" aria-label="حذف ${name} من التجميعة" title="حذف المكوّن"><i class="fas fa-times" aria-hidden="true"></i></button>
+                    </div>`;
+                }).join('') || '<p class="text-xs text-slate-500">لم تُحدّد مكوّنات بعد. افتح الشبكة لاختيارها.</p>';
+                const counter=document.getElementById('itmBundleSelectedCount');
+                if(counter)counter.textContent=`${(this.tempBundle||[]).length} مكوّنات`;
                 this.updateBundlePricing(false);
             },
             updateBundlePricing(markDirty=true){
                 if(markDirty)this.markItemDirty();
                 const mode=document.getElementById('itmBundlePricing')?.value||'manual';
-                let cost=0,wholesale=0,center=0;
-                for(const r of this.tempBundle||[]){const it=State.items.find(x=>x.id===r.itemId);if(!it)continue;const q=Number(r.quantity)||0,u=it.units?.[0]||{};const cv=(price)=>Accounting.convert(Number(price)||0,it.currency,this.selectedCurrency,State.settings.exchangeRate);cost+=cv(u.costPrice)*q;wholesale+=cv(u.wholesalePrice??u.salePrice)*q;center+=cv(u.centerPrice??u.salePrice)*q;}
+                let cost=0,wholesale=0,center=0,consumer=0;
+                for(const r of this.tempBundle||[]){const it=State.items.find(x=>x.id===r.itemId);if(!it)continue;const q=Number(r.quantity)||0,u=it.units?.[0]||{};const cv=(price)=>Accounting.convert(Number(price)||0,it.currency,this.selectedCurrency,State.settings.exchangeRate);cost+=cv(u.costPrice)*q;wholesale+=cv(u.wholesalePrice??u.salePrice)*q;center+=cv(u.centerPrice??u.salePrice)*q;consumer+=cv(u.consumerPrice??u.centerPrice??u.salePrice)*q;}
                 const markup=Number(document.getElementById('itmBundleMarkup')?.value)||0;
-                if(mode==='cost_markup'){wholesale=cost*(1+markup/100);center=wholesale;}
-                if(mode!=='manual' && this.tempUnits?.[0]){for(const [key,val] of [['costPrice',cost],['salePrice',wholesale],['centerPrice',center]])this.onUnitPriceInput(0,key,String(Accounting.roundDerivedItemPrice(val)));}
-                const el=document.getElementById('itmBundleComputed');if(el)el.textContent=`تكلفة المكوّنات: ${Accounting.formatItemPrice(cost,this.selectedCurrency)} · سعر الجملة المقترح: ${Accounting.formatItemPrice(wholesale,this.selectedCurrency)} · المركز: ${Accounting.formatItemPrice(center,this.selectedCurrency)}`;
+                if(mode==='cost_markup'){wholesale=cost*(1+markup/100);center=wholesale;consumer=wholesale;}
+                if(mode!=='manual' && this.tempUnits?.[0]){for(const [key,val] of [['costPrice',cost],['salePrice',wholesale],['centerPrice',center],['consumerPrice',consumer]])this.onUnitPriceInput(0,key,String(Accounting.roundDerivedItemPrice(val)));}
+                const el=document.getElementById('itmBundleComputed');if(el)el.textContent=`تكلفة المكوّنات: ${Accounting.formatItemPrice(cost,this.selectedCurrency)} · سعر الجملة المقترح: ${Accounting.formatItemPrice(wholesale,this.selectedCurrency)} · المركز: ${Accounting.formatItemPrice(center,this.selectedCurrency)} · المستهلك: ${Accounting.formatItemPrice(consumer,this.selectedCurrency)}`;
             },
 
             renderUnitRows() {
@@ -5881,6 +6015,10 @@
                                 <label class="text-[10px] text-teal-800 font-bold block mb-0.5">سعر المركز (<span class="unit-curr-label">${currSym}</span>)</label>
                                 <input type="text" inputmode="decimal" id="unitCenter_${idx}" value="${Accounting.formatEditableItemPrice(u.centerPrice ?? u.salePrice ?? 0)}" oninput="ItemController.onUnitPriceInput(${idx},'centerPrice',this.value,this)" class="w-full border rounded-lg px-2 py-1.5 text-xs text-center font-bold" />
                             </div>
+                            <div>
+                                <label class="text-[10px] text-teal-800 font-bold block mb-0.5">سعر المستهلك (<span class="unit-curr-label">${currSym}</span>)</label>
+                                <input type="text" inputmode="decimal" dir="ltr" id="unitConsumer_${idx}" value="${Accounting.formatEditableItemPrice(u.consumerPrice ?? u.centerPrice ?? u.salePrice ?? 0)}" oninput="ItemController.onUnitPriceInput(${idx},'consumerPrice',this.value,this)" class="w-full border rounded-lg px-2 py-1.5 text-xs text-center font-bold" />
+                            </div>
                         </div>
                     </div>
                 `).join('');
@@ -5895,8 +6033,8 @@
 
                 // مزامنة الحقول العلوية الأساسية للوحدة الكبرى وحساب أسعار الوحدات الصغرى بالقسمة على عدد التعبئة
                 if (idx === 0) {
-                    const mainElId = field === 'salePrice' ? 'itmWholesalePrice' : field === 'costPrice' ? 'itmMainCostPrice' : 'itmCenterPrice';
-                    const unit0ElId = field === 'salePrice' ? 'unitSale_0' : field === 'costPrice' ? 'unitCost_0' : 'itmCenterPrice';
+                    const mainElId = field === 'salePrice' ? 'itmWholesalePrice' : field === 'costPrice' ? 'itmMainCostPrice' : field === 'consumerPrice' ? 'itmConsumerPrice' : 'itmCenterPrice';
+                    const unit0ElId = field === 'salePrice' ? 'unitSale_0' : field === 'costPrice' ? 'unitCost_0' : field === 'consumerPrice' ? 'unitConsumer_0' : 'unitCenter_0';
                     const mainEl = document.getElementById(mainElId);
                     const unit0El = document.getElementById(unit0ElId);
 
@@ -5909,7 +6047,7 @@
                         const calcVal = Accounting.roundDerivedItemPrice(num / factor);
                         this.tempUnits[i][field] = calcVal;
 
-                        const targetInputId = field === 'salePrice' ? `unitSale_${i}` : field==='costPrice' ? `unitCost_${i}` : `unitCenter_${i}`;
+                        const targetInputId = field === 'salePrice' ? `unitSale_${i}` : field==='costPrice' ? `unitCost_${i}` : field==='consumerPrice' ? `unitConsumer_${i}` : `unitCenter_${i}`;
                         const targetEl = document.getElementById(targetInputId);
                         if (targetEl && document.activeElement !== targetEl) {
                             targetEl.value = Accounting.formatEditableItemPrice(calcVal);
@@ -5927,8 +6065,9 @@
                     const newCost = Accounting.roundDerivedItemPrice(Accounting.parseNum(base.costPrice) / factor);
                     const newSale = Accounting.roundDerivedItemPrice(Accounting.parseNum(base.salePrice) / factor);
                     const newCenter=Accounting.roundDerivedItemPrice(Accounting.parseNum(base.centerPrice??base.salePrice)/factor);
+                    const newConsumer=Accounting.roundDerivedItemPrice(Accounting.parseNum(base.consumerPrice??base.centerPrice??base.salePrice)/factor);
                     this.tempUnits[idx].costPrice = newCost;
-                    this.tempUnits[idx].salePrice = newSale;this.tempUnits[idx].centerPrice=newCenter;
+                    this.tempUnits[idx].salePrice = newSale;this.tempUnits[idx].centerPrice=newCenter;this.tempUnits[idx].consumerPrice=newConsumer;
 
                     // تحديث الحقول مباشرة دون فقدان التركيز (Focus) من حقل معامل التعبئة
                     const costEl = document.getElementById(`unitCost_${idx}`);
@@ -5936,6 +6075,7 @@
                     if (costEl && document.activeElement !== costEl) costEl.value = Accounting.formatEditableItemPrice(newCost);
                     if (saleEl && document.activeElement !== saleEl) saleEl.value = Accounting.formatEditableItemPrice(newSale);
                     const centerEl=document.getElementById(`unitCenter_${idx}`);if(centerEl && document.activeElement!==centerEl)centerEl.value=Accounting.formatEditableItemPrice(newCenter);
+                    const consumerEl=document.getElementById(`unitConsumer_${idx}`);if(consumerEl && document.activeElement!==consumerEl)consumerEl.value=Accounting.formatEditableItemPrice(newConsumer);
                 }
             },
 
@@ -5949,6 +6089,7 @@
                     costPrice: Accounting.roundDerivedItemPrice(Accounting.parseNum(base.costPrice) / defaultFactor),
                     salePrice: Accounting.roundDerivedItemPrice(Accounting.parseNum(base.salePrice) / defaultFactor),
                     centerPrice: Accounting.roundDerivedItemPrice(Accounting.parseNum(base.centerPrice??base.salePrice) / defaultFactor),
+                    consumerPrice: Accounting.roundDerivedItemPrice(Accounting.parseNum(base.consumerPrice??base.centerPrice??base.salePrice) / defaultFactor),
                     barcode: ''
                 });
                 this.renderUnitRows();
@@ -6065,7 +6206,8 @@
                         costPrice: Accounting.parseNum(u.costPrice),
                         salePrice: Accounting.parseNum(u.salePrice),
                         wholesalePrice: Accounting.parseNum(u.salePrice),
-                        centerPrice: Accounting.parseNum(u.centerPrice ?? u.salePrice)
+                        centerPrice: Accounting.parseNum(u.centerPrice ?? u.salePrice),
+                        consumerPrice: Accounting.parseNum(u.consumerPrice ?? u.centerPrice ?? u.salePrice)
                     };
                 });
 
@@ -6709,7 +6851,7 @@
                             <h3 class="font-extrabold text-base text-slate-900">خيارات الفاتورة #${inv.number}</h3>
                             <p class="text-[11px] text-slate-500 mt-1">${Accounting.getInvoiceTypeAr(inv.type)} · ${inv.paymentMethod === 'cash' ? 'نقدي' : inv.paymentMethod === 'credit' ? 'آجل' : 'دفع جزئي'}</p>
                         </div>
-                        <button onclick="UI.forceCloseModal()" class="text-slate-400"><i class="fas fa-times"></i></button>
+                        <button onclick="UI.forceCloseModal()" class="ta-glossy-icon-button text-slate-400"><i class="fas fa-times"></i></button>
                     </div>
                     <div class="space-y-2">
                         ${canPay ? `<button onclick="InvoiceController.openInvoicePayment('${inv.id}')" class="w-full bg-emerald-600 text-white rounded-xl p-3 text-sm font-extrabold text-right"><i class="fas fa-money-bill-wave ml-2"></i>إضافة دفعة</button>` : ''}
@@ -6727,7 +6869,7 @@
                 UI.openModal(`
                     <div class="flex items-center justify-between border-b pb-3 mb-3">
                         <h3 class="font-extrabold text-base">إضافة دفعة للفاتورة #${inv.number}</h3>
-                        <button onclick="UI.forceCloseModal()" class="text-slate-400"><i class="fas fa-times"></i></button>
+                        <button onclick="UI.forceCloseModal()" class="ta-glossy-icon-button text-slate-400"><i class="fas fa-times"></i></button>
                     </div>
                     <div class="bg-slate-50 rounded-xl p-3 mb-3 text-xs space-y-1">
                         <div class="flex justify-between"><span>قيمة الفاتورة</span><strong>${Accounting.format(inv.netTotal, inv.currency)}</strong></div>
@@ -6771,7 +6913,7 @@
                 UI.openModal(`
                     <div class="flex items-center justify-between border-b pb-3 mb-3">
                         <h3 class="font-extrabold text-base">نوع الفواتير</h3>
-                        <button onclick="UI.forceCloseModal()" class="text-slate-400"><i class="fas fa-times"></i></button>
+                        <button onclick="UI.forceCloseModal()" class="ta-glossy-icon-button text-slate-400"><i class="fas fa-times"></i></button>
                     </div>
                     <div class="space-y-2">${types.map(t=>`<button onclick="AppNav.navigate('invoices_list',{type:'${t.id}',dateMode:'${dateMode}',dateValue:'${customDate}',endDate:AppNav.current().params.endDate||TimeFilter.defaultEnd()},true)" class="w-full text-right p-3 rounded-xl text-sm font-bold ${filterType===t.id?'bg-emerald-600 text-white':'bg-slate-100 text-slate-700'}">${t.label}${filterType===t.id?' ✓':''}</button>`).join('')}</div>
                 `);
@@ -6782,7 +6924,7 @@
                 UI.openModal(`
                     <div class="flex items-center justify-between border-b pb-3 mb-3">
                         <h3 class="font-extrabold text-base">الفترة الزمنية</h3>
-                        <button onclick="UI.forceCloseModal()" class="text-slate-400"><i class="fas fa-times"></i></button>
+                        <button onclick="UI.forceCloseModal()" class="ta-glossy-icon-button text-slate-400"><i class="fas fa-times"></i></button>
                     </div>
                     <div class="space-y-2">${modes.map(t=>`<button onclick="InvoiceController.applyInvoiceDateFilter('${filterType}','${t.id}','${customDate}',AppNav.current().params.endDate||TimeFilter.defaultEnd())" class="w-full text-right p-3 rounded-xl text-sm font-bold ${dateMode===t.id?'bg-emerald-600 text-white':'bg-slate-100 text-slate-700'}">${t.label}${dateMode===t.id?' ✓':''}</button>`).join('')}</div>
                     <div class="mt-3 border-t pt-3">
@@ -7715,7 +7857,7 @@
                 const remaining = Math.max(0, Number(inv.remainingAmount) || 0);
                 if (remaining <= 0) return UI.toast('هذه الفاتورة مسددة بالكامل', 'info');
                 UI.openModal(`
-                    <div class="flex items-center justify-between border-b border-slate-100 pb-2 mb-3"><h3 class="font-extrabold text-base">إضافة دفعة للفاتورة #${inv.number}</h3><button onclick="UI.requestCloseModal()"><i class="fas fa-times text-slate-400"></i></button></div>
+                    <div class="flex items-center justify-between border-b border-slate-100 pb-2 mb-3"><h3 class="font-extrabold text-base">إضافة دفعة للفاتورة #${inv.number}</h3><button onclick="UI.requestCloseModal()" class="ta-glossy-icon-button"><i class="fas fa-times text-slate-400"></i></button></div>
                     <div class="rounded-xl bg-slate-50 p-3 mb-3 text-xs space-y-1"><div class="flex justify-between"><span>إجمالي الفاتورة</span><b>${Accounting.format(inv.netTotal, inv.currency)}</b></div><div class="flex justify-between"><span>المدفوع سابقاً</span><b>${Accounting.format(inv.paidAmount, inv.currency)}</b></div><div class="flex justify-between text-rose-600"><span>المبلغ المتبقي</span><b>${Accounting.format(remaining, inv.currency)}</b></div></div>
                     <label class="block text-xs font-bold text-slate-700 mb-1">مبلغ الدفعة (${inv.currency})</label>
                     <input id="invoicePaymentAmount" type="number" min="0.01" max="${remaining}" step="any" value="${remaining}" class="w-full border border-slate-300 rounded-xl px-3 py-3 text-center text-lg font-extrabold mb-3" />
@@ -7782,7 +7924,7 @@
                 UI.openModal(`
                     <div class="flex items-center justify-between border-b pb-2.5 mb-3">
                         <h3 class="font-bold text-sm">${ex ? 'تعديل حساب: ' + ex.name : (fromInvoice ? `إضافة بطاقة ${typeLabelAr} جديد` : 'إضافة بطاقة عميل / مورد جديد')}</h3>
-                        <button onclick="UI.requestCloseModal()"><i class="fas fa-times text-slate-400"></i></button>
+                        <button onclick="UI.requestCloseModal()" class="ta-glossy-icon-button"><i class="fas fa-times text-slate-400"></i></button>
                     </div>
                     <div class="space-y-3 text-xs">
                         <div class="grid grid-cols-2 gap-2">
@@ -7818,8 +7960,10 @@
                         <div class="border border-teal-200 bg-teal-50 rounded-xl p-2.5">
                             <label for="accPriceTier" class="block text-xs font-extrabold mb-1">طريقة تسعير المبيعات لهذا الزبون</label>
                             <select id="accPriceTier" onchange="AccountController.markAccDirty()" class="w-full border rounded-lg px-2 py-2 bg-white font-bold">
-                              <option value="wholesale" ${!ex || ex.priceTier !== 'center' ? 'selected' : ''}>سعر الجملة (الافتراضي)</option>
+                              <option value="settings" ${!['wholesale','center','consumer'].includes(ex?.priceTier) ? 'selected' : ''}>حسب الإعدادات (الافتراضي)</option>
+                              <option value="wholesale" ${ex?.priceTier === 'wholesale' ? 'selected' : ''}>سعر الجملة</option>
                               <option value="center" ${ex?.priceTier === 'center' ? 'selected' : ''}>سعر المركز</option>
+                              <option value="consumer" ${ex?.priceTier === 'consumer' ? 'selected' : ''}>سعر المستهلك</option>
                             </select>
                         </div>
                         <div class="grid grid-cols-2 gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
@@ -7858,7 +8002,8 @@
                 const openingSyp = Accounting.parseNum(document.getElementById('accOpenSyp')?.value);
                 const openingUsd = Accounting.parseNum(document.getElementById('accOpenUsd')?.value);
                 const paymentTerms = document.getElementById('accTerms')?.value.trim() || '';
-                const priceTier = document.getElementById('accPriceTier')?.value === 'center' ? 'center' : 'wholesale';
+                const requestedTier = document.getElementById('accPriceTier')?.value;
+                const priceTier = ['wholesale','center','consumer'].includes(requestedTier) ? requestedTier : 'settings';
 
                 if (!name) {
                     UI.toast('يرجى إدخال اسم العميل أو المورد', 'error');
@@ -7944,7 +8089,7 @@
                 UI.openModal(`
                     <div class="flex items-center justify-between border-b pb-2 mb-3">
                         <h3 class="font-extrabold text-sm">إنشاء سند ${type === 'receipt' ? 'قبض' : 'دفع'} · ${State.accounts.find(a => a.id === accountId)?.name || ''}</h3>
-                        <button type="button" onclick="UI.requestCloseModal()" class="text-slate-400"><i class="fas fa-times"></i></button>
+                        <button type="button" onclick="UI.requestCloseModal()" class="ta-glossy-icon-button text-slate-400"><i class="fas fa-times"></i></button>
                     </div>
                     <div id="voucherModalContent"></div>
                 `);
@@ -8395,6 +8540,20 @@
                 AppNav.renderCurrent();
                 UI.toast('تمت إزالة العملة من القائمة', 'success');
             },
+            async setDefaultPriceTier(value) {
+                if (!['wholesale','center','consumer'].includes(value)) return;
+                const before = State.settings.defaultPriceTier;
+                State.settings.defaultPriceTier = value;
+                try {
+                    await StorageEngine.saveState();
+                    UI.toast('تم حفظ طريقة التسعير الافتراضية للحسابات التي تتبع الإعدادات', 'success');
+                } catch (error) {
+                    State.settings.defaultPriceTier = before;
+                    const select = document.getElementById('setDefaultPriceTier');
+                    if (select) select.value = ['wholesale','center','consumer'].includes(before) ? before : 'wholesale';
+                    UI.toast('تعذر حفظ طريقة التسعير الافتراضية', 'error');
+                }
+            },
             async setDefaultInvoiceCurrency(value) {
                 if (value !== 'USD' && value !== 'SYP') return;
                 if (State.settings.primaryOnlyMode) value = CurrencyCatalog.primary();
@@ -8503,7 +8662,7 @@
                             <i class="fas fa-print text-emerald-600"></i>
                             <span>تعديل بيانات الطباعة والترويسة</span>
                         </h3>
-                        <button onclick="UI.forceCloseModal()" class="text-slate-400 hover:text-slate-700"><i class="fas fa-times"></i></button>
+                        <button onclick="UI.forceCloseModal()" class="ta-glossy-icon-button text-slate-400 hover:text-slate-700"><i class="fas fa-times"></i></button>
                     </div>
                     <div class="space-y-3 text-xs">
                         <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 flex items-center justify-between gap-2">
@@ -8776,7 +8935,7 @@
                     <div class="text-right space-y-3">
                         <div class="flex items-center justify-between gap-2">
                             <h3 class="font-extrabold text-base text-slate-900"><i class="fas fa-lock text-rose-600 ml-1"></i> يجب تعيين رمز الحماية أولاً</h3>
-                            <button type="button" onclick="UI.forceCloseModal()" class="text-slate-500 p-2" aria-label="إغلاق"><i class="fas fa-times"></i></button>
+                            <button type="button" onclick="UI.forceCloseModal()" class="ta-glossy-icon-button text-slate-500 p-2" aria-label="إغلاق"><i class="fas fa-times"></i></button>
                         </div>
                         <p class="text-sm text-slate-600">لا يمكن تنفيذ ${AppEscape.text(actionName)} قبل إنشاء رمز حماية. لن تُحذف أي بيانات الآن.</p>
                         <div class="flex flex-col gap-2">
@@ -8807,7 +8966,7 @@
                 this.pendingSuccess = null;
                 UI.openModal(`
                     <div class="text-right">
-                        <div class="flex items-center justify-between mb-3"><h3 class="font-extrabold text-base"><i class="fas fa-shield-halved text-emerald-600 ml-1"></i> التحقق من الحماية</h3><button onclick="UI.forceCloseModal()"><i class="fas fa-times text-slate-400"></i></button></div>
+                        <div class="flex items-center justify-between mb-3"><h3 class="font-extrabold text-base"><i class="fas fa-shield-halved text-emerald-600 ml-1"></i> التحقق من الحماية</h3><button onclick="UI.forceCloseModal()" class="ta-glossy-icon-button"><i class="fas fa-times text-slate-400"></i></button></div>
                         <p class="text-xs text-slate-500 mb-3">${message}</p>
                         <input id="protectionVerifyPin" type="password" inputmode="numeric" autocomplete="current-password" placeholder="أدخل رمز الحماية" onkeydown="if(event.key==='Enter'){event.preventDefault();ProtectionController.verifyPromptPin();}" class="w-full border border-slate-300 rounded-xl p-3 text-center text-lg tracking-widest mb-3">
                         <button onclick="ProtectionController.verifyPromptPin()" class="w-full bg-emerald-600 text-white rounded-xl py-3 font-extrabold">تحقق</button>
@@ -8834,7 +8993,7 @@
                     <div class="w-full max-w-sm bg-white rounded-2xl p-5 text-right shadow-xl mx-auto space-y-3">
                         <div class="flex items-center justify-between gap-2 border-b pb-2">
                             <h2 class="font-extrabold text-base text-slate-900"><i class="fas fa-shield-halved text-emerald-600 ml-1"></i> استعادة كلمة السر</h2>
-                            <button type="button" onclick="ProtectionController.cancelRecovery()" class="p-2 text-slate-500" aria-label="إلغاء الاستعادة"><i class="fas fa-times"></i></button>
+                            <button type="button" onclick="ProtectionController.cancelRecovery()" class="ta-glossy-icon-button p-2 text-slate-500" aria-label="إلغاء الاستعادة"><i class="fas fa-times"></i></button>
                         </div>
                         <p class="text-xs text-slate-600">للتحقق من ملكية التطبيق، يجب الإجابة الصحيحة عن سؤالَي الأمان معاً قبل تعيين كلمة سر بديلة.</p>
                         <div><label class="block text-xs font-bold mb-1">${this.questionLabel(questions[0].id)}</label><input id="recoveryAnswer1" type="password" autocomplete="off" class="w-full border border-slate-300 rounded-xl p-2.5 text-sm" placeholder="إجابة السؤال الأول"></div>
@@ -9133,7 +9292,8 @@
                     currency,priceDecimals:Math.min(4,Math.max(0,Number(State.settings.itemQuantityDecimals??2))),rows:(inv.rows||[]).map(r=>({itemName:String(r.itemName||''),unitName:String(r.unitName||''),qty:Number(r.qty)||0,price:Number(r.price)||0,total:Number(r.total)||0})),
                     subTotal:Number(inv.subTotal)||0,discountAmount:Number(inv.discountAmount)||0,taxAmount:Number(inv.taxAmount)||0,
                     netTotal:Number(inv.netTotal)||0,paidAmount:Number(inv.paidAmount)||0,remainingAmount:Number(inv.remainingAmount)||0,
-                    previousBalance:prev,finalBalance:final,previousBalances:dual.before,finalBalances:dual.after,note:String(inv.notes||inv.note||'')};
+                    previousBalance:prev,finalBalance:final,
+                    previousBalances:{[currency]:prev},finalBalances:{[currency]:final},note:String(inv.notes||inv.note||'')};
                 try { window.AndroidInvoicePdf.shareInvoice(JSON.stringify(src),'Invoice_'+String(inv.number||'').replace(/[^\w-]/g,'_')+'.pdf'); }
                 catch(e){ UI.toast('تعذر تجهيز مشاركة الفاتورة: '+e.message,'error'); }
             }

@@ -111,6 +111,7 @@ const FieldSync = {
     let imageBudget=650000;
     return {kind:'provision',format:FieldProtocol.FORMAT,companyId:config.companyId,companyName:State.settings.companyName,agentId:a.id,agentName:a.name,vehicleName:a.vehicleName,warehouseId:a.warehouseId,key:a.key,
       issuedAt:new Date().toISOString(),exchangeRate:Number(State.settings.exchangeRate),
+      defaultPriceTier:['wholesale','center','consumer'].includes(State.settings.defaultPriceTier)?State.settings.defaultPriceTier:'wholesale',
       // Company branding is an authenticated part of each refreshed catalog; never copied from agent edits.
       companyPhone:String(State.settings.companyPhone||'').slice(0,100),
       companyAddress:String(State.settings.companyAddress||'').slice(0,180),
@@ -126,13 +127,13 @@ const FieldSync = {
         const photoData=/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(image) && image.length<120000 && image.length<imageBudget ? image : '';
         imageBudget-=photoData.length;
         return {id:it.id,name:it.name,category:it.category||'',barcode:it.barcode||'',currency:it.currency,
-          photoData,isBundle:!!it.isBundle,bundleComponents:it.isBundle?(it.bundleComponents||[]).map(b=>({itemId:b.itemId,quantity:b.quantity})):[],units:(it.units||[]).map(u=>({name:u.name,factor:u.factor,salePrice:(Accounting.itemSalePrice?.(it,u,null,'wholesale') ?? Number(u.wholesalePrice??u.salePrice)),wholesalePrice:(Accounting.itemSalePrice?.(it,u,null,'wholesale') ?? Number(u.wholesalePrice??u.salePrice)),centerPrice:(Accounting.itemSalePrice?.(it,u,null,'center') ?? Number(u.centerPrice??u.salePrice))}))};
+          photoData,isBundle:!!it.isBundle,bundleComponents:it.isBundle?(it.bundleComponents||[]).map(b=>({itemId:b.itemId,quantity:b.quantity})):[],units:(it.units||[]).map(u=>({name:u.name,factor:u.factor,salePrice:(Accounting.itemSalePrice?.(it,u,null,'wholesale') ?? Number(u.wholesalePrice??u.salePrice)),wholesalePrice:(Accounting.itemSalePrice?.(it,u,null,'wholesale') ?? Number(u.wholesalePrice??u.salePrice)),centerPrice:(Accounting.itemSalePrice?.(it,u,null,'center') ?? Number(u.centerPrice??u.salePrice)),consumerPrice:(Accounting.itemSalePrice?.(it,u,null,'consumer') ?? Number(u.consumerPrice??u.centerPrice??u.salePrice))}))};
       }),
       accounts:State.accounts.filter(acc=>acc.type==='customer' && (!Array.isArray(a.allowedAccountIds) || a.allowedAccountIds.includes(acc.id) || acc.fieldOrigin?.agentId===a.id)).map(acc=>{
         // Export balances derived from the same posted double-entry ledger as the main app.
         // The agent adjusts only operations not represented in this synchronized snapshot.
         const st=Accounting.getAccountStatement(acc.id);
-        return {id:acc.id,name:acc.name,type:acc.type,phone:acc.phone||'',address:acc.address||'',paymentTerms:acc.paymentTerms||'',priceTier:acc.priceTier==='center'?'center':'wholesale',
+        return {id:acc.id,name:acc.name,type:acc.type,phone:acc.phone||'',address:acc.address||'',paymentTerms:acc.paymentTerms||'',priceTier:['wholesale','center','consumer'].includes(acc.priceTier)?acc.priceTier:'settings',
           sypBalance:st.sypBalance,usdBalance:st.usdBalance};
       }),
       stock:Object.fromEntries(State.items.map(it=>[it.id,Accounting.getItemBaseStock(it.id,null,a.warehouseId)])),

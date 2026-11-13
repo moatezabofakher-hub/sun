@@ -100,7 +100,13 @@ A.changeRowUnit=function(i,unitName){
  r.unitName=u.name;r.unitFactor=Number(u.factor);r.price=this.unitPrice(it,u,this.currency);r.total=round(r.qty*r.price,this.currency);
  this.show('invoice');
 };
-A.unitPrice=function(it,u,c){const acc=this.state.accounts.find(a=>a.id===(document.getElementById('fAccount')?.value||this.invoiceMeta?.accountId));const price=acc?.priceTier==='center'?(u.centerPrice??u.salePrice):(u.wholesalePrice??u.salePrice);const raw=Number(price||0),rate=Number(this.state.exchangeRate)||1;return round(it.currency===c?raw:it.currency==='USD'?raw*rate:raw/rate,c);};
+A.unitPrice=function(it,u,c){
+ const acc=this.state.accounts.find(a=>a.id===(document.getElementById('fAccount')?.value||this.invoiceMeta?.accountId));
+ const tier=['wholesale','center','consumer'].includes(acc?.priceTier) ? acc.priceTier : (['wholesale','center','consumer'].includes(this.state.defaultPriceTier)?this.state.defaultPriceTier:'wholesale');
+ const price=tier==='consumer'?(u.consumerPrice??u.centerPrice??u.salePrice):(tier==='center'?(u.centerPrice??u.salePrice):(u.wholesalePrice??u.salePrice));
+ const raw=Number(price||0),rate=Number(this.state.exchangeRate)||1;
+ return round(it.currency===c?raw:it.currency==='USD'?raw*rate:raw/rate,c);
+};
 A.accountPricingChanged=function(id){this.captureInvoiceMeta();this.invoiceMeta.accountId=id;for(const row of this.draft){if(row.manuallyPriced)continue;const it=this.state.items.find(x=>x.id===row.itemId);const u=it?.units?.find(x=>x.name===row.unitName);if(!it||!u)continue;row.price=this.unitPrice(it,u,this.currency);row.total=round(row.price*row.qty,this.currency);}this.show('invoice');};
 A.changeRowValue=function(i,key,v){
  const r=this.draft[i];if(!r)return;
@@ -202,7 +208,7 @@ A.renderInvoice=function(){
  <div class="invoice-added-items rounded-2xl overflow-hidden mb-3 shadow-xs"><div class="invoice-added-title px-3 py-2 text-xs font-extrabold flex items-center justify-between"><span><i class="fas fa-boxes-stacked ml-1"></i> الأصناف المضافة إلى الفاتورة</span><span>${this.draft.length} صنف</span></div>
  ${this.draft.length?`<div class="divide-y divide-slate-100">${this.draft.map((r,i)=>{
   const it=items.find(x=>x.id===r.itemId),available=Number(this.stock[r.itemId]||0)*Number(r.unitFactor||1);
-  return `<div class="invoice-added-row p-3"><div class="flex items-center justify-between mb-2"><div class="flex items-center gap-1.5 flex-wrap"><span class="invoice-row-index">${i+1}</span><span class="font-extrabold text-xs text-slate-900">${esc(r.itemName)}</span><span class="text-[10px] bg-slate-100 text-slate-600 font-bold px-1.5 py-0.5 rounded">عملة الأصل: ${esc(it?.currency||c)}</span><span class="text-[10px] bg-emerald-50 text-emerald-700 font-bold px-2 py-0.5 rounded">متاح: ${round(available,'USD')} ${esc(r.unitName)}</span></div><button type="button" class="text-rose-500 p-1 rounded-lg text-xs" onclick="Agent.removeRow(${i})"><i class="fas fa-trash-can"></i></button></div>
+  return `<div class="invoice-added-row p-3"><div class="flex items-center justify-between mb-2"><div class="flex items-center gap-1.5 flex-wrap"><span class="invoice-row-index">${i+1}</span><span class="font-extrabold text-xs text-slate-900">${esc(r.itemName)}</span><span class="text-[10px] bg-slate-100 text-slate-600 font-bold px-1.5 py-0.5 rounded">عملة الأصل: ${esc(it?.currency||c)}</span><span class="text-[10px] bg-emerald-50 text-emerald-700 font-bold px-2 py-0.5 rounded">متاح: ${round(available,'USD')} ${esc(r.unitName)}</span></div><button type="button" class="ta-field-icon-button text-rose-700 p-1 rounded-lg text-xs" onclick="Agent.removeRow(${i})"><i class="fas fa-trash-can"></i></button></div>
   <div class="grid grid-cols-4 gap-1.5 items-end text-xs"><div><label class="text-[10px] text-slate-500 block">الوحدة</label><select class="w-full border border-slate-300 rounded-lg px-1.5 py-1.5 font-bold bg-white text-xs" onchange="Agent.changeRowUnit(${i},this.value)">${(it?.units||[{name:r.unitName}]).map(u=>`<option value="${esc(u.name)}" ${u.name===r.unitName?'selected':''}>${esc(u.name)}</option>`).join('')}</select></div>
   <div><label class="text-[10px] text-slate-500 block">الكمية</label><input type="text" inputmode="decimal" dir="ltr" value="${r.qty}" onfocus="this.select()" oninput="Agent.changeRowValue(${i},'qty',this.value)" class="w-full border border-slate-300 rounded-lg px-2 py-1.5 font-bold text-center"></div>
   <div><label class="text-[10px] text-slate-500 block">السعر (${c})</label><input type="text" inputmode="decimal" dir="ltr" value="${r.price}" onfocus="this.select()" oninput="Agent.changeRowValue(${i},'price',this.value)" class="w-full border border-slate-300 rounded-lg px-2 py-1.5 font-bold text-center"></div>

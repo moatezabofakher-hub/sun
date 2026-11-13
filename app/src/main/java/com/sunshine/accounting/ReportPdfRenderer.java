@@ -152,17 +152,14 @@ final class ReportPdfRenderer {
             JSONObject afterBalances = input.optJSONObject("finalBalances");
             if (beforeBalances != null && afterBalances != null) {
                 w.rule(Color.rgb(196, 214, 223), 8);
-                for (String balanceCurrency : new String[]{"USD", "SYP"}) {
-                    if (!beforeBalances.isNull(balanceCurrency) && beforeBalances.has(balanceCurrency)) {
-                        w.add("الرصيد قبل الفاتورة ("+ balanceCurrency +"): " + formatAmount(beforeBalances.optDouble(balanceCurrency), balanceCurrency), 11,
-                                false, Color.DKGRAY, Layout.Alignment.ALIGN_NORMAL, 5);
-                    }
+                // Never expose balances from a second currency on this invoice.
+                if (!beforeBalances.isNull(currency) && beforeBalances.has(currency)) {
+                    w.add("الرصيد قبل الفاتورة (" + currency + "): " + formatAmount(beforeBalances.optDouble(currency), currency), 11,
+                            false, Color.DKGRAY, Layout.Alignment.ALIGN_NORMAL, 5);
                 }
-                for (String balanceCurrency : new String[]{"USD", "SYP"}) {
-                    if (!afterBalances.isNull(balanceCurrency) && afterBalances.has(balanceCurrency)) {
-                        w.add("الرصيد النهائي ("+ balanceCurrency +"): " + formatAmount(afterBalances.optDouble(balanceCurrency), balanceCurrency), 12,
-                                true, Color.rgb(15, 70, 82), Layout.Alignment.ALIGN_NORMAL, 7);
-                    }
+                if (!afterBalances.isNull(currency) && afterBalances.has(currency)) {
+                    w.add("الرصيد النهائي (" + currency + "): " + formatAmount(afterBalances.optDouble(currency), currency), 12,
+                            true, Color.rgb(15, 70, 82), Layout.Alignment.ALIGN_NORMAL, 7);
                 }
             } else if (!input.isNull("previousBalance") && input.has("previousBalance")) {
                 w.rule(Color.rgb(196, 214, 223), 8);
