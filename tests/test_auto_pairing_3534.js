@@ -1,0 +1,71 @@
+'use strict';
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const vm=require('node:vm');
+const crypto=require('node:crypto');
+const P=require('../app/src/main/assets/www/static/field-pair-crypto.js');
+const FP=require('../app/src/main/assets/www/static/field-protocol.js');
+const companyId='company_123456789abc',agentId='agent_123456789abc',deviceId='TD-'+FP.uuid().toUpperCase();
+const randomKey=()=>FP.b64u(crypto.randomBytes(32));
+const agent={id:agentId,name:'مندوب جديد',vehicleName:'سيارة 3',warehouseId:'wh_car_3',key:randomKey(),disabled:false};
+const cfg={companyId,agents:[agent],imported:[],events:[]};
+let saved=0,lastReply=null,replyCount=0,uiNotices=[];
+const managerDoc={getElementById(id){if(id.startsWith('pairAgent_'))return {value:agentId};return null;}};
+const fm={data:()=>cfg,pairingBusy:false,catalog:a=>({kind:'provision',companyId,companyName:'المركز',agentId:a.id,agentName:a.name,vehicleName:a.vehicleName,warehouseId:a.warehouseId,key:a.key,issuedAt:new Date().toISOString(),exchangeRate:15000,categories:[],items:[],accounts:[],stock:{},knownIds:[]}),escape:x=>String(x)};
+const managerScope={FieldSync:fm,FieldPairCrypto:P,FieldProtocol:FP,State:{settings:{companyName:'المركز'}},StorageEngine:{saveState:async()=>{saved++;}},document:managerDoc,crypto:crypto.webcrypto,window:{AndroidLocalSync:{reply:(id,data)=>{lastReply=JSON.parse(data);replyCount++;}}},UI:{toast:(msg)=>uiNotices.push(msg)},console,Map,Date,setTimeout,clearTimeout};
+vm.createContext(managerScope);
+vm.runInContext(fs.readFileSync('app/src/main/assets/www/static/field-pair-manager.js','utf8'),managerScope);
+let nativeResult,screen='setup',toasts=[],autoCalls=0,sessionState={deviceId,companyId:'',agentId:'',key:'',ops:[],knownIds:[],items:[],accounts:[],stock:{}};
+const field={state:sessionState,renderSetup:()=>'<p>legacy</p>',renderActivation:()=>'<p>legacy</p>',ready(){return !!this.state.companyId&&!!this.state.key;},async active(){return false;},get pending(){return this.state.ops.filter(o=>!this.state.knownIds.includes(o.id));},async init(){},async show(s){screen=s;},async save(){},toast(x){toasts.push(x)},scheduleAutoSync(){autoCalls++;}};
+const clientDoc={hidden:false,addEventListener(){},getElementById(){return null;}};
+const clientScope={Agent:field,FieldPairCrypto:P,FieldProtocol:FP,crypto:crypto.webcrypto,document:clientDoc,setTimeout,clearTimeout,console,
+ window:{AndroidLocalSync:{requestPairing(c,raw){nativeResult={c,raw};}}}};
+vm.createContext(clientScope);
+vm.runInContext(fs.readFileSync('field_agent/src/main/assets/www/static/agent-pairing.js','utf8'),clientScope);
+const C=clientScope.window.AgentPairing;
+async function pass(){
+ assert(nativeResult,'client request should be queued');
+ const {c,raw}=nativeResult;nativeResult=null;
+ await fm.receivePairingPacket('1',raw);
+ const answer=lastReply;lastReply=null;
+ await C.onNetworkReply(JSON.stringify({data:JSON.stringify(answer)}));
+ return {answer,c};
+}
+(async()=>{
+ // Device discovers manager; pending request is NOT sufficient to activate.
+ await C.start();
+ const first=await pass();
+ assert.equal(first.c,'');assert.equal(first.answer.kind,'pending');
+ assert.equal(C.code,fm.pairingRequests.get(C.requestId).code,'both devices must display matching short codes');
+ assert.equal(saved,0);assert.equal(await field.active(),false,'unapproved device cannot use app');
+ // Wrong agent is not implicitly approved; only the manager can select.
+ let old=managerDoc.getElementById;
+ managerDoc.getElementById=()=>({value:''});
+ await fm.approvePairing(C.requestId);
+ assert.equal(saved,0);assert.equal(fm.pairingRequests.get(C.requestId).status,'pending');
+ managerDoc.getElementById=old;
+ await fm.approvePairing(C.requestId);
+ assert.equal(saved,1);assert.equal(agent.pairedDeviceId,deviceId);
+ assert.equal(fm.pairingRequests.get(C.requestId).status,'approved');
+ clearTimeout(C.timer);await C.next();
+ const approved=await pass();
+ assert.equal(approved.answer.kind,'approved');assert.equal(screen,'home');assert.equal(C.done,true);
+ assert.equal(await field.active(),true,'grant should activate device without a PEM file');
+ assert.equal(field.state.agentId,agentId);assert.equal(field.state.key,agent.key);
+ assert.equal(autoCalls,1,'automatic sync should be woken after successful pairing');
+ await new Promise(resolve=>setTimeout(resolve,1050));
+ assert(nativeResult,'enrollment receipt should be sent to manager');
+ const receipt=JSON.parse(nativeResult.raw);
+ await fm.receivePairingPacket('2',nativeResult.raw);
+ assert.equal(lastReply.kind,'done');
+ assert.equal(fm.pairingRequests.size,0);
+ const bad={...field.state.enrollmentGrant,license:{...field.state.enrollmentGrant.license,agentId:'agent_other12345'}};
+ assert.equal(await P.verifyGrant(bad,field.state.pairedAuthorityKey,deviceId,companyId,agentId),false,'tampered grant rejected');
+ assert.equal(await P.verifyGrant(field.state.enrollmentGrant,field.state.pairedAuthorityKey,'TD-'+'F'.repeat(32),companyId,agentId),false,'wrong device rejected');
+ const deniedId='pr_'+FP.uuid(),denyEp=await P.createEphemeral();
+ await fm.receivePairingPacket('3',JSON.stringify({pairingProtocol:P.VERSION,kind:'hello',requestId:deniedId,deviceId:'TD-'+'D'.repeat(32),publicKey:denyEp.publicKey}));
+ fm.rejectPairing(deniedId);
+ await fm.receivePairingPacket('4',JSON.stringify({pairingProtocol:P.VERSION,kind:'poll',requestId:deniedId,deviceId:'TD-'+'D'.repeat(32)}));
+ assert.equal(lastReply.kind,'error','rejected request may not receive credentials');
+ console.log('PASS: secure auto-discovery flow, admin approval, 6-digit comparison, private catalog transfer, signed grant, ACK, denial and tampering protections.');
+})().catch(e=>{console.error(e);process.exitCode=1;}).finally(()=>{clearTimeout(C.timer);clearTimeout(C.watchdog);});

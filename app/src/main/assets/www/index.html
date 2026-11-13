@@ -46,7 +46,7 @@
 #warehouseTransferPanel #transferSaveButton:focus-visible,#warehouseTransferPanel .ta-transfer-card:focus-visible{outline:3px solid #e9a330;outline-offset:2px;}
 @media(max-width:350px){#warehouseTransferPanel .ta-transfer-filter{grid-template-columns:1fr;}#warehouseTransferPanel .ta-transfer-draft-fields{gap:5px;}}
 
-/* v3.5.33 — editable warehouse transfer invoices */
+/* v3.5.34 — easier manager-approved agent enrollment */
 #warehouseTransferPanel .ta-transfer-edit-banner{border:1px solid #0f766e;background:#e6f8f2;color:#134e4a;border-radius:12px;padding:11px;margin-bottom:12px;font-size:12px;}
 #warehouseTransferPanel .ta-transfer-edit-banner[hidden],#transferCancelEditButton[hidden]{display:none!important;}
 .ta-transfer-invoice{margin:10px 0;border:1px solid #bccfda!important;border-radius:15px!important;background:#fff!important;box-shadow:0 3px 10px #17334810;overflow:hidden;}
@@ -77,7 +77,9 @@
     <script defer src="static/icons.js"></script>
     <script defer src="static/field-protocol.js"></script>
     <script defer src="static/field-lan-crypto.js"></script>
+    <script defer src="static/field-pair-crypto.js"></script>
     <script defer src="static/field-main.js"></script>
+    <script defer src="static/field-pair-manager.js"></script>
     <style>
         * {
             font-family: system-ui, 'Noto Sans Arabic', sans-serif;
@@ -4761,8 +4763,8 @@
                 UI.setHeader('<i class="fas fa-sliders text-emerald-400"></i> <span>الضبط</span>', 'اضغط على القسم المطلوب لعرض خياراته');
                 const mode = State.settings.btPrintMode || 'auto';
                 main.innerHTML = `
-                    <div class="mb-3 flex items-center justify-between gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2" data-app-build="3.5.33">
-                        <span class="font-black text-xs text-emerald-800"><i class="fas fa-check-circle ml-1"></i> إصدار التطبيق: 3.5.33</span>
+                    <div class="mb-3 flex items-center justify-between gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2" data-app-build="3.5.34">
+                        <span class="font-black text-xs text-emerald-800"><i class="fas fa-check-circle ml-1"></i> إصدار التطبيق: 3.5.34</span>
                         <span class="text-[10px] font-bold text-emerald-700">مظهر ثلاثي الأبعاد موحّد</span>
                     </div>
                     <div class="mb-3 text-[11px] text-slate-500 font-semibold px-1">جميع خيارات التطبيق مرتبة ضمن فئات. اضغط على اسم أي فئة لفتحها أو إغلاقها.</div>

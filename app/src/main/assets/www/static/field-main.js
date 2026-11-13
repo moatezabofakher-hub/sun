@@ -30,6 +30,11 @@ const FieldSync = {
         <div id="fieldLanStatus" class="text-xs font-bold text-teal-900">جارٍ تشغيل الاستقبال…</div>
         <button type="button" class="ta-primary-3d w-full p-3 rounded-xl font-bold" onclick="FieldSync.startLanReceiver()">إعادة تشغيل الاستقبال إذا لزم</button>
       </div>
+      <div class="rounded-2xl border border-teal-300 p-3 space-y-2 bg-teal-50">
+        <b class="text-sm">🔗 ربط جهاز مندوب جديد تلقائياً</b>
+        <p class="text-xs">افتح تطبيق المندوب الجديد على شبكة Wi-Fi نفسها. سيظهر الطلب هنا تلقائياً. طابق رمز الأمان على الهاتفين، اختر المندوب واضغط موافقة واحدة؛ لا حاجة إلى ملفات أو نسخ معرّفات أو مفاتيح.</p>
+        <div id="fieldPairingRequests">${this.pairingCards?.()||'بانتظار طلب جهاز المندوب…'}</div>
+      </div>
       <div class="rounded-2xl border p-3 space-y-2 bg-white">
         <b class="text-sm">تسجيل سيارة / مندوب</b>
         <input id="fieldNewAgent" class="w-full border rounded-xl p-3" placeholder="اسم المندوب" maxlength="70"/>
@@ -42,6 +47,7 @@ const FieldSync = {
          ${config.agents.filter(a=>!a.archived).length? config.agents.filter(a=>!a.archived).map(a=>`<div class="rounded-xl bg-slate-50 border p-3 space-y-2">
              <div class="flex justify-between gap-2"><span class="font-bold">${this.escape(a.name)} · ${this.escape(a.vehicleName||'')}</span><span class="text-[10px]">${a.disabled?'موقوف':'معتمد'}</span></div>
              <p class="text-[10px] text-slate-500">${this.escape(WarehouseController.name(a.warehouseId))}</p>
+             <p class="text-[10px] ${a.pairedDeviceId?'text-teal-700':'text-amber-700'}">${a.pairedDeviceId?'🔒 مرتبط بجهاز ينتهي معرفه بـ '+this.escape(a.pairedDeviceId.slice(-8)):'بانتظار طلب ربط جهاز جديد'}</p>
              <div class="grid grid-cols-2 gap-2">
                <button type="button" class="rounded-lg bg-teal-700 text-white p-2 font-bold" onclick="FieldSync.exportProvision('${a.id}')">تجهيز بيانات المندوب</button>
                <button type="button" class="rounded-lg bg-blue-700 text-white p-2 font-bold" onclick="FieldSync.exportAck('${a.id}')">تأكيد الاستلام</button>
@@ -71,7 +77,7 @@ const FieldSync = {
     const key=new Uint8Array(32);crypto.getRandomValues(key);
     const a={id:'agent_'+FieldProtocol.uuid(),name,vehicleName:vehicleName||name,warehouseId,key:FieldProtocol.b64u(key),createdAt:new Date().toISOString(),disabled:false};
     this.data().agents.push(a);
-    try { await StorageEngine.saveState();this.open();UI.toast('تم إنشاء هوية المندوب. صدّر ملف التجهيز','success'); }
+    try { await StorageEngine.saveState();this.open();UI.toast('تم إنشاء المندوب. افتح تطبيقه وسيظهر طلب الربط تلقائياً','success'); }
     catch(e){this.data().agents=this.data().agents.filter(x=>x.id!==a.id);UI.toast('فشل حفظ المندوب: '+e.message,'error');}
   },
   catalog(a){
@@ -236,7 +242,7 @@ const FieldSync = {
   async receiveLanPacket(requestId, raw){
     let answer={error:'لم يتم ترحيل العمليات؛ أعد المحاولة'},agent=null;
     try {
-      if(this.busy||this.lanBusy)throw Error('التطبيق الرئيسي مشغول؛ أعد المزامنة بعد قليل');
+      if(this.busy||this.lanBusy||this.pairingBusy)throw Error('التطبيق الرئيسي مشغول؛ أعد المزامنة بعد قليل');
       this.lanBusy=true;
       const packet=JSON.parse(raw), config=this.data();
       if(packet.companyId!==config.companyId)throw Error('الشركة غير مطابقة');

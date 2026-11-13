@@ -59,6 +59,7 @@ public final class NativeLocalSync {
     private volatile String activeCompany;
     private volatile boolean closing = false;
     private final AtomicBoolean sending = new AtomicBoolean(false);
+    private final AtomicBoolean pairingSending = new AtomicBoolean(false);
 
     public NativeLocalSync(Activity activity, WebView webView, boolean manager) {
         this.activity = activity;
@@ -119,6 +120,13 @@ public final class NativeLocalSync {
             else result.put("error", error);
         } catch (Exception ignored) { }
         js("typeof Agent!=='undefined' && Agent.onLocalSyncResult(" + JSONObject.quote(result.toString()) + ");");
+    }
+
+    private void pairingResult(String error, String data) {
+        final JSONObject result = new JSONObject();
+        try { if (error == null) result.put("data", data); else result.put("error", error); }
+        catch (Exception ignored) { }
+        js("typeof AgentPairing!=='undefined' && AgentPairing.onNetworkReply(" + JSONObject.quote(result.toString()) + ");");
     }
 
     private synchronized void acquireMulticast() {
@@ -199,7 +207,10 @@ public final class NativeLocalSync {
             ArrayBlockingQueue<String> q = new ArrayBlockingQueue<>(1);
             answers.put(id, q);
             try {
-                js("typeof FieldSync!=='undefined' && FieldSync.receiveLanPacket(" + JSONObject.quote(id) + "," + JSONObject.quote(raw) + ");");
+                // Enrollment packets never enter the financial operation importer.
+                boolean pairing = raw.length() <= 12000 && raw.contains("\"pairingProtocol\":\"TA-PAIR-1\"");
+                if (pairing) js("typeof FieldSync!=='undefined' && FieldSync.receivePairingPacket(" + JSONObject.quote(id) + "," + JSONObject.quote(raw) + ");");
+                else js("typeof FieldSync!=='undefined' && FieldSync.receiveLanPacket(" + JSONObject.quote(id) + "," + JSONObject.quote(raw) + ");");
                 String response = q.poll(38, TimeUnit.SECONDS);
                 if (response == null) response = "{\"error\":\"انتهت مهلة الاستجابة من التطبيق الرئيسي\"}";
                 byte[] bytes = response.getBytes(StandardCharsets.UTF_8);
@@ -249,11 +260,46 @@ public final class NativeLocalSync {
         });
     }
 
+    /** Discover the manager automatically and exchange onboarding messages.
+     * A pending request can never modify the manager's database. */
+    @JavascriptInterface
+    public void requestPairing(String companyId, String requestJson) {
+        if (manager || closing || !isTrustedPage()) return;
+        if (companyId == null || !(companyId.isEmpty() || isCompany(companyId)) || requestJson == null || requestJson.length() > 12000) {
+            pairingResult("طلب الربط غير صحيح", null); return;
+        }
+        try {
+            JSONObject packet = new JSONObject(requestJson);
+            if (!"TA-PAIR-1".equals(packet.optString("pairingProtocol"))) throw new IOException("invalid protocol");
+            if (!java.util.Arrays.asList("hello", "poll", "confirm").contains(packet.optString("kind"))) throw new IOException("invalid request");
+        } catch (Exception e) { pairingResult("طلب الربط غير صحيح", null); return; }
+        if (!pairingSending.compareAndSet(false, true)) return;
+        io.execute(() -> {
+            try {
+                InetSocketAddress target = findServer(companyId.isEmpty() ? null : companyId);
+                if (target == null) throw new IOException("لم يُعثر على التطبيق الرئيسي على شبكة Wi-Fi المحلية");
+                try (Socket socket = new Socket()) {
+                    socket.connect(target, 5500);
+                    socket.setSoTimeout(43000);
+                    DataOutputStream out = new DataOutputStream(socket.getOutputStream());
+                    byte[] bytes = requestJson.getBytes(StandardCharsets.UTF_8);
+                    out.writeInt(bytes.length);out.write(bytes);out.flush();
+                    DataInputStream in = new DataInputStream(socket.getInputStream());
+                    int size = in.readInt();
+                    if (size <= 0 || size > MAX_FRAME) throw new IOException("رد ربط غير صحيح");
+                    byte[] answer = new byte[size];in.readFully(answer);
+                    pairingResult(null, new String(answer, StandardCharsets.UTF_8));
+                }
+            } catch (Exception e) { pairingResult(e.getMessage() == null ? "تعذر ربط الجهاز" : e.getMessage(), null); }
+            finally { pairingSending.set(false); }
+        });
+    }
+
     private InetSocketAddress findServer(String companyId) throws InterruptedException {
         final CountDownLatch completed = new CountDownLatch(1);
         final AtomicBoolean resolving = new AtomicBoolean(false);
         final AtomicReference<InetSocketAddress> address = new AtomicReference<>();
-        final String expected = serviceName(companyId);
+        final String expected = companyId == null ? "TA-FIELD-" : serviceName(companyId);
         acquireMulticast();
         NsdManager.DiscoveryListener discovery = new NsdManager.DiscoveryListener() {
             @Override public void onDiscoveryStarted(String type) { }
