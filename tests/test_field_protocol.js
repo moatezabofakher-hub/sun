@@ -1,0 +1,55 @@
+'use strict';
+const assert=require('node:assert/strict');
+const crypto=require('node:crypto');
+const FieldProtocol=require('../app/src/main/assets/www/static/field-protocol.js');
+
+function randomKey(){return FieldProtocol.b64u(crypto.randomBytes(32))}
+(async()=>{
+ const key=randomKey(),other=randomKey();
+ const a={id:'agent_12345678',name:'مندوب أ',vehicleName:'سيارة 1',warehouseId:'wh_car_1'};
+ const companyId='company_1234';
+ const items=[{id:'i1',name:'منظف',currency:'USD',units:[{name:'علبة',factor:1,salePrice:3},{name:'كرتونة',factor:6,salePrice:17}]}];
+ const accounts=[{id:'c1',name:'عميل',type:'customer'}];
+ const stock={i1:20};
+ const op=(kind, id, extra={})=>({id,kind,agentId:a.id,companyId,warehouseId:a.warehouseId,date:'2026-11-13T12:05:00.000Z',currency:'USD',exchangeRate:15000,accountId:'c1',...extra});
+ const ops=[op('sale','op_00000000001',{rows:[{itemId:'i1',unitName:'علبة',unitFactor:1,qty:2,price:3,total:6}],paidAmount:3}),
+   op('receipt','op_00000000002',{amount:3})];
+ const envelope=await FieldProtocol.seal({kind:'operations',companyId,agentId:a.id,warehouseId:a.warehouseId,operations:ops},key);
+ assert.equal((await FieldProtocol.unseal(envelope,key)).operations.length,2);
+ await assert.rejects(FieldProtocol.unseal(envelope,other));
+ const tampered={...envelope,data:envelope.data.replace('receipt','payment')};await assert.rejects(FieldProtocol.unseal(tampered,key));
+ const validated=FieldProtocol.validateOps(ops,a.id,companyId,a.warehouseId,items,accounts);
+ assert.equal(validated[0].netTotal,6);
+ assert.equal(validated[0].paidAmount,3);
+ const docs=FieldProtocol.toLedgerDocuments(validated,a,7,12);
+ assert.equal(docs.invoices[0].number,8);
+ assert.equal(docs.invoices[0].remainingAmount,3);
+ assert.equal(docs.invoices[0].fieldOrigin.agentName,'مندوب أ');
+ assert.equal(docs.vouchers[0].number,13);
+ assert.equal(docs.invoices[0].warehouseId,'wh_car_1');
+ assert.equal(FieldProtocol.revokeDuplicate(ops,['op_00000000001']).length,1);
+ assert.equal(FieldProtocol.revokeDuplicate(ops,['op_00000000001','op_00000000002']).length,0);
+ assert.equal(FieldProtocol.applyStock(stock,ops,[]).i1,18);
+ assert.equal(FieldProtocol.applyStock(stock,ops,['op_00000000001']).i1,20);
+ const returns=[op('sale_return','op_00000000003',{rows:[{itemId:'i1',unitName:'علبة',unitFactor:1,qty:1,price:3,total:3}],paidAmount:3})];
+ assert.equal(FieldProtocol.applyStock(stock,[...ops,...returns],[]).i1,19);
+ assert.throws(()=>FieldProtocol.validateOps([...ops,ops[0]],a.id,companyId,a.warehouseId,items,accounts),/مكرر/);
+ assert.throws(()=>FieldProtocol.validateOps([op('sale','op_00000000004',{rows:[{itemId:'unknown',unitName:'علبة',unitFactor:1,qty:1,price:3,total:3}],paidAmount:3})],a.id,companyId,a.warehouseId,items,accounts));
+ assert.throws(()=>FieldProtocol.validateOps([op('sale','op_00000000004',{rows:[{itemId:'i1',unitName:'علبة',unitFactor:1,qty:1,price:3,total:999}],paidAmount:3})],a.id,companyId,a.warehouseId,items,accounts));
+ assert.throws(()=>FieldProtocol.validateOps([op('sale','op_00000000005',{rows:[{itemId:'i1',unitName:'علبة',unitFactor:1,qty:1,price:3,total:3}],paidAmount:0,accountId:''})],a.id,companyId,a.warehouseId,items,accounts),/تحتاج حساب/);
+ assert.throws(()=>FieldProtocol.validateOps([op('receipt','op_00000000006',{amount:3,accountId:'nonexistent'})],a.id,companyId,a.warehouseId,items,accounts));
+ assert.throws(()=>FieldProtocol.validateOps([op('receipt','op_00000000007',{amount:3,companyId:'different'})],a.id,companyId,a.warehouseId,items,accounts));
+ const keys=crypto.generateKeyPairSync('rsa',{modulusLength:2048});
+ const pem=keys.privateKey.export({format:'pem',type:'pkcs8'});
+ const pub=keys.publicKey.export({format:'der',type:'spki'}).toString('base64');
+ const licenseData={role:'field',companyId,agentId:a.id,deviceId:'TD-'+'A'.repeat(32),expiresAt:'2030-01-01T00:00:00.000Z'};
+ const token=await FieldProtocol.issueLicense(licenseData,pem);
+ assert(token.startsWith('TAF1.'));
+ assert(await FieldProtocol.verifyLicense(token,pub,licenseData.deviceId,companyId,a.id));
+ assert(!(await FieldProtocol.verifyLicense(token,pub,licenseData.deviceId,companyId,'agent_other')));
+ assert(!(await FieldProtocol.verifyLicense(token,pub,'TD-'+'B'.repeat(32),companyId,a.id)));
+ assert(!(await FieldProtocol.verifyLicense(token.slice(0,token.lastIndexOf('.')+1) + (token[token.lastIndexOf('.')+1]==='A'?'B':'A') + token.slice(token.lastIndexOf('.')+2),pub,licenseData.deviceId,companyId,a.id)));
+ const expired=await FieldProtocol.issueLicense({...licenseData,expiresAt:'2020-01-01T00:00:00.000Z'},pem);
+ assert(!(await FieldProtocol.verifyLicense(expired,pub,licenseData.deviceId,companyId,a.id)));
+ console.log('PASS: Signed license, company/device/agent binding, expiry, HMAC authentication, operation validation, returns, receipts, stock and duplicate control.');
+})().catch(e=>{console.error(e);process.exitCode=1});

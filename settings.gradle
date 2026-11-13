@@ -13,4 +13,4 @@ dependencyResolutionManagement {
     }
 }
 rootProject.name = 'SAN_SHINE_Accounting'
-include ':app'
+include ':app', ':field_agent'

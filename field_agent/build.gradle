@@ -1,0 +1,76 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.sunshine.accounting'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'com.sunshine.technicalaccountant.agent'
+        minSdk 26
+        targetSdk 35
+        versionCode 1
+        versionName '1.0.0-field-agent'
+    }
+
+    // A permanent signing key is required for in-place updates. The keystore is
+    // injected from private GitHub Actions Secrets and is never committed.
+    def signingFile = System.getenv('TA_SIGNING_KEYSTORE_PATH')
+    def signingPass = System.getenv('TA_SIGNING_STORE_PASSWORD')
+    def signingAlias = System.getenv('TA_SIGNING_KEY_ALIAS')
+    def signingKeyPass = System.getenv('TA_SIGNING_KEY_PASSWORD')
+    def hasPermanentSigning = signingFile && signingPass && signingAlias && signingKeyPass
+            && file(signingFile).isFile()
+    signingConfigs {
+        if (hasPermanentSigning) {
+            permanent {
+                storeFile file(signingFile)
+                storePassword signingPass
+                keyAlias signingAlias
+                keyPassword signingKeyPass
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            if (hasPermanentSigning) signingConfig signingConfigs.permanent
+            minifyEnabled false
+        }
+        debug {
+            minifyEnabled false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    lint {
+        abortOnError true
+        checkReleaseBuilds true
+    }
+}
+
+dependencies {
+    implementation 'androidx.webkit:webkit:1.11.0'
+    implementation 'androidx.biometric:biometric:1.1.0'
+    implementation 'androidx.fragment:fragment:1.6.2'
+    implementation 'androidx.work:work-runtime:2.10.1'
+    implementation 'androidx.documentfile:documentfile:1.0.1'
+    implementation 'com.google.android.gms:play-services-auth:22.0.0'
+    // Offline on-device camera barcode scanner. Does not send barcode data to servers.
+    implementation 'com.journeyapps:zxing-android-embedded:4.3.0'
+}
+
+// Keep transitive Kotlin stdlib versions consistent across AndroidX dependencies.
+configurations.configureEach {
+    resolutionStrategy.eachDependency { details ->
+        if (details.requested.group == 'org.jetbrains.kotlin'
+                && details.requested.name.startsWith('kotlin-stdlib')) {
+            details.useVersion '1.8.20'
+        }
+    }
+}

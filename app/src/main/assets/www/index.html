@@ -13,6 +13,8 @@
     <!-- Local Android font fallback, no CDN dependency -->
     <!-- Font Awesome Icons -->
     <script defer src="static/icons.js"></script>
+    <script defer src="static/field-protocol.js"></script>
+    <script defer src="static/field-main.js"></script>
     <style>
         * {
             font-family: system-ui, 'Noto Sans Arabic', sans-serif;
@@ -812,6 +814,14 @@
         .report-period-pill.active{background:#0e577b;color:white;border-color:#0c5274;box-shadow:0 3px 0 #073e60;}
         .profiles-chip{border:1px solid #a5b8d0;border-radius:14px;background:linear-gradient(145deg,#fff,#edf5ff);padding:10px;box-shadow:0 3px 0 #becbdc;}
     </style>
+
+    <style id="field-sync-surface-style">
+      #modalBox .ta-field-panel .ta-primary-3d {background:linear-gradient(150deg,#13b7a8,#056d76)!important;color:#fff!important;border:1px solid #0b7f79!important;box-shadow:0 4px 0 #064b55,0 12px 17px #07343a20!important;}
+      #modalBox .ta-field-panel button.bg-teal-700 {background:linear-gradient(155deg,#16af9c,#087c79)!important;color:white!important;box-shadow:0 3px 0 #065855;}
+      #modalBox .ta-field-panel button.bg-blue-700 {background:linear-gradient(155deg,#4289ca,#285889)!important;color:white!important;box-shadow:0 3px 0 #1b3d6c;}
+      #modalBox .ta-field-panel button.bg-amber-100 {background:linear-gradient(145deg,#fff4ce,#f9df8b)!important;color:#654718!important;}
+      #modalBox .ta-field-panel button {min-height:39px;}
+    </style>
 </head>
 <body class="ta-premium-ui ta-3d-v3524 bg-slate-100 text-slate-800 min-h-screen flex flex-col w-full max-w-full overflow-x-hidden">
 
@@ -966,7 +976,8 @@
             vouchers: [],   // 100% Clean - Zero demo vouchers
             warehouses: [{ id: 'wh_main', name: 'المستودع الرئيسي' }],
             transfers: [],
-            expenses: []
+            expenses: [],
+            fieldSync: {companyId:'',agents:[],imported:[],events:[]}
         };
 
         // Immutable template for a newly created business ledger. The activation is device-wide.
@@ -1048,6 +1059,7 @@
                             State.accounts = d.accounts || [];
                             State.invoices = d.invoices || [];
                             State.vouchers = Array.isArray(d.vouchers) ? d.vouchers : [];
+                            State.fieldSync = d.fieldSync || {companyId:'',agents:[],imported:[],events:[]};
                             State.warehouses = Array.isArray(d.warehouses) && d.warehouses.length
                                 ? d.warehouses : [{ id: 'wh_main', name: 'المستودع الرئيسي' }];
                             if (!State.warehouses.some(w => w.id === 'wh_main')) {
@@ -1087,6 +1099,7 @@
                             accounts: State.accounts,
                             invoices: State.invoices,
                             vouchers: State.vouchers,
+                            fieldSync: State.fieldSync,
                             warehouses: State.warehouses,
                             transfers: State.transfers,
                             expenses: State.expenses
@@ -3522,6 +3535,7 @@
                         <section aria-label="أقسام التطبيق">
                             <div class="ta-section-head"><span class="ta-section-mark"></span><div><h3>إدارة الأعمال</h3><p>وصول سريع إلى الأقسام والتقارير</p></div></div>
                             <div class="ta-module-grid">
+                                <button type="button" onclick="FieldSync.open()" class="ta-module-card"><span class="ta-icon-box ta-tone-blue"><i class="fas fa-truck" aria-hidden="true"></i></span><strong>مندوبو التوزيع</strong></button>
                                 <button type="button" onclick="AppNav.navigate('invoice_form', { type: 'sale_return' })" class="ta-module-card">
                                     <span class="ta-icon-box ta-tone-red"><i class="fas fa-rotate-left" aria-hidden="true"></i></span><strong>مردود مبيعات</strong>
                                 </button>
@@ -3878,6 +3892,7 @@
                                         <div>
                                             <div class="text-slate-500">الحساب: <strong class="text-slate-800">${acc ? acc.name : 'عميل نقدي مباشر'}</strong></div>
                                             <div class="text-[11px] text-slate-400 mt-0.5">الأصناف: ${inv.rows.length} | العملة: ${inv.currency} (صرف: ${inv.exchangeRate})</div>
+                                            ${inv.fieldOrigin ? `<div class="text-[11px] text-teal-700 mt-1 font-bold"><i class="fas fa-truck ml-1"></i> تمت المزامنة من: ${AppEscape.text(inv.fieldOrigin.agentName)} · ${AppEscape.text(inv.fieldOrigin.vehicleName)}</div>` : ''}
                                         </div>
                                         <div class="text-left">
                                             <div class="font-extrabold text-sm text-slate-900">الصافي: ${Accounting.format(inv.netTotal, inv.currency)}</div>
@@ -4419,6 +4434,7 @@
                                         <div>
                                             <div class="font-bold text-sm text-slate-800">${acc ? acc.name : 'حساب عام'}</div>
                                             <div class="text-xs text-slate-500">${v.note || 'بدون ملاحظات'}</div>
+                                            ${v.fieldOrigin ? `<div class="text-[11px] text-teal-700 font-bold mt-1">مزامنة من: ${AppEscape.text(v.fieldOrigin.agentName)}</div>` : ''}
                                         </div>
                                         <div class="text-left">
                                             <div class="font-extrabold text-sm text-slate-900">${Accounting.format(v.amount, v.currency)}</div>
@@ -4631,11 +4647,12 @@
                 UI.setHeader('<i class="fas fa-sliders text-emerald-400"></i> <span>الضبط</span>', 'اضغط على القسم المطلوب لعرض خياراته');
                 const mode = State.settings.btPrintMode || 'auto';
                 main.innerHTML = `
-                    <div class="mb-3 flex items-center justify-between gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2" data-app-build="3.5.24">
-                        <span class="font-black text-xs text-emerald-800"><i class="fas fa-check-circle ml-1"></i> إصدار التطبيق: 3.5.24</span>
+                    <div class="mb-3 flex items-center justify-between gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2" data-app-build="3.5.25">
+                        <span class="font-black text-xs text-emerald-800"><i class="fas fa-check-circle ml-1"></i> إصدار التطبيق: 3.5.25</span>
                         <span class="text-[10px] font-bold text-emerald-700">مظهر ثلاثي الأبعاد موحّد</span>
                     </div>
                     <div class="mb-3 text-[11px] text-slate-500 font-semibold px-1">جميع خيارات التطبيق مرتبة ضمن فئات. اضغط على اسم أي فئة لفتحها أو إغلاقها.</div>
+                    <div class="mb-3"><button type="button" onclick="FieldSync.open()" class="ta-primary-3d w-full py-3 px-3 rounded-xl font-black text-sm"><i class="fas fa-truck ml-2"></i> المندوبون والمزامنة المحلية</button></div>
                     <div class="grid grid-cols-2 gap-2 mb-3" data-feature="report-shortcuts-3523">
                       <button type="button" class="invoice-report-action text-xs py-3" onclick="AppNav.navigate('reports',{tab:'sales_summary',period:'today'})"><i class="fas fa-chart-bar ml-1"></i>طباعة المبيعات</button>
                       <button type="button" class="invoice-report-action text-xs py-3" onclick="AppNav.navigate('reports',{tab:'debts_summary',side:'debit'})"><i class="fas fa-print ml-1"></i>طباعة الديون</button>
