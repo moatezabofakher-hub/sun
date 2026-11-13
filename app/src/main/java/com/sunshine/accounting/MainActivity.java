@@ -64,6 +64,7 @@ public final class MainActivity extends FragmentActivity {
     private static final String APP_URL = "https://" + HOST + "/assets/www/index.html";
     private static final int PICK_IMPORT = 2401;
     private static final int SAVE_BACKUP = 2402;
+    private static final int SAVE_REPORT_PDF = 2405;
     private static final int REQUEST_ITEM_CAMERA = 2404;
     private WebView webView;
     private NativeBluetoothPrinter bluetoothPrinter;
@@ -72,6 +73,8 @@ public final class MainActivity extends FragmentActivity {
     private ValueCallback<Uri[]> pendingFileChooser;
     private Uri pendingItemPhotoCameraUri;
     private String pendingBackupJson;
+    private byte[] pendingReportPdf;
+    private volatile boolean reportPdfBusy;
 
     // Local Storage Access Framework folder (persisted permission) and Drive authorization.
     private final ActivityResultLauncher<Intent> folderLauncher = registerForActivityResult(
@@ -281,6 +284,7 @@ public final class MainActivity extends FragmentActivity {
         webView.addJavascriptInterface(new SecurityBridge(), "NativeSecurity");
         webView.addJavascriptInterface(new ExitBridge(), "Android");
         webView.addJavascriptInterface(new BackupBridge(), "AndroidFiles");
+        webView.addJavascriptInterface(new ReportPdfBridge(), "AndroidReports");
         webView.addJavascriptInterface(new AutoBackupBridge(), "AndroidAutoBackup");
         bluetoothPrinter = new NativeBluetoothPrinter(this, webView);
         webView.addJavascriptInterface(bluetoothPrinter, "AndroidPrinter");
@@ -650,6 +654,49 @@ public final class MainActivity extends FragmentActivity {
         }
     }
 
+    /** Save a locally produced multi-page Arabic PDF through SAF, then open Android Share. */
+    private final class ReportPdfBridge {
+        @JavascriptInterface
+        public void saveAndShareReport(String json, String filename) {
+            if (json == null || json.length() > 4000000) {
+                runOnUiThread(() -> Toast.makeText(MainActivity.this,
+                        "حجم بيانات التقرير كبير جداً", Toast.LENGTH_LONG).show());
+                return;
+            }
+            synchronized (MainActivity.this) {
+                if (reportPdfBusy) return;
+                reportPdfBusy = true;
+            }
+            final String safeName = (filename == null ? "تقرير.pdf" : filename)
+                    .replaceAll("[^\\p{L}\\p{N}_.-]", "_");
+            new Thread(() -> {
+                try {
+                    byte[] result = ReportPdfRenderer.render(new JSONObject(json));
+                    runOnUiThread(() -> {
+                        if (!isLocalPage()) { reportPdfBusy = false; return; }
+                        pendingReportPdf = result;
+                        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+                        intent.addCategory(Intent.CATEGORY_OPENABLE);
+                        intent.setType("application/pdf");
+                        intent.putExtra(Intent.EXTRA_TITLE,
+                                safeName.toLowerCase(java.util.Locale.ROOT).endsWith(".pdf")
+                                        ? safeName : safeName + ".pdf");
+                        try { startActivityForResult(intent, SAVE_REPORT_PDF); }
+                        catch (Exception e) {
+                            pendingReportPdf = null;reportPdfBusy = false;
+                            Toast.makeText(MainActivity.this,
+                                    "تعذر فتح نافذة حفظ PDF", Toast.LENGTH_LONG).show();
+                        }
+                    });
+                } catch (Exception e) {
+                    reportPdfBusy = false;
+                    runOnUiThread(() -> Toast.makeText(MainActivity.this,
+                            "تعذر إنشاء PDF: " + e.getMessage(), Toast.LENGTH_LONG).show());
+                }
+            }, "ta-pdf-report").start();
+        }
+    }
+
     private final class BackupBridge {
         @JavascriptInterface
         public void saveBackup(String json, String filename) {
@@ -692,6 +739,33 @@ public final class MainActivity extends FragmentActivity {
                 pendingFileChooser = null;
                 pendingItemPhotoCameraUri = null;
             }
+        } else if (requestCode == SAVE_REPORT_PDF) {
+            byte[] pdf = pendingReportPdf;
+            pendingReportPdf = null;
+            reportPdfBusy = false;
+            if (resultCode != Activity.RESULT_OK || data == null || data.getData() == null || pdf == null) return;
+            Uri uri = data.getData();
+            new Thread(() -> {
+                try (OutputStream output = getContentResolver().openOutputStream(uri, "w")) {
+                    if (output == null) throw new IOException("Cannot write PDF destination");
+                    output.write(pdf); output.flush();
+                    runOnUiThread(() -> {
+                        Toast.makeText(this, "تم حفظ التقرير بصيغة PDF", Toast.LENGTH_SHORT).show();
+                        Intent share = new Intent(Intent.ACTION_SEND);
+                        share.setType("application/pdf");
+                        share.putExtra(Intent.EXTRA_STREAM, uri);
+                        share.setClipData(ClipData.newUri(getContentResolver(), "PDF", uri));
+                        share.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                        try { startActivity(Intent.createChooser(share, "مشاركة تقرير PDF")); }
+                        catch (Exception e) {
+                            Toast.makeText(this, "تم الحفظ؛ يمكنك مشاركة PDF من الملفات", Toast.LENGTH_LONG).show();
+                        }
+                    });
+                } catch (Exception e) {
+                    runOnUiThread(() -> Toast.makeText(this,
+                            "تعذر حفظ PDF: " + e.getMessage(), Toast.LENGTH_LONG).show());
+                }
+            }, "ta-save-report").start();
         } else if (requestCode == SAVE_BACKUP) {
             String json = pendingBackupJson;
             pendingBackupJson = null;
@@ -737,6 +811,7 @@ public final class MainActivity extends FragmentActivity {
             webView.removeJavascriptInterface("NativeSecurity");
             webView.removeJavascriptInterface("Android");
             webView.removeJavascriptInterface("AndroidFiles");
+            webView.removeJavascriptInterface("AndroidReports");
             webView.removeJavascriptInterface("AndroidPrinter");
             webView.removeJavascriptInterface("AndroidLocalSync");
             webView.destroy();

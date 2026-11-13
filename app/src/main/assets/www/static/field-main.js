@@ -87,6 +87,15 @@ const FieldSync = {
     let imageBudget=650000;
     return {kind:'provision',format:FieldProtocol.FORMAT,companyId:config.companyId,companyName:State.settings.companyName,agentId:a.id,agentName:a.name,vehicleName:a.vehicleName,warehouseId:a.warehouseId,key:a.key,
       issuedAt:new Date().toISOString(),exchangeRate:Number(State.settings.exchangeRate),
+      // Company branding is an authenticated part of each refreshed catalog; never copied from agent edits.
+      companyPhone:String(State.settings.companyPhone||'').slice(0,100),
+      companyAddress:String(State.settings.companyAddress||'').slice(0,180),
+      footerNote:String(State.settings.footerNote||'').slice(0,500),
+      companyLogo:/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(String(State.settings.companyLogo||''))
+        && String(State.settings.companyLogo||'').length < 1200000 ? State.settings.companyLogo : '',
+      printerWidth:Number(State.settings.printerWidth)===58?58:80,
+      printFontScale:Number(State.settings.printFontScale)||0.75,
+      itemQuantityDecimals:Math.min(4,Math.max(0,Math.floor(Number(State.settings.itemQuantityDecimals??2)))),
       categories:(State.categories||[]).slice(),
       items:State.items.map(it=>{
         const image=String(it.photoData||'');

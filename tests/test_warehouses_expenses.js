@@ -91,7 +91,7 @@ Views.renderReports(main,{tab:'inventory',warehouseId:'wh_other'});
 assert.ok(main.innerHTML.includes('عرض جرد مستودع'));
 assert.ok(main.innerHTML.includes('8 box'), 'secondary warehouse balance must show 8 boxes');
 Views.renderWarehouses(main);
-assert.ok(main.innerHTML.includes('مناقلة أصناف بين المستودعات'));
+assert.ok(main.innerHTML.includes('فاتورة حركة مخزون وليست فاتورة بيع'));
 assert.ok(main.innerHTML.includes('transferSearchInput'));
 assert.ok(main.innerHTML.includes('transferCategory'));
 assert.ok(main.innerHTML.includes('transferGrid'));

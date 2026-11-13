@@ -2,7 +2,7 @@
 const AGENT_LICENSE_PUBLIC_KEY='MIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEAxWiG4kVoBws0cXWj9ttFg9+CdxhUqhG5RB/EnJ5c9kgL2ZM9tAFU3pji3sobZJotaJHwE5akrOHZ5QBqoPjiuYPph3eSKrOnh/LHI4jFNZgcwarUMcbK9n2VNr4uO41E3JHPFl/zTOnaHbvGbYrg9huX8ee5Tl2I5vOSk4KNiSwh+dtvMVP+bgUxaEPmhK5FcHOiUeiQjD22U/qSAsI0ZtyyPMBe8K0QPv2Mc8W6Bl1elLy1izeUwNTcvsRElLw1YluCifKNsm5TrX6Xw8FmpMBoLy2gSWUGhxE8TGhXEKn9CT3Q8bxIq9wPyzHrTCJXYT/2ErgEc25ObVTE4Gh94tR+Ne4+UpON83KV4PH29W9HnlVZYM3CJ/Hw+RulZfmvUOR5eU5ShOv2toguNzGXGNLnb07YP/BgUYk0735KxYLN7QUP7nkPfOOPMPbQjI3n8DI0ppl0wrVs3u8Kopw2nbcg+Q0xtq6P9J8I7YQ2Au/2d/CiJXdOMoB3otXSQDTxAgMBAAE=';
 const Agent={
   state:null,db:null,screen:'home',draft:[],draftKind:'sale',busy:false,lanSyncBusy:false,lanSyncMessage:'',
-  get blank(){return {deviceId:'TD-'+FieldProtocol.uuid().toUpperCase(),companyId:'',companyName:'',agentId:'',agentName:'',vehicleName:'',warehouseId:'',key:'',items:[],categories:[],accounts:[],stock:{},knownIds:[],snapshotIds:[],ops:[],license:'',issuedAt:'',lastSyncAt:'',lastSyncSummary:null,exchangeRate:15000};},
+  get blank(){return {deviceId:'TD-'+FieldProtocol.uuid().toUpperCase(),companyId:'',companyName:'',companyPhone:'',companyAddress:'',companyLogo:'',footerNote:'',printerWidth:80,printFontScale:0.75,itemQuantityDecimals:2,agentId:'',agentName:'',vehicleName:'',warehouseId:'',key:'',items:[],categories:[],accounts:[],stock:{},knownIds:[],snapshotIds:[],ops:[],license:'',issuedAt:'',lastSyncAt:'',lastSyncSummary:null,exchangeRate:15000};},
   async init(){
     if(!globalThis.crypto?.subtle){document.getElementById('screen').textContent='هذا الجهاز لا يدعم البيئة الآمنة اللازمة لتشغيل المزامنة.';return;}
     try{
@@ -150,7 +150,7 @@ const Agent={
         const payload=await FieldProtocol.unseal(e,this.ready()?this.state.key:raw.key);
         if(this.ready() && (payload.companyId!==this.state.companyId||payload.agentId!==this.state.agentId||payload.key!==this.state.key))throw Error('لا يمكن تغيير الشركة أو المندوب أو مفتاح الاقتران على جهاز مرتبط مسبقًا');
         if(!Array.isArray(payload.items)||!Array.isArray(payload.accounts)||!payload.companyId||!payload.agentId)throw Error('ملف تجهيز ناقص');
-        this.state={...this.state,companyId:payload.companyId,companyName:payload.companyName,agentId:payload.agentId,agentName:payload.agentName,vehicleName:payload.vehicleName,warehouseId:payload.warehouseId,key:payload.key,items:payload.items,categories:payload.categories||[],accounts:payload.accounts,stock:payload.stock,snapshotIds:payload.knownIds||[],knownIds:Array.from(new Set([...(this.state.knownIds||[]),...(payload.knownIds||[])])),exchangeRate:payload.exchangeRate,issuedAt:payload.issuedAt};
+        this.state={...this.state,companyId:payload.companyId,companyName:payload.companyName,companyPhone:payload.companyPhone||'',companyAddress:payload.companyAddress||'',companyLogo:payload.companyLogo||'',footerNote:payload.footerNote||'',printerWidth:payload.printerWidth===58?58:80,printFontScale:Number(payload.printFontScale)||0.75,itemQuantityDecimals:Number.isInteger(Number(payload.itemQuantityDecimals))?Math.min(4,Math.max(0,Number(payload.itemQuantityDecimals))):2,agentId:payload.agentId,agentName:payload.agentName,vehicleName:payload.vehicleName,warehouseId:payload.warehouseId,key:payload.key,items:payload.items,categories:payload.categories||[],accounts:payload.accounts,stock:payload.stock,snapshotIds:payload.knownIds||[],knownIds:Array.from(new Set([...(this.state.knownIds||[]),...(payload.knownIds||[])])),exchangeRate:payload.exchangeRate,issuedAt:payload.issuedAt};
         this.draft=[];this.currency='USD';await this.save();this.toast('استُلم كشف المواد والعملاء دون حذف العمليات القديمة');await this.show('home');
       }else if(raw?.kind==='ack'){
         if(!this.ready())throw Error('يجب ربط الجهاز أولًا');
@@ -220,6 +220,10 @@ const Agent={
       const newlyConfirmed=confirmed.filter(id=>!(old.knownIds||[]).includes(id)).length;
       const metadataChanged=old.companyName!==catalog.companyName||old.agentName!==catalog.agentName||
         old.vehicleName!==catalog.vehicleName||Number(old.exchangeRate)!==Number(catalog.exchangeRate)||
+        old.companyPhone!==(catalog.companyPhone||'')||old.companyAddress!==(catalog.companyAddress||'')||
+        old.companyLogo!==(catalog.companyLogo||'')||old.footerNote!==(catalog.footerNote||'')||
+        Number(old.printerWidth)!==Number(catalog.printerWidth||80)||Number(old.printFontScale)!==Number(catalog.printFontScale||0.75)||
+        Number(old.itemQuantityDecimals??2)!==Number(catalog.itemQuantityDecimals??2)||
         JSON.stringify(old.categories||[])!==JSON.stringify(catalog.categories||[])||
         JSON.stringify(old.snapshotIds||[])!==JSON.stringify(catalog.knownIds||[]);
       // Persist real changes promptly; checkpoint a no-op heartbeat at most once per minute.
@@ -231,6 +235,10 @@ const Agent={
       if(mustSave){
         this.state={...old,companyName:catalog.companyName,agentName:catalog.agentName,
           vehicleName:catalog.vehicleName,warehouseId:catalog.warehouseId,issuedAt:catalog.issuedAt,
+          companyPhone:catalog.companyPhone||'',companyAddress:catalog.companyAddress||'',
+          companyLogo:catalog.companyLogo||'',footerNote:catalog.footerNote||'',
+          printerWidth:catalog.printerWidth===58?58:80,printFontScale:Number(catalog.printFontScale)||0.75,
+          itemQuantityDecimals:Number.isInteger(Number(catalog.itemQuantityDecimals))?Math.min(4,Math.max(0,Number(catalog.itemQuantityDecimals))):2,
           exchangeRate:catalog.exchangeRate,categories:catalog.categories||[],items:catalog.items,
           accounts:catalog.accounts,stock:catalog.stock,snapshotIds:catalog.knownIds||[],knownIds,
           lastSyncAt:new Date().toISOString(),lastSyncSummary:summary};

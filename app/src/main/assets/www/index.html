@@ -1,6 +1,13 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
+<style id="ta-warehouse-condensed-36">
+#warehouseCreatePanel[hidden],#warehouseTransferPanel[hidden],#transferEditBanner[hidden],#transferCancelEditButton[hidden]{display:none!important;}
+#warehouseTransferPanel.ta-transfer-invoice-editor{background:linear-gradient(180deg,#f8fcff,#fff 12%);border:1px solid #cce1e9;box-shadow:0 6px 20px #0d475a14;}
+#warehouseTransferPanel.ta-transfer-invoice-editor .ta-transfer-title{font-size:16px;}
+#warehouseTransferPanel.ta-transfer-invoice-editor .ta-transfer-filter{margin-top:12px;}
+.ta-transfer-history{margin-top:14px;}
+</style>
 <style id="ta-transfer-grid-3526">
 #warehouseTransferPanel{background:linear-gradient(155deg,#ffffff,#f1f7fb);border:1px solid #cbddeb;box-shadow:0 6px 0 #cbdbe6,0 14px 25px #0c344b14;}
 #warehouseTransferPanel .ta-transfer-title{font-size:15px;font-weight:900;color:#10324b;margin:0 0 5px;}
@@ -180,6 +187,10 @@
         #mainContent button.ta-solid-action.ta-action-warehouse {
             background-color: #0284c7 !important;
             border-color: #0369a1 !important;
+        }
+        #mainContent button.ta-solid-action.ta-action-list {
+            background-color: #0f766e !important;
+            border-color: #115e59 !important;
         }
         #mainContent button.ta-solid-action.ta-action-expense {
             background-color: #c2410c !important;
@@ -3536,8 +3547,8 @@
             openHomePrint(tab){
                 const sale=tab==='sales_summary';
                 UI.openModal(`<div class="text-right space-y-3" dir="rtl" data-home-report-print>
-                    <h3 class="font-black text-base">${sale?'طباعة تقرير المبيعات':'طباعة تقرير الديون'}</h3>
-                    <p class="text-xs text-slate-500">اختيار خيارات الطباعة من الرئيسية فقط؛ صفحات التقارير للعرض والمراجعة.</p>
+                    <h3 class="font-black text-base">${sale?'تقرير المواد':'تقرير الديون'}</h3>
+                    <p class="text-xs text-slate-500">اختر تفاصيل التقرير، ثم اطبعه أو احفظه PDF لتشاركه مباشرة. من الصفحة الرئيسية فقط.</p>
                     ${sale?`<label class="block text-xs font-bold">الفترة
                       <select id="homePrintPeriod" class="w-full p-2.5 border rounded-xl mt-1" onchange="document.getElementById('homePrintDates').hidden=!['custom','range'].includes(this.value)">
                       <option value="today">اليوم</option><option value="yesterday">الأمس</option><option value="all">جميع الفترات</option><option value="custom">تاريخ معين</option><option value="range">من تاريخ إلى تاريخ</option></select></label>
@@ -3547,26 +3558,45 @@
                       <label class="block text-xs font-bold">المندوب
                         <select id="homePrintAgent" class="w-full p-2.5 border rounded-xl mt-1">${ReportAgentFilter.options('all')}</select></label>`:
                       `<label class="block text-xs font-bold">نوع الديون<select id="homePrintSide" class="w-full p-2.5 border rounded-xl mt-1"><option value="debit">لنا</option><option value="credit">علينا</option></select></label>`}
-                    <button type="button" class="w-full bg-emerald-700 text-white font-black rounded-xl p-3" onclick="LedgerReports.confirmHomePrint('${tab}')">🖨 طباعة التقرير</button>
+                    <div class="grid grid-cols-2 gap-2">
+                      <button type="button" class="bg-emerald-700 text-white font-black rounded-xl p-3 text-xs" onclick="LedgerReports.confirmHomePrint('${tab}','print')"><i class="fas fa-print ml-1"></i>طباعة</button>
+                      <button type="button" class="bg-rose-600 text-white font-black rounded-xl p-3 text-xs" onclick="LedgerReports.confirmHomePrint('${tab}','pdf')"><i class="fas fa-file-pdf ml-1"></i>حفظ PDF</button>
+                    </div>
                     <button type="button" class="w-full bg-slate-100 rounded-xl p-2" onclick="UI.forceCloseModal()">إلغاء</button>
                 </div>`);
             },
-            async confirmHomePrint(tab){
+            async confirmHomePrint(tab,mode='print'){
                 const val=id=>document.getElementById(id)?.value;
                 const p=tab==='sales_summary'?{tab,period:val('homePrintPeriod')||'today',date:val('homePrintDate')||this.localDate(),
                   end:val('homePrintEnd')||this.localDate(),agentId:val('homePrintAgent')||'all'}:
                   {tab:'debts_summary',side:val('homePrintSide')||'debit'};
                 this.params=p;
                 UI.forceCloseModal();
-                await this.print();
+                if(mode==='pdf') await this.savePdf(); else await this.print();
             },
-            async print(){
+            reportContent(){
                 const p=this.params, sale=p.tab==='sales_summary';
                 const data=sale?this.sales(p.period||'today',p.date||this.localDate(),p.end||p.date||this.localDate(),ReportAgentFilter.active(p.agentId)):this.debts(p.side||'debit');
                 const rows=sale?data.items.map((r,i)=>({name:`${i+1}. ${r.name} (${r.unit})`,detail:`${Accounting.formatItemQuantity(r.qty)} × ${Accounting.format(r.total,r.currency)}`})):data.accounts.map((r,i)=>({name:`${i+1}. ${r.name}`,detail:`${Accounting.format(r.USD,'USD')} | ${Accounting.format(r.SYP,'SYP')}`}));
-                const title=sale?'تقرير صافي المواد المباعة - '+ReportAgentFilter.label(ReportAgentFilter.active(p.agentId)):`تقرير الديون ${p.side==='credit'?'علينا':'لنا'}`;
-                const range=sale?`${p.period||'today'}: ${p.date||this.localDate()} ${p.period==='range'?' - '+(p.end||''):''}`:'حتى '+this.localDate();
-                return await ThermalPrinter.printSummaryReport({title,range,rows,totals:data.totals});
+                const title=sale?'تقرير المواد - '+ReportAgentFilter.label(ReportAgentFilter.active(p.agentId)):`تقرير الديون ${p.side==='credit'?'علينا':'لنا'}`;
+                const periodNames={today:'اليوم',yesterday:'الأمس',all:'كافة الفترات',custom:'تاريخ محدد',range:'من / إلى'};
+                const range=sale?(p.period==='all'?'كافة الفترات':`${periodNames[p.period]||'اليوم'}: ${p.date||this.localDate()} ${p.period==='range'?' - '+(p.end||''):''}`):'حتى '+this.localDate();
+                return {title,range,rows,totals:data.totals,
+                    companyName:State.settings.companyName||'',companyPhone:State.settings.companyPhone||'',
+                    companyAddress:State.settings.companyAddress||'',createdAt:new Date().toISOString()};
+            },
+            async savePdf(){
+                const report=this.reportContent();
+                if(window.AndroidReports?.saveAndShareReport){
+                    const name=(this.params.tab==='sales_summary'?'تقرير_المواد_':'تقرير_الديون_')+this.localDate()+'.pdf';
+                    window.AndroidReports.saveAndShareReport(JSON.stringify(report),name);
+                    return true;
+                }
+                UI.toast('لحفظ PDF ومشاركته مباشرة، استخدم نسخة تطبيق Android المحدثة.','warn');
+                return false;
+            },
+            async print(){
+                return await ThermalPrinter.printSummaryReport(this.reportContent());
             }
         };
 
@@ -3685,8 +3715,8 @@
                         <section aria-label="تقارير الطباعة" data-feature="print-reports-3523">
                             <div class="ta-section-head"><span class="ta-section-mark"></span><div><h3>تقارير للطباعة الحرارية</h3><p>مبيعات الأصناف والديون بشكل مباشر</p></div></div>
                             <div class="grid grid-cols-2 gap-2.5 mb-4">
-                                <button type="button" onclick="LedgerReports.openHomePrint('sales_summary')" class="invoice-report-action min-h-[74px] flex flex-col items-center justify-center gap-1 shadow-md" aria-label="طباعة تقرير المواد المباعة حسب الفترة"><i class="fas fa-chart-bar text-lg"></i><span class="text-xs font-black">المواد المباعة</span><span class="text-[10px]">طباعة حسب الفترة</span></button>
-                                <button type="button" onclick="LedgerReports.openHomePrint('debts_summary')" class="invoice-report-action min-h-[74px] flex flex-col items-center justify-center gap-1 shadow-md" aria-label="طباعة تقرير الديون لنا أو علينا"><i class="fas fa-print text-lg"></i><span class="text-xs font-black">تقرير الديون</span><span class="text-[10px]">لنا / علينا</span></button>
+                                <button type="button" onclick="LedgerReports.openHomePrint('sales_summary')" class="invoice-report-action min-h-[74px] flex flex-col items-center justify-center gap-1 shadow-md" aria-label="تقرير المواد: طباعة أو حفظ PDF"><i class="fas fa-chart-bar text-lg"></i><span class="text-xs font-black">تقرير المواد</span><span class="text-[10px]">طباعة أو حفظ PDF</span></button>
+                                <button type="button" onclick="LedgerReports.openHomePrint('debts_summary')" class="invoice-report-action min-h-[74px] flex flex-col items-center justify-center gap-1 shadow-md" aria-label="طباعة تقرير الديون لنا أو علينا"><i class="fas fa-print text-lg"></i><span class="text-xs font-black">تقرير الديون</span><span class="text-[10px]">طباعة أو حفظ PDF</span></button>
                             </div>
                         </section>
 
@@ -3809,40 +3839,33 @@
                 const wopts = WarehouseController.options(State.settings.selectedWarehouseId);
                 const warehouseName = id => WarehouseController.name(id);
                 main.innerHTML = `
-                    <div class="grid grid-cols-2 gap-2 mb-3" aria-label="عمليات المستودعات">
-                        <button type="button" onclick="Views.jumpToEntry('warehouseCreatePanel','newWarehouseName')" class="ta-solid-action ta-action-warehouse flex items-center justify-center gap-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-extrabold text-xs px-2 py-3 shadow-sm active:scale-95">
+                    <div class="grid grid-cols-3 gap-2 mb-3" aria-label="عمليات المستودعات">
+                        <button type="button" onclick="WarehouseController.toggleWarehouseCreate()" class="ta-solid-action ta-action-warehouse flex items-center justify-center gap-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-extrabold text-xs px-2 py-3 shadow-sm active:scale-95">
                             <i class="fas fa-plus text-sm"></i><span>إضافة مستودع</span>
                         </button>
-                        <button type="button" onclick="Views.jumpToEntry('warehouseTransferPanel','transferSearchInput')" class="ta-solid-action ta-action-transfer flex items-center justify-center gap-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-extrabold text-xs px-2 py-3 shadow-sm active:scale-95">
-                            <i class="fas fa-boxes-stacked text-sm"></i><span>مناقلة مواد</span>
+                        <button type="button" onclick="WarehouseController.openTransferForm()" class="ta-solid-action ta-action-transfer flex items-center justify-center gap-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-extrabold text-xs px-2 py-3 shadow-sm active:scale-95">
+                            <i class="fas fa-file-invoice text-sm"></i><span>مناقلة جديدة</span>
+                        </button>
+                        <button type="button" onclick="WarehouseController.openWarehouseList()" class="ta-solid-action ta-action-list flex items-center justify-center gap-1 rounded-xl bg-teal-700 text-white font-extrabold text-xs px-1 py-3 shadow-sm">
+                            <i class="fas fa-boxes-stacked text-sm"></i><span>المستودعات</span>
                         </button>
                     </div>
-                    <div class="rounded-2xl border border-sky-200 bg-sky-50 p-3 mb-3">
-                        <div class="text-xs font-extrabold text-sky-900 mb-2">المستودع المعتمد للعرض والفواتير الجديدة</div>
+                    <div class="rounded-2xl border border-sky-200 bg-sky-50 p-2.5 mb-3">
+                        <div class="text-xs font-extrabold text-sky-900 mb-2">المستودع المعتمد</div>
                         <select onchange="WarehouseController.selectWarehouse(this.value)" class="w-full rounded-xl border border-sky-300 bg-white p-3 text-sm">${wopts}</select>
-                        <div class="text-[11px] text-sky-700 mt-2">المستودع الرئيسي يحتفظ بكل أرصدة الفواتير القديمة تلقائياً.</div>
+
                     </div>
-                    <div id="warehouseCreatePanel" class="rounded-2xl bg-white p-3 border border-slate-200 mb-3 scroll-mt-4">
+                    <div id="warehouseCreatePanel" hidden class="rounded-2xl bg-white p-3 border border-slate-200 mb-3 scroll-mt-4">
                         <h3 class="text-sm font-extrabold mb-2">تعريف مستودع جديد</h3>
                         <div class="flex gap-2">
                             <input id="newWarehouseName" maxlength="80" class="w-full rounded-xl border p-2.5 text-sm" placeholder="اسم المستودع الجديد">
                             <button type="button" onclick="WarehouseController.addWarehouse()" class="ta-solid-action ta-action-warehouse shrink-0 rounded-xl bg-sky-600 hover:bg-sky-700 px-3 py-2.5 text-white text-xs font-extrabold flex items-center justify-center gap-1.5"><i class="fas fa-plus"></i><span>إضافة المستودع</span></button>
                         </div>
-                        <div class="mt-3 space-y-2">
-                            ${(State.warehouses||[]).map(wh=>`
-                                <div class="rounded-xl border border-slate-200 p-3 flex items-center justify-between gap-2">
-                                    <div><b class="text-sm">${AppEscape.text(wh.name)}</b><div class="text-[10px] text-slate-500">${State.items.length} صنف معرّف · ${State.items.filter(it=>Accounting.getItemBaseStock(it.id,null,wh.id) !== 0).length} صنف برصيد</div></div>
-                                    <div class="text-left flex items-center gap-1">
-                                        <button onclick="WarehouseController.renameWarehouse('${wh.id}')" class="rounded-lg bg-slate-100 p-2 text-xs" title="إعادة تسمية">تسمية</button>
-                                        ${wh.id !== 'wh_main' ? `<button onclick="WarehouseController.deleteWarehouse('${wh.id}')" class="rounded-lg bg-rose-50 text-rose-700 p-2 text-xs">حذف</button>` : ''}
-                                    </div>
-                                </div>`).join('')}
-                        </div>
                     </div>
-                    <div id="warehouseTransferPanel" class="rounded-2xl p-3 mb-3 scroll-mt-4">
-                        <h3 class="ta-transfer-title"><i class="fas fa-file-invoice text-teal-700 ml-2"></i> <span id="transferFormTitle">فاتورة مناقلة جديدة</span></h3>
+                    <div id="warehouseTransferPanel" hidden class="ta-transfer-invoice-editor rounded-2xl p-3 mb-3 scroll-mt-4">
+                        <div class="flex justify-between items-center border-b border-slate-200 pb-3 mb-3"><h3 class="ta-transfer-title"><i class="fas fa-file-invoice text-teal-700 ml-2"></i> <span id="transferFormTitle">فاتورة مناقلة جديدة</span></h3><button type="button" onclick="WarehouseController.closeTransferForm()" class="rounded-xl bg-slate-100 text-slate-700 border px-3 py-2 text-xs font-bold" aria-label="إغلاق فاتورة المناقلة">✕ إغلاق</button></div>
                         <div id="transferEditBanner" class="ta-transfer-edit-banner" hidden><div class="font-extrabold">تعديل فاتورة مناقلة محفوظة</div><div class="mt-1" id="transferEditingRef"></div><div class="mt-1">بعد الحفظ تُحدث الأرصدة وتبقى الفاتورة بنفس رقمها في سجل المناقلات.</div></div>
-                        <p class="ta-transfer-subtitle">مناقلة أصناف بين المستودعات: حدد المستودعين، ثم اضغط على الصنف لزيادة كميته واحدة في كل ضغطة. استخدم × لحذفه، ويمكن تعديل الكمية والوحدة أدناه قبل الحفظ.</p>
+                        <p class="ta-transfer-subtitle">فاتورة حركة مخزون وليست فاتورة بيع. لا أسعار أو دفعات؛ الكميات فقط تنتقل من المصدر إلى المستلم. انقر على أي صنف لزيادة وحداته واستخدم × للحذف.</p>
                         <div class="grid grid-cols-2 gap-2 mb-2">
                             <div><label class="block text-xs font-bold mb-1" for="transferFrom">من المستودع</label>
                                 <select id="transferFrom" onchange="WarehouseController.refreshTransferAvailability()" class="w-full border rounded-xl p-2.5 text-xs">${WarehouseController.options(State.settings.selectedWarehouseId)}</select></div>
@@ -3879,7 +3902,7 @@
                         <button type="button" id="transferCancelEditButton" onclick="WarehouseController.cancelTransferEdit()" hidden class="mt-2 w-full rounded-xl bg-slate-100 border border-slate-300 text-slate-700 text-xs font-extrabold p-3">إلغاء التعديل والعودة لفاتورة جديدة</button>
                     </div>
                     <div class="rounded-2xl bg-white border p-3 ta-transfer-history">
-                        <h3 class="font-extrabold text-sm mb-2">سجل المناقلات (${WarehouseController.transferDocuments().length} عملية)</h3>
+                        <h3 class="font-extrabold text-sm mb-2"><i class="fas fa-clock text-teal-700 ml-1"></i>سجل المناقلات (${WarehouseController.transferDocuments().length} عملية)</h3>
                         <p class="text-[11px] text-slate-500 mb-2">كل عملية تظهر كفاتورة واحدة قابلة للفتح والتعديل لاحقاً. اضغط «فتح الفاتورة» ثم «تعديل الفاتورة» لتعديل موادها ومستودعاتها وتاريخها.</p>
                         ${WarehouseController.renderTransferHistoryHtml()}
                     </div>
@@ -3889,8 +3912,8 @@
                 WarehouseController.filterTransferGrid();
                 WarehouseController.refreshTransferAvailability();
                 WarehouseController.renderTransferDraft();
-                if (params.action === 'add') this.jumpToEntry('warehouseCreatePanel', 'newWarehouseName');
-                if (params.action === 'transfer') this.jumpToEntry('warehouseTransferPanel', 'transferItem');
+                if (params.action === 'add') WarehouseController.toggleWarehouseCreate();
+                if (params.action === 'transfer') WarehouseController.openTransferForm();
             },
 
             // ==================== EXPENSE ACCOUNT & REGISTER ====================
@@ -5828,6 +5851,50 @@
                 await StorageEngine.saveState();
                 AppNav.renderCurrent();
             },
+            toggleWarehouseCreate(){
+                const panel=document.getElementById('warehouseCreatePanel');if(!panel)return;
+                panel.hidden=!panel.hidden;
+                if(!panel.hidden) Views.jumpToEntry('warehouseCreatePanel','newWarehouseName');
+            },
+            openWarehouseList(){
+                const list=(State.warehouses||[]).map(wh=>{
+                    const safeId=AppEscape.text(JSON.stringify(String(wh.id)));
+                    const inStock=State.items.filter(it=>Math.abs(Accounting.getItemBaseStock(it.id,null,wh.id))>0.00001).length;
+                    return `<div class="flex items-center justify-between gap-2 p-3 rounded-xl border border-slate-200 bg-white mb-2">
+                      <div class="min-w-0"><b class="text-sm text-slate-800">${AppEscape.text(wh.name)}</b><p class="text-[11px] text-slate-500 mt-1">${inStock} صنف برصيد</p></div>
+                      <div class="flex gap-1.5"><button type="button" onclick="WarehouseController.renameWarehouse(${safeId})" class="bg-sky-100 text-sky-900 rounded-lg p-2 text-xs font-bold" aria-label="تعديل ${AppEscape.text(wh.name)}"><i class="fas fa-pen ml-1"></i>تعديل</button>
+                      ${wh.id==='wh_main'?'':`<button type="button" onclick="WarehouseController.deleteWarehouse(${safeId})" class="bg-rose-50 text-rose-700 rounded-lg p-2 text-xs font-bold" aria-label="حذف ${AppEscape.text(wh.name)}"><i class="fas fa-trash ml-1"></i>حذف</button>`}</div>
+                    </div>`;
+                }).join('');
+                UI.openModal(`<div class="text-right" dir="rtl"><h3 class="font-extrabold text-base mb-3"><i class="fas fa-boxes-stacked text-teal-700 ml-1"></i>قائمة المستودعات</h3>${list}<p class="text-[11px] text-slate-500">لا يمكن حذف المستودع الرئيسي أو أي مستودع يحوي أرصدة أو حركات محفوظة، حفاظاً على سلامة الجرد.</p><button type="button" onclick="UI.forceCloseModal()" class="mt-3 p-3 w-full bg-slate-100 rounded-xl font-bold">إغلاق</button></div>`);
+            },
+            openTransferForm(edit=false){
+                const panel=document.getElementById('warehouseTransferPanel');if(!panel)return;
+                if(!edit && !panel.hidden && (this.transferDraft||[]).length){
+                    UI.toast('توجد فاتورة مناقلة غير محفوظة؛ احفظها أو أغلقها أولاً','warn');
+                    Views.jumpToEntry('warehouseTransferPanel','transferSearchInput');return;
+                }
+                panel.hidden=false;
+                if(!edit){this.transferDraft=[];this.editingTransferBatchId=null;
+                    const title=document.getElementById('transferFormTitle');if(title)title.textContent='فاتورة مناقلة جديدة';
+                    const editBanner=document.getElementById('transferEditBanner');if(editBanner)editBanner.hidden=true;
+                    const cancel=document.getElementById('transferCancelEditButton');if(cancel)cancel.hidden=true;
+                    const note=document.getElementById('transferNote');if(note)note.value='';
+                    this.updateTransferGridSelections();this.renderTransferDraft();
+                }
+                Views.jumpToEntry('warehouseTransferPanel','transferSearchInput');
+            },
+            closeTransferForm(){
+                if((this.transferDraft||[]).length){
+                    UI.openModal(`<div class="text-right" dir="rtl"><h3 class="font-extrabold mb-2">إغلاق فاتورة المناقلة؟</h3><p class="text-xs">لن تُحفظ الأصناف غير المسجلة.</p><div class="flex gap-2 mt-4"><button onclick="UI.forceCloseModal();WarehouseController.discardTransferForm()" class="flex-1 bg-rose-600 text-white rounded-xl p-3 font-bold">إغلاق دون حفظ</button><button onclick="UI.forceCloseModal()" class="flex-1 bg-slate-100 rounded-xl p-3 font-bold">متابعة التعديل</button></div></div>`);return;
+                }
+                this.discardTransferForm();
+            },
+            discardTransferForm(){
+                this.transferDraft=[];this.editingTransferBatchId=null;
+                const panel=document.getElementById('warehouseTransferPanel');if(panel)panel.hidden=true;
+                this.updateTransferGridSelections();this.renderTransferDraft();
+            },
             async addWarehouse() {
                 const name = document.getElementById('newWarehouseName')?.value.trim();
                 if (!name || name.length < 2 || name.length > 80) return UI.toast('اسم المستودع يجب أن يكون بين حرفين و80 حرفاً', 'error');
@@ -6022,6 +6089,7 @@
                     const keepQty=matching&&Number.isFinite(qty)&&qty>0&&Math.abs(qty/factor-base)<0.00001;
                     return {itemId:tr.itemId,qty:String(keepQty?qty:Math.round(base*factor*10000)/10000),factor:String(factor)};
                 });
+                this.openTransferForm(true);
                 this.editingTransferBatchId=doc.id;
                 this.transferDraft=draft;
                 for(const [field,value] of [['transferFrom',doc.fromWarehouseId],['transferTo',doc.toWarehouseId],['transferDate',doc.date],['transferNote',doc.note||'']]){
@@ -6038,7 +6106,7 @@
                 this.editingTransferBatchId=null;
                 this.transferDraft=[];
                 AppNav.renderCurrent();
-                if(typeof Views.jumpToEntry==='function')Views.jumpToEntry('warehouseTransferPanel','transferSearchInput');
+                this.openTransferForm();
             },
             transferStockAdjustments(originalLines, nextRows, from, to){
                 const changes=new Map();
