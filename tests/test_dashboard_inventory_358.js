@@ -27,7 +27,7 @@ const ctx={console,Math,Number,String,Array,Object,Date,Map,Set,JSON,Promise,Int
     ThermalPrinter:{isConnected:false},
     document:{getElementById:()=>null},
 };ctx.globalThis=ctx;
-const js=cut('const State =','const StorageEngine =')+'\n'+cut('const Accounting =','const AppNav =')+'\n'+cut('const Views =','const ItemController =')+'\n'+cut('const AppEscape =','const InvoiceController =')+'\n'+i18n+'\nglobalThis.TEST={State,Accounting,InventoryValuation,Views,I18n};';
+const js=cut('const State =','const StorageEngine =')+'\n'+cut('const Accounting =','const AppNav =')+'\n'+cut('const ReportAgentFilter =','const Views =')+'\n'+cut('const Views =','const ItemController =')+'\n'+cut('const AppEscape =','const InvoiceController =')+'\n'+i18n+'\nglobalThis.TEST={State,Accounting,InventoryValuation,Views,I18n};';
 vm.runInNewContext(js,ctx,{timeout:7000});
 const {State,InventoryValuation,Views,I18n}=ctx.TEST;
 const nearly=(a,b)=>assert.ok(Math.abs(a-b)<1e-7,`${a} !== ${b}`);

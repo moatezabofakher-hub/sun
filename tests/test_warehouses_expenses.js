@@ -24,6 +24,7 @@ const context = {
 context.globalThis=context;
 const js= read('const State =','const StorageEngine =')
   + '\n' + read('const Accounting =','const AppNav =')
+  + '\n' + read('const ReportAgentFilter =','const Views =')
   + '\n' + read('const Views =','const ItemController =')
   + '\n' + read('const AppEscape =','const InvoiceController =')
   + '\n' + read('const InvoiceController =','const AccountController =')

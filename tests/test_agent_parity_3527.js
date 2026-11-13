@@ -18,5 +18,5 @@ assert(manifest.includes('android.permission.BLUETOOTH_SCAN')&&manifest.includes
 assert(old.includes('TA_FIELD_SYNC_1')===false);
 assert(old.includes('async importFile(input)')&&old.includes('renderStock')); 
 assert(fs.readFileSync('field_agent/build.gradle','utf8').includes('versionCode 5'));
-assert(fs.readFileSync('app/build.gradle','utf8').includes('versionCode 37'));
+assert(fs.readFileSync('app/build.gradle','utf8').includes('versionCode 38'));
 console.log('PASS field parity modules, same visual system, OS back, native pairing and file synchronization.');

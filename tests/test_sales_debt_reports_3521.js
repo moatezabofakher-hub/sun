@@ -2,7 +2,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const vm=require('node:vm');
 const html=fs.readFileSync('app/src/main/assets/www/index.html','utf8');
-const a=html.indexOf('const LedgerReports = {');
+const a=html.indexOf('const ReportAgentFilter = {');
 const b=html.indexOf('const Views = {',a);
 assert.ok(a>=0&&b>a);
 const State={
