@@ -81,7 +81,7 @@
         const net=op.netTotal,paid=op.paidAmount;
         invoices.push({id:'field_'+op.id,number:++startingInvoice,type:op.kind,warehouseId:agent.warehouseId,date:op.date,accountId:op.accountId||'',currency:op.currency,exchangeRate:op.exchangeRate,paymentMethod:paid>=net?'cash':paid>0?'partial':'credit',rows:op.rows.map((r,i)=>({...r,rowId:'fieldrow_'+op.id+'_'+i,discount:0})),subTotal:net,discountValue:0,discountType:'amount',discountAmount:0,taxValue:0,taxType:'percent',taxAmount:0,netTotal:net,paidAmount:paid,remainingAmount:money(net-paid,op.currency),note:op.note||'',fieldOrigin:origin});
       }else{
-        vouchers.push({id:'field_'+op.id,number:++startingVoucher,type:op.kind,date:op.date,accountId:op.accountId,currency:op.currency,amount:op.amount,exchangeRate:op.exchangeRate,accountCurrency:op.currency,accountAmount:op.amount,note:op.note||'',fieldOrigin:origin});
+        vouchers.push({id:'field_'+op.id,number:++startingVoucher,type:op.kind,date:op.date,accountId:op.accountId,currency:op.currency,amount:op.amount,exchangeRate:op.exchangeRate,accountCurrency:op.currency,accountAmount:op.amount,note:op.note||'',linkedInvoiceId:op.linkedInvoiceOpId?'field_'+op.linkedInvoiceOpId:'',fieldOrigin:{...origin,linkedInvoiceOperationId:op.linkedInvoiceOpId||''}});
       }
     }
     return {invoices,vouchers};

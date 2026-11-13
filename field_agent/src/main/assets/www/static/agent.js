@@ -2,7 +2,7 @@
 const AGENT_LICENSE_PUBLIC_KEY='MIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEAxWiG4kVoBws0cXWj9ttFg9+CdxhUqhG5RB/EnJ5c9kgL2ZM9tAFU3pji3sobZJotaJHwE5akrOHZ5QBqoPjiuYPph3eSKrOnh/LHI4jFNZgcwarUMcbK9n2VNr4uO41E3JHPFl/zTOnaHbvGbYrg9huX8ee5Tl2I5vOSk4KNiSwh+dtvMVP+bgUxaEPmhK5FcHOiUeiQjD22U/qSAsI0ZtyyPMBe8K0QPv2Mc8W6Bl1elLy1izeUwNTcvsRElLw1YluCifKNsm5TrX6Xw8FmpMBoLy2gSWUGhxE8TGhXEKn9CT3Q8bxIq9wPyzHrTCJXYT/2ErgEc25ObVTE4Gh94tR+Ne4+UpON83KV4PH29W9HnlVZYM3CJ/Hw+RulZfmvUOR5eU5ShOv2toguNzGXGNLnb07YP/BgUYk0735KxYLN7QUP7nkPfOOPMPbQjI3n8DI0ppl0wrVs3u8Kopw2nbcg+Q0xtq6P9J8I7YQ2Au/2d/CiJXdOMoB3otXSQDTxAgMBAAE=';
 const Agent={
   state:null,db:null,screen:'home',draft:[],draftKind:'sale',busy:false,
-  get blank(){return {deviceId:'TD-'+FieldProtocol.uuid().toUpperCase(),companyId:'',companyName:'',agentId:'',agentName:'',vehicleName:'',warehouseId:'',key:'',items:[],accounts:[],stock:{},knownIds:[],snapshotIds:[],ops:[],license:'',issuedAt:'',exchangeRate:15000};},
+  get blank(){return {deviceId:'TD-'+FieldProtocol.uuid().toUpperCase(),companyId:'',companyName:'',agentId:'',agentName:'',vehicleName:'',warehouseId:'',key:'',items:[],categories:[],accounts:[],stock:{},knownIds:[],snapshotIds:[],ops:[],license:'',issuedAt:'',exchangeRate:15000};},
   async init(){
     if(!globalThis.crypto?.subtle){document.getElementById('screen').textContent='هذا الجهاز لا يدعم البيئة الآمنة اللازمة لتشغيل المزامنة.';return;}
     try{
@@ -39,7 +39,7 @@ const Agent={
    <div class="panel"><h3>معرّف هذا الجهاز</h3><div class="field ltr" style="font-size:11px;user-select:text">${this.state.deviceId}</div>
    <button class="secondary" onclick="Agent.copy('${this.state.deviceId}')">نسخ معرّف الجهاز</button>
    <p class="tiny">أرسل المعرّف إلى صاحب الشركة كي يصدر لك رمز التفعيل بعد تجهيز حسابك.</p>
-   <label class="label">استيراد ملف تجهيز المندوب</label><input class="field" type="file" accept="application/json,.json" onchange="Agent.importFile(this)">
+   <label class="label">استيراد ملف تجهيز المندوب</label><input class="field" type="file" accept="*/*" onchange="Agent.importFile(this)">
    <p class="tiny">استلم الملف من هاتف الإدارة عبر Quick Share أو البلوتوث أو وسيط موثوق. لا تقبل ملفات إعداد من جهات مجهولة.</p></div>`;},
   renderActivation(){return `<div class="hero"><h2>تم ربط الجهاز بالشركة</h2><p>${this.escape(this.state.companyName)} · ${this.escape(this.state.agentName)} · ${this.escape(this.state.vehicleName)}</p></div>
     <div class="panel"><h3>تفعيل الجهاز بكود من مالك التطبيق</h3>
@@ -48,7 +48,7 @@ const Agent={
     <label class="label">رمز التفعيل الصادر من الشركة</label><textarea class="field ltr" rows="5" id="agentLicenseInput" placeholder="TAF1.…"></textarea>
     <button class="primary" onclick="Agent.activate()">تحقق وتفعيل</button>
     ${this.state.ops.length?`<button class="secondary" onclick="Agent.exportOutbox()">تصدير العمليات القديمة للمحاسب حتى لو انتهت صلاحية التفعيل</button>`:''}
-    <label class="label">استلام تأكيد مزامنة أو تحديث الشركة</label><input class="field" type="file" accept="application/json,.json" onchange="Agent.importFile(this)"></div>`;},
+    <label class="label">استلام تأكيد مزامنة أو تحديث الشركة</label><input class="field" type="file" accept="*/*" onchange="Agent.importFile(this)"></div>`;},
   renderHome(){return `<div class="hero"><h2>أهلاً ${this.escape(this.state.agentName)} 👋</h2><p>${this.escape(this.state.companyName)} · ${this.escape(this.state.vehicleName)}</p><div class="stats"><div class="stat"><b>${this.state.ops.length}</b><small>جميع العمليات</small></div><div class="stat"><b>${this.pending.length}</b><small>بانتظار الإرسال</small></div><div class="stat"><b>${this.state.items.length}</b><small>مادة متاحة</small></div></div></div>
     <div class="grid"><button class="tile" onclick="Agent.startInvoice('sale')"><span class="glyph">🛒</span><strong>فاتورة مبيعات</strong><small>بيع مباشر للعملاء</small></button>
     <button class="tile" onclick="Agent.startInvoice('sale_return')"><span class="glyph">↩</span><strong>مردود المبيعات</strong><small>إرجاع مواد</small></button>
@@ -136,7 +136,7 @@ const Agent={
    <div class="panel"><h3>العمليات الجديدة</h3><div class="stats"><div class="stat"><b>${this.pending.length}</b><small>بانتظار الاستلام</small></div><div class="stat"><b>${this.state.ops.length-this.pending.length}</b><small>تم تأكيدها</small></div><div class="stat"><b>${this.state.items.length}</b><small>مواد معتمدة</small></div></div>
    <button class="primary" onclick="Agent.exportOutbox()" ${this.pending.length?'':'disabled'}>تصدير العمليات لإرسالها إلى الإدارة</button>
    <p class="tiny">التصدير وحده لا يعتبر مزامنة ناجحة. لن تتغير الحالة حتى يعود ملف تأكيد الاستلام من التطبيق الرئيسي.</p></div>
-   <div class="panel"><h3>استلام تحديث الشركة أو تأكيد المزامنة</h3><input type="file" accept="application/json,.json" onchange="Agent.importFile(this)" class="field">
+   <div class="panel"><h3>استلام تحديث الشركة أو تأكيد المزامنة</h3><input type="file" accept="*/*" onchange="Agent.importFile(this)" class="field">
    <p class="tiny">يمكن استيراد بيانات جديدة للأسعار والمواد والعملاء بعد استلامها من الإدارة. تحفظ السجلات المحلية غير المزامنة كما هي.</p></div>
    <div class="panel"><h3>التجهيز والطباعة</h3><button class="secondary" onclick="Agent.choosePrinter()">اختيار طابعة البلوتوث</button><p class="tiny">تُطبع الفواتير من شاشة العمليات بعد حفظها.</p></div>`;},
   async activate(){const token=document.getElementById('agentLicenseInput')?.value.trim();
@@ -151,7 +151,7 @@ const Agent={
         const payload=await FieldProtocol.unseal(e,this.ready()?this.state.key:raw.key);
         if(this.ready() && (payload.companyId!==this.state.companyId||payload.agentId!==this.state.agentId||payload.key!==this.state.key))throw Error('لا يمكن تغيير الشركة أو المندوب أو مفتاح الاقتران على جهاز مرتبط مسبقًا');
         if(!Array.isArray(payload.items)||!Array.isArray(payload.accounts)||!payload.companyId||!payload.agentId)throw Error('ملف تجهيز ناقص');
-        this.state={...this.state,companyId:payload.companyId,companyName:payload.companyName,agentId:payload.agentId,agentName:payload.agentName,vehicleName:payload.vehicleName,warehouseId:payload.warehouseId,key:payload.key,items:payload.items,accounts:payload.accounts,stock:payload.stock,snapshotIds:payload.knownIds||[],knownIds:Array.from(new Set([...(this.state.knownIds||[]),...(payload.knownIds||[])])),exchangeRate:payload.exchangeRate,issuedAt:payload.issuedAt};
+        this.state={...this.state,companyId:payload.companyId,companyName:payload.companyName,agentId:payload.agentId,agentName:payload.agentName,vehicleName:payload.vehicleName,warehouseId:payload.warehouseId,key:payload.key,items:payload.items,categories:payload.categories||[],accounts:payload.accounts,stock:payload.stock,snapshotIds:payload.knownIds||[],knownIds:Array.from(new Set([...(this.state.knownIds||[]),...(payload.knownIds||[])])),exchangeRate:payload.exchangeRate,issuedAt:payload.issuedAt};
         this.draft=[];this.currency='USD';await this.save();this.toast('استُلم كشف المواد والعملاء دون حذف العمليات القديمة');await this.show('home');
       }else if(raw?.kind==='ack'){
         if(!this.ready())throw Error('يجب ربط الجهاز أولًا');
@@ -177,14 +177,14 @@ const Agent={
   async printOp(id){const o=this.state.ops.find(x=>x.id===id);if(!o)return;
     if(!window.AndroidPrinter?.printBase64){this.toast('الطباعة الحرارية تحتاج نسخة Android');return;}
     try{
-      const width=576,lines=[this.state.companyName,'فاتورة المندوب: '+this.state.agentName,'السيارة: '+this.state.vehicleName,o.localNumber+'  '+o.date.slice(0,16),'----------------------------------'];
+      const width=this.state.printerWidth===58?384:576,lines=[this.state.companyName,'فاتورة المندوب: '+this.state.agentName,'السيارة: '+this.state.vehicleName,o.localNumber+'  '+o.date.slice(0,16),'----------------------------------'];
       if(o.rows){o.rows.forEach((r,i)=>lines.push((i+1)+' - '+r.itemName+'  '+r.qty+' '+r.unitName+'  '+r.total+' '+o.currency));lines.push('----------------------------------');lines.push('الإجمالي: '+o.rows.reduce((a,r)=>a+r.total,0)+' '+o.currency);lines.push('نقداً: '+o.paidAmount+' '+o.currency);}else lines.push('سند '+(o.kind==='receipt'?'قبض':'دفع')+' : '+o.amount+' '+o.currency);
       const lh=43,height=lines.length*lh+65,canvas=document.createElement('canvas');canvas.width=width;canvas.height=height;const ctx=canvas.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,width,height);ctx.fillStyle='#000';ctx.textAlign='center';ctx.direction='rtl';ctx.font='bold 23px system-ui';
-      lines.forEach((line,i)=>ctx.fillText(line,width/2,40+i*lh,550));
+      lines.forEach((line,i)=>ctx.fillText(line,width/2,40+i*lh,width-26));
       const pixels=ctx.getImageData(0,0,width,height).data,bytes=[27,64];
-      for(let y=0;y<height;y+=240){const h=Math.min(240,height-y);bytes.push(29,118,48,0,72,0,h&255,h>>8);
+      for(let y=0;y<height;y+=240){const h=Math.min(240,height-y);bytes.push(29,118,48,0,width/8,0,h&255,h>>8);
         for(let row=y;row<y+h;row++)for(let x=0;x<width;x+=8){let b=0;for(let bit=0;bit<8;bit++){const z=(row*width+x+bit)*4;const g=(pixels[z]+pixels[z+1]+pixels[z+2])/3;if(g<175)b|=(1<<(7-bit));}bytes.push(b);}}
-      bytes.push(10,10,10);let binary='';for(let i=0;i<bytes.length;i+=5000)binary+=String.fromCharCode(...bytes.slice(i,i+5000));window.AndroidPrinter.printBase64(btoa(binary));this.toast('تم إرسال الفاتورة للطباعة');
+      bytes.push(10,10,10);let binary='';for(let i=0;i<bytes.length;i+=5000)binary+=String.fromCharCode(...bytes.slice(i,i+5000));window.AndroidPrinter.printBase64(btoa(binary));this.toast('تم تجهيز الطلب؛ تحقّق من استجابة الطابعة.');
     }catch(e){this.toast('تعذر تجهيز الفاتورة: '+e.message);}
   }
 };

@@ -33,7 +33,7 @@ const FieldSync = {
         <button type="button" onclick="FieldSync.addAgent()" class="ta-primary-3d w-full p-3 rounded-xl font-black">إضافة مندوب معتمد</button>
       </div>
       <div class="rounded-2xl border p-3 space-y-2 bg-white"><b class="text-sm">المندوبون المسجلون</b>
-         ${config.agents.length? config.agents.map(a=>`<div class="rounded-xl bg-slate-50 border p-3 space-y-2">
+         ${config.agents.filter(a=>!a.archived).length? config.agents.filter(a=>!a.archived).map(a=>`<div class="rounded-xl bg-slate-50 border p-3 space-y-2">
              <div class="flex justify-between gap-2"><span class="font-bold">${this.escape(a.name)} · ${this.escape(a.vehicleName||'')}</span><span class="text-[10px]">${a.disabled?'موقوف':'معتمد'}</span></div>
              <p class="text-[10px] text-slate-500">${this.escape(WarehouseController.name(a.warehouseId))}</p>
              <div class="grid grid-cols-2 gap-2">
@@ -41,8 +41,11 @@ const FieldSync = {
                <button type="button" class="rounded-lg bg-blue-700 text-white p-2 font-bold" onclick="FieldSync.exportAck('${a.id}')">تأكيد الاستلام</button>
                <button type="button" class="rounded-lg bg-amber-100 p-2 font-bold col-span-2" onclick="FieldSync.showActivation('${a.id}')">إصدار كود تفعيل لجهاز المندوب</button>
                <button type="button" class="rounded-lg bg-slate-200 text-slate-800 p-2 font-bold col-span-2" onclick="FieldSync.toggleAgent('${a.id}')">${a.disabled?'إعادة السماح بالمزامنة':'إيقاف استقبال عمليات هذا المندوب'}</button>
+               <button type="button" class="rounded-lg bg-blue-100 text-blue-900 p-2 font-black" onclick="FieldSync.showEditAgent('${a.id}')">✎ تعديل المندوب</button>
+               <button type="button" class="rounded-lg bg-rose-100 text-rose-800 p-2 font-black" onclick="FieldSync.confirmRemoveAgent('${a.id}')">× حذف المندوب</button>
              </div></div>`).join(''):'<p class="text-xs text-slate-500">لا يوجد مندوبون حتى الآن.</p>'}
       </div>
+      ${config.agents.some(a=>a.archived)?`<div class="rounded-xl border bg-rose-50 p-3 text-xs"><strong>مندوبون محذوفون (أرشيف)</strong><p class="mt-1">تبقى سجلاتهم التاريخية محفوظة لمنع ضياع الفواتير والسندات.</p>${config.agents.filter(a=>a.archived).map(a=>`<div class="flex justify-between items-center py-2 border-b"><span>${this.escape(a.name)}</span><button type="button" class="bg-white border px-2 py-1 rounded" onclick="FieldSync.restoreAgent('${a.id}')">استعادة المندوب</button></div>`).join('')}</div>`:''}
       <div class="rounded-2xl border p-3 bg-emerald-50 space-y-2">
         <b class="text-sm">استلام عمليات المندوب</b>
         <p class="text-xs">اختر ملف العمليات الوارد من هاتف المندوب. ستظهر معاينة قبل أي ترحيل.</p>
@@ -69,13 +72,60 @@ const FieldSync = {
     const known=config.imported.filter(i=>i.agentId===a.id).map(i=>i.id);
     return {kind:'provision',format:FieldProtocol.FORMAT,companyId:config.companyId,companyName:State.settings.companyName,agentId:a.id,agentName:a.name,vehicleName:a.vehicleName,warehouseId:a.warehouseId,key:a.key,
       issuedAt:new Date().toISOString(),exchangeRate:Number(State.settings.exchangeRate),
-      items:State.items.map(it=>({id:it.id,name:it.name,currency:it.currency,units:(it.units||[]).map(u=>({name:u.name,factor:u.factor,salePrice:u.salePrice}))})),
+      categories:(State.categories||[]).slice(),
+      items:State.items.map(it=>({id:it.id,name:it.name,category:it.category||'',barcode:it.barcode||'',currency:it.currency,units:(it.units||[]).map(u=>({name:u.name,factor:u.factor,salePrice:u.salePrice}))})),
       accounts:State.accounts.filter(acc=>acc.type==='customer').map(acc=>({id:acc.id,name:acc.name,type:acc.type})),
       stock:Object.fromEntries(State.items.map(it=>[it.id,Accounting.getItemBaseStock(it.id,null,a.warehouseId)])),
       knownIds:known};
   },
+  showEditAgent(id){
+    const a=this.data().agents.find(x=>x.id===id&&!x.archived);if(!a)return;
+    UI.openModal(`<div class="ta-field-panel space-y-3 text-right" dir="rtl">
+      <h3 class="text-base font-black">تعديل بيانات المندوب</h3>
+      <p class="text-xs text-slate-600">تعديل الاسم والسيارة لا يغيّر فواتير المندوب المرحّلة سابقًا. أرسل كشف تجهيز جديدًا بعد الحفظ.</p>
+      <label class="text-xs font-black">اسم المندوب</label><input id="editFieldAgentName" class="w-full border rounded-xl p-3" maxlength="70" value="${this.escape(a.name)}"/>
+      <label class="text-xs font-black">السيارة / خط التوزيع</label><input id="editFieldAgentVehicle" class="w-full border rounded-xl p-3" maxlength="70" value="${this.escape(a.vehicleName||'')}"/>
+      <div class="bg-slate-100 rounded-xl p-2 text-xs">مستودع السيارة: ${this.escape(WarehouseController.name(a.warehouseId))} — ثابت لحماية جرد العمليات</div>
+      <button type="button" class="ta-primary-3d w-full p-3 rounded-xl" onclick="FieldSync.saveAgentEdit('${a.id}')">حفظ التعديل</button>
+      <button type="button" class="rounded-xl p-2 w-full bg-slate-100" onclick="FieldSync.open()">رجوع</button>
+    </div>`);
+  },
+  async saveAgentEdit(id){
+    const a=this.data().agents.find(x=>x.id===id&&!x.archived);if(!a)return;
+    const name=String(document.getElementById('editFieldAgentName')?.value||'').trim();
+    const vehicleName=String(document.getElementById('editFieldAgentVehicle')?.value||'').trim();
+    if(name.length<2||name.length>70||vehicleName.length>70)return UI.toast('اسم المندوب يجب أن يكون بين حرفين و70 حرفًا','warn');
+    const original={name:a.name,vehicleName:a.vehicleName};a.name=name;a.vehicleName=vehicleName||name;
+    try{await StorageEngine.saveState();this.open();UI.toast('حُفظ التعديل. أرسل كشف تجهيز جديدًا إلى هاتف المندوب','success');}
+    catch(e){Object.assign(a,original);UI.toast('لم يُحفظ تعديل المندوب: '+e.message,'error');}
+  },
+  confirmRemoveAgent(id){
+    const a=this.data().agents.find(x=>x.id===id&&!x.archived);if(!a)return;
+    const imported=this.data().imported.filter(x=>x.agentId===id).length;
+    UI.openModal(`<div class="ta-field-panel space-y-3 text-right" dir="rtl">
+      <h3 class="text-lg font-black text-rose-800">حذف المندوب: ${this.escape(a.name)}</h3>
+      <p class="text-xs text-rose-800">سيُمنع استقبال عمليات جديدة من هذا المندوب، ويُخفى من القائمة النشطة. ستبقى سجلاته وسنداته المرحّلة (${imported}) محفوظة في الأرشيف لأغراض التدقيق.</p>
+      <p class="text-xs text-amber-800">لا يمكن سحب الترخيص فورًا من هاتف يعمل دون اتصال؛ المنع يُطبق عند محاولة المزامنة.</p>
+      <button type="button" class="w-full bg-rose-700 text-white p-3 rounded-xl font-black" onclick="FieldSync.removeAgent('${a.id}')">تأكيد الحذف الآمن</button>
+      <button type="button" class="w-full bg-slate-100 p-3 rounded-xl" onclick="FieldSync.open()">إلغاء</button>
+    </div>`);
+  },
+  async removeAgent(id){
+    const a=this.data().agents.find(x=>x.id===id&&!x.archived);if(!a)return;
+    const old={archived:a.archived,disabled:a.disabled,deletedAt:a.deletedAt};
+    a.archived=true;a.disabled=true;a.deletedAt=new Date().toISOString();
+    try{await StorageEngine.saveState();this.open();UI.toast('حُذف المندوب من القائمة النشطة مع حفظ الأرشيف','success');}
+    catch(e){Object.assign(a,old);UI.toast('تعذر حذف المندوب: '+e.message,'error');}
+  },
+  async restoreAgent(id){
+    const a=this.data().agents.find(x=>x.id===id&&x.archived);if(!a)return;
+    if(this.data().agents.some(x=>!x.archived&&!x.disabled&&x.warehouseId===a.warehouseId))return UI.toast('مستودع السيارة مرتبط بمندوب آخر','warn');
+    const old={archived:a.archived,disabled:a.disabled,deletedAt:a.deletedAt};a.archived=false;a.disabled=false;a.deletedAt=null;
+    try{await StorageEngine.saveState();this.open();UI.toast('تمت استعادة المندوب','success');}
+    catch(e){Object.assign(a,old);UI.toast('فشلت استعادة المندوب','error');}
+  },
   async toggleAgent(id){
-    const a=this.data().agents.find(x=>x.id===id);if(!a)return;
+    const a=this.data().agents.find(x=>x.id===id&&!x.archived);if(!a)return;
     const old=a.disabled;a.disabled=!a.disabled;
     try{await StorageEngine.saveState();this.open();UI.toast(a.disabled?'توقف استقبال العمليات من هذا المندوب حتى إعادة السماح':'تم إعادة السماح بالمزامنة','info');}
     catch(e){a.disabled=old;UI.toast('فشل حفظ صلاحية المندوب','error');}
