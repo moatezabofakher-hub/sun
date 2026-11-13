@@ -22,7 +22,7 @@ assert(main.includes('data-app-build="${InstalledAppVersion.number()}"'));
 assert(main.includes('إصدار التطبيق: ${InstalledAppVersion.number()}'));
 assert(!main.includes('إصدار التطبيق: 3.5.43'));
 assert(java.includes('public String getAppVersionName()'));
-for (const file of [gradle,agentGradle])assert(file.includes("versionName '3.5.50-navigation-version-fix'"));
+for (const file of [gradle,agentGradle])assert(file.includes("versionName '3.5.51-assembly-pricing-agent-scope'"));
 assert(managerCSS.includes('width:40px;height:40px;font-size:23px!important'));
 assert(managerCSS.includes('@media(max-width:355px)'));
 assert(managerCSS.includes('width:36px;height:36px;font-size:21px!important'));

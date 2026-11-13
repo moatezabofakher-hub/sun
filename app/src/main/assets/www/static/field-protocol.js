@@ -88,7 +88,8 @@
           const total=money(qty*price,code);
           if(Math.abs(total-Number(r.total))>(code==='USD'?0.011:0.51))throw Error('إجمالي بند غير مطابق');
           return {itemId:r.itemId,itemName:itm.name,unitName:r.unitName,unitFactor:factor,qty,price,total,
-            baseCurrency:itm.currency,basePrice:Number(unit.salePrice)||0};
+            baseCurrency:itm.currency,basePrice:Number(unit.salePrice)||0,
+            bomComponents:itm.isBundle?(itm.bundleComponents||[]).map(b=>({itemId:b.itemId,quantity:Number(b.quantity)})):undefined};
         });
         const subTotal=money(rows.reduce((a,r)=>a+r.total,0),code);
         const discountType=op.discountType==='percent'?'percent':'amount';

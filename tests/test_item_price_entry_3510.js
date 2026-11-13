@@ -61,7 +61,7 @@ const container={innerHTML:''};elements.set('itmUnitsContainer',container);
 ItemController.openItemModal(); // empty item modal should advertise configured precision
 assert.ok(modal.includes('عدد الخانات العشرية المسموح بها عند إدخال أسعار المواد:'));
 assert.ok(modal.includes('>4</span>'));
-assert.ok(modal.includes('id="itmMainSalePrice"'));
+assert.ok(modal.includes('id="itmWholesalePrice"'));assert.ok(modal.includes('id="itmCenterPrice"'));assert.ok(!modal.includes('id="itmMainSalePrice"'));
 assert.ok(modal.includes('placeholder="0.0000"'));
 assert.ok(container.innerHTML.includes('oninput="ItemController.onUnitPriceInput(0, \'salePrice\', this.value, this)"'));
 // An existing price with more than the current display setting must retain its original value on unedited save.

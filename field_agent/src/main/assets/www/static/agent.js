@@ -30,7 +30,7 @@ const Agent={
   ready(){return !!(this.state?.companyId&&this.state.key)},
   async active(){return this.ready() && await FieldProtocol.verifyLicense(this.state.license,AGENT_LICENSE_PUBLIC_KEY,this.state.deviceId,this.state.companyId,this.state.agentId);},
   get pending(){return this.state.ops.filter(o=>!this.state.knownIds.includes(o.id)).sort((a,b)=>Number(b.kind==='customer_create')-Number(a.kind==='customer_create'));},
-  get stock(){return FieldProtocol.applyStock(this.state.stock,this.state.ops,this.state.snapshotIds||[]);},
+  get stock(){return FieldProtocol.applyStock(this.state.stock,this.state.ops,this.state.snapshotIds||[],this.state.items||[]);},
   async show(where){
     this.screen=where;
     const active=await this.active();

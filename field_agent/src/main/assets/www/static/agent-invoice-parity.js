@@ -100,26 +100,33 @@ A.changeRowUnit=function(i,unitName){
  r.unitName=u.name;r.unitFactor=Number(u.factor);r.price=this.unitPrice(it,u,this.currency);r.total=round(r.qty*r.price,this.currency);
  this.show('invoice');
 };
-A.unitPrice=function(it,u,c){const raw=Number(u.salePrice||0),rate=Number(this.state.exchangeRate)||1;return round(it.currency===c?raw:it.currency==='USD'?raw*rate:raw/rate,c);};
+A.unitPrice=function(it,u,c){const acc=this.state.accounts.find(a=>a.id===(document.getElementById('fAccount')?.value||this.invoiceMeta?.accountId));const price=acc?.priceTier==='center'?(u.centerPrice??u.salePrice):(u.wholesalePrice??u.salePrice);const raw=Number(price||0),rate=Number(this.state.exchangeRate)||1;return round(it.currency===c?raw:it.currency==='USD'?raw*rate:raw/rate,c);};
+A.accountPricingChanged=function(id){this.captureInvoiceMeta();this.invoiceMeta.accountId=id;for(const row of this.draft){if(row.manuallyPriced)continue;const it=this.state.items.find(x=>x.id===row.itemId);const u=it?.units?.find(x=>x.name===row.unitName);if(!it||!u)continue;row.price=this.unitPrice(it,u,this.currency);row.total=round(row.price*row.qty,this.currency);}this.show('invoice');};
 A.changeRowValue=function(i,key,v){
  const r=this.draft[i];if(!r)return;
  const n=Number(String(v).trim().replace(',','.'));if(!Number.isFinite(n)||n<0||n>1e10)return;
- r[key]=key==='price'?round(n,this.currency):n;
+ r[key]=key==='price'?round(n,this.currency):n;if(key==='price')r.manuallyPriced=true;
  r.total=round(Number(r.qty)*Number(r.price),this.currency);
  const node=document.getElementById('rowTotal_'+i);if(node)node.textContent=money(r.total,this.currency);
  this.refreshInvoiceTotals();
 };
 A.removeRow=function(i){this.captureInvoiceMeta();this.draft.splice(i,1);this.show('invoice');};
 A.decrementRow=function(i){this.captureInvoiceMeta();const r=this.draft[i];if(!r)return;if(r.qty<=1)this.draft.splice(i,1);else {r.qty=round(r.qty-1,'USD');r.total=round(r.qty*r.price,this.currency);}this.show('invoice');};
+A.remainingStockForItem=function(itemId){
+ const items=this.state.items||[],catalog=new Map(items.map(x=>[x.id,x])),available={...this.stock};
+ for(const r of this.draft||[]){const it=catalog.get(r.itemId);const parts=it?.isBundle?(r.bomComponents||it.bundleComponents):[{itemId:r.itemId,quantity:1}];for(const b of parts||[]){available[b.itemId]=(Number(available[b.itemId])||0)-Number(r.qty)/Number(r.unitFactor||1)*Number(b.quantity||0);}}
+ const item=catalog.get(itemId);if(!item)return 0;
+ if(item.isBundle){const parts=item.bundleComponents||[];return parts.length?Math.max(0,Math.min(...parts.map(x=>Number(available[x.itemId]||0)/Number(x.quantity||1)))):0;}
+ return Math.max(0,Number(available[itemId])||0);
+};
 A.addGridItem=function(id){
  const it=this.state.items.find(x=>x.id===id);if(!it)return;
  const u=it.units?.[0];if(!u)return this.toast('لا توجد وحدة معتمدة للصنف');
- const reserved=this.draft.filter(r=>r.itemId===it.id).reduce((s,r)=>s+Number(r.qty)/Number(r.unitFactor),0);
- const available=Number(this.stock[it.id]||0);
- if(this.draftKind==='sale'&&reserved+(1/Number(u.factor))>available+1e-5)return this.toast(available-reserved<=1e-5?'نفدت كمية المادة «'+it.name+'» من مستودع المندوب':'الكمية المتاحة من «'+it.name+'» غير كافية');
+ const available=this.remainingStockForItem(it.id);
+ if(this.draftKind==='sale'&&(1/Number(u.factor))>available+1e-5)return this.toast(available<=1e-5?'نفدت كمية المادة «'+it.name+'» من مستودع المندوب':'الكمية المتاحة من «'+it.name+'» غير كافية');
  this.captureInvoiceMeta();let r=this.draft.find(r=>r.itemId===it.id&&r.unitName===u.name);
  if(r){r.qty=round(r.qty+1,'USD');r.total=round(r.qty*r.price,this.currency);}
- else{const p=this.unitPrice(it,u,this.currency);this.draft.push({itemId:it.id,itemName:it.name,unitName:u.name,unitFactor:Number(u.factor),qty:1,price:p,total:round(p,this.currency)});}
+ else{const p=this.unitPrice(it,u,this.currency);this.draft.push({itemId:it.id,itemName:it.name,unitName:u.name,unitFactor:Number(u.factor),qty:1,price:p,total:round(p,this.currency),bomComponents:it.isBundle?JSON.parse(JSON.stringify(it.bundleComponents||[])):undefined});}
  this.show('invoice');this.renderPickerItems();
 };
 A.removeGridOne=function(id){
@@ -181,7 +188,7 @@ A.renderInvoice=function(){
    <select class="bg-slate-100 border border-slate-200 rounded-lg px-2 py-1 text-[10px] font-bold" onchange="Agent.captureInvoiceMeta();Agent.switchInvoiceKind(this.value)"><option value="sale" ${kind==='sale'?'selected':''}>فاتورة مبيعات</option><option value="sale_return" ${kind==='sale_return'?'selected':''}>مردود مبيعات</option></select></div>
    <button type="button" onclick="Agent.changeInvoiceCurrency()" class="bg-amber-50 border border-amber-300 text-amber-900 px-2 py-1 rounded-lg text-[10px] font-extrabold flex items-center gap-1"><i class="fas fa-coins text-amber-600"></i><span>${c==='SYP'?'ليرة سورية':'دولار'}</span><span class="text-[9px] bg-white px-1 py-0.5 rounded border">تبديل</span></button></div>
   <div class="mb-1.5 rounded-lg bg-sky-50 border border-sky-200 px-2 py-1.5"><label class="block text-[10px] font-extrabold text-sky-900 mb-1">المستودع الذي تتأثر به هذه الفاتورة</label><div class="bg-white rounded-lg p-2 border border-sky-300 text-xs font-bold">${esc(this.state.vehicleName||'مستودع المندوب')} — محدد من الإدارة</div></div>
-  <div class="grid grid-cols-2 gap-1.5 text-[10px]"><div class="min-w-0"><label class="font-bold text-slate-700 flex items-center gap-1 mb-0.5"><i class="fas fa-user text-emerald-600"></i>العميل</label><select id="fAccount" class="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-[11px] font-bold bg-slate-50" onchange="Agent.captureInvoiceMeta();Agent.paintInvoiceAccountBalance()"><option value="">-- عميل نقدي مباشر --</option>${this.state.accounts.map(a=>`<option value="${esc(a.id)}" ${meta.accountId===a.id?'selected':''}>${esc(a.name)}</option>`).join('')}</select><button type="button" class="mt-1 w-full bg-emerald-50 border border-emerald-300 text-emerald-800 font-extrabold text-[10px] p-1.5 rounded-lg" onclick="Agent.openCustomerForm('invoice')">+ إضافة زبون جديد</button></div>
+  <div class="grid grid-cols-2 gap-1.5 text-[10px]"><div class="min-w-0"><label class="font-bold text-slate-700 flex items-center gap-1 mb-0.5"><i class="fas fa-user text-emerald-600"></i>العميل</label><select id="fAccount" class="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-[11px] font-bold bg-slate-50" onchange="Agent.accountPricingChanged(this.value)"><option value="">-- عميل نقدي مباشر --</option>${this.state.accounts.map(a=>`<option value="${esc(a.id)}" ${meta.accountId===a.id?'selected':''}>${esc(a.name)}</option>`).join('')}</select><button type="button" class="mt-1 w-full bg-emerald-50 border border-emerald-300 text-emerald-800 font-extrabold text-[10px] p-1.5 rounded-lg" onclick="Agent.openCustomerForm('invoice')">+ إضافة زبون جديد</button></div>
   <div><label class="flex items-center gap-1 font-bold text-slate-700 mb-0.5"><i class="fas fa-calendar-days text-blue-600"></i>التاريخ</label><input id="fDate" class="w-full min-w-0 border border-slate-300 rounded-lg px-1.5 py-1.5 text-[10px]" type="datetime-local" value="${esc(meta.date||this.defaultDate())}" onchange="Agent.captureInvoiceMeta()"></div></div>
   <div id="invoiceAccountBalance" class="bg-sky-50 border border-sky-200 rounded-lg p-2 text-xs">${this.accountBalanceHTML(meta.accountId)}</div>
   <div class="grid grid-cols-3 gap-1.5 bg-slate-100 p-1 rounded-xl text-xs font-bold">

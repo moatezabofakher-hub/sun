@@ -38,6 +38,7 @@ Agent.confirmAction=function(title,message,action){this.dialogAction=action;
 Agent.acceptDialog=function(){const fn=this.dialogAction;this.dismissDialog();if(fn)fn();};
 Agent.bottomRoutes=['home','invoices','ops','sync','settings'];
 Agent.navigate=async function(route){
+ if(this.screen!==route){document.getElementById('screen')?.scrollTo({top:0,behavior:'instant'});window.scrollTo(0,0);}
  if(this.screen===route){await this.show(route);return;}
  if(this.screen==='invoice'&&this.draft.length){this.confirmAction('توجد فاتورة لم تُحفظ','هل تريد ترك الفاتورة وفقدان المواد المختارة؟',()=>{this.draft=[];this.stack=this.bottomRoutes.includes(route)?(route==='home'?['home']:['home',route]):[...this.stack,route];this.show(route);});return;}
  if(this.screen==='voucher'&&document.getElementById('vAmount')?.value){this.confirmAction('سند لم يُحفظ','سيتم تجاهل السند الذي أدخلته. هل تريد المتابعة؟',()=>{this.stack=this.bottomRoutes.includes(route)?(route==='home'?['home']:['home',route]):[...this.stack,route];this.show(route);});return;}

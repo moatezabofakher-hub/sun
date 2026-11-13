@@ -58,6 +58,8 @@ public final class NativeLocalSync {
     private volatile WifiManager.MulticastLock multicastLock;
     private volatile String activeCompany;
     private volatile boolean closing = false;
+    private volatile InetSocketAddress lastConfirmedDestination;
+    private volatile long lastConfirmedAt = 0;
     private final AtomicBoolean sending = new AtomicBoolean(false);
     private final AtomicBoolean pairingSending = new AtomicBoolean(false);
 
@@ -238,26 +240,59 @@ public final class NativeLocalSync {
         if (!sending.compareAndSet(false, true)) { agentResult("المزامنة قيد التشغيل بالفعل", null); return; }
         io.execute(() -> {
             try {
-                final InetSocketAddress destination = findServer(companyId);
-                if (destination == null) throw new IOException("لم يظهر التطبيق الرئيسي على Wi-Fi. افتحه في صفحة المندوبين، وتأكّد من اتصال الهاتفين بالشبكة نفسها وأن الشبكة لا تعزل الأجهزة.");
-                try (Socket socket = new Socket()) {
-                    socket.connect(destination, 7000);
-                    socket.setSoTimeout(44000);
-                    DataOutputStream output = new DataOutputStream(socket.getOutputStream());
-                    byte[] bytes = encryptedRequest.getBytes(StandardCharsets.UTF_8);
-                    output.writeInt(bytes.length);
-                    output.write(bytes);
-                    output.flush();
-                    DataInputStream input = new DataInputStream(socket.getInputStream());
-                    int size = input.readInt();
-                    if (size <= 0 || size > MAX_FRAME) throw new IOException("رد الإدارة غير صالح");
-                    byte[] received = new byte[size];
-                    input.readFully(received);
-                    agentResult(null, new String(received, StandardCharsets.UTF_8));
+                IOException lastError = null;
+                boolean completed = false;
+                for (int attempt = 0; attempt < 2 && !completed; attempt++) {
+                    InetSocketAddress destination = (attempt == 0 && lastConfirmedDestination != null &&
+                        System.currentTimeMillis() - lastConfirmedAt < 60_000L)
+                        ? lastConfirmedDestination : findServer(companyId);
+                    if (destination == null) { lastError = new IOException("لم يظهر التطبيق الرئيسي على شبكة Wi-Fi المحلية"); break; }
+                    try (Socket socket = new Socket()) {
+                        bindToWifiIfAvailable(socket);
+                        socket.connect(destination, 6000);
+                        socket.setSoTimeout(44000);
+                        DataOutputStream output = new DataOutputStream(socket.getOutputStream());
+                        byte[] bytes = encryptedRequest.getBytes(StandardCharsets.UTF_8);
+                        output.writeInt(bytes.length); output.write(bytes); output.flush();
+                        DataInputStream input = new DataInputStream(socket.getInputStream());
+                        int size = input.readInt();
+                        if (size <= 0 || size > MAX_FRAME) throw new IOException("رد الإدارة غير صالح");
+                        byte[] received = new byte[size]; input.readFully(received);
+                        lastConfirmedDestination = destination;
+                        lastConfirmedAt = System.currentTimeMillis();
+                        agentResult(null, new String(received, StandardCharsets.UTF_8));
+                        completed = true;
+                    } catch (IOException ioError) {
+                        lastError = ioError;
+                        lastConfirmedDestination = null;
+                        // Rediscover only when a previously working address has gone stale.
+                        if (attempt > 0 || lastConfirmedAt == 0) break;
+                    }
                 }
+                if (!completed) throw lastError == null ? new IOException("فشل الاتصال بالمحاسبة الرئيسية") : lastError;
             } catch (Exception e) { agentResult(e.getMessage() == null ? "انقطع الاتصال أثناء المزامنة" : e.getMessage(), null); }
             finally { sending.set(false); }
         });
+    }
+
+    /** Local sockets must follow the Wi-Fi path even when a full-tunnel VPN owns the default route.
+     * This does not bypass VPN policy: if LAN is blocked, the connection still fails normally. */
+    private void bindToWifiIfAvailable(Socket socket) {
+        if (connectivity == null || socket == null) return;
+        try {
+            // Public Android networking APIs through reflection keep the simple offline
+            // Java regression harness compatible with older SDK stubs.
+            Object networks = android.net.ConnectivityManager.class.getMethod("getAllNetworks").invoke(connectivity);
+            if (!(networks instanceof Object[])) return;
+            for (Object network : (Object[]) networks) {
+                Object caps = android.net.ConnectivityManager.class.getMethod("getNetworkCapabilities", Network.class).invoke(connectivity, network);
+                if (caps != null && Boolean.TRUE.equals(caps.getClass().getMethod("hasTransport", int.class)
+                        .invoke(caps, NetworkCapabilities.TRANSPORT_WIFI))) {
+                    network.getClass().getMethod("bindSocket", Socket.class).invoke(network, socket);
+                    return;
+                }
+            }
+        } catch (Exception ignored) { /* keep normal OS route as fallback */ }
     }
 
     /** Discover the manager automatically and exchange onboarding messages.
@@ -279,6 +314,7 @@ public final class NativeLocalSync {
                 InetSocketAddress target = findServer(companyId.isEmpty() ? null : companyId);
                 if (target == null) throw new IOException("لم يُعثر على التطبيق الرئيسي على شبكة Wi-Fi المحلية");
                 try (Socket socket = new Socket()) {
+                    bindToWifiIfAvailable(socket);
                     socket.connect(target, 5500);
                     socket.setSoTimeout(43000);
                     DataOutputStream out = new DataOutputStream(socket.getOutputStream());

@@ -1839,18 +1839,57 @@
                 }
                 return amount;
             },
+            itemCostPrice(item,unit) {
+                if(!item?.isBundle)return Number(unit?.costPrice)||0;
+                const parts=item.bundleComponents||[];
+                const perBase=parts.reduce((sum,b)=>{
+                  const component=State.items.find(x=>x.id===b.itemId);if(!component)return sum;
+                  const amount=Number(component.units?.[0]?.costPrice)||0;
+                  return sum+this.convert(amount,component.currency,item.currency,State.settings.exchangeRate)*Number(b.quantity);
+                },0);
+                return perBase/(Number(unit?.factor)||1);
+            },
+            itemSalePrice(item,unit,accountId,tierOverride=null){
+                const acc=State.accounts.find(a=>a.id===accountId);
+                const tier=tierOverride==='center'||tierOverride==='wholesale'?tierOverride:(acc?.priceTier==='center'?'center':'wholesale');
+                const mode=item?.isBundle?item.bundlePricing?.mode:'manual';
+                if(mode==='component_sum'){
+                    const sum=(item.bundleComponents||[]).reduce((value,b)=>{
+                        const component=State.items.find(x=>x.id===b.itemId);if(!component)return value;
+                        const base=component.units?.[0]||{};
+                        const raw=tier==='center'?(base.centerPrice??base.salePrice):(base.wholesalePrice??base.salePrice);
+                        return value+this.convert(Number(raw)||0,component.currency,item.currency,State.settings.exchangeRate)*Number(b.quantity);
+                    },0);
+                    return this.roundDerivedItemPrice(sum/(Number(unit?.factor)||1));
+                }
+                if(mode==='cost_markup')return this.roundDerivedItemPrice(this.itemCostPrice(item,unit)*(1+(Number(item.bundlePricing?.markup)||0)/100));
+                return Number(tier==='center'?(unit?.centerPrice??unit?.salePrice):(unit?.wholesalePrice??unit?.salePrice))||0;
+            },
             // Legacy stock and invoices belong to the main warehouse. Null warehouseId = total.
             getItemBaseStock(itemId, excludeInvoiceId = null, warehouseId = null) {
                 const item = State.items.find(i => i.id === itemId);
                 if (!item) return 0;
                 const wanted = warehouseId || null;
+                if(item.isBundle){
+                    const parts=Array.isArray(item.bundleComponents)?item.bundleComponents:[];
+                    if(!parts.length)return 0;
+                    return Math.max(0,Math.floor(Math.min(...parts.map(b=>this.getItemBaseStock(b.itemId,excludeInvoiceId,wanted)/(Number(b.quantity)||1)))*10000)/10000);
+                }
                 let stock = (wanted === null || wanted === 'wh_main')
                     ? (Number(item.openingStockBase) || 0) : 0;
                 for (const inv of State.invoices) {
                     if (excludeInvoiceId && inv.id === excludeInvoiceId) continue;
                     if (wanted && (inv.warehouseId || 'wh_main') !== wanted) continue;
                     for (const row of (Array.isArray(inv.rows) ? inv.rows : [])) {
-                        if (row.itemId !== itemId) continue;
+                        if (row.itemId !== itemId) {
+                            const kit=State.items.find(x=>x.id===row.itemId);
+                            const frozen=Array.isArray(row.bomComponents)?row.bomComponents:(kit?.isBundle?kit.bundleComponents:[]);
+                            if(!Array.isArray(frozen)||!['sale','sale_return'].includes(inv.type))continue;
+                            const part=frozen.find(b=>b.itemId===itemId);if(!part)continue;
+                            const qty=(Number(row.qty)||0)/(Number(row.unitFactor)||1)*(Number(part.quantity)||0);
+                            if(inv.type==='sale')stock-=qty;else stock+=qty;
+                            continue;
+                        }
                         const factor = Number(row.unitFactor) > 0 ? Number(row.unitFactor) : 1;
                         const baseQty = (Number(row.qty) || 0) / factor;
                         if (inv.type === 'purchase' || inv.type === 'sale_return') stock += baseQty;
@@ -2123,7 +2162,7 @@
                     const stock = Accounting.getItemBaseStock(item.id, null, selectedWarehouse);
                     const sourceCurrency = item.currency === 'USD' ? 'USD' : 'SYP';
                     const cost = Number(baseUnit.costPrice);
-                    const nativeValue = stock * (Number.isFinite(cost) ? cost : 0);
+                    const nativeValue = item.isBundle ? 0 : stock * (Number.isFinite(cost) ? cost : 0);
                     const value = sourceCurrency === targetCurrency ? nativeValue
                         : (rateValid ? (sourceCurrency === 'USD' ? nativeValue * rate : nativeValue / rate) : null);
                     if (value !== null) total += value;
@@ -4829,7 +4868,7 @@
                             const itemUnits = Array.isArray(item.units) ? item.units : [];
                             const unitObj = itemUnits.find(u => u && u.name === r.unitName) || itemUnits[0] || {};
                             const qty = Number(r.qty) || 0;
-                            const costItemCurrency = (Number(unitObj.costPrice) || 0) * qty;
+                            const costItemCurrency = (Number(item.isBundle ? (r.baseCostPrice ?? Accounting.itemCostPrice(item,unitObj)) : unitObj.costPrice) || 0) * qty;
                             const configuredRate = Number(State.settings && State.settings.exchangeRate);
                             const safeRate = Number(rate) > 0 ? Number(rate) : (configuredRate > 0 ? configuredRate : 1);
                             const itemCurrency = item.currency || inv.currency || 'SYP';
@@ -4895,7 +4934,7 @@
                             ${(State.fieldSync?.agents||[]).map(a=>`<option value="${AppEscape.text(a.id)}" ${cashScope===a.id?'selected':''}>${AppEscape.text(a.name||'مندوب')}${a.archived?' (أرشيف)':''}</option>`).join('')}
                           </select>
                           <div class="grid grid-cols-2 gap-2 text-xs font-extrabold">
-                            <button type="button" class="rounded-xl bg-emerald-700 text-white p-3" onclick="FieldCash.openTransfer('fromAgent','${AppEscape.text(cashScope)}')">↙ دفعة من المندوب</button>
+                            
                             <button type="button" class="rounded-xl bg-blue-800 text-white p-3" onclick="FieldCash.openTransfer('toAgent','${AppEscape.text(cashScope)}')">↗ إعطاء دفعة</button>
                           </div>
                         </div>
@@ -5629,6 +5668,7 @@
                 const existing = itemId ? State.items.find(i => i.id === itemId) : null;
                 this.activeEditId = existing ? existing.id : '';
                 this.tempPhotoData = existing ? this.safePhotoData(existing) : '';
+                this.tempBundle = existing?.isBundle ? JSON.parse(JSON.stringify(existing.bundleComponents || [])) : [];
                 this.selectedCurrency = existing ? existing.currency : (State.settings.primaryOnlyMode ? CurrencyCatalog.primary() : (State.settings.defaultItemCurrency || CurrencyCatalog.primary()));
                 this.tempUnits = existing ? JSON.parse(JSON.stringify(existing.units)) : [
                     { name: 'كرتونة', factor: 1, salePrice: '', costPrice: '', barcode: '' }
@@ -5642,16 +5682,9 @@
                         <button onclick="UI.requestCloseModal()"><i class="fas fa-times text-slate-400"></i></button>
                     </div>
                     <div class="space-y-3 text-xs">
-                        <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
-                            <label class="block font-extrabold text-slate-800 mb-1.5"><i class="fas fa-coins text-amber-500 ml-1"></i> عملة تسعير الصنف (الافتراضية ${State.settings.defaultItemCurrency || 'USD'}) *</label>
-                            <div class="flex gap-2">
-                                <button type="button" id="btnCurrSYP" ${State.settings.primaryOnlyMode && !existing && CurrencyCatalog.primary() !== 'SYP' ? 'disabled hidden' : ''} onclick="ItemController.setItemBaseCurrency('SYP')" class="${this.selectedCurrency === 'SYP' ? 'flex-1 py-2 rounded-xl font-extrabold text-xs bg-emerald-600 text-white shadow-xs transition' : 'flex-1 py-2 rounded-xl font-bold text-xs bg-slate-100 text-slate-600 hover:bg-slate-200 transition'}">
-                                    ليرة سورية (SYP)
-                                </button>
-                                <button type="button" id="btnCurrUSD" ${State.settings.primaryOnlyMode && !existing && CurrencyCatalog.primary() !== 'USD' ? 'disabled hidden' : ''} onclick="ItemController.setItemBaseCurrency('USD')" class="${this.selectedCurrency === 'USD' ? 'flex-1 py-2 rounded-xl font-extrabold text-xs bg-amber-500 text-slate-950 shadow-xs transition' : 'flex-1 py-2 rounded-xl font-bold text-xs bg-slate-100 text-slate-600 hover:bg-slate-200 transition'}">
-                                    دولار أمريكي (USD $)
-                                </button>
-                            </div>
+                        <div class="flex items-center justify-between gap-2 rounded-lg bg-slate-50 p-2 border">
+                          <span class="text-xs font-bold">عملة تسعير الصنف</span>
+                          <button type="button" id="itmCurrencySelect" onclick="ItemController.openCurrencyPicker()" class="text-xs font-extrabold px-3 py-1.5 rounded-lg border border-emerald-200 bg-white text-emerald-800 shadow-sm"><i class="fas fa-coins ml-1"></i>${this.selectedCurrency} ▾</button>
                         </div>
 
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -5698,19 +5731,45 @@
                                 <span><i class="fas fa-boxes-packing text-emerald-600 ml-1"></i> أسعار الوحدة الكبرى الأساسية (<span class="unit-curr-label">${currSym}</span>):</span>
                                 <span class="text-[10px] text-emerald-700 font-bold">تُقسم تلقائياً لحساب سعر الفرعية/القطعة</span>
                             </div>
-                            <div class="grid grid-cols-2 gap-2.5">
+                            <div class="grid grid-cols-1 gap-2.5">
                                 <div>
                                     <label class="block font-extrabold text-slate-700 mb-1">تكلفة الوحدة الكبرى (<span class="unit-curr-label">${currSym}</span>)</label>
                                     <input type="text" inputmode="decimal" dir="ltr" id="itmMainCostPrice" value="${baseU.costPrice !== undefined && baseU.costPrice !== null ? Accounting.formatEditableItemPrice(baseU.costPrice) : ''}" placeholder="${Accounting.itemPricePlaceholder()}" onfocus="this.value=ItemController.tempUnits[0].costPrice;this.select()" onblur="this.value=Accounting.formatEditableItemPrice(ItemController.tempUnits[0].costPrice)" oninput="ItemController.onUnitPriceInput(0, 'costPrice', this.value, this)" class="w-full border-2 border-slate-300 focus:border-emerald-600 rounded-xl px-3 py-2 text-sm font-extrabold text-center bg-white shadow-2xs focus:outline-none">
                                 </div>
-                                <div>
-                                    <label class="block font-extrabold text-emerald-800 mb-1">مبيع الوحدة الكبرى (<span class="unit-curr-label">${currSym}</span>) *</label>
-                                    <input type="text" inputmode="decimal" dir="ltr" id="itmMainSalePrice" value="${baseU.salePrice !== undefined && baseU.salePrice !== null ? Accounting.formatEditableItemPrice(baseU.salePrice) : ''}" placeholder="${Accounting.itemPricePlaceholder()}" onfocus="this.value=ItemController.tempUnits[0].salePrice;this.select()" onblur="this.value=Accounting.formatEditableItemPrice(ItemController.tempUnits[0].salePrice)" oninput="ItemController.onUnitPriceInput(0, 'salePrice', this.value, this)" class="w-full border-2 border-emerald-500 focus:border-emerald-700 rounded-xl px-3 py-2 text-sm font-extrabold text-center bg-white text-emerald-900 shadow-2xs focus:outline-none">
-                                </div>
                             </div>
+                            <div class="grid grid-cols-2 gap-2 mt-2">
+                              <label class="text-[11px] font-bold text-slate-800">سعر الجملة
+                                <input type="text" inputmode="decimal" dir="ltr" id="itmWholesalePrice" value="${Accounting.formatEditableItemPrice(baseU.wholesalePrice ?? baseU.salePrice ?? 0)}" oninput="ItemController.onUnitPriceInput(0,'salePrice',this.value,this)" class="w-full rounded-lg border p-2 bg-white text-center font-bold" />
+                              </label>
+                              <label class="text-[11px] font-bold text-slate-800">سعر المركز
+                                <input type="text" inputmode="decimal" dir="ltr" id="itmCenterPrice" value="${Accounting.formatEditableItemPrice(baseU.centerPrice ?? baseU.salePrice ?? 0)}" oninput="ItemController.onUnitPriceInput(0,'centerPrice',this.value,this)" class="w-full rounded-lg border p-2 bg-white text-center font-bold" />
+                              </label>
+                            </div>
+                            <p class="text-[11px] text-slate-500">سعر المبيع القديم محفوظ كسعر الجملة. يمكن تخصيص المركز بشكل مستقل.</p>
                             <p class="text-[11px] font-semibold text-emerald-800 mt-2">عدد الخانات العشرية المسموح بها عند إدخال أسعار المواد: <span dir="ltr" class="font-extrabold">${Accounting.itemDisplayDecimals()}</span></p>
                         </div>
 
+                        <section class="rounded-xl border border-cyan-200 bg-cyan-50 p-3">
+                          <label class="flex items-center justify-between text-xs font-extrabold gap-2">
+                            <span><i class="fas fa-layer-group ml-1"></i> مادة تجميعية (طقم / مجموعة)</span>
+                            <input type="checkbox" id="itmIsBundle" ${existing?.isBundle ? 'checked' : ''} onchange="ItemController.toggleBundleEditor(this.checked)" class="w-5 h-5 accent-teal-700" />
+                          </label>
+                          <div id="itmBundleEditor" class="${existing?.isBundle ? '' : 'hidden'} mt-3 space-y-2 border-t pt-2">
+                            <p class="text-[11px] text-slate-600">حدّد المواد الداخلة في الوحدة الكبرى وكمياتها؛ عند بيع التجميعة تُخصم المكوّنات، ولا يُنشأ لها رصيد مستقل.</p>
+                            <label class="text-xs font-bold block">طريقة تسعير المادة التجميعية</label>
+                            <select id="itmBundlePricing" onchange="ItemController.updateBundlePricing()" class="w-full rounded-xl p-2 border bg-white text-xs">
+                              <option value="manual" ${existing?.bundlePricing?.mode !== 'component_sum' && existing?.bundlePricing?.mode !== 'cost_markup' ? 'selected' : ''}>تسعير يدوي (جملة ومركز)</option>
+                              <option value="component_sum" ${existing?.bundlePricing?.mode === 'component_sum' ? 'selected' : ''}>مجموع أسعار مبيع المكوّنات</option>
+                              <option value="cost_markup" ${existing?.bundlePricing?.mode === 'cost_markup' ? 'selected' : ''}>تكلفة المكوّنات + نسبة ربح</option>
+                            </select>
+                            <label class="text-xs font-bold block">هامش الربح % (عند اختيار التكلفة + الهامش)
+                              <input id="itmBundleMarkup" type="number" min="0" max="10000" step="0.1" value="${existing?.bundlePricing?.markup ?? 0}" onchange="ItemController.updateBundlePricing()" class="w-full border rounded-lg p-2 mt-1" />
+                            </label>
+                            <div id="itmBundleLines" class="space-y-1 max-h-64 overflow-y-auto"></div>
+                            <button type="button" onclick="ItemController.addBundleLine()" class="w-full rounded-lg bg-cyan-700 text-white px-3 py-2 font-bold text-xs">+ اختيار مادة من القائمة</button>
+                            <div id="itmBundleComputed" class="text-xs text-teal-900 font-bold"></div>
+                          </div>
+                        </section>
                         <div class="grid grid-cols-3 gap-2">
                             <div>
                                 <label class="block font-bold text-slate-700 mb-1">باركود المادة (للبحث والإضافة للفاتورة)</label>
@@ -5750,6 +5809,45 @@
                     </div>
                 `);
                 this.renderUnitRows();
+                this.renderBundleLines();
+            },
+
+            toggleBundleEditor(visible) {
+                document.getElementById('itmBundleEditor')?.classList.toggle('hidden',!visible);
+                this.markItemDirty();this.renderBundleLines();
+            },
+            openCurrencyPicker() {
+                const allowed = State.settings.primaryOnlyMode ? [CurrencyCatalog.primary()] : ['USD','SYP'];
+                const box=document.getElementById('itmCurrencyPopup');
+                if(box){box.remove();return;}
+                const wrapper=document.createElement('div');wrapper.id='itmCurrencyPopup';wrapper.className='fixed inset-0 z-[9999] bg-slate-900/45 flex justify-center items-center px-4';
+                wrapper.onclick=e=>{if(e.target===wrapper)wrapper.remove();};
+                wrapper.innerHTML=`<div class="w-full max-w-xs bg-white rounded-2xl p-4 space-y-3 shadow-xl text-right"><b>اختر عملة تسعير الصنف</b>${allowed.map(c=>`<button type="button" class="block w-full rounded-xl p-3 border bg-emerald-50 font-bold" data-curr="${c}">${c==='USD'?'دولار أمريكي USD':'ليرة سورية SYP'}</button>`).join('')}<button type="button" class="w-full p-2 border rounded-lg" data-close>إلغاء</button></div>`;
+                wrapper.querySelectorAll('[data-curr]').forEach(btn=>btn.onclick=()=>{this.setItemBaseCurrency(btn.dataset.curr);document.getElementById('itmCurrencySelect').textContent=btn.dataset.curr+' ▾';wrapper.remove();});
+                wrapper.querySelector('[data-close]').onclick=()=>wrapper.remove();document.body.append(wrapper);
+            },
+            addBundleLine() {
+                const available=State.items.filter(x=>!x.isBundle && x.id!==this.activeEditId && !(this.tempBundle||[]).some(r=>r.itemId===x.id));
+                if(!available.length)return UI.toast('لا توجد مواد أخرى متاحة للتجميع','warn');
+                this.tempBundle=this.tempBundle||[];this.tempBundle.push({itemId:available[0].id,quantity:1});this.markItemDirty();this.renderBundleLines();
+            },
+            bundleLineUpdate(idx,key,value){this.tempBundle[idx][key]=key==='quantity'?Accounting.parseNum(value):value;this.markItemDirty();this.updateBundlePricing();},
+            bundleLineRemove(idx){this.tempBundle.splice(idx,1);this.markItemDirty();this.renderBundleLines();},
+            renderBundleLines(){
+                const box=document.getElementById('itmBundleLines');if(!box)return;
+                const opts=State.items.filter(it=>!it.isBundle && it.id!==this.activeEditId);
+                box.innerHTML=(this.tempBundle||[]).map((r,i)=>`<div class="grid grid-cols-[1fr_80px_32px] gap-1 items-center"><select class="border rounded-lg p-2 text-xs min-w-0" onchange="ItemController.bundleLineUpdate(${i},'itemId',this.value)">${opts.map(it=>`<option value="${AppEscape.text(it.id)}" ${it.id===r.itemId?'selected':''}>${AppEscape.text(it.name)}</option>`).join('')}</select><input type="number" min="0.0001" step="any" value="${r.quantity}" class="border rounded-lg p-2 text-xs w-full" aria-label="كمية المكوّن" onchange="ItemController.bundleLineUpdate(${i},'quantity',this.value)"/><button type="button" onclick="ItemController.bundleLineRemove(${i})" class="text-rose-600 font-extrabold">×</button></div>`).join('') || '<p class="text-xs text-slate-500">لم تُحدّد مكوّنات بعد.</p>';
+                this.updateBundlePricing(false);
+            },
+            updateBundlePricing(markDirty=true){
+                if(markDirty)this.markItemDirty();
+                const mode=document.getElementById('itmBundlePricing')?.value||'manual';
+                let cost=0,wholesale=0,center=0;
+                for(const r of this.tempBundle||[]){const it=State.items.find(x=>x.id===r.itemId);if(!it)continue;const q=Number(r.quantity)||0,u=it.units?.[0]||{};const cv=(price)=>Accounting.convert(Number(price)||0,it.currency,this.selectedCurrency,State.settings.exchangeRate);cost+=cv(u.costPrice)*q;wholesale+=cv(u.wholesalePrice??u.salePrice)*q;center+=cv(u.centerPrice??u.salePrice)*q;}
+                const markup=Number(document.getElementById('itmBundleMarkup')?.value)||0;
+                if(mode==='cost_markup'){wholesale=cost*(1+markup/100);center=wholesale;}
+                if(mode!=='manual' && this.tempUnits?.[0]){for(const [key,val] of [['costPrice',cost],['salePrice',wholesale],['centerPrice',center]])this.onUnitPriceInput(0,key,String(Accounting.roundDerivedItemPrice(val)));}
+                const el=document.getElementById('itmBundleComputed');if(el)el.textContent=`تكلفة المكوّنات: ${Accounting.formatItemPrice(cost,this.selectedCurrency)} · سعر الجملة المقترح: ${Accounting.formatItemPrice(wholesale,this.selectedCurrency)} · المركز: ${Accounting.formatItemPrice(center,this.selectedCurrency)}`;
             },
 
             renderUnitRows() {
@@ -5779,6 +5877,10 @@
                                 <label class="text-[10px] text-emerald-800 font-bold block mb-0.5">المبيع (<span class="unit-curr-label">${currSym}</span>)</label>
                                 <input type="text" inputmode="decimal" dir="ltr" id="unitSale_${idx}" value="${u.salePrice !== undefined && u.salePrice !== null ? Accounting.formatEditableItemPrice(u.salePrice) : ''}" placeholder="${Accounting.itemPricePlaceholder()}" onfocus="this.value=ItemController.tempUnits[${idx}].salePrice;this.select()" onblur="this.value=Accounting.formatEditableItemPrice(ItemController.tempUnits[${idx}].salePrice)" oninput="ItemController.onUnitPriceInput(${idx}, 'salePrice', this.value, this)" class="w-full border border-emerald-400 focus:border-emerald-600 rounded-lg px-2.5 py-1.5 text-xs font-extrabold text-center bg-white">
                             </div>
+                            <div>
+                                <label class="text-[10px] text-teal-800 font-bold block mb-0.5">سعر المركز (<span class="unit-curr-label">${currSym}</span>)</label>
+                                <input type="text" inputmode="decimal" id="unitCenter_${idx}" value="${Accounting.formatEditableItemPrice(u.centerPrice ?? u.salePrice ?? 0)}" oninput="ItemController.onUnitPriceInput(${idx},'centerPrice',this.value,this)" class="w-full border rounded-lg px-2 py-1.5 text-xs text-center font-bold" />
+                            </div>
                         </div>
                     </div>
                 `).join('');
@@ -5793,20 +5895,21 @@
 
                 // مزامنة الحقول العلوية الأساسية للوحدة الكبرى وحساب أسعار الوحدات الصغرى بالقسمة على عدد التعبئة
                 if (idx === 0) {
-                    const mainElId = field === 'salePrice' ? 'itmMainSalePrice' : 'itmMainCostPrice';
-                    const unit0ElId = field === 'salePrice' ? 'unitSale_0' : 'unitCost_0';
+                    const mainElId = field === 'salePrice' ? 'itmWholesalePrice' : field === 'costPrice' ? 'itmMainCostPrice' : 'itmCenterPrice';
+                    const unit0ElId = field === 'salePrice' ? 'unitSale_0' : field === 'costPrice' ? 'unitCost_0' : 'itmCenterPrice';
                     const mainEl = document.getElementById(mainElId);
                     const unit0El = document.getElementById(unit0ElId);
 
                     if (mainEl && document.activeElement !== mainEl) mainEl.value = Accounting.formatEditableItemPrice(num);
                     if (unit0El && document.activeElement !== unit0El) unit0El.value = Accounting.formatEditableItemPrice(num);
+                    if(field==='salePrice'){const wh=document.getElementById('itmWholesalePrice');if(wh && document.activeElement!==wh)wh.value=Accounting.formatEditableItemPrice(num);this.tempUnits[0].wholesalePrice=num;}
 
                     for (let i = 1; i < this.tempUnits.length; i++) {
                         const factor = Accounting.parseNum(this.tempUnits[i].factor) || 1;
                         const calcVal = Accounting.roundDerivedItemPrice(num / factor);
                         this.tempUnits[i][field] = calcVal;
 
-                        const targetInputId = field === 'salePrice' ? `unitSale_${i}` : `unitCost_${i}`;
+                        const targetInputId = field === 'salePrice' ? `unitSale_${i}` : field==='costPrice' ? `unitCost_${i}` : `unitCenter_${i}`;
                         const targetEl = document.getElementById(targetInputId);
                         if (targetEl && document.activeElement !== targetEl) {
                             targetEl.value = Accounting.formatEditableItemPrice(calcVal);
@@ -5823,14 +5926,16 @@
                 if (base) {
                     const newCost = Accounting.roundDerivedItemPrice(Accounting.parseNum(base.costPrice) / factor);
                     const newSale = Accounting.roundDerivedItemPrice(Accounting.parseNum(base.salePrice) / factor);
+                    const newCenter=Accounting.roundDerivedItemPrice(Accounting.parseNum(base.centerPrice??base.salePrice)/factor);
                     this.tempUnits[idx].costPrice = newCost;
-                    this.tempUnits[idx].salePrice = newSale;
+                    this.tempUnits[idx].salePrice = newSale;this.tempUnits[idx].centerPrice=newCenter;
 
                     // تحديث الحقول مباشرة دون فقدان التركيز (Focus) من حقل معامل التعبئة
                     const costEl = document.getElementById(`unitCost_${idx}`);
                     const saleEl = document.getElementById(`unitSale_${idx}`);
                     if (costEl && document.activeElement !== costEl) costEl.value = Accounting.formatEditableItemPrice(newCost);
                     if (saleEl && document.activeElement !== saleEl) saleEl.value = Accounting.formatEditableItemPrice(newSale);
+                    const centerEl=document.getElementById(`unitCenter_${idx}`);if(centerEl && document.activeElement!==centerEl)centerEl.value=Accounting.formatEditableItemPrice(newCenter);
                 }
             },
 
@@ -5843,6 +5948,7 @@
                     factor: defaultFactor,
                     costPrice: Accounting.roundDerivedItemPrice(Accounting.parseNum(base.costPrice) / defaultFactor),
                     salePrice: Accounting.roundDerivedItemPrice(Accounting.parseNum(base.salePrice) / defaultFactor),
+                    centerPrice: Accounting.roundDerivedItemPrice(Accounting.parseNum(base.centerPrice??base.salePrice) / defaultFactor),
                     barcode: ''
                 });
                 this.renderUnitRows();
@@ -5957,10 +6063,35 @@
                         name: nameEl ? nameEl.value.trim() : (u.name || ''),
                         factor: idx === 0 ? 1 : (Accounting.parseNum(factorEl ? factorEl.value : u.factor) || 1),
                         costPrice: Accounting.parseNum(u.costPrice),
-                        salePrice: Accounting.parseNum(u.salePrice)
+                        salePrice: Accounting.parseNum(u.salePrice),
+                        wholesalePrice: Accounting.parseNum(u.salePrice),
+                        centerPrice: Accounting.parseNum(u.centerPrice ?? u.salePrice)
                     };
                 });
 
+                const isBundle=!!document.getElementById('itmIsBundle')?.checked;
+                const bundleComponents=isBundle?(this.tempBundle||[]).map(r=>({itemId:r.itemId,quantity:Number(r.quantity)})):[];
+                const bundlePricing={mode:document.getElementById('itmBundlePricing')?.value||'manual',markup:Number(document.getElementById('itmBundleMarkup')?.value)||0};
+                if(isBundle){if(!bundleComponents.length || bundleComponents.some(r=>!(r.quantity>0)||!Number.isFinite(r.quantity)))return UI.toast('أدخل مكوّنات صحيحة للتجميعة','error');
+                  if(new Set(bundleComponents.map(r=>r.itemId)).size!==bundleComponents.length)return UI.toast('المكوّن مكرر','error');
+                  if(bundleComponents.some(r=>!State.items.some(x=>x.id===r.itemId&&!x.isBundle)))return UI.toast('لا يمكن استخدام مادة تجميعية كمكوّن','error');
+                  if(openingStockBase>0)return UI.toast('المادة التجميعية رصيدها محسوب من مكوّناتها؛ اجعل رصيدها الافتتاحي صفراً','warn');}
+                if (existingId) {
+                    const oldItem=State.items.find(i=>i.id===existingId);
+                    if (!oldItem) return UI.toast('لم يتم العثور على المادة المطلوب تعديلها', 'error');
+                    if (!!oldItem.isBundle !== isBundle) {
+                        const usedInInvoices=(State.invoices||[]).some(inv=>(inv.rows||[]).some(row=>row.itemId===existingId));
+                        const usedInTransfers=(State.transfers||[]).some(move=>move.itemId===existingId);
+                        if (usedInInvoices||usedInTransfers) {
+                            UI.toast('لا يمكن تحويل نوع مادة لها فواتير أو مناقلات سابقة؛ أنشئ مادة تجميعية جديدة لحماية الجرد القديم', 'error');
+                            return false;
+                        }
+                    }
+                    if (isBundle && (State.items||[]).some(it=>it.id!==existingId && it.isBundle && (it.bundleComponents||[]).some(b=>b.itemId===existingId))) {
+                        UI.toast('هذه المادة مكوّن في تجميعة أخرى، لا يمكن تحويلها إلى تجميعة متداخلة', 'error');
+                        return false;
+                    }
+                }
                 if (!name) {
                     UI.toast('يرجى إدخال اسم الصنف / المادة', 'error');
                     return false;
@@ -5979,7 +6110,7 @@
                     if (idx > -1) {
                         State.items[idx] = {
                             ...State.items[idx],
-                            name, category, currency, openingStockBase, minStockBase, barcode,
+                            name, category, currency, openingStockBase, minStockBase, barcode,isBundle,bundleComponents,bundlePricing,
                             photoData: this.safePhotoData(this.tempPhotoData),
                             units: this.tempUnits
                         };
@@ -5987,7 +6118,7 @@
                 } else {
                     State.items.push({
                         id: 'itm_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
-                        name, category, currency, openingStockBase, minStockBase, barcode,
+                        name, category, currency, openingStockBase, minStockBase, barcode,isBundle,bundleComponents,bundlePricing,
                         photoData: this.safePhotoData(this.tempPhotoData),
                         units: this.tempUnits
                     });
@@ -6008,8 +6139,9 @@
                 const linkedInvoices = State.invoices.filter(inv => inv.rows.some(r => r.itemId === itemId));
                 const usedInDraft = InvoiceController.draft && InvoiceController.draft.rows && InvoiceController.draft.rows.some(r => r.itemId === itemId);
                 const linkedTransfers = (State.transfers || []).some(tr => tr.itemId === itemId);
+                const linkedBundle = State.items.some(x=>x.isBundle&&(x.bundleComponents||[]).some(b=>b.itemId===itemId));
 
-                if (linkedInvoices.length > 0 || usedInDraft || linkedTransfers) {
+                if (linkedInvoices.length > 0 || usedInDraft || linkedTransfers || linkedBundle) {
                     const invNums = linkedInvoices.map(i => `#${i.number} (${Accounting.getInvoiceTypeAr(i.type)})`).slice(0, 6).join(' ، ');
                     UI.showProtectionAlert(
                         'منع حذف الصنف (حماية العمليات المرتبطة)',
@@ -6181,6 +6313,7 @@
             },
             toggleTransferItem(itemId) {
                 const item=State.items.find(i=>i.id===itemId);
+                if(item?.isBundle)return UI.toast('التجميعة لا تُناقَل وحدها؛ انقل مكوّناتها إلى المستودع المطلوب','warn');
                 if(!item)return;
                 if(!Array.isArray(this.transferDraft))this.transferDraft=[];
                 const from=document.getElementById('transferFrom')?.value;
@@ -6362,6 +6495,7 @@
                         seen.add(row.itemId);
                         const item=State.items.find(it=>it.id===row.itemId);
                         if(!item)return UI.toast('يوجد صنف غير موجود في قاعدة المواد','error');
+                        if(item.isBundle)return UI.toast('لا يمكن مناقلة التجميعة الافتراضية؛ انقل مكوّناتها','error');
                         const qty=Accounting.parseNum(row.qty),factor=Number(row.factor);
                         const units=Array.isArray(item.units)&&item.units.length?item.units:[{name:'وحدة كبرى',factor:1}];
                         const unit=units.find(u=>(Number(u.factor)||1)===factor);
@@ -6925,7 +7059,7 @@
 
                 gridContainer.innerHTML = filtered.map(itm => {
                     const u0 = itm.units[0] || { name: 'كرتونة', factor: 1, salePrice: 0, costPrice: 0 };
-                    const rawPrice = isPurchase ? Number(u0.costPrice) : Number(u0.salePrice);
+                    const rawPrice = isPurchase ? Number(u0.costPrice) : (Accounting.itemSalePrice?.(itm,u0,d.accountId) ?? Number(u0.salePrice));
                     const priceInInvCurr = Accounting.convert(rawPrice, itm.currency, d.currency, d.exchangeRate);
                     const availStock = Math.round((Accounting.getItemBaseStock(itm.id, d.isEditing ? d.id : null, d.warehouseId || 'wh_main') + Number.EPSILON) * 100) / 100;
                     const inCartQty = d.rows.reduce((qty, row) =>
@@ -7001,6 +7135,19 @@
                 if (document.getElementById('itemGridCardsContainer')) this.renderItemGridCards();
             },
 
+            changeInvoiceAccount(accountId){
+                this.draft.accountId=accountId;
+                const isPurchase=['purchase','purchase_return'].includes(this.draft.type);
+                if(!isPurchase){for(const row of this.draft.rows){
+                    if(row.priceManuallySet)continue;
+                    const item=State.items.find(it=>it.id===row.itemId);if(!item)continue;
+                    const unit=item.units?.find(u=>u.name===row.unitName)||item.units?.[0];
+                    const raw=Accounting.itemSalePrice(item,unit,accountId);
+                    row.baseCurrency=item.currency;row.basePrice=raw;
+                    row.price=Accounting.convert(raw,item.currency,this.draft.currency,this.draft.exchangeRate);
+                }}
+                this.markModified();this.recalculate();this.paintForm(document.getElementById('mainContent'));
+            },
             toggleInvoiceCurrency() {
                 if (State.settings.primaryOnlyMode) {
                     return UI.toast('وضع العملة الرئيسية فقط مفعّل', 'warn');
@@ -7049,7 +7196,7 @@
                     if (basePrice === undefined && item) {
                         const unitObj = item.units.find(u => u.name === row.unitName) || item.units[0];
                         const isPurchase = (this.draft.type === 'purchase' || this.draft.type === 'purchase_return');
-                        basePrice = isPurchase ? Number(unitObj?.costPrice || 0) : Number(unitObj?.salePrice || 0);
+                        basePrice = isPurchase ? Number(unitObj?.costPrice || 0) : (Accounting.itemSalePrice?.(item,unitObj,this.draft.accountId) ?? Number(unitObj?.salePrice||0));
                         row.baseCurrency = baseCurr;
                         row.basePrice = basePrice;
                     }
@@ -7089,7 +7236,7 @@
                     if (!item) continue;
                     const unitObj = item.units.find(u => u.name === row.unitName) || item.units[0];
                     const isPurchase = (this.draft.type === 'purchase' || this.draft.type === 'purchase_return');
-                    const rawPrice = isPurchase ? Number(unitObj?.costPrice || 0) : Number(unitObj?.salePrice || 0);
+                    const rawPrice = isPurchase ? Number(unitObj?.costPrice || 0) : (Accounting.itemSalePrice?.(item,unitObj,this.draft.accountId) ?? Number(unitObj?.salePrice||0));
                     row.baseCurrency = item.currency;
                     row.basePrice = rawPrice;
                     row.price = Accounting.convert(rawPrice, item.currency, this.draft.currency, rate);
@@ -7118,7 +7265,8 @@
 
                 const unit0 = item.units[0] || { name: 'قطعة', factor: 1, salePrice: 0, costPrice: 0 };
                 const isPurchase = (this.draft.type === 'purchase' || this.draft.type === 'purchase_return');
-                const rawPrice = isPurchase ? Number(unit0.costPrice) : Number(unit0.salePrice);
+                if(isPurchase && item.isBundle)return UI.toast('التجميعة تُباع من مكوّناتها ولا تُشترى كمخزون مستقل','warn');
+                const rawPrice = isPurchase ? Number(unit0.costPrice) : (Accounting.itemSalePrice?.(item,unit0,this.draft.accountId) ?? Number(unit0.salePrice));
                 const convertedPrice = Accounting.convert(rawPrice, item.currency, this.draft.currency, this.draft.exchangeRate);
 
                 const existingRow = this.draft.rows.find(r => r.itemId === item.id && r.unitName === unit0.name);
@@ -7129,6 +7277,8 @@
                         rowId: 'r_' + Date.now() + '_' + Math.random().toString(36).substring(2, 5),
                         itemId: item.id,
                         itemName: item.name,
+                        bomComponents:item.isBundle?JSON.parse(JSON.stringify(item.bundleComponents||[])):undefined,
+                        baseCostPrice:item.isBundle?Accounting.itemCostPrice(item,unit0):undefined,
                         baseCurrency: item.currency,
                         basePrice: rawPrice,
                         unitName: unit0.name,
@@ -7159,7 +7309,7 @@
                 row.unitName = unitObj.name;
                 row.unitFactor = Number(unitObj.factor) || 1;
                 const isPurchase = (this.draft.type === 'purchase' || this.draft.type === 'purchase_return');
-                const rawUnitPrice = isPurchase ? Number(unitObj.costPrice) : Number(unitObj.salePrice);
+                const rawUnitPrice = isPurchase ? Number(unitObj.costPrice) : (Accounting.itemSalePrice?.(item,unitObj,this.draft.accountId) ?? Number(unitObj?.salePrice||0));
                 row.baseCurrency = item.currency;
                 row.basePrice = rawUnitPrice;
                 row.price = Accounting.convert(rawUnitPrice, item.currency, this.draft.currency, this.draft.exchangeRate);
@@ -7174,6 +7324,7 @@
                 if (!row) return;
                 row[field] = Accounting.parseNum(val);
                 if (field === 'price') {
+                    row.priceManuallySet=true;
                     const baseCurr = row.baseCurrency || this.draft.currency;
                     row.basePrice = Accounting.convert(row.price, this.draft.currency, baseCurr, this.draft.exchangeRate);
                 }
@@ -7284,7 +7435,7 @@
                                     <label class="font-bold text-slate-700 flex items-center gap-1"><i class="fas fa-user text-emerald-600 text-[9px]"></i>${partyLabelAr}</label>
                                     <button type="button" onclick="AccountController.openAccountModal(null, true, '${targetAccountType}')" class="text-[9px] text-emerald-600 font-bold whitespace-nowrap">+ جديد</button>
                                 </div>
-                                <select onchange="InvoiceController.draft.accountId = this.value; InvoiceController.markModified()" class="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-[11px] font-bold bg-slate-50">
+                                <select onchange="InvoiceController.changeInvoiceAccount(this.value)" class="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-[11px] font-bold bg-slate-50">
                                     <option value="">-- ${isPurchase ? 'مورد نقدي مباشر' : 'عميل نقدي مباشر'} --</option>
                                     ${State.accounts.filter(a => a.type === targetAccountType).map(a => `<option value="${a.id}" ${d.accountId === a.id ? 'selected' : ''}>${a.name}</option>`).join('')}
                                 </select>
@@ -7493,7 +7644,9 @@
                             UI.toast('كمية المادة يجب أن تكون أكبر من صفر', 'error');
                             return false;
                         }
-                        requested.set(row.itemId, (requested.get(row.itemId)||0) + qty / factor);
+                        const item=State.items.find(it=>it.id===row.itemId);
+                        if(item?.isBundle){for(const b of (row.bomComponents||item.bundleComponents||[]))requested.set(b.itemId,(requested.get(b.itemId)||0)+(qty/factor)*Number(b.quantity));}
+                        else requested.set(row.itemId, (requested.get(row.itemId)||0) + qty / factor);
                     }
                     for (const [itemId, needed] of requested) {
                         const available = Accounting.getItemBaseStock(itemId, d.isEditing ? d.id : null, d.warehouseId||'wh_main');
@@ -7662,6 +7815,13 @@
                             <textarea id="accAddress" rows="2" maxlength="500" oninput="AccountController.markAccDirty()" placeholder="المدينة، الحي، الشارع، أو تفاصيل الوصول" class="w-full border border-slate-300 rounded-xl px-3 py-2" style="resize:vertical">${AppEscape.text(ex?.address || '')}</textarea>
                         </div>
 
+                        <div class="border border-teal-200 bg-teal-50 rounded-xl p-2.5">
+                            <label for="accPriceTier" class="block text-xs font-extrabold mb-1">طريقة تسعير المبيعات لهذا الزبون</label>
+                            <select id="accPriceTier" onchange="AccountController.markAccDirty()" class="w-full border rounded-lg px-2 py-2 bg-white font-bold">
+                              <option value="wholesale" ${!ex || ex.priceTier !== 'center' ? 'selected' : ''}>سعر الجملة (الافتراضي)</option>
+                              <option value="center" ${ex?.priceTier === 'center' ? 'selected' : ''}>سعر المركز</option>
+                            </select>
+                        </div>
                         <div class="grid grid-cols-2 gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
                             <div>
                                 <label class="block font-bold text-slate-700 mb-1">رصيد افتتاحي (ل.س)</label>
@@ -7698,6 +7858,7 @@
                 const openingSyp = Accounting.parseNum(document.getElementById('accOpenSyp')?.value);
                 const openingUsd = Accounting.parseNum(document.getElementById('accOpenUsd')?.value);
                 const paymentTerms = document.getElementById('accTerms')?.value.trim() || '';
+                const priceTier = document.getElementById('accPriceTier')?.value === 'center' ? 'center' : 'wholesale';
 
                 if (!name) {
                     UI.toast('يرجى إدخال اسم العميل أو المورد', 'error');
@@ -7708,13 +7869,13 @@
                 if (existingId) {
                     const idx = State.accounts.findIndex(a => a.id === existingId);
                     if (idx > -1) {
-                        State.accounts[idx] = { ...State.accounts[idx], name, type, phone, address, creditLimitUsd, openingSyp, openingUsd, paymentTerms };
+                        State.accounts[idx] = { ...State.accounts[idx], name, type, phone, address, creditLimitUsd, openingSyp, openingUsd, paymentTerms, priceTier };
                     }
                 } else {
                     targetId = 'acc_' + Date.now();
                     State.accounts.push({
                         id: targetId,
-                        name, type, phone, address, creditLimitUsd, openingSyp, openingUsd, paymentTerms,
+                        name, type, phone, address, creditLimitUsd, openingSyp, openingUsd, paymentTerms, priceTier,
                         createdAt: new Date().toISOString().slice(0, 10)
                     });
                     await LicenseManager.recordNewOperation();
@@ -7725,8 +7886,7 @@
                 UI.toast('تم حفظ بيانات الحساب بنجاح', 'success');
 
                 if (fromInvoice && InvoiceController.draft) {
-                    InvoiceController.draft.accountId = targetId;
-                    InvoiceController.paintForm(document.getElementById('mainContent'));
+                    InvoiceController.changeInvoiceAccount(targetId);
                 } else {
                     AppNav.renderCurrent();
                 }

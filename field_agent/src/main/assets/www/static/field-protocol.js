@@ -88,7 +88,8 @@
           const total=money(qty*price,code);
           if(Math.abs(total-Number(r.total))>(code==='USD'?0.011:0.51))throw Error('إجمالي بند غير مطابق');
           return {itemId:r.itemId,itemName:itm.name,unitName:r.unitName,unitFactor:factor,qty,price,total,
-            baseCurrency:itm.currency,basePrice:Number(unit.salePrice)||0};
+            baseCurrency:itm.currency,basePrice:Number(unit.salePrice)||0,
+            bomComponents:itm.isBundle?(itm.bundleComponents||[]).map(b=>({itemId:b.itemId,quantity:Number(b.quantity)})):undefined};
         });
         const subTotal=money(rows.reduce((a,r)=>a+r.total,0),code);
         const discountType=op.discountType==='percent'?'percent':'amount';
@@ -146,18 +147,21 @@
     }
     return {invoices,vouchers,expenses,customers};
   }
-  function applyStock(baseStock, ops, ackIds) {
-    const result={...baseStock},acked=new Set(ackIds||[]);
-    for(const op of ops) {
-      if(acked.has(op.id))continue;
-      if(op.kind==='document_edit'){
-        const apply=(doc,mul)=>{if(!doc||!['sale','sale_return'].includes(doc.kind))return;
-          for(const r of doc.rows||[]){const qty=Number(r.qty)/Number(r.unitFactor);
-            result[r.itemId]=(Number(result[r.itemId])||0)+(doc.kind==='sale_return'?1:-1)*qty*mul;}};
-        apply(op.before,-1);apply(op.replacement,1);continue;
-      }
-      if(!['sale','sale_return'].includes(op.kind))continue;
-      for(const r of op.rows){ const delta=Number(r.qty)/Number(r.unitFactor);result[r.itemId]=(Number(result[r.itemId])||0)+(op.kind==='sale_return'?delta:-delta); }
+  function applyStock(baseStock, ops, ackIds, items=[]) {
+    const result={...baseStock},acked=new Set(ackIds||[]),catalog=new Map((items||[]).map(it=>[it.id,it]));
+    const move=(doc,mul)=>{if(!doc||!['sale','sale_return'].includes(doc.kind))return;
+      for(const row of doc.rows||[]){const item=catalog.get(row.itemId);
+        const parts=item?.isBundle?(row.bomComponents||item.bundleComponents):[{itemId:row.itemId,quantity:1}];
+        const delta=(doc.kind==='sale_return'?1:-1)*Number(row.qty)/Number(row.unitFactor)*mul;
+        for(const part of parts||[]){if(!part||!Number.isFinite(Number(part.quantity)))continue;
+          result[part.itemId]=(Number(result[part.itemId])||0)+delta*Number(part.quantity);}
+      }};
+    for(const op of ops||[]){if(acked.has(op.id))continue;
+      if(op.kind==='document_edit'){move(op.before,-1);move(op.replacement,1);}else move(op,1);
+    }
+    // Kits are virtual: do not double count a sale as both kit and components.
+    for(const it of items||[]){if(!it.isBundle)continue;const parts=it.bundleComponents||[];
+      result[it.id]=parts.length?Math.max(0,Math.floor(Math.min(...parts.map(x=>Number(result[x.itemId]||0)/Number(x.quantity||1)))*10000)/10000):0;
     }
     return result;
   }

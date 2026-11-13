@@ -20,6 +20,26 @@ const FieldSync = {
     const url=URL.createObjectURL(new Blob([raw],{type:'application/json'}));
     const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),3000);
   },
+  accountPicker(prefix,selected=null){
+    const restricted=Array.isArray(selected),allowed=new Set(selected||[]);
+    return `<section class="p-3 bg-sky-50 rounded-xl border border-sky-200 text-xs" data-account-picker="${prefix}">
+      <div class="font-extrabold mb-2">الحسابات المتاحة لهذا المندوب</div>
+      <label class="flex gap-2 items-center mb-1"><input type="radio" name="${prefix}Mode" value="all" ${!restricted?'checked':''} onchange="FieldSync.setAccountPickerMode('${prefix}')"/>كل الحسابات</label>
+      <label class="flex gap-2 items-center mb-2"><input type="radio" name="${prefix}Mode" value="selected" ${restricted?'checked':''} onchange="FieldSync.setAccountPickerMode('${prefix}')"/>حسابات محددة</label>
+      <div id="${prefix}Selected" class="${restricted?'':'hidden'} space-y-2">
+        <input type="search" id="${prefix}Search" oninput="FieldSync.filterAccountPicker('${prefix}')" placeholder="بحث باسم العميل أو الهاتف" class="w-full border rounded-lg px-2 py-2 bg-white"/>
+        <label class="flex gap-2 items-center"><input type="checkbox" onchange="FieldSync.selectAllAccounts('${prefix}',this.checked)"/>تحديد الكل</label>
+        <div class="max-h-48 overflow-y-auto space-y-1 border rounded-lg p-2 bg-white">
+          ${State.accounts.filter(a=>a.type==='customer').map(a=>`<label class="flex items-center gap-2 py-1" data-account-label="${prefix}" data-search="${this.escape((a.name+' '+(a.phone||'')).toLowerCase())}"><input type="checkbox" data-agent-acc="${prefix}" value="${this.escape(a.id)}" ${allowed.has(a.id)?'checked':''} /><span>${this.escape(a.name)}</span></label>`).join('')}
+        </div>
+      </div>
+      <div class="text-slate-500 mt-1">عند اختيار حسابات محددة لا تُرسل بقية حسابات الرئيسي إلى المندوب.</div>
+    </section>`;
+  },
+  setAccountPickerMode(prefix){const selected=document.querySelector(`input[name="${prefix}Mode"]:checked`)?.value==='selected';document.getElementById(prefix+'Selected')?.classList.toggle('hidden',!selected);},
+  filterAccountPicker(prefix){const q=String(document.getElementById(prefix+'Search')?.value||'').trim().toLowerCase();document.querySelectorAll(`[data-account-label="${prefix}"]`).forEach(x=>x.classList.toggle('hidden',!!q&&!x.dataset.search.includes(q)));},
+  selectAllAccounts(prefix,checked){document.querySelectorAll(`[data-agent-acc="${prefix}"]`).forEach(x=>x.checked=checked);},
+  readAccountPicker(prefix){if(typeof document.querySelector!=='function')return null;if(document.querySelector(`input[name="${prefix}Mode"]:checked`)?.value!=='selected')return null;const ids=[...document.querySelectorAll(`[data-agent-acc="${prefix}"]:checked`)].map(x=>x.value);if(!ids.length)throw Error('اختر حساباً واحداً على الأقل أو حدّد كل الحسابات');return ids;},
   open(){
     const config=this.data(), opts=State.warehouses.map(w=>`<option value="${this.escape(w.id)}">${this.escape(w.name)}</option>`).join('');
     UI.openModal(`<div class="ta-field-panel space-y-3 text-right" dir="rtl">
@@ -42,6 +62,7 @@ const FieldSync = {
         <input id="fieldNewAgent" class="w-full border rounded-xl p-3" placeholder="اسم المندوب" maxlength="70"/>
         <input id="fieldNewVehicle" class="w-full border rounded-xl p-3" placeholder="اسم السيارة / خط التوزيع" maxlength="70"/>
         <select id="fieldNewWarehouse" class="w-full border rounded-xl p-3">${opts}</select>
+        ${this.accountPicker('fieldNewAccounts')}
         <p class="text-[11px] text-amber-800">أنشئ مستودع سيارة مستقلًا، وحمّله بالمخزون من شاشة المناقلات قبل بدء البيع.</p>
         <button type="button" onclick="FieldSync.addAgent()" class="ta-primary-3d w-full p-3 rounded-xl font-black">إضافة مندوب معتمد</button>
       </div>
@@ -75,9 +96,10 @@ const FieldSync = {
     const name=document.getElementById('fieldNewAgent')?.value.trim(), vehicleName=document.getElementById('fieldNewVehicle')?.value.trim();
     const warehouseId=document.getElementById('fieldNewWarehouse')?.value;
     if(!name||name.length<2||!warehouseId)return UI.toast('اكتب اسم المندوب واختر المستودع','warn');
+    let allowedAccountIds;try{allowedAccountIds=this.readAccountPicker('fieldNewAccounts');}catch(e){return UI.toast(e.message,'warn');}
     if(this.data().agents.some(a=>a.warehouseId===warehouseId && !a.disabled))return UI.toast('المستودع مربوط بمندوب آخر؛ خصص مستودع سيارة مستقلًا','warn');
     const key=new Uint8Array(32);crypto.getRandomValues(key);
-    const a={id:'agent_'+FieldProtocol.uuid(),name,vehicleName:vehicleName||name,warehouseId,key:FieldProtocol.b64u(key),createdAt:new Date().toISOString(),disabled:false};
+    const a={id:'agent_'+FieldProtocol.uuid(),name,vehicleName:vehicleName||name,warehouseId,key:FieldProtocol.b64u(key),allowedAccountIds,createdAt:new Date().toISOString(),disabled:false};
     this.data().agents.push(a);
     try { await StorageEngine.saveState();this.open();UI.toast('تم إنشاء المندوب. افتح تطبيقه وسيظهر طلب الربط تلقائياً','success'); }
     catch(e){this.data().agents=this.data().agents.filter(x=>x.id!==a.id);UI.toast('فشل حفظ المندوب: '+e.message,'error');}
@@ -104,13 +126,13 @@ const FieldSync = {
         const photoData=/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(image) && image.length<120000 && image.length<imageBudget ? image : '';
         imageBudget-=photoData.length;
         return {id:it.id,name:it.name,category:it.category||'',barcode:it.barcode||'',currency:it.currency,
-          photoData,units:(it.units||[]).map(u=>({name:u.name,factor:u.factor,salePrice:u.salePrice}))};
+          photoData,isBundle:!!it.isBundle,bundleComponents:it.isBundle?(it.bundleComponents||[]).map(b=>({itemId:b.itemId,quantity:b.quantity})):[],units:(it.units||[]).map(u=>({name:u.name,factor:u.factor,salePrice:(Accounting.itemSalePrice?.(it,u,null,'wholesale') ?? Number(u.wholesalePrice??u.salePrice)),wholesalePrice:(Accounting.itemSalePrice?.(it,u,null,'wholesale') ?? Number(u.wholesalePrice??u.salePrice)),centerPrice:(Accounting.itemSalePrice?.(it,u,null,'center') ?? Number(u.centerPrice??u.salePrice))}))};
       }),
-      accounts:State.accounts.filter(acc=>acc.type==='customer').map(acc=>{
+      accounts:State.accounts.filter(acc=>acc.type==='customer' && (!Array.isArray(a.allowedAccountIds) || a.allowedAccountIds.includes(acc.id) || acc.fieldOrigin?.agentId===a.id)).map(acc=>{
         // Export balances derived from the same posted double-entry ledger as the main app.
         // The agent adjusts only operations not represented in this synchronized snapshot.
         const st=Accounting.getAccountStatement(acc.id);
-        return {id:acc.id,name:acc.name,type:acc.type,phone:acc.phone||'',address:acc.address||'',paymentTerms:acc.paymentTerms||'',
+        return {id:acc.id,name:acc.name,type:acc.type,phone:acc.phone||'',address:acc.address||'',paymentTerms:acc.paymentTerms||'',priceTier:acc.priceTier==='center'?'center':'wholesale',
           sypBalance:st.sypBalance,usdBalance:st.usdBalance};
       }),
       stock:Object.fromEntries(State.items.map(it=>[it.id,Accounting.getItemBaseStock(it.id,null,a.warehouseId)])),
@@ -128,6 +150,7 @@ const FieldSync = {
       <p class="text-xs text-slate-600">تعديل الاسم والسيارة لا يغيّر فواتير المندوب المرحّلة سابقًا. أرسل كشف تجهيز جديدًا بعد الحفظ.</p>
       <label class="text-xs font-black">اسم المندوب</label><input id="editFieldAgentName" class="w-full border rounded-xl p-3" maxlength="70" value="${this.escape(a.name)}"/>
       <label class="text-xs font-black">السيارة / خط التوزيع</label><input id="editFieldAgentVehicle" class="w-full border rounded-xl p-3" maxlength="70" value="${this.escape(a.vehicleName||'')}"/>
+      ${this.accountPicker('fieldEditAccounts',a.allowedAccountIds)}
       <div class="bg-slate-100 rounded-xl p-2 text-xs">مستودع السيارة: ${this.escape(WarehouseController.name(a.warehouseId))} — ثابت لحماية جرد العمليات</div>
       <button type="button" class="ta-primary-3d w-full p-3 rounded-xl" onclick="FieldSync.saveAgentEdit('${a.id}')">حفظ التعديل</button>
       <button type="button" class="rounded-xl p-2 w-full bg-slate-100" onclick="FieldSync.open()">رجوع</button>
@@ -138,7 +161,8 @@ const FieldSync = {
     const name=String(document.getElementById('editFieldAgentName')?.value||'').trim();
     const vehicleName=String(document.getElementById('editFieldAgentVehicle')?.value||'').trim();
     if(name.length<2||name.length>70||vehicleName.length>70)return UI.toast('اسم المندوب يجب أن يكون بين حرفين و70 حرفًا','warn');
-    const original={name:a.name,vehicleName:a.vehicleName};a.name=name;a.vehicleName=vehicleName||name;
+    let allowedAccountIds;try{allowedAccountIds=this.readAccountPicker('fieldEditAccounts');}catch(e){return UI.toast(e.message,'warn');}
+    const original={name:a.name,vehicleName:a.vehicleName,allowedAccountIds:a.allowedAccountIds};a.name=name;a.vehicleName=vehicleName||name;a.allowedAccountIds=allowedAccountIds;
     try{await StorageEngine.saveState();this.open();UI.toast('حُفظ التعديل. أرسل كشف تجهيز جديدًا إلى هاتف المندوب','success');}
     catch(e){Object.assign(a,original);UI.toast('لم يُحفظ تعديل المندوب: '+e.message,'error');}
   },
@@ -318,6 +342,16 @@ const FieldSync = {
       seen.push(account);
     }
   },
+  enforceAccountScope(agent,ops){
+    if(!Array.isArray(agent.allowedAccountIds))return;
+    const allowed=new Set(agent.allowedAccountIds);
+    const justCreated=new Set((ops||[]).filter(op=>op.kind==='customer_create').map(op=>op.account?.id).filter(Boolean));
+    for(const op of ops||[]){
+      const id=op.kind==='document_edit'?op.replacement?.accountId:op.accountId;
+      if(id&&!allowed.has(id)&&!justCreated.has(id)&&!State.accounts.some(acc=>acc.id===id&&acc.fieldOrigin?.agentId===agent.id))
+        throw Error('لا يملك المندوب صلاحية التعامل مع الحساب المحدد. حدّث صلاحياته من الرئيسي.');
+    }
+  },
   async commitLanOperations(agent,ops){
     if(!ops.length)return 0;
     if(ops.some(op=>op.kind==='document_edit'))return this.commitOperationsWithRevisions(agent,ops);
@@ -325,11 +359,12 @@ const FieldSync = {
     const existing=new Set(config.imported.map(x=>x.id));
     const fresh=ops.filter(x=>!existing.has(x.id));
     if(!fresh.length)return 0;
+    this.enforceAccountScope(agent,fresh);
     if(!State.license.isActivated&&Number(State.license.opsUsedCount||0)+fresh.length>LicenseManager.MAX_TRIAL_OPS)throw Error('تجاوز الحد التجريبي للتطبيق الرئيسي');
     // Every row is validated before modifying the ledger, and a save failure rolls back every in-memory change.
     const deltas={};
     for(const op of fresh){if(!['sale','sale_return'].includes(op.kind))continue;
-      for(const row of op.rows)deltas[row.itemId]=(deltas[row.itemId]||0)+(op.kind==='sale_return'?1:-1)*row.qty/row.unitFactor;
+      for(const row of op.rows){const item=State.items.find(x=>x.id===row.itemId);const parts=item?.isBundle?item.bundleComponents:[{itemId:row.itemId,quantity:1}];for(const b of parts||[]){deltas[b.itemId]=(deltas[b.itemId]||0)+(op.kind==='sale_return'?1:-1)*row.qty/row.unitFactor*Number(b.quantity);}}
     }
     if(!State.settings.allowNegativeStockSales)for(const [id,delta] of Object.entries(deltas)){
       if(Accounting.getItemBaseStock(id,null,agent.warehouseId)+delta< -0.0001)throw Error('مخزون السيارة لا يكفي: '+(State.items.find(x=>x.id===id)?.name||id));
@@ -338,6 +373,7 @@ const FieldSync = {
       const ni=Math.max(0,...State.invoices.map(x=>Number(x.number)||0));
       const nv=Math.max(0,...State.vouchers.map(x=>Number(x.number)||0));
       const docs=FieldProtocol.toLedgerDocuments(fresh,agent,ni,nv);
+      docs.invoices.forEach(inv=>(inv.rows||[]).forEach(row=>{const it=State.items.find(x=>x.id===row.itemId);if(it?.isBundle){const u=it.units?.find(x=>x.name===row.unitName)||it.units?.[0];row.baseCostPrice=Accounting.itemCostPrice(it,u);}}));
       this.checkNewCustomers(docs.customers,old.accounts);
       State.accounts=[...old.accounts,...docs.customers];
       State.invoices=[...old.invoices,...docs.invoices];State.vouchers=[...old.vouchers,...docs.vouchers];State.expenses=[...old.expenses,...docs.expenses];
@@ -398,17 +434,19 @@ const FieldSync = {
       const known=new Set(c.imported.map(x=>x.id));
       const fresh=ops.filter(x=>!known.has(x.id));
       if(!fresh.length)throw Error('سبق استلام جميع العمليات');
+      this.enforceAccountScope(agent,fresh);
       if(!State.license.isActivated && Number(State.license.opsUsedCount||0)+fresh.length>LicenseManager.MAX_TRIAL_OPS)throw Error('وصلت إلى حد النسخة التجريبية؛ يلزم تفعيل التطبيق الرئيسي');
       // Validate stock as a batch, before changing State. Vehicle stock is not deducted twice.
       const deltas={};
       for(const op of fresh){if(!['sale','sale_return'].includes(op.kind))continue;
-        for(const row of op.rows){deltas[row.itemId]=(deltas[row.itemId]||0)+(op.kind==='sale_return'?1:-1)*row.qty/row.unitFactor;}}
+        for(const row of op.rows){const item=State.items.find(x=>x.id===row.itemId);const parts=item?.isBundle?item.bundleComponents:[{itemId:row.itemId,quantity:1}];for(const b of parts||[]){deltas[b.itemId]=(deltas[b.itemId]||0)+(op.kind==='sale_return'?1:-1)*row.qty/row.unitFactor*Number(b.quantity);}}}
       if(!State.settings.allowNegativeStockSales){for(const [id,delta] of Object.entries(deltas)){
         const stock=Accounting.getItemBaseStock(id,null,agent.warehouseId);
         if(stock+delta < -0.0001)throw Error('رصيد سيارة المندوب غير كافٍ للمادة: '+(State.items.find(x=>x.id===id)?.name||id));}}
       const latestInvoice=Math.max(0,...State.invoices.map(x=>Number(x.number)||0));
       const latestVoucher=Math.max(0,...State.vouchers.map(x=>Number(x.number)||0));
       const docs=FieldProtocol.toLedgerDocuments(fresh,agent,latestInvoice,latestVoucher);
+      docs.invoices.forEach(inv=>(inv.rows||[]).forEach(row=>{const it=State.items.find(x=>x.id===row.itemId);if(it?.isBundle){const u=it.units?.find(x=>x.name===row.unitName)||it.units?.[0];row.baseCostPrice=Accounting.itemCostPrice(it,u);}}));
       this.checkNewCustomers(docs.customers,old.accounts);
       State.accounts=[...old.accounts,...docs.customers];
       State.invoices=[...old.invoices,...docs.invoices];State.vouchers=[...old.vouchers,...docs.vouchers];State.expenses=[...old.expenses,...docs.expenses];
