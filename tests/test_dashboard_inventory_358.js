@@ -13,7 +13,7 @@ assert.ok(!dashboard.includes('ديون لنا (مدينون)'));
 assert.ok(!dashboard.includes('getCashboxSummary()'), 'dashboard no cashbox aggregation');
 assert.ok(!dashboard.includes('getAccountStatement(acc.id)'), 'dashboard no debt aggregation');
 assert.ok(!dashboard.includes('AppNav.navigate(\'settings\')'), 'duplicated Settings tile removed');
-assert.ok(html.includes('data-nav="settings"'), "Settings moved next to Reports in bottom dock");
+assert.ok(html.includes('id="headerSettingsBtn"') && !html.includes('data-nav="settings"'), 'Settings is now a header control, not bottom navigation');
 assert.ok(html.includes("backBtn.onclick = () => AppNav.handleBackButton()"));
 assert.ok(html.includes('id="inventoryTotalValueCard"'));
 assert.ok(html.includes('onchange="InventoryValuation.setCurrency(this.value)"'));

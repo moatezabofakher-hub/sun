@@ -84,9 +84,7 @@ Agent.switchInvoiceKind=function(kind){if(kind===this.draftKind)return;
 };
 Agent.renderHome=function(){const o=this.state.ops||[],pending=this.pending.length;
  const today=new Date().toISOString().slice(0,10),todayOps=o.filter(x=>x.date.slice(0,10)===today);
- return `<div class="hero"><h2>أهلًا ${this.escape(this.state.agentName)} 👋</h2><p>${this.escape(this.state.companyName)} · ${this.escape(this.state.vehicleName)} · المستودع المتنقل</p>
-  <div class="stats"><div class="stat"><b>${todayOps.filter(x=>x.kind==='sale').length}</b><small>مبيعات اليوم</small></div><div class="stat"><b>${pending}</b><small>لم تُزامن</small></div><div class="stat"><b>${this.state.items.length}</b><small>مادة معتمدة</small></div></div></div>
-  <section class="panel"><h3>العمليات السريعة</h3><div class="grid">
+ return `<section class="panel"><h3>العمليات السريعة</h3><div class="grid">
   <button class="tile" onclick="Agent.startInvoice('sale')"><span class="glyph">🛒</span><strong>فاتورة مبيعات</strong><small>اختيار مواد من شبكة الأصناف</small></button>
   <button class="tile" onclick="Agent.startInvoice('sale_return')"><span class="glyph">↩</span><strong>مردود مبيعات</strong><small>إرجاع المواد إلى السيارة</small></button>
   <button class="tile" onclick="Agent.startVoucher('receipt')"><span class="glyph">💵</span><strong>سند قبض</strong><small>استلام دفعة من عميل</small></button>
@@ -95,7 +93,9 @@ Agent.renderHome=function(){const o=this.state.ops||[],pending=this.pending.leng
   <button class="tile" onclick="Agent.navigate('stock')"><span class="glyph">📦</span><strong>رصيد السيارة</strong><small>جرد المستودع المتنقل</small></button>
   </div></section>
   <section class="panel"><h3>الطباعة السريعة</h3><p class="form-help">طابعة حرارية 80 مم / 58 مم عبر البلوتوث المباشر</p>
-  <button class="secondary" onclick="Agent.navigate('printer')">🖨️ ربط واختيار الطابعة</button></section>`;
+  <button class="secondary" onclick="Agent.navigate('printer')">🖨️ ربط واختيار الطابعة</button></section>
+  <div class="hero agent-home-welcome"><h2>أهلًا ${this.escape(this.state.agentName)} 👋</h2><p>${this.escape(this.state.companyName)} · ${this.escape(this.state.vehicleName)} · المستودع المتنقل</p>
+  <div class="stats"><div class="stat"><b>${todayOps.filter(x=>x.kind==='sale').length}</b><small>مبيعات اليوم</small></div><div class="stat"><b>${pending}</b><small>لم تُزامن</small></div><div class="stat"><b>${this.state.items.length}</b><small>مادة معتمدة</small></div></div></div>`;
 };
 Agent.renderInvoice=function(){
  const cur=this.currency||this.invoiceMeta.currency||'USD',kind=this.draftKind;
@@ -252,7 +252,7 @@ Agent.renderPrinter=function(){const p=this.printerInfo;return `<div class="hero
   <label class="label">عرض الورق</label><select id="agentPrintWidth" class="field" onchange="Agent.updatePrinterWidth(this.value)"><option value="80" ${this.state.printerWidth!==58?'selected':''}>80 مم</option><option value="58" ${this.state.printerWidth===58?'selected':''}>58 مم</option></select>
   <p class="form-help">تستخدم الفواتير صورة نقطية لإظهار العربية والأرقام بصورة متوافقة مع معظم الطابعات الحرارية، ويجب اختبارها على الطابعة الفعلية.</p></div>`;};
 Agent.renderSettings=function(){return `<div class="hero"><h2>الضبط</h2><p>إعدادات المندوب وإدارة الاتصال والطباعة — دون صلاحيات إدارة أرباح الشركة.</p></div>
- <section class="panel"><h3>معلومات التفعيل</h3><div class="itemrow"><b>المندوب</b><p class="tiny">${this.escape(this.state.agentName)}</p></div><div class="itemrow"><b>السيارة</b><p class="tiny">${this.escape(this.state.vehicleName)}</p></div><div class="itemrow"><b>الجهاز</b><p class="tiny ltr">${this.escape(this.state.deviceId)}</p></div><p class="form-help">إصدار المندوب 1.2.8. لا يمكن تغيير الشركة أو مستودع السيارة من تطبيق المندوب. التعديل يأتي بملف تجهيز معتمد من الإدارة.</p></section>
+ <section class="panel"><h3>معلومات التفعيل</h3><div class="itemrow"><b>المندوب</b><p class="tiny">${this.escape(this.state.agentName)}</p></div><div class="itemrow"><b>السيارة</b><p class="tiny">${this.escape(this.state.vehicleName)}</p></div><div class="itemrow"><b>الجهاز</b><p class="tiny ltr">${this.escape(this.state.deviceId)}</p></div><p class="form-help">إصدار المندوب 1.2.9. لا يمكن تغيير الشركة أو مستودع السيارة من تطبيق المندوب. التعديل يأتي بملف تجهيز معتمد من الإدارة.</p></section>
  <section class="panel"><h3>إعدادات الطباعة</h3><button class="primary" onclick="Agent.navigate('printer')">🖨 إعداد البلوتوث والطابعة</button></section>
  <section class="panel"><h3>المزامنة والنسخ</h3><button class="secondary" onclick="Agent.navigate('sync')">⇄ إرسال واستقبال العمليات</button><button class="secondary" onclick="Agent.exportOutbox()" ${this.pending.length?'':'disabled'}>تصدير العمليات غير المُزامنة</button></section>`;};
 Agent.pairPrinter=function(){if(window.AndroidPrinter?.pairPrinter)window.AndroidPrinter.pairPrinter();else this.toast('الاقتران المباشر متاح داخل APK فقط');};

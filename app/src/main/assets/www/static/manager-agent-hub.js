@@ -46,7 +46,7 @@ const AgentHub = {
     main.innerHTML=`<div class="space-y-4" dir="rtl">
       <div class="rounded-2xl border bg-white p-5 shadow-sm"><h2 class="text-base font-black">إدارة المندوبين</h2><p class="text-xs text-slate-500 mt-2">اختر مندوباً لعرض أدواته داخل صفحة واحدة، دون خلط عملياته بعمليات مندوب آخر.</p></div>
       <button type="button" class="w-full rounded-2xl border border-emerald-200 bg-emerald-700 text-white p-6 flex flex-col items-center gap-3 font-black" onclick="AgentHub.choose()"><i class="fas fa-users text-3xl"></i><span>اختيار المندوب</span><span class="text-xs font-medium opacity-90">${this.agents().filter(a=>!a.archived).length} مندوب فعّال</span></button>
-      <button type="button" class="w-full rounded-xl bg-white border p-3 font-bold" onclick="FieldSync.open()"><i class="fas fa-users ml-2"></i>إدارة المندوبين والمزامنة المحلية</button>
+      <div class="pt-2"><button type="button" class="ta-agent-hub-manage w-full rounded-2xl p-4 font-extrabold" onclick="FieldSync.open()"><i class="fas fa-users ml-2 text-lg" aria-hidden="true"></i>إدارة المندوبين والمزامنة المحلية</button></div>
     </div>`;
   },
   renderDetail(main,a){
@@ -58,6 +58,8 @@ const AgentHub = {
       <div class="grid grid-cols-2 gap-2">
         ${icon('truck-ramp-box','مناقلة إلى مستودعه',`AgentHub.transfer('${id}','toAgent')`,'bg-sky-50')}
         ${icon('truck','مناقلة من مستودعه',`AgentHub.transfer('${id}','fromAgent')`,'bg-sky-50')}
+        ${icon('hand-holding-dollar','استلام دفعة من المندوب',`FieldCash.openTransfer('fromAgent','${id}')`,'bg-emerald-50')}
+        ${icon('money-bill-transfer','إعطاء دفعة للمندوب',`FieldCash.openTransfer('toAgent','${id}')`,'bg-emerald-50')}
         ${icon('money-bill-transfer','الصندوق والحركات',`AgentHub.openActivity('cash','${id}')`,'bg-teal-50')}
         ${icon('file-contract','جميع العمليات',`AgentHub.openActivity('all','${id}')`)}
         ${icon('file-invoice','فواتير المندوب',`AgentHub.openActivity('invoices','${id}')`)}
@@ -65,8 +67,6 @@ const AgentHub = {
         ${icon('money-bill-wave','مصاريف المندوب',`AgentHub.openActivity('expenses','${id}')`)}
         ${icon('boxes-stacked','فواتير المناقلة',`AgentHub.openActivity('transfers','${id}')`)}
         ${icon('box-open','جرد مستودع المندوب',`AgentHub.openActivity('stock','${id}')`)}
-        ${icon('hand-holding-dollar','استلام دفعة من المندوب',`FieldCash.openTransfer('fromAgent','${id}')`,'bg-emerald-50')}
-        ${icon('money-bill-transfer','إعطاء دفعة للمندوب',`FieldCash.openTransfer('toAgent','${id}')`,'bg-emerald-50')}
         ${icon('pen-to-square','تعديل المندوب',`FieldSync.showEditAgent('${id}')`)}
         ${icon('rotate-right','المزامنة والملفات',`FieldSync.showSyncTools()`)}
       </div>
@@ -83,11 +83,11 @@ const AgentHub = {
     UI.setHeader('<i class="fas fa-list-check text-emerald-400"></i> <span>'+titles[view]+'</span>',this.esc(a.name));
     const control=`<div class="rounded-2xl bg-white border p-3 space-y-2"><label class="block text-xs font-extrabold">الفترة الزمنية — الافتراضي كل المدة</label><select class="w-full p-2.5 rounded-xl border text-xs" onchange="AgentHub.changePeriod('${id}','${view}',this.value,'${this.esc(start)}','${this.esc(end)}')">${TimeFilter.options(mode)}</select>
       ${['custom','range'].includes(mode)?`<div class="grid grid-cols-2 gap-2"><label class="text-xs font-bold">من<input type="date" value="${this.esc(start)}" class="border rounded-xl p-2 w-full" onchange="AgentHub.changePeriod('${id}','${view}','${mode}',this.value,'${this.esc(end)}')"></label>${mode==='range'?`<label class="text-xs font-bold">إلى<input type="date" value="${this.esc(end)}" class="border rounded-xl p-2 w-full" onchange="AgentHub.changePeriod('${id}','${view}','range','${this.esc(start)}',this.value)"></label>`:''}</div>`:''}</div>`;
-    const recordMarkup=records=>records.length?records.slice(0,400).map(x=>`<div class="bg-white border rounded-xl p-3 text-xs space-y-1"><div class="flex justify-between gap-2"><strong>${this.esc(x.kind)} #${this.esc(x.ref)}</strong><span class="text-slate-400">${this.esc(x.date.slice(0,16).replace('T',' '))}</span></div><div class="text-slate-600">${this.esc(x.detail)}</div><div class="font-black text-teal-700" dir="auto">${this.esc(x.amount)}</div></div>`).join('')+(records.length>400?`<div class="text-xs text-amber-700 p-2">تُعرض أول 400 حركة من ${records.length} حركة ضمن الفترة. ضيّق التاريخ لعرض حركات أخرى.</div>`:''):'<div class="p-6 text-center rounded-xl border bg-white text-slate-400 text-xs">لا توجد حركات في الفترة المختارة.</div>';
+    const recordMarkup=records=>records.length?records.slice(0,400).map(x=>`<div class="${x.flow==='in'?'ta-cash-inflow':x.flow==='out'?'ta-cash-outflow':'bg-white'} border rounded-xl p-3 text-xs space-y-1"><div class="flex justify-between gap-2"><strong class="${x.flow?'ta-cash-title':''}">${this.esc(x.kind)} #${this.esc(x.ref)}</strong><span class="text-slate-500">${this.esc(x.date.slice(0,16).replace('T',' '))}</span></div><div class="text-slate-600">${this.esc(x.detail)}</div><div class="font-black ${x.flow?'ta-cash-amount':'text-teal-700'}" dir="auto">${this.esc(x.amount)}</div></div>`).join('')+(records.length>400?`<div class="text-xs text-amber-700 p-2">تُعرض أول 400 حركة من ${records.length} حركة ضمن الفترة. ضيّق التاريخ لعرض حركات أخرى.</div>`:''):'<div class="p-6 text-center rounded-xl border bg-white text-slate-400 text-xs">لا توجد حركات في الفترة المختارة.</div>';
     let content='';
     if(view==='cash'){
       const cash=FieldCash.summary(a.id),moves=cash.movements.filter(x=>TimeFilter.matches(x.date,mode,start,end));
-      content=`<div class="grid grid-cols-2 gap-2"><div class="bg-emerald-700 text-white rounded-2xl p-3"><div class="text-xs opacity-90">رصيد الليرة الحالي</div><strong dir="ltr">${Accounting.format(cash.sypCash,'SYP')}</strong></div><div class="bg-slate-900 text-white rounded-2xl p-3"><div class="text-xs opacity-90">رصيد الدولار الحالي</div><strong dir="ltr">${Accounting.format(cash.usdCash,'USD')}</strong></div></div><p class="text-[11px] text-slate-500">الرصيد الحالي يحتسب كامل التاريخ، بينما الفترة تختار الحركات المعروضة فقط. يشمل الإيصالات والمصاريف والتسويات النقدية المسجلة في الرئيسي.</p>${recordMarkup(moves.map(x=>({kind:x.ref,ref:'',date:x.date,detail:x.party+' · '+x.desc,amount:(x.inflow>0?'+ ':'- ')+Accounting.format(x.inflow>0?x.inflow:x.outflow,x.currency)})))}`;
+      content=`<div class="grid grid-cols-2 gap-2"><div class="bg-emerald-700 text-white rounded-2xl p-3"><div class="text-xs opacity-90">رصيد الليرة الحالي</div><strong dir="ltr">${Accounting.format(cash.sypCash,'SYP')}</strong></div><div class="bg-slate-900 text-white rounded-2xl p-3"><div class="text-xs opacity-90">رصيد الدولار الحالي</div><strong dir="ltr">${Accounting.format(cash.usdCash,'USD')}</strong></div></div><p class="text-[11px] text-slate-500">الرصيد الحالي يحتسب كامل التاريخ، بينما الفترة تختار الحركات المعروضة فقط. يشمل الإيصالات والمصاريف والتسويات النقدية المسجلة في الرئيسي.</p>${recordMarkup(moves.map(x=>({kind:x.ref,ref:'',date:x.date,detail:x.party+' · '+x.desc,amount:(x.inflow>0?'+ ':'- ')+Accounting.format(x.inflow>0?x.inflow:x.outflow,x.currency),flow:x.inflow>0?'in':'out'})))}`;
     } else if(view==='stock'){
       const items=(State.items||[]).map(item=>({name:item.name,units:item.units||[],base:Number(Accounting.getItemBaseStock(item.id,null,a.warehouseId))||0})).filter(x=>x.base!==0);
       content=`<p class="text-[11px] text-slate-500">أرصدة المخزون الحالية وليست حركة خلال فترة زمنية؛ تعتمد على آخر بيانات وصلت إلى الرئيسي.</p>${items.length?items.map(x=>`<div class="p-3 rounded-xl bg-white border flex justify-between gap-2 text-xs"><b>${this.esc(x.name)}</b><strong>${Accounting.formatItemQuantity(x.base)} ${this.esc(x.units[0]?.name||'وحدة')}</strong></div>`).join(''):'<div class="p-5 text-center text-xs text-slate-500 bg-white border rounded-xl">المستودع فارغ حالياً.</div>'}`;

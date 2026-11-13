@@ -9,3 +9,20 @@ html,body{font-family:system-ui,'Noto Sans Arabic',sans-serif;background:#eef5fa
 .invoice-selected{background:#e2f4ff;border:1px solid #98cbe6;border-radius:16px;padding:13px;margin:12px 0}.invoice-selected h3{color:#134866;margin-bottom:6px}.invoice-selected .itemrow{padding:11px 0;border-bottom:1px dashed #74aeca}.invoice-selected .itemrow:last-child{border-bottom:0}.mini-btn{border:1px solid #eeb5bd;background:#fff2f4;border-radius:8px;color:#a3193b;font-weight:900;padding:4px 11px;flex:none}.money-total{background:linear-gradient(135deg,#132f48,#204c65);color:#fff;border-radius:14px;padding:13px;margin-top:10px;display:flex;justify-content:space-between;align-items:center;font-size:14px;font-weight:900}.form-help{font-size:11px;color:#687e8a;line-height:1.55;margin:8px 0}.note-safe{border:1px solid #e7d19d;background:#fff9ec;color:#72521c;border-radius:12px;padding:9px;font-size:11px;line-height:1.7}.split-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}.split-actions>*{min-width:0}.dialog-mask{position:fixed;inset:0;z-index:50;background:#0a243a99;display:flex;align-items:center;justify-content:center;padding:20px}.dialog-mask.hide{display:none}.dialog-card{width:min(100%,450px);background:linear-gradient(155deg,#fff,#eff8fc);border:1px solid #fff;border-radius:23px;padding:23px;box-shadow:0 8px 0 #aac4d3,0 22px 60px #0004}.dialog-card h3{font-size:17px;margin:0 0 11px}.dialog-card p{line-height:1.75;font-size:13px;color:#4b6678}.dialog-actions{display:flex;gap:9px}.dialog-actions>*{flex:1;min-width:0}.dialog-actions .secondary,.dialog-actions .primary{margin-top:13px}
 @media(max-width:350px){.item-grid{gap:7px}.item-pick{padding:10px 7px}.agent-invoice-header{gap:7px}.top{padding:12px 9px}}
 @media(prefers-reduced-motion:reduce){.primary,.secondary,.tile,.header-tool{transition:none}}
+
+/* 3.5.40: distinguish every individual cashbox receipt/payment with full-row color. */
+.agent-cash-inflow {background:#ecfdf5;border:1px solid #86efac;border-right:5px solid #059669;border-radius:12px;margin-bottom:9px;padding:12px;color:#065f46;}
+.agent-cash-outflow {background:#fff1f2;border:1px solid #fda4af;border-right:5px solid #e11d48;border-radius:12px;margin-bottom:9px;padding:12px;color:#9f1239;}
+.agent-cash-inflow .agent-cash-amount {color:#047857;}
+.agent-cash-outflow .agent-cash-amount {color:#be123c;}
+.agent-cash-inflow .tiny,.agent-cash-outflow .tiny {color:#475569;}
+
+/* 3.5.41: compact the home cash summary while keeping balances visible. */
+.agent-cash-compact {padding:10px 11px;margin-bottom:12px;border-radius:15px;}
+.agent-cash-compact h3 {font-size:13px;margin:0 0 7px;line-height:1.25;}
+.agent-cash-compact .stats {gap:6px;}
+.agent-cash-compact .stat {padding:6px 3px;border-radius:10px;min-width:0;}
+.agent-cash-compact .stat b {font-size:14px;line-height:1.35;overflow-wrap:anywhere;}
+.agent-cash-compact .stat small {display:block;font-size:9px;line-height:1.35;}
+.agent-cash-compact .stat .secondary {margin:0;min-height:28px;padding:4px 2px;font-size:10px;line-height:1.2;border-radius:8px;box-shadow:0 2px 0 #bacbd7;}
+.agent-home-welcome {margin-top:5px;margin-bottom:6px;}

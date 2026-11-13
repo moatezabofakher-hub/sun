@@ -900,6 +900,25 @@
       #modalBox .ta-field-panel button.bg-amber-100 {background:linear-gradient(145deg,#fff4ce,#f9df8b)!important;color:#654718!important;}
       #modalBox .ta-field-panel button {min-height:39px;}
     </style>
+<style id="ta-cash-visuals-and-settings-3540">
+/* RTL places the first toolbar control at the far right. */
+#headerSettingsBtn.ta-header-settings-button {width:40px;height:40px;min-width:40px;border-radius:12px;
+ background:linear-gradient(145deg,#0d9488,#0e7490);border:1px solid #6ee7b7;
+ color:#fff;box-shadow:0 3px 0 #064e63;font-size:19px;}
+#headerSettingsBtn.ta-header-settings-button.is-active {background:#ecfdf5;color:#065f46;border-color:#86efac;}
+#headerSettingsBtn.ta-header-settings-button:focus-visible {outline:3px solid #fde68a;outline-offset:2px;}
+/* Primary agent-management action, independent of generated Tailwind utility classes. */
+.ta-agent-hub-manage {background:linear-gradient(145deg,#1d4ed8,#1e40af)!important;color:#fff!important;
+ border:1px solid #1e3a8a!important;box-shadow:0 4px 0 #172554,0 9px 18px #1e3a8a33!important;}
+.ta-agent-hub-manage:active {transform:translateY(2px);box-shadow:0 2px 0 #172554!important;}
+/* Cash movement rows: coloring the whole movement, not just its amount. */
+.ta-cash-inflow {background:#ecfdf5!important;border-right:4px solid #059669!important;color:#065f46;}
+.ta-cash-outflow {background:#fff1f2!important;border-right:4px solid #e11d48!important;color:#9f1239;}
+.ta-cash-inflow .ta-cash-amount {color:#047857!important;}
+.ta-cash-outflow .ta-cash-amount {color:#be123c!important;}
+.ta-cash-inflow .ta-cash-title {color:#065f46!important;}
+.ta-cash-outflow .ta-cash-title {color:#9f1239!important;}
+</style>
 </head>
 <body class="ta-premium-ui ta-3d-v3524 bg-slate-100 text-slate-800 min-h-screen flex flex-col w-full max-w-full overflow-x-hidden">
 
@@ -907,6 +926,9 @@
     <header class="ta-app-header bg-slate-900 text-white sticky top-0 z-30 shadow-md w-full">
         <div id="topAppBar" class="max-w-3xl mx-auto px-2.5 py-2.5 flex items-center justify-between gap-1.5">
             <div class="flex items-center gap-2 min-w-0 flex-1">
+                <button id="headerSettingsBtn" type="button" onclick="AppNav.navigate('settings')" class="ta-header-settings-button shrink-0 flex items-center justify-center transition active:scale-95" title="الضبط" aria-label="فتح الضبط">
+                    <i class="fas fa-sliders" aria-hidden="true"></i>
+                </button>
                 <button id="headerBackBtn" onclick="AppNav.handleBackButton()" class="w-8 h-8 shrink-0 rounded-full flex items-center justify-center hover:bg-slate-800 active:bg-slate-700 transition" title="رجوع / خروج">
                     <i id="headerBackIcon" class="fas fa-arrow-right text-base"></i>
                 </button>
@@ -961,7 +983,7 @@
 
     <!-- Bottom Taskbar / Navigation Bar (Intercepted by Unsaved Changes Guard) -->
     <nav class="ta-bottom-nav fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-30 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
-        <div class="max-w-3xl mx-auto grid grid-cols-7 h-16">
+        <div class="max-w-3xl mx-auto grid grid-cols-6 h-16">
             <button onclick="AppNav.navigate('dashboard')" data-nav="dashboard" class="nav-btn flex flex-col items-center justify-center gap-1 text-emerald-600 font-bold transition">
                 <i class="fas fa-home text-lg"></i>
                 <span class="text-[11px]">الرئيسية</span>
@@ -985,10 +1007,6 @@
             <button onclick="AppNav.navigate('reports')" data-nav="reports" class="nav-btn flex flex-col items-center justify-center gap-1 text-slate-500 hover:text-slate-800 transition">
                 <i class="fas fa-chart-pie text-lg"></i>
                 <span class="text-[11px]">التقارير</span>
-            </button>
-            <button onclick="AppNav.navigate('settings')" data-nav="settings" class="nav-btn flex flex-col items-center justify-center gap-1 text-slate-500 hover:text-slate-800 transition" title="الضبط">
-                <i class="fas fa-sliders text-lg" aria-hidden="true"></i>
-                <span class="text-[11px]">الضبط</span>
             </button>
         </div>
     </nav>
@@ -2310,6 +2328,12 @@
                     }
                 }
 
+                const topSettings = document.getElementById('headerSettingsBtn');
+                if (topSettings) {
+                    topSettings.classList.toggle('is-active', screen === 'settings');
+                    if (screen === 'settings') topSettings.setAttribute('aria-current','page');
+                    else topSettings.removeAttribute('aria-current');
+                }
                 document.querySelectorAll('.nav-btn').forEach(btn => {
                     const navTarget = btn.getAttribute('data-nav');
                     const isActive = (navTarget === screen) ||
@@ -3731,7 +3755,6 @@
                         <section aria-label="أقسام التطبيق">
                             <div class="ta-section-head"><span class="ta-section-mark"></span><div><h3>إدارة الأعمال</h3><p>وصول سريع إلى الأقسام والتقارير</p></div></div>
                             <div class="ta-module-grid">
-                                <button type="button" onclick="FieldSync.open()" class="ta-module-card"><span class="ta-icon-box ta-tone-blue"><i class="fas fa-truck" aria-hidden="true"></i></span><strong>مندوبو التوزيع</strong></button>
                                 <button type="button" onclick="AppNav.navigate('invoice_form', { type: 'sale_return' })" class="ta-module-card">
                                     <span class="ta-icon-box ta-tone-red"><i class="fas fa-rotate-left" aria-hidden="true"></i></span><strong>مردود مبيعات</strong>
                                 </button>
@@ -4452,7 +4475,7 @@
                         <input
                             type="search"
                             id="accountsSearchInput"
-                            placeholder="ابحث عن حساب بالاسم أو رقم الهاتف..."
+                            placeholder="ابحث بالاسم أو الهاتف أو العنوان..."
                             oninput="(function(input){const q=input.value.trim().toLocaleLowerCase();let visible=0;document.querySelectorAll('[data-account-search]').forEach(card=>{const value=decodeURIComponent(card.dataset.accountSearch || '').toLocaleLowerCase();const match=!q || value.includes(q);card.classList.toggle('hidden',!match);if(match)visible++;});const empty=document.getElementById('accountsSearchEmpty');if(empty)empty.classList.toggle('hidden',visible!==0);})(this)"
                             class="w-full bg-white border border-slate-200 rounded-xl py-3 pr-10 pl-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
                         >
@@ -4486,7 +4509,7 @@
                             }
 
                             return `
-                                <div data-account-search="${encodeURIComponent(`${acc.name} ${acc.phone || ''}`)}" class="bg-white rounded-2xl border ${overLimit ? 'border-rose-400' : 'border-slate-200'} p-3.5 shadow-xs">
+                                <div data-account-search="${encodeURIComponent(`${acc.name} ${acc.phone || ''} ${acc.address || ''}`)}" class="bg-white rounded-2xl border ${overLimit ? 'border-rose-400' : 'border-slate-200'} p-3.5 shadow-xs">
                                     <div class="flex items-start justify-between">
                                         <div>
                                             <div class="flex items-center gap-1.5">
@@ -4496,10 +4519,11 @@
                                                 </span>
                                             </div>
                                             <div class="text-[11px] text-slate-400 mt-1">
-                                                ${acc.phone ? `<i class="fas fa-phone ml-1"></i>${acc.phone} | ` : ''}
+                                                ${acc.phone ? `<i class="fas fa-phone ml-1"></i>${AppEscape.text(acc.phone)} | ` : ''}
                                                 سقف الائتمان: ${acc.creditLimitUsd ? Accounting.format(acc.creditLimitUsd, 'USD') : 'مفتوح'}
                                                 ${acc.paymentTerms ? ` | استحقاق: ${acc.paymentTerms}` : ''}
                                             </div>
+                                            ${acc.address ? `<div class="text-[11px] text-slate-600 mt-1"><i class="fas fa-location-dot ml-1" aria-hidden="true"></i><span>${AppEscape.text(acc.address)}</span></div>` : ''}
                                             ${overLimit ? `<div class="text-[10px] text-rose-600 font-bold mt-1"><i class="fas fa-triangle-exclamation"></i> تجاوز سقف الائتمان المسموح!</div>` : ''}
                                         </div>
                                         <div class="text-left">
@@ -4539,6 +4563,7 @@
                             <div>
                                 <h3 class="font-extrabold text-base">${acc.name}</h3>
                                 <p class="text-xs text-slate-400">${acc.type === 'customer' ? 'حساب عميل' : 'حساب مورد'} ${acc.phone ? '- ' + acc.phone : ''}</p>
+                                ${acc.address ? `<p class="text-xs text-slate-300 mt-1"><i class="fas fa-location-dot ml-1" aria-hidden="true"></i>${AppEscape.text(acc.address)}</p>` : ''}
                             </div>
                             <div class="flex gap-1 bg-slate-800 p-1 rounded-xl text-[11px]">
                                 <button onclick="AppNav.navigate('account_statement', { id: '${acc.id}', evalMode: 'DUAL' }, true)" class="px-2 py-1 rounded-lg font-bold ${evalMode === 'DUAL' ? 'bg-emerald-500 text-slate-950' : 'text-slate-300'}">بالعملتين</button>
@@ -4801,7 +4826,7 @@
                             <div class="bg-slate-900 text-white p-3.5 rounded-2xl"><span class="text-xs opacity-80 block">صافي صندوق الدولار الأمريكي</span><span class="font-extrabold text-base sm:text-lg text-amber-300">${Accounting.format(cash.usdCash, 'USD')}</span></div>
                         </div>
                         <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden"><div class="p-3 font-bold text-xs border-b border-slate-100">سجل المقبوضات والمدفوعات النقدية</div>
-                        ${visibleCashMovements.length === 0 ? `<div class="p-6 text-center text-xs text-slate-400">لا توجد حركات صندوق مسجلة</div>` : `<div class="divide-y divide-slate-100 text-xs">${visibleCashMovements.map(m => `<div class="p-3 flex items-center justify-between"><div><div class="font-bold text-slate-800">${m.ref} - ${m.party}</div><div class="text-[11px] text-slate-500">${m.desc} | ${m.date.replace('T', ' ')}</div></div><div class="font-extrabold ${m.inflow > 0 ? 'text-emerald-600' : 'text-rose-600'}">${m.inflow > 0 ? '+ ' + Accounting.format(m.inflow, m.currency) : '- ' + Accounting.format(m.outflow, m.currency)}</div></div>`).join('')}</div>`}</div>
+                        ${visibleCashMovements.length === 0 ? `<div class="p-6 text-center text-xs text-slate-400">لا توجد حركات صندوق مسجلة</div>` : `<div class="divide-y divide-slate-100 text-xs">${visibleCashMovements.map(m => `<div class="p-3 flex items-center justify-between gap-2 ${m.inflow > 0 ? 'ta-cash-inflow' : 'ta-cash-outflow'}"><div><div class="font-bold ta-cash-title">${m.ref} - ${m.party}</div><div class="text-[11px] text-slate-600">${m.desc} | ${m.date.replace('T', ' ')}</div></div><div class="font-extrabold ta-cash-amount shrink-0" dir="auto">${m.inflow > 0 ? '+ ' + Accounting.format(m.inflow, m.currency) : '- ' + Accounting.format(m.outflow, m.currency)}</div></div>`).join('')}</div>`}</div>
                     ` : tab === 'inventory' ? `
                         <div class="bg-sky-50 border border-sky-200 rounded-xl p-3 mb-3">
                             <label class="text-xs font-bold text-sky-900 block mb-1">عرض جرد مستودع محدد أو جميع المستودعات</label>
@@ -4892,8 +4917,8 @@
                 UI.setHeader('<i class="fas fa-sliders text-emerald-400"></i> <span>الضبط</span>', 'اضغط على القسم المطلوب لعرض خياراته');
                 const mode = State.settings.btPrintMode || 'auto';
                 main.innerHTML = `
-                    <div class="mb-3 flex items-center justify-between gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2" data-app-build="3.5.39">
-                        <span class="font-black text-xs text-emerald-800"><i class="fas fa-check-circle ml-1"></i> إصدار التطبيق: 3.5.39</span>
+                    <div class="mb-3 flex items-center justify-between gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2" data-app-build="3.5.41">
+                        <span class="font-black text-xs text-emerald-800"><i class="fas fa-check-circle ml-1"></i> إصدار التطبيق: 3.5.41</span>
                         <span class="text-[10px] font-bold text-emerald-700">مظهر ثلاثي الأبعاد موحّد</span>
                     </div>
                     <div class="mb-3 text-[11px] text-slate-500 font-semibold px-1">جميع خيارات التطبيق مرتبة ضمن فئات. اضغط على اسم أي فئة لفتحها أو إغلاقها.</div>
@@ -7547,6 +7572,11 @@
                             </div>
                         </div>
 
+                        <div>
+                            <label class="block font-bold text-slate-700 mb-1" for="accAddress">العنوان (اختياري)</label>
+                            <textarea id="accAddress" rows="2" maxlength="500" oninput="AccountController.markAccDirty()" placeholder="المدينة، الحي، الشارع، أو تفاصيل الوصول" class="w-full border border-slate-300 rounded-xl px-3 py-2" style="resize:vertical">${AppEscape.text(ex?.address || '')}</textarea>
+                        </div>
+
                         <div class="grid grid-cols-2 gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
                             <div>
                                 <label class="block font-bold text-slate-700 mb-1">رصيد افتتاحي (ل.س)</label>
@@ -7578,6 +7608,7 @@
                 const name = document.getElementById('accName')?.value.trim();
                 const type = document.getElementById('accType')?.value || 'customer';
                 const phone = document.getElementById('accPhone')?.value.trim() || '';
+                const address = document.getElementById('accAddress')?.value.trim() || '';
                 const creditLimitUsd = Accounting.parseNum(document.getElementById('accLimit')?.value);
                 const openingSyp = Accounting.parseNum(document.getElementById('accOpenSyp')?.value);
                 const openingUsd = Accounting.parseNum(document.getElementById('accOpenUsd')?.value);
@@ -7592,13 +7623,13 @@
                 if (existingId) {
                     const idx = State.accounts.findIndex(a => a.id === existingId);
                     if (idx > -1) {
-                        State.accounts[idx] = { ...State.accounts[idx], name, type, phone, creditLimitUsd, openingSyp, openingUsd, paymentTerms };
+                        State.accounts[idx] = { ...State.accounts[idx], name, type, phone, address, creditLimitUsd, openingSyp, openingUsd, paymentTerms };
                     }
                 } else {
                     targetId = 'acc_' + Date.now();
                     State.accounts.push({
                         id: targetId,
-                        name, type, phone, creditLimitUsd, openingSyp, openingUsd, paymentTerms,
+                        name, type, phone, address, creditLimitUsd, openingSyp, openingUsd, paymentTerms,
                         createdAt: new Date().toISOString().slice(0, 10)
                     });
                     await LicenseManager.recordNewOperation();
@@ -7628,6 +7659,7 @@
                         <div><h3 class="font-extrabold text-base">${acc.name}</h3><p class="text-[11px] text-slate-500 mt-1">${acc.type === 'customer' ? 'عميل' : 'مورد'} · خيارات الحساب</p></div>
                         <button type="button" onclick="UI.requestCloseModal()" class="w-8 h-8 rounded-lg bg-slate-100 text-slate-500"><i class="fas fa-times"></i></button>
                     </div>
+                    ${acc.address ? `<p class="text-xs text-slate-600 mb-3"><i class="fas fa-location-dot ml-1" aria-hidden="true"></i>العنوان: ${AppEscape.text(acc.address)}</p>` : ''}
                     <div class="grid grid-cols-2 gap-2 mb-3">
                         <div class="bg-blue-50 rounded-xl p-3"><div class="text-[10px] text-slate-500">الرصيد بالليرة</div><div class="font-extrabold text-sm">${Accounting.format(Math.abs(st.sypBalance), 'SYP')}</div><div class="text-[10px]">${st.sypBalance > 0 ? 'لنا (مدين)' : st.sypBalance < 0 ? 'علينا (دائن)' : 'متوازن'}</div></div>
                         <div class="bg-amber-50 rounded-xl p-3"><div class="text-[10px] text-slate-500">الرصيد بالدولار</div><div class="font-extrabold text-sm">${Accounting.format(Math.abs(st.usdBalance), 'USD')}</div><div class="text-[10px]">${st.usdBalance > 0 ? 'لنا (مدين)' : st.usdBalance < 0 ? 'علينا (دائن)' : 'متوازن'}</div></div>

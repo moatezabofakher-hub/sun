@@ -8,9 +8,9 @@ const cut=(a,b)=>{let i=html.indexOf(a),j=html.indexOf(b,i+a.length);assert(i>=0
 const dashboard=cut('            renderDashboard(main) {','            renderItems(main, params = {}) {');
 assert(!dashboard.includes('مركز إدارة الأعمال'),'the top management-center hero is removed');
 assert(dashboard.includes('ta-action-grid')&&dashboard.includes('ta-module-grid'),'actions stay');
-assert(html.includes('grid grid-cols-7 h-16'),'seven navigation items');
+assert(html.includes('grid grid-cols-6 h-16'),'six navigation items after settings moves to top bar');
 const nav=html.slice(html.indexOf('<nav class="ta-bottom-nav'),html.indexOf('<!-- Global Modals Container -->'));
-assert(nav.indexOf('data-nav="reports"')>=0 && nav.indexOf('data-nav="settings"')>nav.indexOf('data-nav="reports"'), 'Settings immediately after Reports');
+assert(nav.includes('data-nav="reports"') && !nav.includes('data-nav="settings"'), 'Settings moved out of bottom dock');
 assert(!html.includes("backBtn.onclick = () => AppNav.navigate('settings')"),'no duplicate header setting');
 assert(html.includes('ta-action-card:active,.ta-module-card:active') && html.includes('translateY(5px)'),'tactile 3D pressed state');
 assert.match(build,/applicationId 'com\.sunshine\.technicalaccountant'/);
@@ -44,4 +44,4 @@ assert.equal((main.innerHTML.match(/data-item-group-section/g)||[]).length,2,'tw
 assert.equal((main.innerHTML.match(/ta-stock-card is-grid/g)||[]).length,3,'three grouped cards');
 assert(main.innerHTML.includes('شبكة بالمجموعة'));
 assert(main.innerHTML.includes('جلي')&&main.innerHTML.includes('شامبو'));
-console.log('PASS 3.5.19: home removed hero, settings beside reports, 3D buttons, group grid/list, stock-only cards, signature and DB unchanged.');
+console.log('PASS 3.5.19 regression: 3D buttons, group grid/list, stock-only cards, settings moved to header, signature and DB unchanged.');
