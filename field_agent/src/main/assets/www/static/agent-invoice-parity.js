@@ -116,7 +116,7 @@ A.addGridItem=function(id){
  const u=it.units?.[0];if(!u)return this.toast('لا توجد وحدة معتمدة للصنف');
  const reserved=this.draft.filter(r=>r.itemId===it.id).reduce((s,r)=>s+Number(r.qty)/Number(r.unitFactor),0);
  const available=Number(this.stock[it.id]||0);
- if(this.draftKind==='sale'&&reserved+(1/Number(u.factor))>available+1e-5)return this.toast('رصيد السيارة لا يكفي لهذه المادة');
+ if(this.draftKind==='sale'&&reserved+(1/Number(u.factor))>available+1e-5)return this.toast(available-reserved<=1e-5?'نفدت كمية المادة «'+it.name+'» من مستودع المندوب':'الكمية المتاحة من «'+it.name+'» غير كافية');
  this.captureInvoiceMeta();let r=this.draft.find(r=>r.itemId===it.id&&r.unitName===u.name);
  if(r){r.qty=round(r.qty+1,'USD');r.total=round(r.qty*r.price,this.currency);}
  else{const p=this.unitPrice(it,u,this.currency);this.draft.push({itemId:it.id,itemName:it.name,unitName:u.name,unitFactor:Number(u.factor),qty:1,price:p,total:round(p,this.currency)});}
@@ -163,11 +163,12 @@ A.renderPickerItems=function(){
   const chosen=this.draft.filter(r=>r.itemId===it.id).reduce((n,r)=>n+Number(r.qty),0);
   const stock=Number(this.stock[it.id]||0);
   const unitStock=round(stock*Number(u.factor||1),'USD');
-  return `<div class="relative bg-slate-50 border ${chosen>0?'border-emerald-500 ring-1 ring-emerald-500 bg-emerald-50/40':'border-slate-200'} rounded-2xl p-2.5 cursor-pointer flex flex-col justify-between text-right shadow-2xs" role="button" tabindex="0" onclick="Agent.addGridItem('${esc(it.id)}')" onkeydown="if(event.key==='Enter')Agent.addGridItem('${esc(it.id)}')">
+  const outOfStock=this.draftKind==='sale'&&stock<=1e-5;
+  return `<div class="relative bg-slate-50 border ${outOfStock?'border-rose-400 bg-rose-50':chosen>0?'border-emerald-500 ring-1 ring-emerald-500 bg-emerald-50/40':'border-slate-200'} rounded-2xl p-2.5 cursor-pointer flex flex-col justify-between text-right shadow-2xs" role="button" tabindex="0" onclick="Agent.addGridItem('${esc(it.id)}')" onkeydown="if(event.key==='Enter')Agent.addGridItem('${esc(it.id)}')">
    ${chosen>0?`<span class="absolute -top-1.5 -left-1.5 bg-emerald-600 text-white text-[10px] font-extrabold w-6 h-6 rounded-full flex items-center justify-center">${chosen}</span><button type="button" class="invoice-grid-decrement" onclick="event.stopPropagation();Agent.removeGridOne('${esc(it.id)}')">×</button>`:''}
    <div><div class="h-24 mb-2 bg-white border border-slate-200 rounded-xl flex items-center justify-center overflow-hidden text-slate-400">${/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(it.photoData||'')?`<img src="${it.photoData}" alt="صورة المادة" loading="lazy" class="w-full h-full object-contain">`:'<i class="fas fa-box-open text-3xl"></i>'}</div><span class="text-[9px] font-extrabold px-1.5 py-0.5 rounded ${it.currency==='USD'?'bg-amber-100 text-amber-800':'bg-blue-100 text-blue-700'}">${esc(it.currency||'USD')}</span><h4 class="font-extrabold text-xs text-slate-900 my-2">${esc(it.name)}</h4></div>
    <div class="pt-1.5 border-t border-slate-200"><div class="font-extrabold text-xs text-emerald-700">${money(this.unitPrice(it,u,this.currency),this.currency)} ${esc(this.currency)} <span class="text-[9px] text-slate-500">/ ${esc(u.name)}</span></div>
-   <div class="flex items-center justify-between text-[10px] mt-1"><span class="text-slate-500">المتاح: ${unitStock} ${esc(u.name)}</span><span class="text-emerald-600 font-bold">+ إضافة</span></div></div></div>`;
+   <div class="flex items-center justify-between text-[10px] mt-1"><span class="${outOfStock?'text-rose-700 font-extrabold':'text-slate-500'}">${outOfStock?'نفدت الكمية':'المتاح: '+unitStock+' '+esc(u.name)}</span><span class="${outOfStock?'text-rose-700':'text-emerald-600'} font-bold">${outOfStock?'تنبيه':' + إضافة'}</span></div></div></div>`;
  }).join(''):'<div class="col-span-full p-6 text-center text-xs text-slate-500">لا توجد مواد مطابقة</div>';
 };
 A.renderInvoice=function(){

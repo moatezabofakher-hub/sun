@@ -1,6 +1,12 @@
 package com.sunshine.accounting;
 
 import android.app.Activity;
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
+import android.os.Build;
+import android.content.Context;
 import android.Manifest;
 import android.content.pm.PackageManager;
 import android.webkit.PermissionRequest;
@@ -64,8 +70,12 @@ public final class MainActivity extends FragmentActivity {
     private static final String APP_URL = "https://" + HOST + "/assets/www/index.html";
     private static final int PICK_IMPORT = 2401;
     private static final int SAVE_BACKUP = 2402;
-    private static final int SAVE_REPORT_PDF = 2405;
     private static final int REQUEST_ITEM_CAMERA = 2404;
+    private static final int REQUEST_ALERT_PERMISSION = 2405;
+    private static final String ALERT_CHANNEL = "manager_ledger_alerts";
+    private volatile String pendingAlertId;
+    private final ArrayList<String[]> pendingAlerts = new ArrayList<>();
+    private boolean alertPermissionInFlight;
     private WebView webView;
     private volatile boolean trustedLocalMainFrame;
     private NativeBluetoothPrinter bluetoothPrinter;
@@ -74,7 +84,6 @@ public final class MainActivity extends FragmentActivity {
     private ValueCallback<Uri[]> pendingFileChooser;
     private Uri pendingItemPhotoCameraUri;
     private String pendingBackupJson;
-    private byte[] pendingReportPdf;
     private volatile boolean reportPdfBusy;
 
     // Local Storage Access Framework folder (persisted permission) and Drive authorization.
@@ -152,6 +161,7 @@ public final class MainActivity extends FragmentActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        pendingAlertId = getIntent() == null ? null : getIntent().getStringExtra("ledger_alert_id");
         // Stop legacy Google Drive periodic backups when upgrading; local schedules remain intact.
         AutoBackupManager.disableOldDriveBackups(this);
         // Android 15+ enforces edge-to-edge. Reserve system-bar and cutout space
@@ -286,6 +296,7 @@ public final class MainActivity extends FragmentActivity {
         webView.addJavascriptInterface(new NativeBarcodeBridge(), "NativeBarcode");
         webView.addJavascriptInterface(new SecurityBridge(), "NativeSecurity");
         webView.addJavascriptInterface(new ExitBridge(), "Android");
+        webView.addJavascriptInterface(new LedgerNotificationsBridge(), "AndroidAlerts");
         webView.addJavascriptInterface(new BackupBridge(), "AndroidFiles");
         webView.addJavascriptInterface(new ReportPdfBridge(), "AndroidReports");
         webView.addJavascriptInterface(new InvoicePdfBridge(), "AndroidInvoicePdf");
@@ -453,6 +464,15 @@ public final class MainActivity extends FragmentActivity {
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == REQUEST_ALERT_PERMISSION) {
+            alertPermissionInFlight = false;
+            ArrayList<String[]> queued = new ArrayList<>(pendingAlerts);
+            pendingAlerts.clear();
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                for (String[] one : queued) postLedgerNotification(one[0],one[1],one[2]);
+            } // In-app notifications remain available when OS permission is denied.
+            return;
+        }
         if (requestCode == REQUEST_ITEM_CAMERA) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED
                     && isLocalPage()) {
@@ -658,46 +678,61 @@ public final class MainActivity extends FragmentActivity {
         }
     }
 
-    /** Save a locally produced multi-page Arabic PDF through SAF, then open Android Share. */
+    /** Generate the report only in private cache; immediately open Android share sheet.
+     *  Never invokes the document-save picker or writes to public Downloads.
+     *  Receiver receives a temporary read-only content URI via FileProvider.
+     */
     private final class ReportPdfBridge {
         @JavascriptInterface
-        public void saveAndShareReport(String json, String filename) {
-            if (json == null || json.length() > 4000000) {
+        public void shareReport(String json, String filename) {
+            if (!trustedLocalMainFrame || json == null || json.length() > 4_000_000) {
                 runOnUiThread(() -> Toast.makeText(MainActivity.this,
-                        "حجم بيانات التقرير كبير جداً", Toast.LENGTH_LONG).show());
+                        "حجم بيانات التقرير غير صالح للمشاركة", Toast.LENGTH_LONG).show());
                 return;
             }
             synchronized (MainActivity.this) {
                 if (reportPdfBusy) return;
                 reportPdfBusy = true;
             }
-            final String safeName = (filename == null ? "تقرير.pdf" : filename)
-                    .replaceAll("[^\\p{L}\\p{N}_.-]", "_");
             new Thread(() -> {
                 try {
-                    byte[] result = ReportPdfRenderer.render(new JSONObject(json));
+                    byte[] bytes = ReportPdfRenderer.render(new JSONObject(json));
+                    if (bytes.length == 0 || bytes.length > 15_000_000) throw new IOException("PDF غير صالح");
+                    File dir = new File(getCacheDir(), "shared_reports");
+                    if (!dir.exists() && !dir.mkdirs()) throw new IOException("تعذر إنشاء المجلد المؤقت");
+                    File[] previous = dir.listFiles();
+                    if (previous != null) for (File old : previous) {
+                        if (old.isFile() && old.lastModified() < System.currentTimeMillis() - 86_400_000L) old.delete();
+                    }
+                    String safe = (filename == null ? "Report.pdf" : filename)
+                            .replaceAll("[^\\p{L}\\p{N}_.-]", "_");
+                    if (!safe.toLowerCase(java.util.Locale.ROOT).endsWith(".pdf")) safe += ".pdf";
+                    File file = new File(dir, java.util.UUID.randomUUID().toString().substring(0, 8) + "_" + safe);
+                    try (java.io.FileOutputStream out = new java.io.FileOutputStream(file)) {
+                        out.write(bytes);
+                        out.flush();
+                    }
+                    Uri uri = FileProvider.getUriForFile(MainActivity.this,
+                            getPackageName() + ".fileprovider", file);
                     runOnUiThread(() -> {
-                        if (!isLocalPage()) { reportPdfBusy = false; return; }
-                        pendingReportPdf = result;
-                        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
-                        intent.addCategory(Intent.CATEGORY_OPENABLE);
-                        intent.setType("application/pdf");
-                        intent.putExtra(Intent.EXTRA_TITLE,
-                                safeName.toLowerCase(java.util.Locale.ROOT).endsWith(".pdf")
-                                        ? safeName : safeName + ".pdf");
-                        try { startActivityForResult(intent, SAVE_REPORT_PDF); }
+                        if (!isLocalPage()) return;
+                        Intent share = new Intent(Intent.ACTION_SEND);
+                        share.setType("application/pdf");
+                        share.putExtra(Intent.EXTRA_STREAM, uri);
+                        share.setClipData(ClipData.newUri(getContentResolver(), "تقرير PDF", uri));
+                        share.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                        try { startActivity(Intent.createChooser(share, "مشاركة تقرير PDF")); }
                         catch (Exception e) {
-                            pendingReportPdf = null;reportPdfBusy = false;
-                            Toast.makeText(MainActivity.this,
-                                    "تعذر فتح نافذة حفظ PDF", Toast.LENGTH_LONG).show();
+                            Toast.makeText(MainActivity.this, "تعذر فتح مشاركة PDF", Toast.LENGTH_LONG).show();
                         }
                     });
                 } catch (Exception e) {
-                    reportPdfBusy = false;
                     runOnUiThread(() -> Toast.makeText(MainActivity.this,
-                            "تعذر إنشاء PDF: " + e.getMessage(), Toast.LENGTH_LONG).show());
+                            "تعذر تجهيز PDF: " + e.getMessage(), Toast.LENGTH_LONG).show());
+                } finally {
+                    reportPdfBusy = false;
                 }
-            }, "ta-pdf-report").start();
+            }, "ta-share-report-pdf").start();
         }
     }
 
@@ -785,33 +820,6 @@ public final class MainActivity extends FragmentActivity {
                 pendingFileChooser = null;
                 pendingItemPhotoCameraUri = null;
             }
-        } else if (requestCode == SAVE_REPORT_PDF) {
-            byte[] pdf = pendingReportPdf;
-            pendingReportPdf = null;
-            reportPdfBusy = false;
-            if (resultCode != Activity.RESULT_OK || data == null || data.getData() == null || pdf == null) return;
-            Uri uri = data.getData();
-            new Thread(() -> {
-                try (OutputStream output = getContentResolver().openOutputStream(uri, "w")) {
-                    if (output == null) throw new IOException("Cannot write PDF destination");
-                    output.write(pdf); output.flush();
-                    runOnUiThread(() -> {
-                        Toast.makeText(this, "تم حفظ التقرير بصيغة PDF", Toast.LENGTH_SHORT).show();
-                        Intent share = new Intent(Intent.ACTION_SEND);
-                        share.setType("application/pdf");
-                        share.putExtra(Intent.EXTRA_STREAM, uri);
-                        share.setClipData(ClipData.newUri(getContentResolver(), "PDF", uri));
-                        share.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                        try { startActivity(Intent.createChooser(share, "مشاركة تقرير PDF")); }
-                        catch (Exception e) {
-                            Toast.makeText(this, "تم الحفظ؛ يمكنك مشاركة PDF من الملفات", Toast.LENGTH_LONG).show();
-                        }
-                    });
-                } catch (Exception e) {
-                    runOnUiThread(() -> Toast.makeText(this,
-                            "تعذر حفظ PDF: " + e.getMessage(), Toast.LENGTH_LONG).show());
-                }
-            }, "ta-save-report").start();
         } else if (requestCode == SAVE_BACKUP) {
             String json = pendingBackupJson;
             pendingBackupJson = null;
@@ -827,6 +835,61 @@ public final class MainActivity extends FragmentActivity {
                     runOnUiThread(() -> Toast.makeText(this, "تعذر حفظ النسخة الاحتياطية", Toast.LENGTH_LONG).show());
                 }
             }).start();
+        }
+    }
+
+    // Notifications are posted only after a successful IndexedDB ledger commit.
+    // Tapping one returns to the corresponding authenticated in-app transaction.
+    private final class LedgerNotificationsBridge {
+        @JavascriptInterface public void show(String id, String title, String detail) {
+            if (!trustedLocalMainFrame || id == null || id.isEmpty()) return;
+            runOnUiThread(() -> postLedgerNotification(id,title,detail));
+        }
+        @JavascriptInterface public String consumePending() {
+            if (!trustedLocalMainFrame) return "";
+            String id = pendingAlertId;
+            pendingAlertId = null;
+            return id == null ? "" : id;
+        }
+    }
+
+    private void postLedgerNotification(String id, String title, String detail) {
+        if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(this,
+                Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            if (pendingAlerts.size() < 100) pendingAlerts.add(new String[]{id,title,detail});
+            if (!alertPermissionInFlight) {
+                alertPermissionInFlight = true;
+                requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},REQUEST_ALERT_PERMISSION);
+            }
+            return;
+        }
+        NotificationManager manager=(NotificationManager)getSystemService(Context.NOTIFICATION_SERVICE);
+        if(manager==null)return;
+        if(Build.VERSION.SDK_INT>=26) manager.createNotificationChannel(new NotificationChannel(
+                ALERT_CHANNEL,"إشعارات المحاسب التقني",NotificationManager.IMPORTANCE_DEFAULT));
+        Intent intent=new Intent(this,MainActivity.class);
+        intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP|Intent.FLAG_ACTIVITY_SINGLE_TOP);
+        intent.putExtra("ledger_alert_id",id);
+        PendingIntent tap=PendingIntent.getActivity(this,id.hashCode(),intent,
+                PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
+        Notification notification=new Notification.Builder(this,ALERT_CHANNEL)
+                .setSmallIcon(android.R.drawable.ic_dialog_info)
+                .setContentTitle(String.valueOf(title))
+                .setContentText(String.valueOf(detail))
+                .setStyle(new Notification.BigTextStyle().bigText(String.valueOf(detail)))
+                .setContentIntent(tap).setAutoCancel(true).build();
+        manager.notify(id.hashCode(),notification);
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        String id=intent==null?null:intent.getStringExtra("ledger_alert_id");
+        if (id != null && !id.isEmpty()) {
+            pendingAlertId=id;
+            if(webView!=null && trustedLocalMainFrame)webView.evaluateJavascript(
+                    "window.__nativeAlertTap && window.__nativeAlertTap("+JSONObject.quote(id)+");",null);
         }
     }
 
@@ -853,6 +916,7 @@ public final class MainActivity extends FragmentActivity {
         if (pendingFileChooser != null) pendingFileChooser.onReceiveValue(null);
         if (webView != null) {
             webView.removeJavascriptInterface("AndroidAutoBackup");
+            webView.removeJavascriptInterface("AndroidAlerts");
             webView.removeJavascriptInterface("NativeBarcode");
             webView.removeJavascriptInterface("NativeSecurity");
             webView.removeJavascriptInterface("Android");

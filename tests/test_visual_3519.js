@@ -8,7 +8,7 @@ const cut=(a,b)=>{let i=html.indexOf(a),j=html.indexOf(b,i+a.length);assert(i>=0
 const dashboard=cut('            renderDashboard(main) {','            renderItems(main, params = {}) {');
 assert(!dashboard.includes('مركز إدارة الأعمال'),'the top management-center hero is removed');
 assert(dashboard.includes('ta-action-grid')&&dashboard.includes('ta-module-grid'),'actions stay');
-assert(html.includes('grid grid-cols-6 h-16'),'six navigation items after settings moves to top bar');
+assert(html.includes('grid grid-cols-6 h-14'),'six compact navigation items after settings moves to top bar');
 const nav=html.slice(html.indexOf('<nav class="ta-bottom-nav'),html.indexOf('<!-- Global Modals Container -->'));
 assert(nav.includes('data-nav="reports"') && !nav.includes('data-nav="settings"'), 'Settings moved out of bottom dock');
 assert(!html.includes("backBtn.onclick = () => AppNav.navigate('settings')"),'no duplicate header setting');

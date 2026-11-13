@@ -89,6 +89,7 @@
     <script defer src="static/field-pair-manager.js"></script>
     <script defer src="static/field-cash.js"></script><script defer src="static/field-revisions.js"></script>
     <script defer src="static/manager-agent-hub.js"></script>
+    <script defer src="static/manager-notifications.js"></script>
     <style>
         * {
             font-family: system-ui, 'Noto Sans Arabic', sans-serif;
@@ -476,11 +477,12 @@
             border-top:1px solid #e1eaf1;
             box-shadow:0 -7px 24px rgba(13,40,64,.07);
             backdrop-filter:blur(14px);padding-bottom:env(safe-area-inset-bottom,0px);}
-        nav.ta-bottom-nav .nav-btn{position:relative;gap:4px;color:#72849a;
-            font-weight:750;border-radius:13px;margin:6px 2px;padding:5px 1px;
+        nav.ta-bottom-nav .nav-btn{position:relative;gap:2px;color:#72849a;
+            font-weight:750;border-radius:11px;margin:2px 1px;padding:2px 1px;
+            min-height:44px;line-height:1.15;
             transition:background .14s,color .14s;}
-        nav.ta-bottom-nav .nav-btn > i{width:32px;height:32px;display:inline-flex;
-            align-items:center;justify-content:center;border-radius:11px;font-size:18px !important;}
+        nav.ta-bottom-nav .nav-btn > i{width:28px;height:28px;display:inline-flex;
+            align-items:center;justify-content:center;border-radius:10px;font-size:16px !important;}
         nav.ta-bottom-nav .nav-btn > span{font-size:10px;font-weight:800;}
         nav.ta-bottom-nav .nav-btn.is-active{color:#0b8679 !important;
             background:#e9f7f4;}
@@ -589,7 +591,7 @@
             background:linear-gradient(180deg,rgba(255,255,255,.98),rgba(237,246,251,.98));
             border-top:1px solid #d0e0eb;box-shadow:0 -6px 24px rgba(13,53,76,.12),inset 0 1px #fff;
         }
-        body.ta-3d-v3524 nav.ta-bottom-nav .nav-btn{background:transparent;border:1px solid transparent;border-radius:14px;padding:6px 1px;}
+        body.ta-3d-v3524 nav.ta-bottom-nav .nav-btn{background:transparent;border:1px solid transparent;border-radius:12px;padding:2px 1px;}
         body.ta-3d-v3524 nav.ta-bottom-nav .nav-btn > i{
             border:1px solid rgba(255,255,255,.9);border-radius:11px;
             background:linear-gradient(150deg,#fff,#dfeaf2);color:#54748c;
@@ -805,9 +807,9 @@
         }}
         /* Six compact dock slots, Settings immediately beside Reports in RTL. */
         nav.ta-bottom-nav > div {display:grid;grid-template-columns:repeat(6,minmax(0,1fr));}
-        .ta-bottom-nav .nav-btn {margin:5px 1px;min-width:0;}
-        .ta-bottom-nav .nav-btn > i {width:29px;height:30px;font-size:16px !important;}
-        .ta-bottom-nav .nav-btn > span{font-size:9px;white-space:nowrap;}
+        .ta-bottom-nav .nav-btn {margin:2px 1px;min-width:0;}
+        .ta-bottom-nav .nav-btn > i {width:27px;height:27px;font-size:15px !important;}
+        .ta-bottom-nav .nav-btn > span{font-size:9px;line-height:1.2;white-space:nowrap;}
         #topAppBar.dashboard-header #headerTitleWrap {width:calc(100% - 120px);}
         @media(max-width:380px){#topAppBar.dashboard-header #headerTitleWrap{width:calc(100% - 110px);}}
         /* Materials: stock-only cards, list or grouped photo-grid. */
@@ -907,6 +909,15 @@
  color:#fff;box-shadow:0 3px 0 #064e63;font-size:19px;}
 #headerSettingsBtn.ta-header-settings-button.is-active {background:#ecfdf5;color:#065f46;border-color:#86efac;}
 #headerSettingsBtn.ta-header-settings-button:focus-visible {outline:3px solid #fde68a;outline-offset:2px;}
+.ta-header-notifications{position:relative;width:40px;height:40px;min-width:40px;border-radius:12px;background:#f8fafc;color:#0f766e;border:1px solid #99f6e4;box-shadow:0 3px 0 #0f766e55;font-size:18px;}
+.ta-header-notifications.is-active{background:#ccfbf1;color:#134e4a;}
+.ta-header-notifications:focus-visible{outline:3px solid #fde68a;outline-offset:2px;}
+.ta-alert-count{position:absolute;top:-7px;left:-7px;min-width:18px;height:18px;border-radius:10px;display:flex;align-items:center;justify-content:center;padding:0 4px;font-size:10px;font-weight:900;background:#e11d48;color:white;border:2px solid #0f172a;}
+.ta-alert-count[hidden]{display:none!important;}
+.ta-alert-item{border:1px solid #dbeafe;border-right:4px solid #0d9488;background:#fff;border-radius:14px;padding:13px;display:block;width:100%;text-align:right;}
+.ta-alert-item.unread{background:#f0fdfa;border-right-color:#0f766e;}
+.ta-alert-item.stock-alert{border-right-color:#f59e0b;background:#fffbeb;}
+
 /* Primary agent-management action, independent of generated Tailwind utility classes. */
 .ta-agent-hub-manage {background:linear-gradient(145deg,#1d4ed8,#1e40af)!important;color:#fff!important;
  border:1px solid #1e3a8a!important;box-shadow:0 4px 0 #172554,0 9px 18px #1e3a8a33!important;}
@@ -928,6 +939,9 @@
             <div class="flex items-center gap-2 min-w-0 flex-1">
                 <button id="headerSettingsBtn" type="button" onclick="AppNav.navigate('settings')" class="ta-header-settings-button shrink-0 flex items-center justify-center transition active:scale-95" title="الضبط" aria-label="فتح الضبط">
                     <i class="fas fa-sliders" aria-hidden="true"></i>
+                </button>
+                <button id="headerNotificationsBtn" type="button" onclick="AppNav.navigate('notifications')" class="ta-header-notifications shrink-0 flex items-center justify-center transition active:scale-95" title="الإشعارات" aria-label="فتح الإشعارات">
+                    <i class="fas fa-bell" aria-hidden="true"></i><span id="headerNotificationsCount" class="ta-alert-count" hidden>0</span>
                 </button>
                 <button id="headerBackBtn" onclick="AppNav.handleBackButton()" class="w-8 h-8 shrink-0 rounded-full flex items-center justify-center hover:bg-slate-800 active:bg-slate-700 transition" title="رجوع / خروج">
                     <i id="headerBackIcon" class="fas fa-arrow-right text-base"></i>
@@ -977,13 +991,13 @@
     </header>
 
     <!-- Main Dynamic Viewport -->
-    <main id="mainContent" class="ta-main flex-1 max-w-3xl w-full mx-auto p-3 pb-28 overflow-x-hidden">
+    <main id="mainContent" class="ta-main flex-1 max-w-3xl w-full mx-auto p-3 pb-20 overflow-x-hidden">
         <!-- Rendered dynamically by JavaScript -->
     </main>
 
     <!-- Bottom Taskbar / Navigation Bar (Intercepted by Unsaved Changes Guard) -->
     <nav class="ta-bottom-nav fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-30 shadow-[0_-2px_10px_rgba(0,0,0,0.05)]">
-        <div class="max-w-3xl mx-auto grid grid-cols-6 h-16">
+        <div class="max-w-3xl mx-auto grid grid-cols-6 h-14">
             <button onclick="AppNav.navigate('dashboard')" data-nav="dashboard" class="nav-btn flex flex-col items-center justify-center gap-1 text-emerald-600 font-bold transition">
                 <i class="fas fa-home text-lg"></i>
                 <span class="text-[11px]">الرئيسية</span>
@@ -1080,7 +1094,8 @@
             warehouses: [{ id: 'wh_main', name: 'المستودع الرئيسي' }],
             transfers: [],
             expenses: [],
-            fieldSync: {companyId:'',agents:[],imported:[],events:[]}
+            fieldSync: {companyId:'',agents:[],imported:[],events:[]},
+            alertCenter: { entries: [], seenImportIds: null, stockLevels: null }
         };
 
         // Immutable template for a newly created business ledger. The activation is device-wide.
@@ -1199,6 +1214,7 @@
                             }
                             State.transfers = Array.isArray(d.transfers) ? d.transfers : [];
                             State.expenses = Array.isArray(d.expenses) ? d.expenses : [];
+                            State.alertCenter = d.alertCenter || {entries:[],seenImportIds:null,stockLevels:null};
                             if (!State.warehouses.some(w => w.id === State.settings.selectedWarehouseId))
                                 State.settings.selectedWarehouseId = 'wh_main';
                         }
@@ -1234,7 +1250,8 @@
                             fieldSync: State.fieldSync,
                             warehouses: State.warehouses,
                             transfers: State.transfers,
-                            expenses: State.expenses
+                            expenses: State.expenses,
+                            alertCenter: State.alertCenter
                         }
                     });
                     if (ProfileManager.registry) {
@@ -1262,6 +1279,7 @@
                 State.warehouses = [{ id: 'wh_main', name: 'المستودع الرئيسي' }];
                 State.transfers = [];
                 State.expenses = [];
+                State.alertCenter = {entries:[],seenImportIds:null,stockLevels:null};
                 State.settings.selectedWarehouseId = 'wh_main';
                 await this.saveState();
             }
@@ -1405,7 +1423,7 @@
                         {id:'profile_registry',data:registry}
                     ]);
                     this.registry=registry;this.activeId=id;
-                    for(const key of ['settings','categories','items','accounts','invoices','vouchers','warehouses','transfers','expenses'])
+                    for(const key of ['settings','categories','items','accounts','invoices','vouchers','warehouses','transfers','expenses','fieldSync','alertCenter'])
                         State[key]=JSON.parse(JSON.stringify(newState[key]??DEFAULT_PROFILE[key]));
                     State.license=commonLicense;
                     AppNav.clearDirty();AppNav.clearModalDirty();UI.forceCloseModal();
@@ -1468,7 +1486,7 @@
                 await this.makeCheckpoint('before-import');
                 const license=State.license;
                 const fresh=this.newState(d.settings?.companyName||this.currentName());
-                for(const key of ['settings','categories','items','accounts','invoices','vouchers','warehouses','transfers','expenses'])
+                for(const key of ['settings','categories','items','accounts','invoices','vouchers','warehouses','transfers','expenses','fieldSync','alertCenter'])
                     State[key]=JSON.parse(JSON.stringify(d[key]??fresh[key]));
                 State.license=license; // Activation cannot be imported from another device/business.
                 await StorageEngine.saveState();
@@ -2281,7 +2299,7 @@
                     return;
                 }
 
-                if (['invoices_list','items','accounts','reports','settings'].includes(this.current().screen)) {
+                if (['invoices_list','items','accounts','reports','settings','notifications'].includes(this.current().screen)) {
                     this.stack = [{ screen: 'dashboard', params: {} }];
                     this.renderCurrent();
                 } else if (this.stack.length > 1) {
@@ -2334,6 +2352,9 @@
                     if (screen === 'settings') topSettings.setAttribute('aria-current','page');
                     else topSettings.removeAttribute('aria-current');
                 }
+                const alertBtn=document.getElementById('headerNotificationsBtn');
+                if(alertBtn){alertBtn.classList.toggle('is-active',screen==='notifications');}
+                if(typeof ManagerNotifications!=='undefined')ManagerNotifications.updateBadge();
                 document.querySelectorAll('.nav-btn').forEach(btn => {
                     const navTarget = btn.getAttribute('data-nav');
                     const isActive = (navTarget === screen) ||
@@ -3606,7 +3627,7 @@
                 const sale=tab==='sales_summary';
                 UI.openModal(`<div class="text-right space-y-3" dir="rtl" data-home-report-print>
                     <h3 class="font-black text-base">${sale?'تقرير المواد':'تقرير الديون'}</h3>
-                    <p class="text-xs text-slate-500">اختر تفاصيل التقرير، ثم اطبعه أو احفظه PDF لتشاركه مباشرة. من الصفحة الرئيسية فقط.</p>
+                    <p class="text-xs text-slate-500">اختر تفاصيل التقرير، ثم اطبعه أو شاركه PDF مباشرة دون حفظه على الهاتف.</p>
                     ${sale?`<label class="block text-xs font-bold">الفترة
                       <select id="homePrintPeriod" class="w-full p-2.5 border rounded-xl mt-1" onchange="document.getElementById('homePrintDates').hidden=!['custom','range'].includes(this.value)">
                       ${TimeFilter.options(TimeFilter.defaultMode())}</select></label>
@@ -3618,7 +3639,7 @@
                       `<label class="block text-xs font-bold">نوع الديون<select id="homePrintSide" class="w-full p-2.5 border rounded-xl mt-1"><option value="debit">لنا</option><option value="credit">علينا</option></select></label>`}
                     <div class="grid grid-cols-2 gap-2">
                       <button type="button" class="bg-emerald-700 text-white font-black rounded-xl p-3 text-xs" onclick="LedgerReports.confirmHomePrint('${tab}','print')"><i class="fas fa-print ml-1"></i>طباعة</button>
-                      <button type="button" class="bg-rose-600 text-white font-black rounded-xl p-3 text-xs" onclick="LedgerReports.confirmHomePrint('${tab}','pdf')"><i class="fas fa-file-pdf ml-1"></i>حفظ PDF</button>
+                      <button type="button" class="bg-rose-600 text-white font-black rounded-xl p-3 text-xs" onclick="LedgerReports.confirmHomePrint('${tab}','pdf')"><i class="fas fa-share-nodes ml-1"></i>مشاركة PDF</button>
                     </div>
                     <button type="button" class="w-full bg-slate-100 rounded-xl p-2" onclick="UI.forceCloseModal()">إلغاء</button>
                 </div>`);
@@ -3628,10 +3649,10 @@
                 const p=tab==='sales_summary'?{tab,period:val('homePrintPeriod')||TimeFilter.defaultMode(),date:val('homePrintDate')||TimeFilter.defaultStart(),
                   end:val('homePrintEnd')||TimeFilter.defaultEnd(),agentId:val('homePrintAgent')||'all'}:
                   {tab:'debts_summary',side:val('homePrintSide')||'debit'};
-                if(p.tab==='sales_summary' && p.period==='range' && p.date>p.end) return UI.toast('أدخل فترة صحيحة لحفظ التقرير','warn');
+                if(p.tab==='sales_summary' && p.period==='range' && p.date>p.end) return UI.toast('أدخل فترة صحيحة لمشاركة التقرير','warn');
                 this.params=p;
                 UI.forceCloseModal();
-                if(mode==='pdf') await this.savePdf(); else await this.print();
+                if(mode==='pdf') await this.sharePdf(); else await this.print();
             },
             reportContent(){
                 const p=this.params, sale=p.tab==='sales_summary';
@@ -3644,14 +3665,14 @@
                     companyName:State.settings.companyName||'',companyPhone:State.settings.companyPhone||'',
                     companyAddress:State.settings.companyAddress||'',createdAt:new Date().toISOString()};
             },
-            async savePdf(){
+            async sharePdf(){
                 const report=this.reportContent();
-                if(window.AndroidReports?.saveAndShareReport){
+                if(window.AndroidReports?.shareReport){
                     const name=(this.params.tab==='sales_summary'?'تقرير_المواد_':'تقرير_الديون_')+this.localDate()+'.pdf';
-                    window.AndroidReports.saveAndShareReport(JSON.stringify(report),name);
+                    window.AndroidReports.shareReport(JSON.stringify(report),name);
                     return true;
                 }
-                UI.toast('لحفظ PDF ومشاركته مباشرة، استخدم نسخة تطبيق Android المحدثة.','warn');
+                UI.toast('المشاركة المباشرة تتطلب تحديث تطبيق Android.','warn');
                 return false;
             },
             async print(){
@@ -3688,6 +3709,7 @@
                     case 'agent_hub': case 'agent_detail': case 'agent_activity': return AgentHub.render(main, params);
                     case 'reports': return this.renderReports(main, params);
                     case 'settings': return this.renderSettings(main);
+                    case 'notifications': return ManagerNotifications.render(main);
                     default: return this.renderDashboard(main);
                 }
             },
@@ -3774,8 +3796,8 @@
                         <section aria-label="تقارير الطباعة" data-feature="print-reports-3523">
                             <div class="ta-section-head"><span class="ta-section-mark"></span><div><h3>تقارير للطباعة الحرارية</h3><p>مبيعات الأصناف والديون بشكل مباشر</p></div></div>
                             <div class="grid grid-cols-2 gap-2.5 mb-4">
-                                <button type="button" onclick="LedgerReports.openHomePrint('sales_summary')" class="invoice-report-action min-h-[74px] flex flex-col items-center justify-center gap-1 shadow-md" aria-label="تقرير المواد: طباعة أو حفظ PDF"><i class="fas fa-chart-bar text-lg"></i><span class="text-xs font-black">تقرير المواد</span><span class="text-[10px]">طباعة أو حفظ PDF</span></button>
-                                <button type="button" onclick="LedgerReports.openHomePrint('debts_summary')" class="invoice-report-action min-h-[74px] flex flex-col items-center justify-center gap-1 shadow-md" aria-label="طباعة تقرير الديون لنا أو علينا"><i class="fas fa-print text-lg"></i><span class="text-xs font-black">تقرير الديون</span><span class="text-[10px]">طباعة أو حفظ PDF</span></button>
+                                <button type="button" onclick="LedgerReports.openHomePrint('sales_summary')" class="invoice-report-action min-h-[74px] flex flex-col items-center justify-center gap-1 shadow-md" aria-label="تقرير المواد: طباعة أو مشاركة PDF"><i class="fas fa-chart-bar text-lg"></i><span class="text-xs font-black">تقرير المواد</span><span class="text-[10px]">طباعة أو مشاركة PDF</span></button>
+                                <button type="button" onclick="LedgerReports.openHomePrint('debts_summary')" class="invoice-report-action min-h-[74px] flex flex-col items-center justify-center gap-1 shadow-md" aria-label="طباعة تقرير الديون لنا أو علينا"><i class="fas fa-print text-lg"></i><span class="text-xs font-black">تقرير الديون</span><span class="text-[10px]">طباعة أو مشاركة PDF</span></button>
                             </div>
                         </section>
 
@@ -8816,6 +8838,8 @@
                 history.replaceState({ appGuard: true, depth: 1 }, '');
                 history.pushState({ appGuard: true, depth: 1 }, '');
             } catch (e) {}
+            // Establish the initial notification checkpoint before any new LAN import.
+            ManagerNotifications.bootstrap();
             // Automatic, persistent LAN receiver: does not require opening the agents screen.
             await FieldSync.bootAutoReceiver();
             BackupController.stageLatest(); // Stage existing IndexedDB data after first launch.
