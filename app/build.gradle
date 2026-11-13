@@ -10,8 +10,8 @@ android {
         applicationId 'com.sunshine.technicalaccountant'
         minSdk 26
         targetSdk 35
-        versionCode 34
-        versionName '3.5.27-field-parity'
+        versionCode 35
+        versionName '3.5.28-lan-one-tap'
     }
 
     // A permanent signing key is required for in-place updates. The keystore is

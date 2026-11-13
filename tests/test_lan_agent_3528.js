@@ -1,0 +1,47 @@
+'use strict';
+const assert=require('node:assert/strict');
+const fs=require('node:fs'),vm=require('node:vm'),crypto=require('node:crypto');
+const FieldProtocol=require('../app/src/main/assets/www/static/field-protocol.js');
+const FieldLanCrypto=require('../app/src/main/assets/www/static/field-lan-crypto.js');
+const key=FieldProtocol.b64u(crypto.randomBytes(32));
+const companyId='company_1234567890',agentId='agent_1234567890';
+const vmScope={FieldProtocol,FieldLanCrypto,crypto:crypto.webcrypto,TextEncoder,TextDecoder,atob,btoa,
+  console,document:{getElementById:()=>null},setTimeout,clearTimeout,
+  window:{AndroidLocalSync:{send:(company,packet)=>{vmScope.sent={company,packet};}}}};
+vm.createContext(vmScope);
+vm.runInContext(fs.readFileSync('field_agent/src/main/assets/www/static/agent.js','utf8')+'\nglobalThis.AgentUnderTest=Agent;',vmScope);
+const agent=vmScope.AgentUnderTest;
+const op={id:'op_12345678901',kind:'receipt',companyId,agentId,warehouseId:'wh_car_1',date:'2026-11-13T09:00:00Z',currency:'USD',exchangeRate:15000,accountId:'c1',amount:3};
+agent.state={companyId,agentId,key,warehouseId:'wh_car_1',companyName:'Company',agentName:'Rep',vehicleName:'Van',items:[],categories:[],accounts:[],ops:[op],knownIds:[],snapshotIds:[],stock:{},exchangeRate:15000};
+agent.show=async()=>{};agent.toast=()=>{};agent.syncPaint=()=>{};agent.active=async()=>true;
+agent.save=async()=>{};
+(async()=>{
+ await agent.syncOneTap();
+ assert(agent.lanSyncBusy);
+ assert.equal(vmScope.sent.company,companyId);
+ const payload=await FieldLanCrypto.open(JSON.parse(vmScope.sent.packet),key,companyId,agentId);
+ assert.equal(payload.kind,'operations');
+ assert.equal(payload.operations.length,1);
+ assert(payload.nonce);
+ let count=0;
+ const catalog={kind:'provision',companyId,agentId,key,companyName:'Company+',agentName:'Rep',vehicleName:'Van',warehouseId:'wh_car_1',items:[],accounts:[],categories:[],stock:{},knownIds:[op.id],exchangeRate:15000};
+ const ack={kind:'sync_result',companyId,agentId,knownIds:[op.id],catalog,requestNonce:payload.nonce};
+ const frame=await FieldLanCrypto.pack(ack,key,companyId,agentId);
+ agent.save=async()=>{count++};
+ await agent.onLocalSyncResult(JSON.stringify({data:JSON.stringify(frame)}));
+ assert.equal(count,1);assert.equal(agent.pending.length,0);
+ assert.equal(agent.state.companyName,'Company+');assert(agent.lanSyncMessage.includes('تمت'));
+ agent.state.knownIds=[];
+ await agent.syncOneTap();
+ const payload2=await FieldLanCrypto.open(JSON.parse(vmScope.sent.packet),key,companyId,agentId);
+ const replay=await FieldLanCrypto.pack(ack,key,companyId,agentId);
+ await agent.onLocalSyncResult(JSON.stringify({data:JSON.stringify(replay)}));
+ assert.equal(agent.pending.length,1,'ACK from previous request must be rejected');
+ agent.save=async()=>{throw Error('disk full')};
+ await agent.syncOneTap();
+ const payload3=await FieldLanCrypto.open(JSON.parse(vmScope.sent.packet),key,companyId,agentId);
+ const ack3=await FieldLanCrypto.pack({...ack,requestNonce:payload3.nonce},key,companyId,agentId);
+ await agent.onLocalSyncResult(JSON.stringify({data:JSON.stringify(ack3)}));
+ assert.equal(agent.pending.length,1,'failed local commit must leave items unsynced');
+ console.log('PASS: one-click encrypted export, replayed-ACK rejection, local saving, and no false sync status on disk failure.');
+})().catch(e=>{console.error(e);process.exitCode=1});

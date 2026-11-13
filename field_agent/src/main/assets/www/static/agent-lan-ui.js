@@ -1,0 +1,7 @@
+/* One-tap LAN sync button on the active field-agent UI. */
+(function(){
+ const original=Agent.renderSync.bind(Agent);
+ Agent.renderSync=function(){const html=original();return `<section class="panel" style="background:#e7fbf6;border:1px solid #a6e0d4"><h3>⇄ مزامنة مباشرة بضغطة واحدة</h3><p class="tiny">افتح المحاسب التقني الرئيسي على هاتف متصل بنفس شبكة Wi-Fi، ثم افتح «مندوبو التوزيع». لا تحتاج إلى ملفات أو اختيار يدوي.</p><button type="button" id="agentLanSyncButton" class="primary" onclick="Agent.syncOneTap()" ${this.lanSyncBusy?'disabled':''}>${this.lanSyncBusy?'جارٍ المزامنة…':'⇄ مزامنة الآن — Wi-Fi محلي'}</button><p class="tiny" id="agentLanStatus">${this.escape(this.lanSyncMessage||'جاهز للمزامنة. ستُرسل العمليات غير المستلمة ويُحدّث رصيد السيارة والأسعار.')}</p></section>`+html;};
+ const originalHome=Agent.renderHome.bind(Agent);
+ Agent.renderHome=function(){const html=originalHome();return `<section class="panel" style="background:#e7fbf6;border:1px solid #a6e0d4"><h3>مزامنة المندوب مع الإدارة</h3><p class="tiny">اتصل بالشبكة نفسها، وافتح شاشة المندوبين في التطبيق الرئيسي.</p><button class="primary" id="agentLanSyncButton" onclick="Agent.syncOneTap()" ${this.lanSyncBusy?'disabled':''}>${this.lanSyncBusy?'جارٍ المزامنة…':'⇄ مزامنة الآن بضغطة واحدة'}</button><p class="tiny" id="agentLanStatus">${this.escape(this.lanSyncMessage||'دون ملفات، مع تأكيد استلام وحماية من التكرار')}</p></section>`+html;};
+})();

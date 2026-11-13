@@ -67,6 +67,7 @@ public final class MainActivity extends FragmentActivity {
     private static final int REQUEST_ITEM_CAMERA = 2404;
     private WebView webView;
     private NativeBluetoothPrinter bluetoothPrinter;
+    private NativeLocalSync nativeLocalSync;
     private BiometricPrompt biometricPrompt;
     private ValueCallback<Uri[]> pendingFileChooser;
     private Uri pendingItemPhotoCameraUri;
@@ -271,6 +272,8 @@ public final class MainActivity extends FragmentActivity {
         webView.addJavascriptInterface(new AutoBackupBridge(), "AndroidAutoBackup");
         bluetoothPrinter = new NativeBluetoothPrinter(this, webView);
         webView.addJavascriptInterface(bluetoothPrinter, "AndroidPrinter");
+        nativeLocalSync = new NativeLocalSync(this, webView, true);
+        webView.addJavascriptInterface(nativeLocalSync, "AndroidLocalSync");
 
         biometricPrompt = new BiometricPrompt(this, new BiometricPrompt.AuthenticationCallback() {
             @Override
@@ -713,6 +716,7 @@ public final class MainActivity extends FragmentActivity {
             pendingWebCameraPermission.deny();
             pendingWebCameraPermission = null;
         }
+        if (nativeLocalSync != null) nativeLocalSync.destroy();
         if (bluetoothPrinter != null) bluetoothPrinter.destroy();
         if (pendingFileChooser != null) pendingFileChooser.onReceiveValue(null);
         if (webView != null) {
@@ -722,6 +726,7 @@ public final class MainActivity extends FragmentActivity {
             webView.removeJavascriptInterface("Android");
             webView.removeJavascriptInterface("AndroidFiles");
             webView.removeJavascriptInterface("AndroidPrinter");
+            webView.removeJavascriptInterface("AndroidLocalSync");
             webView.destroy();
             webView = null;
         }

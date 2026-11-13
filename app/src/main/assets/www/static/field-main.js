@@ -1,7 +1,7 @@
 /* Manager-side field dispatch. Import is previewed, validated, deduplicated and
  * committed only after explicit approval. Never merges a whole remote database. */
 const FieldSync = {
-  busy:false, staged:null,
+  busy:false, staged:null, lanListening:false, lanBusy:false,
   data(){
     if(!State.fieldSync || typeof State.fieldSync!=='object') State.fieldSync={companyId:'',agents:[],imported:[],events:[]};
     const x=State.fieldSync;
@@ -22,8 +22,14 @@ const FieldSync = {
     const config=this.data(), opts=State.warehouses.map(w=>`<option value="${this.escape(w.id)}">${this.escape(w.name)}</option>`).join('');
     UI.openModal(`<div class="ta-field-panel space-y-3 text-right" dir="rtl">
       <h3 class="text-lg font-black text-slate-900"><i class="fas fa-truck ml-1 text-teal-700"></i> إدارة المندوبين والمزامنة المحلية</h3>
-      <p class="text-xs text-slate-500">الإصدار التجريبي: نقل ملفات آمنة بين الهاتفين عبر Quick Share أو البلوتوث أو ملفات الهاتف، دون خادم أو إنترنت. لا تُرسل قاعدة البيانات كاملة.</p>
+      <p class="text-xs text-slate-500">المزامنة المباشرة تعمل عبر Wi-Fi محلي دون إنترنت. افتح هذه الشاشة عندما يضغط المندوب على «مزامنة الآن». وتبقى الملفات طريقة احتياطية.</p>
       <div class="rounded-xl border bg-slate-50 p-3 text-xs"><b>الشركة:</b> ${this.escape(State.settings.companyName)}<br/><b>المعرّف:</b> <span class="text-[10px]" dir="ltr">${config.companyId}</span></div>
+      <div class="rounded-2xl border p-3 space-y-2 bg-teal-50" data-lan-manager="1">
+        <b class="text-sm">📡 استقبال المزامنة بضغطة واحدة</b>
+        <p class="text-xs">وصّل الهاتفين بالشبكة المحلية نفسها، واترك التطبيق الرئيسي مفتوحًا. يستقبل هذا الهاتف عمليات المندوب المشفرة، ويتحقق منها ويرحّلها دون اختيار أي ملف.</p>
+        <div id="fieldLanStatus" class="text-xs font-bold text-teal-900">جارٍ تشغيل الاستقبال…</div>
+        <button type="button" class="ta-primary-3d w-full p-3 rounded-xl font-bold" onclick="FieldSync.startLanReceiver()">تشغيل / إعادة محاولة الاستقبال</button>
+      </div>
       <div class="rounded-2xl border p-3 space-y-2 bg-white">
         <b class="text-sm">تسجيل سيارة / مندوب</b>
         <input id="fieldNewAgent" class="w-full border rounded-xl p-3" placeholder="اسم المندوب" maxlength="70"/>
@@ -55,6 +61,7 @@ const FieldSync = {
       </div>
       <button type="button" onclick="UI.forceCloseModal()" class="w-full rounded-xl bg-slate-100 p-3 font-bold">إغلاق</button>
     </div>`);
+    if(window.AndroidLocalSync) this.startLanReceiver(true);
   },
   async addAgent(){
     const name=document.getElementById('fieldNewAgent')?.value.trim(), vehicleName=document.getElementById('fieldNewVehicle')?.value.trim();
@@ -173,6 +180,75 @@ const FieldSync = {
         <button type="button" onclick="FieldSync.open()" class="bg-slate-100 p-3 w-full rounded-xl">رجوع</button></div>`);
     }catch(e){UI.toast('تعذر إصدار الترخيص: '+e.message,'error');}
   },
+  startLanReceiver(silent=false){
+    const status=document.getElementById('fieldLanStatus');
+    if(!window.AndroidLocalSync?.startReceiver){if(status)status.textContent='الاتصال المباشر يحتاج نسخة APK محدثة؛ استعمل ملفات التبادل مؤقتًا.';return;}
+    try {
+      const result=window.AndroidLocalSync.startReceiver(this.data().companyId);
+      if(status)status.textContent=result==='already'?'✅ جاهز لاستقبال المندوب على Wi-Fi':'جارٍ تشغيل الاستقبال على Wi-Fi…';
+    }catch(e){if(status)status.textContent='تعذر فتح الاستقبال: '+e.message;if(!silent)UI.toast('تعذر تشغيل Wi-Fi المحلي','warn');}
+  },
+  onLanStatus(status){
+    const label=document.getElementById('fieldLanStatus');
+    if(label)label.textContent=status==='ready'?'✅ الاستقبال جاهز — يمكن للمندوب الضغط على «مزامنة الآن»':status==='stopped'?'الاستقبال متوقف':String(status);
+  },
+  // Called only by Android's own local network bridge. No unverified document touches the ledger.
+  async receiveLanPacket(requestId, raw){
+    let answer={error:'لم يتم ترحيل العمليات؛ أعد المحاولة'},agent=null;
+    try {
+      if(this.busy||this.lanBusy)throw Error('التطبيق الرئيسي مشغول بعملية أخرى');
+      this.lanBusy=true;
+      const packet=JSON.parse(raw), config=this.data();
+      if(packet.companyId!==config.companyId)throw Error('الشركة غير مطابقة');
+      agent=config.agents.find(a=>a.id===packet.agentId&&!a.disabled&&!a.archived);
+      if(!agent)throw Error('المندوب غير مسجل أو موقوف');
+      const payload=await FieldLanCrypto.open(packet,agent.key,config.companyId,agent.id);
+      if(payload.kind!=='operations'||payload.companyId!==config.companyId||payload.agentId!==agent.id||payload.warehouseId!==agent.warehouseId||typeof payload.nonce!=='string'||!/^[a-zA-Z0-9_-]{8,90}$/.test(payload.nonce))throw Error('بيانات المندوب غير مطابقة');
+      const all=FieldProtocol.validateOps(payload.operations,agent.id,config.companyId,agent.warehouseId,State.items,State.accounts);
+      const known=new Set(config.imported.map(x=>x.id));
+      const fresh=all.filter(x=>!known.has(x.id));
+      const count=await this.commitLanOperations(agent,fresh);
+      // Response generated only after the app database reports successful commit.
+      const snapshot=this.catalog(agent);
+      const ack={kind:'sync_result',companyId:config.companyId,agentId:agent.id,accepted:count,
+        knownIds:config.imported.filter(x=>x.agentId===agent.id).map(x=>x.id),catalog:snapshot,requestNonce:payload.nonce,serverAt:new Date().toISOString()};
+      answer=await FieldLanCrypto.pack(ack,agent.key,config.companyId,agent.id);
+      if(count)UI.toast('تم ترحيل '+count+' عملية من '+agent.name,'success');
+      const st=document.getElementById('fieldLanStatus');if(st)st.textContent='✅ آخر استقبال: '+count+' عملية من '+agent.name;
+    }catch(e){answer={error:'تعذر ترحيل البيانات: '+e.message};
+      const st=document.getElementById('fieldLanStatus');if(st)st.textContent=answer.error;
+    }finally{
+      this.lanBusy=false;
+      window.AndroidLocalSync?.reply(String(requestId),JSON.stringify(answer));
+    }
+  },
+  async commitLanOperations(agent,ops){
+    if(!ops.length)return 0;
+    const config=this.data(),old={invoices:State.invoices,vouchers:State.vouchers,imported:config.imported,events:config.events,used:State.license.opsUsedCount};
+    const existing=new Set(config.imported.map(x=>x.id));
+    const fresh=ops.filter(x=>!existing.has(x.id));
+    if(!fresh.length)return 0;
+    if(!State.license.isActivated&&Number(State.license.opsUsedCount||0)+fresh.length>LicenseManager.MAX_TRIAL_OPS)throw Error('تجاوز الحد التجريبي للتطبيق الرئيسي');
+    // Every row is validated before modifying the ledger, and a save failure rolls back every in-memory change.
+    const deltas={};
+    for(const op of fresh){if(!['sale','sale_return'].includes(op.kind))continue;
+      for(const row of op.rows)deltas[row.itemId]=(deltas[row.itemId]||0)+(op.kind==='sale_return'?1:-1)*row.qty/row.unitFactor;
+    }
+    if(!State.settings.allowNegativeStockSales)for(const [id,delta] of Object.entries(deltas)){
+      if(Accounting.getItemBaseStock(id,null,agent.warehouseId)+delta< -0.0001)throw Error('مخزون السيارة لا يكفي: '+(State.items.find(x=>x.id===id)?.name||id));
+    }
+    try {
+      const ni=Math.max(0,...State.invoices.map(x=>Number(x.number)||0));
+      const nv=Math.max(0,...State.vouchers.map(x=>Number(x.number)||0));
+      const docs=FieldProtocol.toLedgerDocuments(fresh,agent,ni,nv);
+      State.invoices=[...old.invoices,...docs.invoices];State.vouchers=[...old.vouchers,...docs.vouchers];
+      config.imported=[...old.imported,...fresh.map(x=>({id:x.id,agentId:agent.id,receivedAt:new Date().toISOString(),kind:x.kind}))];
+      config.events=[...old.events,{id:FieldProtocol.uuid(),agentId:agent.id,at:new Date().toISOString(),count:fresh.length,mode:'wifi'}].slice(-3000);
+      if(!State.license.isActivated)State.license.opsUsedCount+=fresh.length;
+      await StorageEngine.saveState();
+      return fresh.length;
+    }catch(e){State.invoices=old.invoices;State.vouchers=old.vouchers;config.imported=old.imported;config.events=old.events;State.license.opsUsedCount=old.used;throw e;}
+  },
   async previewFile(input){
     const file=input.files?.[0];if(!file)return;
     try {
@@ -207,7 +283,7 @@ const FieldSync = {
     finally{input.value='';}
   },
   async confirmImport(){
-    if(this.busy||!this.staged?.ops?.length)return;
+    if(this.busy||this.lanBusy||!this.staged?.ops?.length)return;
     this.busy=true;
     const {agent,ops}=this.staged,c=this.data();
     const old={invoices:State.invoices,vouchers:State.vouchers,imported:c.imported,events:c.events,opsUsedCount:State.license.opsUsedCount};
