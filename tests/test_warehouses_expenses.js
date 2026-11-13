@@ -18,7 +18,7 @@ const context = {
   },
   document: {getElementById:(id)=>({value:inputs[id]??'',textContent:'',focus:()=>{}})},
   StorageEngine:{saveState:async()=>{}},
-  LicenseManager:{canPerformOperation:()=>true,recordNewOperation:async()=>{}},
+  LicenseManager:{canPerformOperation:()=>true,getRemainingTrialOps:()=>100,getTotalOpsUsed:()=>State.license.opsUsedCount||0,updateBadgeUI:()=>{},recordNewOperation:async()=>{}},
   AppNav:{renderCurrent:()=>{},navigate:()=>{},clearDirty:()=>{},enableOperationGuard:()=>{},markDirty:()=>{}},
 };
 context.globalThis=context;
@@ -39,7 +39,9 @@ const almost=(a,b)=>assert.ok(Math.abs(a-b)<0.00001,`Expected ${a} ≈ ${b}`);
 almost(Accounting.getItemBaseStock('item1'),10);
 almost(Accounting.getItemBaseStock('item1',null,'wh_main'),10);
 almost(Accounting.getItemBaseStock('item1',null,'wh_other'),0);
-setInputs({transferFrom:'wh_main',transferTo:'wh_other',transferItem:'item1',transferQty:'4',transferDate:'2026-11-11',transferNote:'test'});
+setInputs({transferFrom:'wh_main',transferTo:'wh_other',transferDate:'2026-11-11',transferNote:'test'});
+WarehouseController.toggleTransferItem('item1');
+WarehouseController.updateTransferDraftQty('item1','4');
 await WarehouseController.saveTransfer();
 assert.equal(State.transfers.length,1);
 almost(Accounting.getItemBaseStock('item1'),10);
@@ -47,7 +49,10 @@ almost(Accounting.getItemBaseStock('item1',null,'wh_main'),6);
 almost(Accounting.getItemBaseStock('item1',null,'wh_other'),4);
 // One carton contains twelve pieces; moving 12 pieces must shift exactly one carton.
 item.units.push({name:'piece',factor:12,costPrice:0.25,salePrice:0.5});
-setInputs({transferFrom:'wh_other',transferTo:'wh_main',transferItem:'item1',transferUnit:'12',transferQty:'12',transferDate:'2026-11-11'});
+setInputs({transferFrom:'wh_other',transferTo:'wh_main',transferDate:'2026-11-11'});
+WarehouseController.toggleTransferItem('item1');
+WarehouseController.updateTransferDraftUnit('item1','12');
+WarehouseController.updateTransferDraftQty('item1','12');
 await WarehouseController.saveTransfer();
 assert.equal(State.transfers.length,2);
 almost(Accounting.getItemBaseStock('item1',null,'wh_main'),7);
@@ -60,7 +65,9 @@ almost(Accounting.getItemBaseStock('item1',null,'wh_other'),3);
 State.invoices.push({id:'new1',type:'purchase',warehouseId:'wh_other',date:'2026-11-11',currency:'USD',paidAmount:0,netTotal:15,rows:[{itemId:'item1',qty:5,unitFactor:1,price:3,total:15}]});
 almost(Accounting.getItemBaseStock('item1',null,'wh_other'),8);
 almost(Accounting.getItemBaseStock('item1'),13);
-setInputs({transferFrom:'wh_main',transferTo:'wh_other',transferItem:'item1',transferQty:'99',transferDate:'2026-11-11'});
+setInputs({transferFrom:'wh_main',transferTo:'wh_other',transferDate:'2026-11-11'});
+WarehouseController.toggleTransferItem('item1');
+WarehouseController.updateTransferDraftQty('item1','99');
 await WarehouseController.saveTransfer();
 assert.equal(State.transfers.length,2,'insufficient warehouse inventory must reject');
 setInputs({expenseId:'',expenseAmount:'15000',expenseCurrency:'SYP',expenseCategory:'نقل ومحروقات',expenseDate:'2026-11-11',expenseRate:'15000',expenseNote:'Transport'});
@@ -83,7 +90,10 @@ Views.renderReports(main,{tab:'inventory',warehouseId:'wh_other'});
 assert.ok(main.innerHTML.includes('عرض جرد مستودع'));
 assert.ok(main.innerHTML.includes('8 box'), 'secondary warehouse balance must show 8 boxes');
 Views.renderWarehouses(main);
-assert.ok(main.innerHTML.includes('مناقلة مادة بين مستودعين'));
+assert.ok(main.innerHTML.includes('مناقلة أصناف بين المستودعات'));
+assert.ok(main.innerHTML.includes('transferSearchInput'));
+assert.ok(main.innerHTML.includes('transferCategory'));
+assert.ok(main.innerHTML.includes('transferGrid'));
 Views.renderExpenses(main);
 assert.ok(main.innerHTML.includes('سجل المصاريف'));
 // Invoice warehouse chooser and stock consumption must be scoped to chosen warehouse.

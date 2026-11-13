@@ -1,6 +1,42 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
+<style id="ta-transfer-grid-3526">
+#warehouseTransferPanel{background:linear-gradient(155deg,#ffffff,#f1f7fb);border:1px solid #cbddeb;box-shadow:0 6px 0 #cbdbe6,0 14px 25px #0c344b14;}
+#warehouseTransferPanel .ta-transfer-title{font-size:15px;font-weight:900;color:#10324b;margin:0 0 5px;}
+#warehouseTransferPanel .ta-transfer-subtitle{font-size:11px;color:#627d90;margin:0 0 13px;line-height:1.75;}
+#warehouseTransferPanel .ta-transfer-filter{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,.85fr);gap:8px;margin:11px 0;}
+#warehouseTransferPanel .ta-transfer-filter input,#warehouseTransferPanel .ta-transfer-filter select{min-height:44px;background:white;border:1px solid #bfcede;border-radius:12px;padding:9px 10px;width:100%;min-width:0;color:#17354b;font-size:12px;}
+#warehouseTransferPanel .ta-transfer-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;max-height:300px;overflow-y:auto;padding:3px 2px 9px;scrollbar-width:thin;}
+#warehouseTransferPanel .ta-transfer-card{display:flex;flex-direction:column;align-items:stretch;text-align:right;gap:6px;position:relative;min-height:104px;padding:10px;border:1px solid #d3e1ec;border-radius:16px;background:linear-gradient(155deg,#fff,#eaf2f8);box-shadow:0 4px 0 #c7d9e4,0 9px 14px #0a365714;color:#183950;cursor:pointer;overflow:hidden;}
+#warehouseTransferPanel .ta-transfer-card[hidden]{display:none!important;}
+#warehouseTransferPanel .ta-transfer-card:active{transform:translateY(2px);box-shadow:0 2px 0 #c7d9e4;}
+#warehouseTransferPanel .ta-transfer-card.is-selected{border:2px solid #087f73;background:linear-gradient(145deg,#e5fcf5,#bdf4e8);box-shadow:0 4px 0 #4da99e,0 11px 17px #0b8a7620;}
+#warehouseTransferPanel .ta-transfer-card .ta-transfer-icon{width:30px;height:30px;border-radius:10px;display:grid;place-items:center;background:linear-gradient(145deg,#d6f5ff,#7fc6db);box-shadow:inset 0 2px 0 #ffffffb5,0 3px 0 #5599b2;color:#07537e;font-size:14px;}
+#warehouseTransferPanel .ta-transfer-card.is-selected .ta-transfer-icon{background:linear-gradient(145deg,#9ff6dc,#31bba2);box-shadow:0 3px 0 #248e82;color:#0b5f56;}
+#warehouseTransferPanel .ta-transfer-card strong{font-size:12px;line-height:1.45;word-break:break-word;}
+#warehouseTransferPanel .ta-transfer-card small{font-size:10px;color:#567182;line-height:1.5;}
+#warehouseTransferPanel .ta-transfer-card .ta-transfer-check{position:absolute;top:9px;left:9px;border-radius:50%;width:23px;height:23px;display:grid;place-items:center;background:#e5edf3;color:#6c8191;font-size:12px;}
+#warehouseTransferPanel .ta-transfer-card.is-selected .ta-transfer-check{background:#087e70;color:white;}
+#warehouseTransferPanel .ta-transfer-card.is-unavailable:not(.is-selected){opacity:.6;}
+#warehouseTransferPanel .ta-transfer-drafts{display:flex;flex-direction:column;gap:8px;margin:8px 0;}
+#warehouseTransferPanel .ta-transfer-draft{padding:11px 10px;border:1px solid #bbd9e5;border-right:4px solid #0b9b93;border-radius:13px;background:#f5fbff;box-shadow:0 3px 7px #1843650b;}
+#warehouseTransferPanel .ta-transfer-draft-head{display:flex;justify-content:space-between;gap:7px;align-items:center;margin-bottom:7px;}
+#warehouseTransferPanel .ta-transfer-draft-head strong{font-size:12px;color:#15374e;}
+#warehouseTransferPanel .ta-transfer-draft-remove{border:1px solid #fecdd3;border-radius:8px;background:#fff1f2;color:#aa1d35;font-size:12px;padding:5px 8px;min-width:34px;}
+#warehouseTransferPanel .ta-transfer-draft-fields{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+#warehouseTransferPanel .ta-transfer-draft-fields label{display:block;font-size:10px;color:#365b70;font-weight:800;}
+#warehouseTransferPanel .ta-transfer-draft-fields input,#warehouseTransferPanel .ta-transfer-draft-fields select{width:100%;min-width:0;background:white;border:1px solid #c3d6e2;border-radius:10px;min-height:39px;padding:7px;color:#163f56;font-size:12px;margin-top:4px;}
+#warehouseTransferPanel .ta-transfer-row-stock{font-size:10px;color:#24677e;margin-top:7px;}
+#warehouseTransferPanel .ta-transfer-empty.hidden{display:none!important;}
+#warehouseTransferPanel .ta-transfer-empty{border:1px dashed #bed1de;border-radius:13px;background:#f8fbff;text-align:center;padding:15px;color:#667f90;font-size:12px;line-height:1.7;}
+#warehouseTransferPanel #transferSaveButton{display:flex!important;gap:10px;justify-content:center;align-items:center;width:100%;padding:14px 9px!important;min-height:54px!important;border-radius:15px!important;background:linear-gradient(145deg,#10bda9 0%,#068d83 56%,#086574 100%)!important;background-color:#07877d!important;color:white!important;-webkit-text-fill-color:white!important;border:1px solid #056c67!important;box-shadow:inset 0 2px 0 #ffffff56,0 5px 0 #075b60,0 13px 18px #063c4a38!important;font-size:14px;font-weight:900;}
+#warehouseTransferPanel #transferSaveButton:disabled{opacity:.55!important;cursor:not-allowed;filter:grayscale(.25);}
+#warehouseTransferPanel #transferSaveButton:not(:disabled):active{transform:translateY(3px);box-shadow:0 2px 0 #075b60!important;}
+#warehouseTransferPanel #transferSaveButton:focus-visible,#warehouseTransferPanel .ta-transfer-card:focus-visible{outline:3px solid #e9a330;outline-offset:2px;}
+@media(max-width:350px){#warehouseTransferPanel .ta-transfer-filter{grid-template-columns:1fr;}#warehouseTransferPanel .ta-transfer-draft-fields{gap:5px;}}
+</style>
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="theme-color" content="#0b1d31">
@@ -3689,7 +3725,7 @@
                         <button type="button" onclick="Views.jumpToEntry('warehouseCreatePanel','newWarehouseName')" class="ta-solid-action ta-action-warehouse flex items-center justify-center gap-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-extrabold text-xs px-2 py-3 shadow-sm active:scale-95">
                             <i class="fas fa-plus text-sm"></i><span>إضافة مستودع</span>
                         </button>
-                        <button type="button" onclick="Views.jumpToEntry('warehouseTransferPanel','transferItem')" class="ta-solid-action ta-action-transfer flex items-center justify-center gap-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-extrabold text-xs px-2 py-3 shadow-sm active:scale-95">
+                        <button type="button" onclick="Views.jumpToEntry('warehouseTransferPanel','transferSearchInput')" class="ta-solid-action ta-action-transfer flex items-center justify-center gap-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-extrabold text-xs px-2 py-3 shadow-sm active:scale-95">
                             <i class="fas fa-boxes-stacked text-sm"></i><span>مناقلة مواد</span>
                         </button>
                     </div>
@@ -3715,28 +3751,41 @@
                                 </div>`).join('')}
                         </div>
                     </div>
-                    <div id="warehouseTransferPanel" class="rounded-2xl bg-white p-3 border border-slate-200 mb-3 scroll-mt-4">
-                        <h3 class="text-sm font-extrabold mb-3">مناقلة مادة بين مستودعين</h3>
+                    <div id="warehouseTransferPanel" class="rounded-2xl p-3 mb-3 scroll-mt-4">
+                        <h3 class="ta-transfer-title"><i class="fas fa-boxes-stacked text-teal-700 ml-2"></i> مناقلة أصناف بين المستودعات</h3>
+                        <p class="ta-transfer-subtitle">حدد المستودعين، ثم اختر عدة أصناف من الشبكة واضبط كمية ووحدة كل صنف قبل الحفظ.</p>
                         <div class="grid grid-cols-2 gap-2 mb-2">
-                            <div><label class="block text-xs font-bold mb-1">من المستودع</label>
+                            <div><label class="block text-xs font-bold mb-1" for="transferFrom">من المستودع</label>
                                 <select id="transferFrom" onchange="WarehouseController.refreshTransferAvailability()" class="w-full border rounded-xl p-2.5 text-xs">${WarehouseController.options(State.settings.selectedWarehouseId)}</select></div>
-                            <div><label class="block text-xs font-bold mb-1">إلى المستودع</label>
+                            <div><label class="block text-xs font-bold mb-1" for="transferTo">إلى المستودع</label>
                                 <select id="transferTo" class="w-full border rounded-xl p-2.5 text-xs">${WarehouseController.options((State.warehouses||[]).find(w=>w.id !== (State.settings.selectedWarehouseId||'wh_main'))?.id || 'wh_main')}</select></div>
                         </div>
-                        <label class="text-xs font-bold block mb-1">المادة</label>
-                        <select id="transferItem" onchange="WarehouseController.updateTransferUnits()" class="w-full rounded-xl border p-2.5 text-xs mb-2">
-                            <option value="">اختر المادة</option>
-                            ${State.items.map(it=>`<option value="${it.id}">${AppEscape.text(it.name)}</option>`).join('')}
-                        </select>
-                        <div id="transferAvailability" class="text-[11px] text-sky-700 mb-2"></div>
-                        <label class="block text-xs font-bold mb-1">الوحدة المستخدمة بالمناقلة</label>
-                        <select id="transferUnit" onchange="WarehouseController.refreshTransferAvailability()" class="w-full border rounded-xl p-2.5 text-xs mb-2"></select>
-                        <div class="grid grid-cols-2 gap-2 mb-2">
-                            <div><label class="block text-xs font-bold mb-1">الكمية بحسب الوحدة المختارة</label><input id="transferQty" type="number" min="0.0001" step="any" inputmode="decimal" class="w-full border rounded-xl p-2.5 text-sm" placeholder="مثلاً 5"></div>
-                            <div><label class="block text-xs font-bold mb-1">التاريخ</label><input id="transferDate" type="date" value="${new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10)}" class="w-full border rounded-xl p-2.5 text-sm"></div>
+                        <div class="ta-transfer-filter">
+                            <input id="transferSearchInput" type="search" oninput="WarehouseController.filterTransferGrid()" placeholder="ابحث باسم المادة..." aria-label="البحث باسم المادة">
+                            <select id="transferCategory" onchange="WarehouseController.filterTransferGrid()" aria-label="تصفية المواد حسب المجموعة">
+                                <option value="all">جميع المجموعات</option>
+                                ${Array.from(new Set([...State.categories,...State.items.map(i=>i.category||'بدون مجموعة')])).map(c=>`<option value="${AppEscape.text(c)}">${AppEscape.text(c)}</option>`).join('')}
+                            </select>
                         </div>
-                        <input id="transferNote" maxlength="200" class="w-full border rounded-xl p-2.5 text-sm mb-3" placeholder="ملاحظة المناقلة (اختياري)">
-                        <button onclick="WarehouseController.saveTransfer()" class="w-full rounded-xl bg-sky-700 py-3 text-white font-extrabold text-sm">حفظ المناقلة وتحديث أرصدة المستودعين</button>
+                        <div class="text-[11px] font-bold text-slate-600 mb-2" id="transferGridCount">اختر المواد من الشبكة</div>
+                        <div id="transferGrid" class="ta-transfer-grid" aria-label="شبكة اختيار المواد للمناقلة">
+                            ${State.items.map(it=>`<button type="button" class="ta-transfer-card" data-transfer-card data-item-id="${AppEscape.text(it.id)}" data-category="${AppEscape.text(it.category||'بدون مجموعة')}" onclick="WarehouseController.toggleTransferItem(${AppEscape.text(JSON.stringify(String(it.id)))})" aria-pressed="false">
+                                <span class="ta-transfer-icon"><i class="fas fa-box" aria-hidden="true"></i></span>
+                                <span class="ta-transfer-check"><i class="fas fa-plus" aria-hidden="true"></i></span>
+                                <strong>${AppEscape.text(it.name)}</strong>
+                                <small data-transfer-stock>رصيد المصدر: —</small>
+                            </button>`).join('')}
+                        </div>
+                        <div id="transferGridEmpty" class="ta-transfer-empty hidden">لا توجد مواد مطابقة. جرّب اسمًا أو مجموعة أخرى.</div>
+                        <div class="mt-4 mb-2 flex items-center justify-between gap-2"><strong class="text-sm text-slate-800">الأصناف المضافة للمناقلة</strong><span class="pill" id="transferSelectedCount">0 صنف</span></div>
+                        <div id="transferDraftList" class="ta-transfer-drafts" aria-live="polite"><div class="ta-transfer-empty">اختر صنفًا أو أكثر من شبكة المواد أعلاه.</div></div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3 mb-2">
+                            <div><label class="block text-xs font-bold mb-1" for="transferDate">التاريخ</label><input id="transferDate" type="date" value="${new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10)}" class="w-full border rounded-xl p-2.5 text-sm"></div>
+                            <div><label class="block text-xs font-bold mb-1" for="transferNote">ملاحظة المناقلة</label><input id="transferNote" maxlength="200" class="w-full border rounded-xl p-2.5 text-sm" placeholder="ملاحظة اختيارية لجميع الأصناف"></div>
+                        </div>
+                        <button type="button" id="transferSaveButton" onclick="WarehouseController.saveTransfer()" disabled>
+                            <i class="fas fa-check-circle" aria-hidden="true"></i><span>حفظ المناقلة (<span id="transferSaveCount">0</span> صنف)</span>
+                        </button>
                     </div>
                     <div class="rounded-2xl bg-white border p-3">
                         <h3 class="font-extrabold text-sm mb-2">سجل المناقلات (${(State.transfers||[]).length})</h3>
@@ -3754,7 +3803,10 @@
                             </div>`).join('') : '<p class="text-xs text-slate-400">لا توجد مناقلات بعد.</p>'}
                     </div>
                 `;
-                WarehouseController.updateTransferUnits();
+                WarehouseController.transferDraft = [];
+                WarehouseController.filterTransferGrid();
+                WarehouseController.refreshTransferAvailability();
+                WarehouseController.renderTransferDraft();
                 if (params.action === 'add') this.jumpToEntry('warehouseCreatePanel', 'newWarehouseName');
                 if (params.action === 'transfer') this.jumpToEntry('warehouseTransferPanel', 'transferItem');
             },
@@ -4647,8 +4699,8 @@
                 UI.setHeader('<i class="fas fa-sliders text-emerald-400"></i> <span>الضبط</span>', 'اضغط على القسم المطلوب لعرض خياراته');
                 const mode = State.settings.btPrintMode || 'auto';
                 main.innerHTML = `
-                    <div class="mb-3 flex items-center justify-between gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2" data-app-build="3.5.25">
-                        <span class="font-black text-xs text-emerald-800"><i class="fas fa-check-circle ml-1"></i> إصدار التطبيق: 3.5.25</span>
+                    <div class="mb-3 flex items-center justify-between gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2" data-app-build="3.5.26">
+                        <span class="font-black text-xs text-emerald-800"><i class="fas fa-check-circle ml-1"></i> إصدار التطبيق: 3.5.26</span>
                         <span class="text-[10px] font-bold text-emerald-700">مظهر ثلاثي الأبعاد موحّد</span>
                     </div>
                     <div class="mb-3 text-[11px] text-slate-500 font-semibold px-1">جميع خيارات التطبيق مرتبة ضمن فئات. اضغط على اسم أي فئة لفتحها أو إغلاقها.</div>
@@ -5736,60 +5788,169 @@
                     AppNav.renderCurrent();
                 });
             },
-            updateTransferUnits() {
-                const itemId=document.getElementById('transferItem')?.value;
-                const el=document.getElementById('transferUnit');
-                if (!el) return;
+            transferDraft: [],
+            selectedTransferItem(itemId) {
+                return (this.transferDraft||[]).find(r=>r.itemId===itemId);
+            },
+            filterTransferGrid() {
+                const q=String(document.getElementById('transferSearchInput')?.value||'').trim().toLocaleLowerCase();
+                const category=document.getElementById('transferCategory')?.value || 'all';
+                if(typeof document.querySelectorAll!=='function') return;
+                let visible=0;
+                document.querySelectorAll('[data-transfer-card]').forEach(card=>{
+                    const item=State.items.find(i=>i.id===card.dataset.itemId);
+                    const shown=!!item&&(category==='all'||(item.category||'بدون مجموعة')===category)&&String(item.name).toLocaleLowerCase().includes(q);
+                    card.hidden=!shown; if(shown)visible++;
+                });
+                const empty=document.getElementById('transferGridEmpty');
+                if(empty)empty.classList.toggle('hidden',visible>0);
+                const count=document.getElementById('transferGridCount');
+                if(count)count.textContent=`${visible} صنف معروض — اضغط على الصنف لإضافته أو إزالته`;
+            },
+            toggleTransferItem(itemId) {
                 const item=State.items.find(i=>i.id===itemId);
-                const units=Array.isArray(item?.units) && item.units.length ? item.units : [{name:'وحدة كبرى',factor:1}];
-                el.innerHTML=units.map(u=>`<option value="${Number(u.factor)||1}">${AppEscape.text(u.name)} (${Number(u.factor)||1} / وحدة كبرى)</option>`).join('');
+                if(!item) return;
+                if(!Array.isArray(this.transferDraft))this.transferDraft=[];
+                const old=this.transferDraft.findIndex(r=>r.itemId===itemId);
+                if(old>=0)this.transferDraft.splice(old,1);
+                else {
+                    const from=document.getElementById('transferFrom')?.value;
+                    const available=Accounting.getItemBaseStock(itemId,null,from);
+                    if(!(available>0.000001))return UI.toast('هذا الصنف ليس له رصيد في المستودع المصدر','warn');
+                    const units=Array.isArray(item.units)&&item.units.length?item.units:[{name:'وحدة كبرى',factor:1}];
+                    this.transferDraft.push({itemId,qty:'1',factor:String(Number(units[0].factor)||1)});
+                }
+                this.updateTransferGridSelections();
+                this.renderTransferDraft();
+            },
+            updateTransferGridSelections() {
+                if(typeof document.querySelectorAll!=='function')return;
+                const selected=new Set((this.transferDraft||[]).map(r=>r.itemId));
+                document.querySelectorAll('[data-transfer-card]').forEach(card=>{
+                    const active=selected.has(card.dataset.itemId);
+                    card.classList.toggle('is-selected',active);
+                    card.setAttribute('aria-pressed',String(active));
+                    const symbol=card.querySelector?.('.ta-transfer-check i');
+                    if(symbol)symbol.className='fas '+(active?'fa-check':'fa-plus');
+                });
+            },
+            updateTransferDraftQty(itemId, qty) {
+                const row=this.selectedTransferItem(itemId);
+                if(row)row.qty=String(qty);
+            },
+            updateTransferDraftUnit(itemId, factor) {
+                const row=this.selectedTransferItem(itemId);
+                if(row)row.factor=String(factor);
+                this.refreshTransferAvailability();
+            },
+            renderTransferDraft() {
+                const rows=this.transferDraft||[];
+                const list=document.getElementById('transferDraftList');
+                const count=document.getElementById('transferSelectedCount');
+                const saveCount=document.getElementById('transferSaveCount');
+                const save=document.getElementById('transferSaveButton');
+                if(count)count.textContent=`${rows.length} صنف`;
+                if(saveCount)saveCount.textContent=String(rows.length);
+                if(save)save.disabled=!rows.length||!!this.saving;
+                if(!list)return;
+                list.innerHTML=rows.length?rows.map((row,index)=>{
+                    const item=State.items.find(i=>i.id===row.itemId);
+                    if(!item)return '';
+                    const safeId=AppEscape.text(JSON.stringify(String(item.id)));
+                    const units=Array.isArray(item.units)&&item.units.length?item.units:[{name:'وحدة كبرى',factor:1}];
+                    return `<div class="ta-transfer-draft" data-transfer-row="${AppEscape.text(item.id)}">
+                      <div class="ta-transfer-draft-head"><strong>${index+1}. ${AppEscape.text(item.name)}</strong><button type="button" class="ta-transfer-draft-remove" onclick="WarehouseController.toggleTransferItem(${safeId})" aria-label="إزالة ${AppEscape.text(item.name)}">×</button></div>
+                      <div class="ta-transfer-draft-fields"><label>الكمية<input type="number" step="any" min="0.0001" inputmode="decimal" value="${AppEscape.text(row.qty)}" oninput="WarehouseController.updateTransferDraftQty(${safeId},this.value)" aria-label="كمية ${AppEscape.text(item.name)}"></label>
+                      <label>الوحدة<select onchange="WarehouseController.updateTransferDraftUnit(${safeId},this.value)" aria-label="وحدة ${AppEscape.text(item.name)}">${units.map(u=>`<option value="${Number(u.factor)||1}" ${Number(row.factor)===(Number(u.factor)||1)?'selected':''}>${AppEscape.text(u.name)}</option>`).join('')}</select></label></div>
+                      <div class="ta-transfer-row-stock" data-transfer-row-stock></div>
+                    </div>`;
+                }).join(''):`<div class="ta-transfer-empty">اختر صنفًا أو أكثر من شبكة المواد أعلاه.</div>`;
                 this.refreshTransferAvailability();
             },
             refreshTransferAvailability() {
-                const itemId = document.getElementById('transferItem')?.value;
-                const from = document.getElementById('transferFrom')?.value;
-                const el = document.getElementById('transferAvailability');
-                if (!el) return;
-                if (!itemId || !from) { el.textContent = 'اختر المادة والمستودع المصدر لعرض الرصيد'; return; }
-                const item = State.items.find(i=>i.id===itemId);
-                const factor=Number(document.getElementById('transferUnit')?.value)||1;
-                const base=Accounting.getItemBaseStock(itemId,null,from);
-                el.textContent = `المتوفر في المصدر: ${base} ${item?.units?.[0]?.name || 'وحدة كبرى'} (ما يعادل ${Math.round(base*factor*100)/100} من الوحدة المختارة)`;
+                const from=document.getElementById('transferFrom')?.value;
+                if(typeof document.querySelectorAll==='function'){
+                    document.querySelectorAll('[data-transfer-card]').forEach(card=>{
+                        const item=State.items.find(i=>i.id===card.dataset.itemId);
+                        if(!item)return;
+                        const stock=Number(Accounting.getItemBaseStock(item.id,null,from))||0;
+                        const label=card.querySelector?.('[data-transfer-stock]');
+                        if(label)label.textContent=`رصيد المصدر: ${Accounting.formatItemQuantity(stock)} ${item.units?.[0]?.name||'وحدة'}`;
+                        card.classList.toggle('is-unavailable',stock<=0.000001);
+                    });
+                    document.querySelectorAll('[data-transfer-row]').forEach(el=>{
+                        const item=State.items.find(i=>i.id===el.dataset.transferRow);
+                        const row=item?this.selectedTransferItem(item.id):null;
+                        if(!item||!row)return;
+                        const stock=Number(Accounting.getItemBaseStock(item.id,null,from))||0;
+                        const label=el.querySelector?.('[data-transfer-row-stock]');
+                        if(label)label.textContent=`رصيد المصدر: ${Accounting.formatItemQuantity(stock)} ${item.units?.[0]?.name||'وحدة'} — المتاح بالوحدة المختارة: ${Accounting.formatItemQuantity(stock*Number(row.factor||1))}`;
+                    });
+                }
             },
             async saveTransfer() {
-                if (this.saving) return;
-                this.saving = true;
+                if(this.saving)return;
+                this.saving=true;
+                const button=document.getElementById('transferSaveButton');
+                if(button)button.disabled=true;
                 try {
-                const from = document.getElementById('transferFrom')?.value;
-                const to = document.getElementById('transferTo')?.value;
-                const itemId = document.getElementById('transferItem')?.value;
-                const qty = Accounting.parseNum(document.getElementById('transferQty')?.value);
-                const factor = Number(document.getElementById('transferUnit')?.value) || 1;
-                const quantityBase = qty / factor;
-                const itemUnits=State.items.find(i=>i.id===itemId)?.units || [];
-                const unitName=itemUnits.find(u=>Number(u.factor||1)===factor)?.name || 'وحدة كبرى';
-                const date = document.getElementById('transferDate')?.value;
-                const note = document.getElementById('transferNote')?.value.trim().slice(0,200) || '';
-                if (!from || !to || from === to) return UI.toast('اختر مستودعين مختلفين', 'error');
-                if (!(State.warehouses||[]).some(w=>w.id===from) || !(State.warehouses||[]).some(w=>w.id===to))
-                    return UI.toast('المستودع المختار غير موجود', 'error');
-                if (!State.items.some(i=>i.id===itemId)) return UI.toast('اختر مادة موجودة', 'error');
-                if (!Number.isFinite(qty) || qty<=0 || Math.abs(Math.round(qty*10000)-qty*10000)>0.000001)
-                    return UI.toast('الكمية يجب أن تكون موجبة بدقة أربع خانات عشرية كحد أقصى', 'error');
-                if (!/^\d{4}-\d{2}-\d{2}$/.test(date||'')) return UI.toast('تاريخ المناقلة غير صحيح', 'error');
-                if (!(factor > 0) || !Number.isFinite(quantityBase)) return UI.toast('وحدة قياس غير صالحة', 'error');
-                const available = Accounting.getItemBaseStock(itemId,null,from);
-                if (quantityBase > available + 0.00001) return UI.toast(`الكمية تتجاوز الرصيد المتاح (${available} وحدة كبرى)`, 'error');
-                if (!LicenseManager.canPerformOperation()) return;
-                const transfer = { id: 'tr_' + Date.now() + '_' + Math.random().toString(36).slice(2,8),
-                    itemId, fromWarehouseId:from, toWarehouseId:to, quantityBase, quantity:qty, unitName, date, note,
-                    createdAt:new Date().toISOString() };
-                State.transfers.push(transfer);
-                await LicenseManager.recordNewOperation();
-                await StorageEngine.saveState();
-                UI.toast('تم ترحيل المادة بين المستودعين دون تغيير المخزون الإجمالي', 'success');
-                AppNav.renderCurrent();
-                } finally { this.saving = false; }
+                    const from=document.getElementById('transferFrom')?.value;
+                    const to=document.getElementById('transferTo')?.value;
+                    const date=document.getElementById('transferDate')?.value;
+                    const note=String(document.getElementById('transferNote')?.value||'').trim().slice(0,200);
+                    if(!from||!to||from===to)return UI.toast('اختر مستودعين مختلفين','error');
+                    if(!(State.warehouses||[]).some(w=>w.id===from)||!(State.warehouses||[]).some(w=>w.id===to))return UI.toast('المستودع المختار غير موجود','error');
+                    if(!/^\d{4}-\d{2}-\d{2}$/.test(date||'')||!Number.isFinite(Date.parse(date+'T12:00:00')))return UI.toast('تاريخ المناقلة غير صحيح','error');
+                    const rows=this.transferDraft||[];
+                    if(rows.length===0)return UI.toast('اختر مادة واحدة على الأقل من الشبكة','warn');
+                    if(!State.license.isActivated && LicenseManager.getRemainingTrialOps()<rows.length){
+                        LicenseManager.openActivationModal(true);
+                        return UI.toast('عدد العمليات المتبقية في التجربة لا يكفي لحفظ جميع الأصناف','warn');
+                    }
+                    const seen=new Set();
+                    const validated=[];
+                    for(const row of rows){
+                        if(seen.has(row.itemId))return UI.toast('تم تكرار الصنف داخل المناقلة','error');
+                        seen.add(row.itemId);
+                        const item=State.items.find(it=>it.id===row.itemId);
+                        if(!item)return UI.toast('يوجد صنف غير موجود في قاعدة المواد','error');
+                        const qty=Accounting.parseNum(row.qty);
+                        const factor=Number(row.factor);
+                        const units=Array.isArray(item.units)&&item.units.length?item.units:[{name:'وحدة كبرى',factor:1}];
+                        const unit=units.find(u=>(Number(u.factor)||1)===factor);
+                        if(!Number.isFinite(qty)||qty<=0||Math.abs(Math.round(qty*10000)-qty*10000)>0.000001)
+                            return UI.toast('الكمية غير صالحة للصنف: '+item.name,'error');
+                        if(!unit||!(factor>0)||!Number.isFinite(factor))return UI.toast('وحدة قياس غير صالحة للصنف: '+item.name,'error');
+                        const quantityBase=qty/factor;
+                        const available=Accounting.getItemBaseStock(item.id,null,from);
+                        if(!Number.isFinite(quantityBase)||quantityBase>available+0.00001)
+                            return UI.toast('الكمية تتجاوز رصيد المصدر للصنف: '+item.name,'error');
+                        validated.push({itemId:item.id,quantity:qty,quantityBase,unitName:unit.name});
+                    }
+                    if(!LicenseManager.canPerformOperation())return;
+                    const now=new Date().toISOString();
+                    const batchId='tb_'+Date.now()+'_'+Math.random().toString(36).slice(2,8);
+                    const transfers=validated.map((row,index)=>({id:'tr_'+Date.now()+'_'+index+'_'+Math.random().toString(36).slice(2,7),batchId,...row,fromWarehouseId:from,toWarehouseId:to,date,note,createdAt:now}));
+                    const oldCount=State.license.opsUsedCount;
+                    const oldLen=State.transfers.length;
+                    try{
+                        State.transfers.push(...transfers);
+                        State.license.opsUsedCount=LicenseManager.getTotalOpsUsed()+transfers.length;
+                        await StorageEngine.saveState();
+                    }catch(e){
+                        State.transfers.length=oldLen;
+                        State.license.opsUsedCount=oldCount;
+                        if(typeof LicenseManager.persistFallbackStorage==='function')LicenseManager.persistFallbackStorage();
+                        return UI.toast('لم تُحفظ المناقلة؛ لم يتغير المخزون: '+e.message,'error');
+                    }
+                    LicenseManager.updateBadgeUI();
+                    this.transferDraft=[];
+                    UI.toast('تمت مناقلة '+transfers.length+' صنف بنجاح دون تغيير المخزون الإجمالي','success');
+                    AppNav.renderCurrent();
+                }finally{
+                    this.saving=false;
+                    if(button&&button.isConnected)button.disabled=!(this.transferDraft||[]).length;
+                }
             },
             deleteTransfer(id) {
                 const t = (State.transfers||[]).find(x=>x.id===id);
