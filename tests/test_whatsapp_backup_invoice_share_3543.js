@@ -43,7 +43,8 @@ assert(h.includes('لا يمكن لتطبيق واتساب العادي إرسا
  let invoicePayload;
  const inv={id:'INV-1',number:'37',type:'sale',date:'2026-11-13',currency:'USD',accountId:'C1',rows:[{itemName:'شامبو',unitName:'عبوة',qty:2,price:3,total:6}],subTotal:6,netTotal:6,paidAmount:2,remainingAmount:4};
  const fake={State:{invoices:[inv],accounts:[{id:'C1',name:'محمد',phone:'0930',address:'السويداء'}],settings:{companyName:'SAN SHINE',companyPhone:'09',companyLogo:'data:image/png;base64,AAA'}},Accounting:{getInvoiceTypeAr:()=> 'مبيعات',getAccountStatement:()=>({usdBalance:12,sypBalance:0})},UI:{toast:()=>{}},window:{AndroidInvoicePdf:{shareInvoice:(raw,filename)=>{invoicePayload=JSON.parse(raw);assert(filename.endsWith('.pdf'));}}}};
+ vm.runInNewContext(read('app/src/main/assets/www/static/invoice-dual-balances.js'),fake);fake.InvoiceDualBalances=fake.window.InvoiceDualBalances;
  vm.runInNewContext(last+'\nthis.pdfshare=InvoicePdfShare;',fake);
- fake.pdfshare.share('INV-1');assert.equal(invoicePayload.accountName,'محمد');assert.equal(invoicePayload.rows[0].qty,2);assert.equal(invoicePayload.previousBalance,12);assert.equal(invoicePayload.finalBalance,16);assert.equal(invoicePayload.companyPhone,'09');
+ fake.pdfshare.share('INV-1');assert.equal(invoicePayload.accountName,'محمد');assert.equal(invoicePayload.rows[0].qty,2);assert.equal(invoicePayload.previousBalance,0);assert.equal(invoicePayload.finalBalance,4);assert.equal(invoicePayload.previousBalances.SYP,0);assert.equal(invoicePayload.finalBalances.SYP,0);assert.equal(invoicePayload.companyPhone,'09');
  console.log('PASS 3.5.43 native staged agent backups, editable WhatsApp fields, folder preserved, invoice PDF direct ephemeral share');
 })().catch(e=>{console.error(e);process.exitCode=1});

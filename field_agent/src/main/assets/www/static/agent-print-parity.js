@@ -52,12 +52,10 @@ const AgentInvoicePrint={
                 const acc = (this.agent.state.accounts||[]).find(a => a.id === inv.accountId);
                 // Print the immutable balances captured when the invoice was posted.
                 // Legacy invoices may have no historical balance: never replace that with today's value.
-                const prevVal = inv.accountId && inv.accountBalanceBefore!==null && Number.isFinite(Number(inv.accountBalanceBefore))
-                    ? Number(inv.accountBalanceBefore) : NaN;
-                const finalVal = inv.accountId && inv.accountBalanceAfter!==null && Number.isFinite(Number(inv.accountBalanceAfter))
-                    ? Number(inv.accountBalanceAfter) : NaN;
-                const prevBalText = inv.accountId?this.formatPartyBalance(prevVal, inv.currency):'فاتورة نقدية';
-                const finalBalText = inv.accountId?this.formatPartyBalance(finalVal, inv.currency):'فاتورة نقدية';
+                const snapshots={before:inv.accountBalanceBeforeByCurrency||{},after:inv.accountBalanceAfterByCurrency||{}};
+                if(!Object.prototype.hasOwnProperty.call(snapshots.before,inv.currency))snapshots.before[inv.currency]=inv.accountBalanceBefore;
+                if(!Object.prototype.hasOwnProperty.call(snapshots.after,inv.currency))snapshots.after[inv.currency]=inv.accountBalanceAfter;
+                const dualFmt=(amount,c)=>InvoiceDualBalances.text(amount,c,(v,cur)=>this.formatPartyBalance(v,cur));
 
                 const wrapTextLines = (text, fontStr, maxWidth) => {
                     ctx.font = fontStr;
@@ -87,7 +85,7 @@ const AgentInvoicePrint={
                     });
                 }
 
-                const estimatedHeight = Math.round((1700 + (inv.rows.length * 170)) * scale);
+                const estimatedHeight = Math.round((2000 + (inv.rows.length * 170)) * scale);
                 canvas.width = widthDots;
                 canvas.height = estimatedHeight;
 
@@ -276,8 +274,10 @@ const AgentInvoicePrint={
                 drawTotalRow('المبلغ الباقي', this.formatMoney(inv.remainingAmount, inv.currency), fNet, true);
 
                 y += 4;
-                drawTotalRow('رصيد قبل الفاتورة', prevBalText, fBalPrev, false);
-                drawTotalRow('الرصيد النهائي', finalBalText, fBalFinal, true);
+                if(inv.accountId){
+                    for(const c of ['USD','SYP'])drawTotalRow('الرصيد قبل الفاتورة ('+c+')',dualFmt(snapshots.before[c]??null,c),fBalPrev,false);
+                    for(const c of ['USD','SYP'])drawTotalRow('الرصيد النهائي ('+c+')',dualFmt(snapshots.after[c]??null,c),fBalFinal,true);
+                }
 
                 y += 6;
                 drawDoubleSep();
@@ -332,7 +332,8 @@ const AgentInvoicePrint={
       netTotal:Number(calcNet),paidAmount:paid,remainingAmount:Number(calcNet)-paid,
       subTotal:Number(op.subTotal??op.rows.reduce((sum,r)=>sum+Number(r.total||0),0)),
       discountAmount:Number(op.discountAmount||0),taxAmount:Number(op.taxAmount||0),
-      accountBalanceBefore:op.accountBalanceBefore,accountBalanceAfter:op.accountBalanceAfter};
+      accountBalanceBefore:op.accountBalanceBefore,accountBalanceAfter:op.accountBalanceAfter,
+      accountBalanceBeforeByCurrency:op.accountBalanceBeforeByCurrency,accountBalanceAfterByCurrency:op.accountBalanceAfterByCurrency};
     const width=this.settings.printerWidth===58?384:576;
     const canvas=await this.renderInvoiceToCanvas(inv,width);
     const bytes=this.canvasToEscPosRaster(canvas);

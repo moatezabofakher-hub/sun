@@ -7,6 +7,7 @@ const doc={getElementById:()=>null,addEventListener:()=>{},querySelectorAll:()=>
 const window={};
 const scope={window,document:doc,FieldProtocol,console,Date,Number,String,Set,Map,Array,Object,JSON,Promise,TextEncoder,TextDecoder,crypto:crypto.webcrypto,setTimeout,clearTimeout};
 vm.createContext(scope);
+vm.runInContext(fs.readFileSync(agentRoot+'invoice-dual-balances.js','utf8'),scope);scope.InvoiceDualBalances=scope.window.InvoiceDualBalances;
 for(const f of ['agent.js','agent-experience.js','agent-invoice-parity.js'])vm.runInContext(fs.readFileSync(agentRoot+f,'utf8'),scope,{filename:f});
 const A=vm.runInContext('Agent',scope);
 A.state={companyId:'company_1234',agentId:'agent_1234',warehouseId:'car_1234',key:'abc',companyName:'SUN SHINE',agentName:'مندوب',vehicleName:'سيارة',exchangeRate:15000,

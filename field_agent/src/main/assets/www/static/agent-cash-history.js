@@ -10,7 +10,14 @@ A.mergeHistoryPage=function(page,old=this.state){
  if(!page||!Array.isArray(page.ops))return {ops,cursor,restoredIds};
  const current=new Set(ops.map(o=>o.id));
  for(const op of page.ops){
-  if(!op||typeof op.id!=='string'||!op.id.startsWith('op_')||op.agentId!==old.agentId||op.companyId!==old.companyId||!['sale','sale_return','receipt','payment','expense','customer_create'].includes(op.kind))continue;
+  if(!op||typeof op.id!=='string'||!op.id.startsWith('op_')||op.agentId!==old.agentId||op.companyId!==old.companyId||!['sale','sale_return','receipt','payment','expense','customer_create','document_edit'].includes(op.kind))continue;
+  if(op.kind==='document_edit'){
+    const i=ops.findIndex(x=>x.id===op.targetOperationId);
+    if(i>=0&&op.replacement&&Number(op.revision||0)>Number(ops[i].revision||0))ops[i]=op.replacement;
+  }else if(current.has(op.id)){
+    const i=ops.findIndex(x=>x.id===op.id);
+    if(i>=0&&Number(op.revision||0)>Number(ops[i].revision||0)&&!ops.some(x=>x.kind==='document_edit'&&x.targetOperationId===op.id&&!old.knownIds?.includes(x.id)))ops[i]=op;
+  }
   if(!current.has(op.id)){ops.push(op);current.add(op.id);restoredIds.push(op.id);}
  }
  cursor=Math.max(cursor,Math.min(1e8,Math.max(0,Number(page.nextCursor)||0)));

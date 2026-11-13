@@ -230,17 +230,19 @@ A.saveInvoice=async function(andPrint=false){if(this.busy)return;this.busy=true;
   }
   if(this.draftKind==='sale')for(const itemId of new Set(this.draft.map(r=>r.itemId))){
    const used=this.draft.filter(r=>r.itemId===itemId).reduce((s,r)=>s+Number(r.qty)/Number(r.unitFactor),0);
-   if(used>Number(this.stock[itemId]||0)+1e-5)throw Error('رصيد السيارة لا يكفي: '+(this.state.items.find(i=>i.id===itemId)?.name||itemId));
+   if(used>(this.availableForEdit?this.availableForEdit(itemId):Number(this.stock[itemId]||0))+1e-5)throw Error('رصيد السيارة لا يكفي: '+(this.state.items.find(i=>i.id===itemId)?.name||itemId));
   }
   const preBalance=m.accountId?this.balanceFor(m.accountId):null;
-  const before=preBalance?.available?round(c==='SYP'?preBalance.syp:preBalance.usd,c):null;
-  const invoiceDelta=round((this.draftKind==='sale' ? 1 : -1)*(calc.netTotal-calc.paidAmount),c);
-  const after=before===null?null:round(before+invoiceDelta,c);
+  const balances=preBalance?.available?InvoiceDualBalances.pair({SYP:preBalance.syp,USD:preBalance.usd},
+    {currency:c,kind:this.draftKind,netTotal:calc.netTotal,paidAmount:calc.paidAmount}):
+    {before:{SYP:null,USD:null},after:{SYP:null,USD:null}};
+  const before=balances.before[c],after=balances.after[c];
   const op={id:'op_'+FieldProtocol.uuid(),kind:this.draftKind,companyId:this.state.companyId,agentId:this.state.agentId,warehouseId:this.state.warehouseId,
    localNumber:'F-'+(this.state.ops.length+1),date:new Date(m.date||Date.now()).toISOString(),currency:c,exchangeRate:Number(this.state.exchangeRate),accountId:m.accountId||'',paidAmount:calc.paidAmount,
    subTotal:calc.subTotal,discountValue:Number(m.discountValue||0),discountType:m.discountType||'amount',taxValue:Number(m.taxValue||0),taxType:m.taxType||'percent',netTotal:calc.netTotal,
    rows:JSON.parse(JSON.stringify(this.draft)),note:String(m.note||'').slice(0,200),
-   accountBalanceBefore:before,accountBalanceAfter:after};
+   accountBalanceBefore:before,accountBalanceAfter:after,
+   accountBalanceBeforeByCurrency:balances.before,accountBalanceAfterByCurrency:balances.after};
   FieldProtocol.validateOps([op],this.state.agentId,this.state.companyId,this.state.warehouseId,this.state.items,this.state.accounts);
   await this.appendOperation(op);
   this.closeInvoiceItemGrid();this.draft=[];this.invoiceMeta=initialMeta();

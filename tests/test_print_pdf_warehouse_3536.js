@@ -38,6 +38,7 @@ const Agent={state:{companyName:'تجربة أولى',companyPhone:'09300001',co
 const scope={Agent,document:{fonts:{ready:Promise.resolve()},createElement:()=>new FakeCanvas()},
  window:{AndroidPrinter:{printBase64:s=>printed.push(Buffer.from(s,'base64'))}},Image:class{},
  Uint8Array,Uint8ClampedArray,Buffer,Number,String,Set,Array,Math,Date,console,btoa: s=>Buffer.from(s,'binary').toString('base64')};
+vm.runInNewContext(fs.readFileSync('field_agent/src/main/assets/www/static/invoice-dual-balances.js','utf8'),scope);scope.InvoiceDualBalances=scope.window.InvoiceDualBalances;
 vm.runInNewContext(parity,scope,{timeout:6000});
 (async()=>{
  await Agent.printOp('doc001');

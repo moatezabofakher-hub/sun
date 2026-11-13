@@ -211,7 +211,7 @@ Agent.saveVoucher=async function(){if(this.busy)return;this.busy=true;
   FieldProtocol.validateOps([op],this.state.agentId,this.state.companyId,this.state.warehouseId,this.state.items,this.state.accounts);
   await this.appendOperation(op);this.toast('حُفظ السند محليًا');this.stack=['home','ops'];await this.show('ops');
  }catch(e){this.toast('لم يُحفظ السند: '+e.message);}finally{this.busy=false;}};
-Agent.renderOps=function(){const ops=this.state.ops.slice().reverse(),kind=this.opsFilter||'all';
+Agent.renderOps=function(){const ops=this.state.ops.filter(o=>o.kind!=='document_edit').slice().reverse(),kind=this.opsFilter||'all';
  const filtered=ops.filter(o=>kind==='all'||o.kind===kind);
  return `<div class="hero"><h2>الفواتير والسندات</h2><p>سجل العمليات الميدانية وأرصدة المندوب. لا توجد تقارير أرباح في هذا التطبيق.</p></div><div class="panel">
   <div class="stats"><div class="stat"><b>${ops.length}</b><small>المحفوظة</small></div><div class="stat"><b>${this.pending.length}</b><small>بانتظار المزامنة</small></div><div class="stat"><b>${ops.length-this.pending.length}</b><small>تمت مزامنتها</small></div></div>
@@ -254,7 +254,7 @@ Agent.renderPrinter=function(){const p=this.printerInfo;return `<div class="hero
   <label class="label">عرض الورق</label><select id="agentPrintWidth" class="field" onchange="Agent.updatePrinterWidth(this.value)"><option value="80" ${this.state.printerWidth!==58?'selected':''}>80 مم</option><option value="58" ${this.state.printerWidth===58?'selected':''}>58 مم</option></select>
   <p class="form-help">تستخدم الفواتير صورة نقطية لإظهار العربية والأرقام بصورة متوافقة مع معظم الطابعات الحرارية، ويجب اختبارها على الطابعة الفعلية.</p></div>`;};
 Agent.renderSettings=function(){return `<div class="hero"><h2>الضبط</h2><p>إعدادات المندوب وإدارة الاتصال والطباعة — دون صلاحيات إدارة أرباح الشركة.</p></div>
- <section class="panel"><h3>معلومات التفعيل</h3><div class="itemrow"><b>المندوب</b><p class="tiny">${this.escape(this.state.agentName)}</p></div><div class="itemrow"><b>السيارة</b><p class="tiny">${this.escape(this.state.vehicleName)}</p></div><div class="itemrow"><b>الجهاز</b><p class="tiny ltr">${this.escape(this.state.deviceId)}</p></div><p class="form-help">إصدار المندوب 3.5.43. لا يمكن تغيير الشركة أو مستودع السيارة من تطبيق المندوب. التعديل يأتي بملف تجهيز معتمد من الإدارة.</p></section>
+ <section class="panel"><h3>معلومات التفعيل</h3><div class="itemrow"><b>المندوب</b><p class="tiny">${this.escape(this.state.agentName)}</p></div><div class="itemrow"><b>السيارة</b><p class="tiny">${this.escape(this.state.vehicleName)}</p></div><div class="itemrow"><b>الجهاز</b><p class="tiny ltr">${this.escape(this.state.deviceId)}</p></div><p class="form-help">إصدار المندوب 3.5.44. لا يمكن تغيير الشركة أو مستودع السيارة من تطبيق المندوب. التعديل يأتي بملف تجهيز معتمد من الإدارة.</p></section>
  <section class="panel"><h3>إعدادات الطباعة</h3><button class="primary" onclick="Agent.navigate('printer')">🖨 إعداد البلوتوث والطابعة</button></section>
  <section class="panel"><h3>المزامنة والنسخ</h3><button class="secondary" onclick="Agent.navigate('sync')">⇄ إرسال واستقبال العمليات</button><button class="secondary" onclick="Agent.exportOutbox()" ${this.pending.length?'':'disabled'}>تصدير العمليات غير المُزامنة</button><button class="primary" onclick="Agent.navigate('backup')">🗂 النسخ الاحتياطي التلقائي وواتساب</button></section>`;};
 Agent.pairPrinter=function(){if(window.AndroidPrinter?.pairPrinter)window.AndroidPrinter.pairPrinter();else this.toast('الاقتران المباشر متاح داخل APK فقط');};

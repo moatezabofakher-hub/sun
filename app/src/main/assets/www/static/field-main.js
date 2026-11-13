@@ -288,7 +288,7 @@ const FieldSync = {
       if(!agent)throw Error('المندوب غير مسجل أو موقوف');
       const payload=await FieldLanCrypto.open(packet,agent.key,config.companyId,agent.id);
       if(payload.kind!=='operations'||payload.companyId!==config.companyId||payload.agentId!==agent.id||payload.warehouseId!==agent.warehouseId||typeof payload.nonce!=='string'||!/^[a-zA-Z0-9_-]{8,90}$/.test(payload.nonce))throw Error('بيانات المندوب غير مطابقة');
-      const all=FieldProtocol.validateOps(payload.operations,agent.id,config.companyId,agent.warehouseId,State.items,State.accounts);
+      const all=FieldProtocol.validateOps(payload.operations,agent.id,config.companyId,agent.warehouseId,State.items,State.accounts,(this.historyFor?.(agent)||this.data().operationHistory||[]));
       const known=new Set(config.imported.map(x=>x.id));
       const fresh=all.filter(x=>!known.has(x.id));
       const count=await this.commitLanOperations(agent,fresh);
@@ -320,6 +320,7 @@ const FieldSync = {
   },
   async commitLanOperations(agent,ops){
     if(!ops.length)return 0;
+    if(ops.some(op=>op.kind==='document_edit'))return this.commitOperationsWithRevisions(agent,ops);
     const config=this.data(),old={accounts:State.accounts,invoices:State.invoices,vouchers:State.vouchers,expenses:Array.isArray(State.expenses)?State.expenses:[],imported:config.imported,events:config.events,history:config.operationHistory,used:State.license.opsUsedCount};
     const existing=new Set(config.imported.map(x=>x.id));
     const fresh=ops.filter(x=>!existing.has(x.id));
@@ -358,21 +359,22 @@ const FieldSync = {
       const a=c.agents.find(x=>x.id===candidate.agentId&&!x.disabled);if(!a)throw Error('المندوب غير معروف أو موقوف');
       const payload=await FieldProtocol.unseal(envelope,a.key);
       if(payload.warehouseId!==a.warehouseId)throw Error('مستودع ملف المندوب لا يطابق سجل السيارة');
-      const all=FieldProtocol.validateOps(payload.operations,a.id,c.companyId,a.warehouseId,State.items,State.accounts);
+      const all=FieldProtocol.validateOps(payload.operations,a.id,c.companyId,a.warehouseId,State.items,State.accounts,(this.historyFor?.(a)||this.data().operationHistory||[]));
       const known=new Set(c.imported.map(x=>x.id));
       const fresh=all.filter(x=>!known.has(x.id));
       const invoiceCount=fresh.filter(x=>x.kind==='sale'||x.kind==='sale_return').length;
       const customers=fresh.filter(x=>x.kind==='customer_create').length;
-      const vouchers=fresh.length-invoiceCount-customers;
+      const revisions=fresh.filter(x=>x.kind==='document_edit').length;
+      const vouchers=fresh.length-invoiceCount-customers-revisions;
       this.staged={agent:a,ops:fresh,duplicates:all.length-fresh.length};
       UI.openModal(`<div class="ta-field-panel space-y-3 text-right" dir="rtl">
         <h3 class="font-black text-lg">معاينة استلام عمليات ${this.escape(a.name)}</h3>
         <p class="text-xs">السيارة: ${this.escape(a.vehicleName)} · المستودع: ${this.escape(WarehouseController.name(a.warehouseId))}</p>
         <div class="bg-slate-50 rounded-xl p-3 grid grid-cols-3 text-center gap-2">
-          <div><b class="text-lg">${invoiceCount}</b><p class="text-[10px]">فواتير</p></div><div><b class="text-lg">${vouchers}</b><p class="text-[10px]">سندات ومصاريف · ${customers} زبائن جدد</p></div><div><b class="text-lg">${this.staged.duplicates}</b><p class="text-[10px]">مكررة مستبعدة</p></div>
+          <div><b class="text-lg">${invoiceCount}</b><p class="text-[10px]">فواتير</p></div><div><b class="text-lg">${vouchers}</b><p class="text-[10px]">سندات ومصاريف · ${customers} زبائن جدد · ${revisions} مراجعات</p></div><div><b class="text-lg">${this.staged.duplicates}</b><p class="text-[10px]">مكررة مستبعدة</p></div>
         </div>
         <div class="max-h-48 overflow-y-auto rounded-lg border bg-white p-2 text-[11px] space-y-1">
-          ${fresh.slice(0,40).map(op=>`<div class="border-b border-dashed py-1"><b>${op.kind==='sale'?'بيع':op.kind==='sale_return'?'مردود':op.kind==='receipt'?'قبض':op.kind==='expense'?'مصروف':op.kind==='customer_create'?'زبون جديد':'دفع'} · ${this.escape(op.localNumber||op.id)}</b><span class="block">${op.kind==='customer_create'?this.escape(op.account.name):this.escape(State.accounts.find(x=>x.id===op.accountId)?.name||'نقدي')}${op.kind==='customer_create'?'':' · '+(op.kind==='sale'||op.kind==='sale_return'?op.netTotal:op.amount)+' '+op.currency}</span></div>`).join('')}
+          ${fresh.slice(0,40).map(op=>`<div class="border-b border-dashed py-1"><b>${op.kind==='sale'?'بيع':op.kind==='sale_return'?'مردود':op.kind==='receipt'?'قبض':op.kind==='expense'?'مصروف':op.kind==='customer_create'?'زبون جديد':op.kind==='document_edit'?'تعديل مستند':'دفع'} · ${this.escape(op.localNumber||op.id)}</b><span class="block">${op.kind==='customer_create'?this.escape(op.account.name):this.escape(State.accounts.find(x=>x.id===(op.kind==='document_edit'?op.replacement.accountId:op.accountId))?.name||'نقدي')}${op.kind==='customer_create'?'':' · '+(op.kind==='document_edit'?(op.replacement.netTotal??op.replacement.amount):op.kind==='sale'||op.kind==='sale_return'?op.netTotal:op.amount)+' '+op.currency}</span></div>`).join('')}
           ${fresh.length>40?'<p>تُعرض أول 40 عملية فقط؛ راجع كامل ملف البيانات قبل الاعتماد.</p>':''}
         </div>
         <p class="text-xs text-amber-800">سيتم الترحيل إلى قاعدة الشركة الحالية فقط بعد التأكيد. لا تُستبدل قاعدة بيانات الشركة.</p>
@@ -388,6 +390,11 @@ const FieldSync = {
     const {agent,ops}=this.staged,c=this.data();
     const old={accounts:State.accounts,invoices:State.invoices,vouchers:State.vouchers,expenses:Array.isArray(State.expenses)?State.expenses:[],imported:c.imported,events:c.events,history:c.operationHistory,opsUsedCount:State.license.opsUsedCount};
     try {
+      if(ops.some(op=>op.kind==='document_edit')){
+        const count=await this.commitLanOperations(agent,ops);
+        this.staged=null;UI.forceCloseModal();UI.toast('تم ترحيل '+count+' عملية أو تعديل من '+agent.name,'success');
+        await this.exportAck(agent.id);return;
+      }
       const known=new Set(c.imported.map(x=>x.id));
       const fresh=ops.filter(x=>!known.has(x.id));
       if(!fresh.length)throw Error('سبق استلام جميع العمليات');

@@ -62,6 +62,7 @@ const agentCtx={FieldProtocol,console,window:{AndroidPrinter:{printBase64:raw=>p
 agentCtx.window=agentCtx;
 agentCtx.AndroidPrinter={printBase64:raw=>printed.push(Buffer.from(raw,'base64'))};
 agentCtx.addEventListener=()=>{};vm.createContext(agentCtx);
+vm.runInContext(fs.readFileSync('field_agent/src/main/assets/www/static/invoice-dual-balances.js','utf8'),agentCtx);
 for(const file of ['agent.js','agent-experience.js','agent-invoice-parity.js','agent-cash-history.js','agent-expenses.js','agent-print-parity.js']){
  vm.runInContext(fs.readFileSync('field_agent/src/main/assets/www/static/'+file,'utf8'),agentCtx,{filename:file});
 }
@@ -86,8 +87,8 @@ const A=vm.runInContext('Agent',agentCtx);
  await A.printOp(invoice.id);
  assert.ok(capturedText.includes('0933333333'),'synced company phone in printed invoice');
  assert.ok(capturedText.includes('SAN SHINE'),'synced company name in printed invoice');
- assert.ok(capturedText.includes('رصيد قبل الفاتورة'));
- assert.ok(capturedText.includes('الرصيد النهائي'));
+ assert.ok(capturedText.some(x=>x.includes('رصيد قبل الفاتورة')));
+ assert.ok(capturedText.some(x=>x.includes('الرصيد النهائي')));
  assert.ok(capturedText.some(x=>x.includes('12.00')),'invoice-era previous balance');
  assert.ok(capturedText.some(x=>x.includes('16.00')),'invoice-era final balance');
  assert.ok(drawnLogos.length,'the synced logo was drawn onto receipt');

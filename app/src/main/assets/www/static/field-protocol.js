@@ -35,7 +35,7 @@
     if(differs!==0)throw Error('تم تغيير ملف المزامنة أو أنه من جهاز غير معتمد');
     return safeJson(envelope.data);
   }
-  function validateOps(ops, agentId, companyId, warehouseId, items, accounts) {
+  function validateOps(ops, agentId, companyId, warehouseId, items, accounts, history=null) {
     if(!Array.isArray(ops)||ops.length>2000)throw Error('عدد العمليات غير صالح');
     const itemMap=new Map(items.map(x=>[x.id,x])); const accMap=new Map(accounts.map(x=>[x.id,x]));
     const seen=new Set(),newAccountIds=new Set();
@@ -48,7 +48,21 @@
       if(typeof op.date!=='string'||!/^\d{4}-\d\d-\d\d/.test(op.date)||isNaN(Date.parse(op.date)))throw Error('تاريخ عملية غير صالح');
       const code=currency(op.currency);
       const rate=positiveNumber(op.exchangeRate);
-      if(!['sale','sale_return','receipt','payment','expense','customer_create'].includes(op.kind))throw Error('نوع عملية غير مصرح به');
+      if(!['sale','sale_return','receipt','payment','expense','customer_create','document_edit'].includes(op.kind))throw Error('نوع عملية غير مصرح به');
+      if(op.kind==='document_edit'){
+        if(!/^op_[a-f0-9]{32}$/i.test(op.targetOperationId||''))throw Error('معرف المستند المعدّل غير صالح');
+        if(!Number.isInteger(op.baseRevision)||op.baseRevision<0||op.baseRevision>1000)throw Error('رقم مراجعة غير صالح');
+        if(!op.replacement||typeof op.replacement!=='object'||!['sale','sale_return','receipt','payment'].includes(op.replacement.kind))throw Error('المستند البديل غير صالح');
+        const next=validateOps([op.replacement],agentId,companyId,warehouseId,items,accounts)[0];
+        if(next.id!==op.targetOperationId||next.localNumber!==op.localNumber||next.kind!==op.originalKind)throw Error('لا يجوز تغيير رقم المستند أو نوعه أثناء التعديل');
+        if(Number(next.revision)!==op.baseRevision+1)throw Error('مراجعة المستند لا تطابق الإصدار الجديد');
+        if(history){
+          const previous=history.find(x=>x.id===op.targetOperationId);
+          if(!previous||previous.agentId!==agentId||previous.kind!==next.kind||Number(previous.revision||0)!==op.baseRevision)
+            throw Error('تعذر تعديل مستند غير مُرحّل أو تغير في الحساب الرئيسي؛ حدث بيانات المندوب');
+        }
+        return {...op,revision:op.baseRevision+1,replacement:next};
+      }
       if(op.kind==='customer_create'){
         if(op.accountId||op.rows||op.amount!=null)throw Error('إنشاء الزبون ليس حركة مالية');
         const src=op.account;
@@ -135,7 +149,14 @@
   function applyStock(baseStock, ops, ackIds) {
     const result={...baseStock},acked=new Set(ackIds||[]);
     for(const op of ops) {
-      if(acked.has(op.id)||!['sale','sale_return'].includes(op.kind))continue;
+      if(acked.has(op.id))continue;
+      if(op.kind==='document_edit'){
+        const apply=(doc,mul)=>{if(!doc||!['sale','sale_return'].includes(doc.kind))return;
+          for(const r of doc.rows||[]){const qty=Number(r.qty)/Number(r.unitFactor);
+            result[r.itemId]=(Number(result[r.itemId])||0)+(doc.kind==='sale_return'?1:-1)*qty*mul;}};
+        apply(op.before,-1);apply(op.replacement,1);continue;
+      }
+      if(!['sale','sale_return'].includes(op.kind))continue;
       for(const r of op.rows){ const delta=Number(r.qty)/Number(r.unitFactor);result[r.itemId]=(Number(result[r.itemId])||0)+(op.kind==='sale_return'?delta:-delta); }
     }
     return result;
