@@ -13,9 +13,9 @@ for (const icon of ['fa-chart-bar','fa-whatsapp','fa-headset','fa-chevron-up','f
   assert(icons.includes('"'+icon+'"'),`Offline icon missing ${icon}`);
 }
 assert.match(html,/svg\[fill="none"\]/,'The fix for outlined icon SVGs must remain');
-assert.match(html,/إصدار التطبيق: 3\.5\.29/);
-assert.match(gradle,/versionCode 36/);
-assert.match(gradle,/versionName '3\.5\.29-lan-thread-fix'/);
+assert.match(html,/إصدار التطبيق: 3\.5\.30/);
+assert.match(gradle,/versionCode 37/);
+assert.match(gradle,/versionName '3\.5\.30-two-way-sync'/);
 assert.match(gradle,/applicationId 'com\.sunshine\.technicalaccountant'/);
 assert.match(html,/const DB_NAME = 'AlRaedAccountingERP_v2'/);
 assert(html.includes('طباعة تقرير الديون') && html.includes('طباعة المبيعات'));

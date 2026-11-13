@@ -25,8 +25,8 @@ const FieldSync = {
       <p class="text-xs text-slate-500">المزامنة المباشرة تعمل عبر Wi-Fi محلي دون إنترنت. افتح هذه الشاشة عندما يضغط المندوب على «مزامنة الآن». وتبقى الملفات طريقة احتياطية.</p>
       <div class="rounded-xl border bg-slate-50 p-3 text-xs"><b>الشركة:</b> ${this.escape(State.settings.companyName)}<br/><b>المعرّف:</b> <span class="text-[10px]" dir="ltr">${config.companyId}</span></div>
       <div class="rounded-2xl border p-3 space-y-2 bg-teal-50" data-lan-manager="1">
-        <b class="text-sm">📡 استقبال المزامنة بضغطة واحدة</b>
-        <p class="text-xs">وصّل الهاتفين بالشبكة المحلية نفسها، واترك التطبيق الرئيسي مفتوحًا. يستقبل هذا الهاتف عمليات المندوب المشفرة، ويتحقق منها ويرحّلها دون اختيار أي ملف.</p>
+        <b class="text-sm">📡 استقبال العمليات وإرسال التحديثات تلقائيًا</b>
+        <p class="text-xs">وصّل الهاتفين بالشبكة المحلية نفسها، واترك التطبيق الرئيسي مفتوحًا. يستقبل هذا الهاتف عمليات المندوب المشفرة ويُرحّلها، ثم يرسل له أحدث المواد والأسعار والعملاء ورصيد السيارة حتى لو لم تكن لديه عمليات جديدة. كل ذلك دون اختيار ملفات.</p>
         <div id="fieldLanStatus" class="text-xs font-bold text-teal-900">جارٍ تشغيل الاستقبال…</div>
         <button type="button" class="ta-primary-3d w-full p-3 rounded-xl font-bold" onclick="FieldSync.startLanReceiver()">تشغيل / إعادة محاولة الاستقبال</button>
       </div>
@@ -190,13 +190,13 @@ const FieldSync = {
   },
   onLanStatus(status){
     const label=document.getElementById('fieldLanStatus');
-    if(label)label.textContent=status==='ready'?'✅ الاستقبال جاهز — يمكن للمندوب الضغط على «مزامنة الآن»':status==='stopped'?'الاستقبال متوقف':String(status);
+    if(label)label.textContent=status==='ready'?'✅ جاهز لاستقبال العمليات وإرسال التحديثات بضغطة المندوب':status==='stopped'?'الاستقبال متوقف':String(status);
   },
   // Called only by Android's own local network bridge. No unverified document touches the ledger.
   async receiveLanPacket(requestId, raw){
     let answer={error:'لم يتم ترحيل العمليات؛ أعد المحاولة'},agent=null;
     try {
-      if(this.busy||this.lanBusy)throw Error('التطبيق الرئيسي مشغول بعملية أخرى');
+      if(this.busy||this.lanBusy)throw Error('التطبيق الرئيسي مشغول؛ أعد المزامنة بعد قليل');
       this.lanBusy=true;
       const packet=JSON.parse(raw), config=this.data();
       if(packet.companyId!==config.companyId)throw Error('الشركة غير مطابقة');
@@ -214,7 +214,7 @@ const FieldSync = {
         knownIds:config.imported.filter(x=>x.agentId===agent.id).map(x=>x.id),catalog:snapshot,requestNonce:payload.nonce,serverAt:new Date().toISOString()};
       answer=await FieldLanCrypto.pack(ack,agent.key,config.companyId,agent.id);
       if(count)UI.toast('تم ترحيل '+count+' عملية من '+agent.name,'success');
-      const st=document.getElementById('fieldLanStatus');if(st)st.textContent='✅ آخر استقبال: '+count+' عملية من '+agent.name;
+      const st=document.getElementById('fieldLanStatus');if(st)st.textContent='✅ تمت المزامنة مع '+agent.name+': استلام '+count+' عملية وإرسال تحديثات السيارة والمواد والعملاء';
     }catch(e){answer={error:'تعذر ترحيل البيانات: '+e.message};
       const st=document.getElementById('fieldLanStatus');if(st)st.textContent=answer.error;
     }finally{

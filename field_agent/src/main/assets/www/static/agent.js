@@ -2,7 +2,7 @@
 const AGENT_LICENSE_PUBLIC_KEY='MIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEAxWiG4kVoBws0cXWj9ttFg9+CdxhUqhG5RB/EnJ5c9kgL2ZM9tAFU3pji3sobZJotaJHwE5akrOHZ5QBqoPjiuYPph3eSKrOnh/LHI4jFNZgcwarUMcbK9n2VNr4uO41E3JHPFl/zTOnaHbvGbYrg9huX8ee5Tl2I5vOSk4KNiSwh+dtvMVP+bgUxaEPmhK5FcHOiUeiQjD22U/qSAsI0ZtyyPMBe8K0QPv2Mc8W6Bl1elLy1izeUwNTcvsRElLw1YluCifKNsm5TrX6Xw8FmpMBoLy2gSWUGhxE8TGhXEKn9CT3Q8bxIq9wPyzHrTCJXYT/2ErgEc25ObVTE4Gh94tR+Ne4+UpON83KV4PH29W9HnlVZYM3CJ/Hw+RulZfmvUOR5eU5ShOv2toguNzGXGNLnb07YP/BgUYk0735KxYLN7QUP7nkPfOOPMPbQjI3n8DI0ppl0wrVs3u8Kopw2nbcg+Q0xtq6P9J8I7YQ2Au/2d/CiJXdOMoB3otXSQDTxAgMBAAE=';
 const Agent={
   state:null,db:null,screen:'home',draft:[],draftKind:'sale',busy:false,lanSyncBusy:false,lanSyncMessage:'',
-  get blank(){return {deviceId:'TD-'+FieldProtocol.uuid().toUpperCase(),companyId:'',companyName:'',agentId:'',agentName:'',vehicleName:'',warehouseId:'',key:'',items:[],categories:[],accounts:[],stock:{},knownIds:[],snapshotIds:[],ops:[],license:'',issuedAt:'',exchangeRate:15000};},
+  get blank(){return {deviceId:'TD-'+FieldProtocol.uuid().toUpperCase(),companyId:'',companyName:'',agentId:'',agentName:'',vehicleName:'',warehouseId:'',key:'',items:[],categories:[],accounts:[],stock:{},knownIds:[],snapshotIds:[],ops:[],license:'',issuedAt:'',lastSyncAt:'',lastSyncSummary:null,exchangeRate:15000};},
   async init(){
     if(!globalThis.crypto?.subtle){document.getElementById('screen').textContent='هذا الجهاز لا يدعم البيئة الآمنة اللازمة لتشغيل المزامنة.';return;}
     try{
@@ -50,12 +50,10 @@ const Agent={
     ${this.state.ops.length?`<button class="secondary" onclick="Agent.exportOutbox()">تصدير العمليات القديمة للمحاسب حتى لو انتهت صلاحية التفعيل</button>`:''}
     <label class="label">استلام تأكيد مزامنة أو تحديث الشركة</label><input class="field" type="file" accept="*/*" onchange="Agent.importFile(this)"></div>`;},
   renderHome(){return `<div class="hero"><h2>أهلاً ${this.escape(this.state.agentName)} 👋</h2><p>${this.escape(this.state.companyName)} · ${this.escape(this.state.vehicleName)}</p><div class="stats"><div class="stat"><b>${this.state.ops.length}</b><small>جميع العمليات</small></div><div class="stat"><b>${this.pending.length}</b><small>بانتظار الإرسال</small></div><div class="stat"><b>${this.state.items.length}</b><small>مادة متاحة</small></div></div></div>
-    <section class="panel" style="border-color:#99ded3;background:#edfdf8"><b>مزامنة مباشرة مع الشركة</b><p class="tiny">وصّل الهاتفين بالشبكة نفسها، واترك التطبيق الرئيسي مفتوحًا في صفحة المندوبين.</p><button class="primary" onclick="Agent.syncOneTap()" ${this.lanSyncBusy?'disabled':''}>${this.lanSyncBusy?'جارٍ الترحيل والتحقق…':'⇄ مزامنة الآن بضغطة واحدة'}</button><p class="tiny" id="agentLanStatus">${this.escape(this.lanSyncMessage||'لا حاجة لاختيار أي ملف')}</p></section>
     <div class="grid"><button class="tile" onclick="Agent.startInvoice('sale')"><span class="glyph">🛒</span><strong>فاتورة مبيعات</strong><small>بيع مباشر للعملاء</small></button>
     <button class="tile" onclick="Agent.startInvoice('sale_return')"><span class="glyph">↩</span><strong>مردود المبيعات</strong><small>إرجاع مواد</small></button>
     <button class="tile" onclick="Agent.show('voucher')"><span class="glyph">💵</span><strong>سند قبض / دفع</strong><small>حركة مالية للعميل</small></button>
     <button class="tile" onclick="Agent.show('stock')"><span class="glyph">📦</span><strong>رصيد السيارة</strong><small>مخزون المستودع المتنقل</small></button>
-    <button class="tile" onclick="Agent.show('sync')"><span class="glyph">⇄</span><strong>المزامنة</strong><small>Wi-Fi محلي — بدون اختيار ملف</small></button>
     <button class="tile" onclick="Agent.choosePrinter()"><span class="glyph">🖨</span><strong>اختيار الطابعة</strong><small>طابعة بلوتوث حرارية</small></button></div>`;},
   startInvoice(kind){this.draft=[];this.draftKind=kind;this.show('invoice');},
   renderInvoice(){
@@ -184,6 +182,7 @@ const Agent={
     const btn=document.getElementById('agentLanSyncButton');if(btn){btn.disabled=this.lanSyncBusy;btn.textContent=this.lanSyncBusy?'جارٍ المزامنة…':'⇄ مزامنة الآن — Wi-Fi محلي';}},
   async onLocalSyncResult(raw){
     try {
+      if(!this.lanSyncBusy||!this.lanRequestNonce)throw Error('تأكيد مزامنة غير متوقع');
       const result=JSON.parse(raw);
       if(result.error)throw Error(result.error);
       const packet=JSON.parse(result.data);
@@ -192,6 +191,21 @@ const Agent={
       const catalog=ack.catalog;
       if(!catalog||catalog.kind!=='provision'||catalog.companyId!==this.state.companyId||catalog.agentId!==this.state.agentId||catalog.key!==this.state.key||!Array.isArray(catalog.items)||!Array.isArray(catalog.accounts)||!catalog.stock)throw Error('كشف تحديث غير صالح');
       const old=this.state;
+      if(catalog.warehouseId!==old.warehouseId||!Array.isArray(catalog.categories||[])||
+        !Array.isArray(catalog.knownIds)||!Number.isFinite(Number(catalog.exchangeRate))||Number(catalog.exchangeRate)<=0)
+        throw Error('بيانات تحديث الشركة غير مكتملة أو تخص مستودعًا آخر');
+      // Compare the new server snapshot to the last locally committed one. Do not overwrite
+      // the append-only local operations, activation credential, or unsent invoices.
+      const changed=(prev,next)=>{
+        const before=new Map((prev||[]).map(v=>[String(v.id??v.name),JSON.stringify(v)]));
+        const after=new Set();let n=0;
+        for(const v of next){const id=String(v.id??v.name);after.add(id);if(before.get(id)!==JSON.stringify(v))n++;}
+        for(const id of before.keys())if(!after.has(id))n++;
+        return n;
+      };
+      const itemsChanged=changed(old.items,catalog.items);
+      const accountsChanged=changed(old.accounts,catalog.accounts);
+      const stockChanged=Object.keys({...old.stock,...catalog.stock}).filter(id=>Number(old.stock?.[id]??0)!==Number(catalog.stock?.[id]??0)).length;
       const owned=new Set(old.ops.map(x=>x.id));
       // Accepted operations become synced only if the database commits successfully.
       const confirmed=ack.knownIds.filter(id=>owned.has(id));
@@ -199,10 +213,15 @@ const Agent={
       this.state={...old,companyName:catalog.companyName,agentName:catalog.agentName,
         vehicleName:catalog.vehicleName,warehouseId:catalog.warehouseId,issuedAt:catalog.issuedAt,
         exchangeRate:catalog.exchangeRate,categories:catalog.categories||[],items:catalog.items,
-        accounts:catalog.accounts,stock:catalog.stock,snapshotIds:catalog.knownIds||[],knownIds};
+        accounts:catalog.accounts,stock:catalog.stock,snapshotIds:catalog.knownIds||[],knownIds,
+        lastSyncAt:new Date().toISOString(),
+        lastSyncSummary:{sent:old.ops.filter(o=>!(old.knownIds||[]).includes(o.id)).length,
+          confirmed:confirmed.filter(id=>!(old.knownIds||[]).includes(id)).length,
+          itemsChanged,accountsChanged,stockChanged,materials:catalog.items.length,
+          customers:catalog.accounts.length,serverAt:ack.serverAt||''}};
       try {await this.save();}catch(e){this.state=old;throw e;}
-      const newCount=confirmed.filter(id=>!(old.knownIds||[]).includes(id)).length;
-      this.lanSyncMessage='✅ تمت المزامنة. تأكد استلام '+newCount+' عملية؛ بقي '+this.pending.length+' غير متزامنة.';
+      const newCount=this.state.lastSyncSummary.confirmed;
+      this.lanSyncMessage='✅ تمت المزامنة بالاتجاهين: '+newCount+' عملية مؤكدة، وتحديث '+itemsChanged+' مادة و'+accountsChanged+' عميل و'+stockChanged+' رصيد. المتبقي '+this.pending.length+'.';
       this.toast(this.lanSyncMessage);
     }catch(e){this.lanSyncMessage='لم تكتمل المزامنة: '+e.message;this.toast(this.lanSyncMessage);}
     finally{this.lanSyncBusy=false;this.lanRequestNonce=null;await this.show(this.screen||'home');this.syncPaint();}

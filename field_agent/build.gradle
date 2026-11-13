@@ -10,8 +10,8 @@ android {
         applicationId 'com.sunshine.technicalaccountant.agent'
         minSdk 26
         targetSdk 35
-        versionCode 4
-        versionName '1.2.1-lan-thread-fix'
+        versionCode 5
+        versionName '1.2.2-two-way-sync'
     }
 
     // A permanent signing key is required for in-place updates. The keystore is
