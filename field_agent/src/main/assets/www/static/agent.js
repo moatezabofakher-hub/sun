@@ -15,7 +15,16 @@ const Agent={
       await this.show('home');
     }catch(e){document.getElementById('screen').textContent='خطأ في التخزين المحلي: '+e.message;}
   },
-  async save(){return new Promise((resolve,reject)=>{const tx=this.db.transaction('state','readwrite');tx.objectStore('state').put({id:'main',data:this.state});tx.oncomplete=()=>resolve(true);tx.onabort=()=>reject(tx.error||Error('فشل حفظ البيانات'));tx.onerror=()=>{};});},
+  async save(){
+    await new Promise((resolve,reject)=>{const tx=this.db.transaction('state','readwrite');tx.objectStore('state').put({id:'main',data:this.state});tx.oncomplete=()=>resolve(true);tx.onabort=()=>reject(tx.error||Error('فشل حفظ البيانات'));tx.onerror=()=>{};});
+    // Only stage after the IndexedDB transaction actually commits. The native worker
+    // can run while the app is closed, and reads the most recent recoverable snapshot.
+    try { if(window.AndroidAutoBackup?.stageSnapshot){
+      const data={invoices:(this.state.ops||[]).filter(o=>o.kind==='sale'||o.kind==='sale_return'),items:this.state.items||[],accounts:this.state.accounts||[],agentState:this.state};
+      window.AndroidAutoBackup.stageSnapshot(JSON.stringify({app:'AlMohaseb_Field_Agent',backupFormat:1,profileId:'field_'+(this.state.agentId||'unpaired'),profileName:this.state.agentName||'المندوب',exportedAt:new Date().toISOString(),data}));
+    }} catch(_) { /* Saved in IndexedDB; the backup status screen shows native errors. */ }
+    return true;
+  },
   toast(msg){const x=document.getElementById('toast');x.textContent=msg;x.classList.remove('hide');clearTimeout(this.toastTimer);this.toastTimer=setTimeout(()=>x.classList.add('hide'),4300);},
   escape(t){return String(t??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));},
   ready(){return !!(this.state?.companyId&&this.state.key)},

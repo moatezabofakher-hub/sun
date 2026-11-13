@@ -254,9 +254,9 @@ Agent.renderPrinter=function(){const p=this.printerInfo;return `<div class="hero
   <label class="label">عرض الورق</label><select id="agentPrintWidth" class="field" onchange="Agent.updatePrinterWidth(this.value)"><option value="80" ${this.state.printerWidth!==58?'selected':''}>80 مم</option><option value="58" ${this.state.printerWidth===58?'selected':''}>58 مم</option></select>
   <p class="form-help">تستخدم الفواتير صورة نقطية لإظهار العربية والأرقام بصورة متوافقة مع معظم الطابعات الحرارية، ويجب اختبارها على الطابعة الفعلية.</p></div>`;};
 Agent.renderSettings=function(){return `<div class="hero"><h2>الضبط</h2><p>إعدادات المندوب وإدارة الاتصال والطباعة — دون صلاحيات إدارة أرباح الشركة.</p></div>
- <section class="panel"><h3>معلومات التفعيل</h3><div class="itemrow"><b>المندوب</b><p class="tiny">${this.escape(this.state.agentName)}</p></div><div class="itemrow"><b>السيارة</b><p class="tiny">${this.escape(this.state.vehicleName)}</p></div><div class="itemrow"><b>الجهاز</b><p class="tiny ltr">${this.escape(this.state.deviceId)}</p></div><p class="form-help">إصدار المندوب 1.2.11. لا يمكن تغيير الشركة أو مستودع السيارة من تطبيق المندوب. التعديل يأتي بملف تجهيز معتمد من الإدارة.</p></section>
+ <section class="panel"><h3>معلومات التفعيل</h3><div class="itemrow"><b>المندوب</b><p class="tiny">${this.escape(this.state.agentName)}</p></div><div class="itemrow"><b>السيارة</b><p class="tiny">${this.escape(this.state.vehicleName)}</p></div><div class="itemrow"><b>الجهاز</b><p class="tiny ltr">${this.escape(this.state.deviceId)}</p></div><p class="form-help">إصدار المندوب 3.5.43. لا يمكن تغيير الشركة أو مستودع السيارة من تطبيق المندوب. التعديل يأتي بملف تجهيز معتمد من الإدارة.</p></section>
  <section class="panel"><h3>إعدادات الطباعة</h3><button class="primary" onclick="Agent.navigate('printer')">🖨 إعداد البلوتوث والطابعة</button></section>
- <section class="panel"><h3>المزامنة والنسخ</h3><button class="secondary" onclick="Agent.navigate('sync')">⇄ إرسال واستقبال العمليات</button><button class="secondary" onclick="Agent.exportOutbox()" ${this.pending.length?'':'disabled'}>تصدير العمليات غير المُزامنة</button></section>`;};
+ <section class="panel"><h3>المزامنة والنسخ</h3><button class="secondary" onclick="Agent.navigate('sync')">⇄ إرسال واستقبال العمليات</button><button class="secondary" onclick="Agent.exportOutbox()" ${this.pending.length?'':'disabled'}>تصدير العمليات غير المُزامنة</button><button class="primary" onclick="Agent.navigate('backup')">🗂 النسخ الاحتياطي التلقائي وواتساب</button></section>`;};
 Agent.pairPrinter=function(){if(window.AndroidPrinter?.pairPrinter)window.AndroidPrinter.pairPrinter();else this.toast('الاقتران المباشر متاح داخل APK فقط');};
 Agent.connectPrinter=function(){if(window.AndroidPrinter?.connectSaved)window.AndroidPrinter.connectSaved();else this.toast('يتطلب الاتصال نسخة أندرويد');};
 Agent.disconnectPrinter=function(){if(window.AndroidPrinter?.disconnect)window.AndroidPrinter.disconnect();};
@@ -271,15 +271,15 @@ window.__nativePrinterEvent=function(detail,message){const event=typeof detail==
 const previousShow=Agent.show.bind(Agent);
 Agent.show=async function(route){
  // Original renderer still handles activation, provisioning, and sync; specialized screens are rendered here.
- if(route==='printer'||route==='settings'||route==='payment'){
+ if(route==='printer'||route==='settings'||route==='payment'||route==='backup'){
   this.screen=route;
   if(!this.ready()||!await this.active()){await previousShow('home');return;}
-  const element=document.getElementById('screen');element.innerHTML=route==='printer'?this.renderPrinter():route==='settings'?this.renderSettings():this.renderPayment();
+  const element=document.getElementById('screen');element.innerHTML=route==='printer'?this.renderPrinter():route==='settings'?this.renderSettings():route==='backup'?this.renderBackupSettings():this.renderPayment();
   if(route==='printer')try{window.AndroidPrinter?.getStatus?.();}catch(_){}
  }else await previousShow(route);
  const active=this.ready()&&await this.active();const back=document.getElementById('agentBack');
  back?.classList.toggle('hide',!active||this.stack.length<2);
- const header=document.getElementById('agentScreenTitle');if(header)header.textContent=this.screen==='home'?'المحاسب التقني':({invoice:'الفاتورة',ops:'الفواتير والسندات',sync:'المزامنة',voucher:'سند مالي',printer:'الطابعة',settings:'الضبط',stock:'مستودع السيارة',payment:'تسجيل دفعة'})[this.screen]||'المحاسب التقني';
+ const header=document.getElementById('agentScreenTitle');if(header)header.textContent=this.screen==='home'?'المحاسب التقني':({invoice:'الفاتورة',ops:'الفواتير والسندات',sync:'المزامنة',voucher:'سند مالي',printer:'الطابعة',settings:'الضبط',backup:'النسخ الاحتياطي',stock:'مستودع السيارة',payment:'تسجيل دفعة'})[this.screen]||'المحاسب التقني';
  const sub=document.getElementById('agentScreenSubtitle');if(sub)sub.textContent=active?'نسخة المندوب · '+this.state.companyName:'نسخة المندوب · تطبيق التوزيع';
  const vehicle=document.getElementById('agentVehicleHeader');if(vehicle)vehicle.textContent=this.state.vehicleName||'جهاز المندوب';
  document.getElementById('bottom')?.classList.toggle('hide',!active);

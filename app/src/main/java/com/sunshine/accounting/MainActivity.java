@@ -67,6 +67,7 @@ public final class MainActivity extends FragmentActivity {
     private static final int SAVE_REPORT_PDF = 2405;
     private static final int REQUEST_ITEM_CAMERA = 2404;
     private WebView webView;
+    private volatile boolean trustedLocalMainFrame;
     private NativeBluetoothPrinter bluetoothPrinter;
     private NativeLocalSync nativeLocalSync;
     private BiometricPrompt biometricPrompt;
@@ -206,12 +207,14 @@ public final class MainActivity extends FragmentActivity {
             @Override
             public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
                 super.onPageStarted(view, url, favicon);
+                trustedLocalMainFrame = url != null && url.startsWith("https://" + HOST + "/assets/www/");
                 if (nativeLocalSync != null) nativeLocalSync.onMainFrameUrlChanged(url);
             }
 
             @Override
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
+                trustedLocalMainFrame = url != null && url.startsWith("https://" + HOST + "/assets/www/");
                 if (nativeLocalSync != null) nativeLocalSync.onMainFrameUrlChanged(url);
             }
 
@@ -285,6 +288,7 @@ public final class MainActivity extends FragmentActivity {
         webView.addJavascriptInterface(new ExitBridge(), "Android");
         webView.addJavascriptInterface(new BackupBridge(), "AndroidFiles");
         webView.addJavascriptInterface(new ReportPdfBridge(), "AndroidReports");
+        webView.addJavascriptInterface(new InvoicePdfBridge(), "AndroidInvoicePdf");
         webView.addJavascriptInterface(new AutoBackupBridge(), "AndroidAutoBackup");
         bluetoothPrinter = new NativeBluetoothPrinter(this, webView);
         webView.addJavascriptInterface(bluetoothPrinter, "AndroidPrinter");
@@ -694,6 +698,48 @@ public final class MainActivity extends FragmentActivity {
                             "تعذر إنشاء PDF: " + e.getMessage(), Toast.LENGTH_LONG).show());
                 }
             }, "ta-pdf-report").start();
+        }
+    }
+
+    /** Generates an invoice PDF into private temporary cache and opens Share immediately.
+     *  Never launches ACTION_CREATE_DOCUMENT and never stores a permanent user file.
+     */
+    private final class InvoicePdfBridge {
+        private volatile boolean busy;
+        @JavascriptInterface public void shareInvoice(String json, String filename) {
+            if (!trustedLocalMainFrame || json == null || json.length() > 3_500_000) {
+                runOnUiThread(()->Toast.makeText(MainActivity.this,
+                        "حجم بيانات الفاتورة غير صالح للمشاركة",Toast.LENGTH_LONG).show());
+                return;
+            }
+            synchronized(this){if(busy)return;busy=true;}
+            new Thread(()->{
+                try {
+                    byte[] bytes=ReportPdfRenderer.renderInvoice(new JSONObject(json));
+                    if(bytes.length==0 || bytes.length>15_000_000) throw new IOException("PDF غير صالح");
+                    File dir=new File(getCacheDir(),"shared_invoices");
+                    if(!dir.exists() && !dir.mkdirs()) throw new IOException("تعذر إنشاء المجلد المؤقت");
+                    // Remove stale shared files only after receivers have had time to read them.
+                    File[] oldFiles=dir.listFiles();
+                    if(oldFiles!=null)for(File older:oldFiles)if(older.isFile() &&
+                            older.lastModified()<System.currentTimeMillis()-86_400_000L)older.delete();
+                    String safe=(filename==null?"Invoice.pdf":filename).replaceAll("[^\\p{L}\\p{N}_.-]","_");
+                    if(!safe.toLowerCase(java.util.Locale.ROOT).endsWith(".pdf"))safe+=".pdf";
+                    File file=new File(dir,java.util.UUID.randomUUID().toString().substring(0,8)+"_"+safe);
+                    try(java.io.FileOutputStream out=new java.io.FileOutputStream(file)){out.write(bytes);out.flush();}
+                    Uri uri=FileProvider.getUriForFile(MainActivity.this,getPackageName()+".fileprovider",file);
+                    runOnUiThread(()->{
+                        Intent share=new Intent(Intent.ACTION_SEND);
+                        share.setType("application/pdf");
+                        share.putExtra(Intent.EXTRA_STREAM,uri);
+                        share.setClipData(ClipData.newUri(getContentResolver(),"الفاتورة PDF",uri));
+                        share.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                        try {startActivity(Intent.createChooser(share,"إرسال الفاتورة PDF"));}
+                        catch(Exception e){Toast.makeText(MainActivity.this,"تعذر فتح مشاركة PDF",Toast.LENGTH_LONG).show();}
+                    });
+                }catch(Exception e){runOnUiThread(()->Toast.makeText(MainActivity.this,"تعذر تجهيز PDF: "+e.getMessage(),Toast.LENGTH_LONG).show());}
+                finally{busy=false;}
+            },"ta-invoice-pdf-share").start();
         }
     }
 

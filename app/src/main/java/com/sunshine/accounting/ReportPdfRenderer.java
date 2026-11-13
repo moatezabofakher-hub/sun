@@ -1,5 +1,9 @@
 package com.sunshine.accounting;
 
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.RectF;
+import android.util.Base64;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
@@ -74,10 +78,104 @@ final class ReportPdfRenderer {
         } finally { pdf.close(); }
     }
 
+    /** Export an actual invoice as an Arabic A4 PDF (not a ledger summary).
+     *  Each PDF is generated on demand and can be shared from temporary app cache.
+     */
+    static byte[] renderInvoice(JSONObject input) throws IOException {
+        if (input == null) throw new IOException("Missing invoice");
+        JSONArray rows = input.optJSONArray("rows");
+        if (rows == null || rows.length() > 2500) throw new IOException("Invalid invoice rows");
+        String currency = "SYP".equals(input.optString("currency")) ? "SYP" : "USD";
+        PdfDocument pdf = new PdfDocument();
+        try {
+            Writer w = new Writer(pdf);
+            w.startPage();
+            // Embed an offline data-URL logo if configured. No Internet access is used.
+            String logo = input.optString("companyLogo", "");
+            if (logo.startsWith("data:image/") && logo.length() < 2_400_000 && logo.contains(",")) {
+                try {
+                    byte[] decoded = Base64.decode(logo.substring(logo.indexOf(',') + 1), Base64.DEFAULT);
+                    if (decoded.length <= 1_600_000) {
+                        BitmapFactory.Options bounds = new BitmapFactory.Options();
+                        bounds.inJustDecodeBounds = true;
+                        BitmapFactory.decodeByteArray(decoded, 0, decoded.length, bounds);
+                        if (bounds.outWidth > 0 && bounds.outHeight > 0 &&
+                                bounds.outWidth <= 3000 && bounds.outHeight <= 3000) {
+                            Bitmap bitmap = BitmapFactory.decodeByteArray(decoded, 0, decoded.length);
+                            if (bitmap != null) w.addLogo(bitmap);
+                        }
+                    }
+                } catch (Exception ignored) { /* An invalid logo does not prevent invoicing. */ }
+            }
+            String company = clean(input.optString("companyName"), 200);
+            w.add(company.isEmpty() ? "فاتورة" : company, 21, true, Color.rgb(15, 70, 82), Layout.Alignment.ALIGN_CENTER, 6);
+            String phone = clean(input.optString("companyPhone"), 100);
+            if (!phone.isEmpty()) w.add("هاتف: " + phone, 11, true, Color.DKGRAY, Layout.Alignment.ALIGN_CENTER, 4);
+            String address = clean(input.optString("companyAddress"), 200);
+            if (!address.isEmpty()) w.add(address, 10, false, Color.DKGRAY, Layout.Alignment.ALIGN_CENTER, 4);
+            w.rule(Color.rgb(164, 187, 197), 12);
+            w.add(clean(input.optString("title", "فاتورة"), 150), 19, true, Color.BLACK, Layout.Alignment.ALIGN_CENTER, 10);
+            w.add("رقم الفاتورة: " + clean(input.optString("number"), 50), 12, true, Color.DKGRAY, Layout.Alignment.ALIGN_NORMAL, 5);
+            w.add("التاريخ: " + clean(input.optString("date"), 60), 11, false, Color.DKGRAY, Layout.Alignment.ALIGN_NORMAL, 5);
+            w.add("الحساب: " + clean(input.optString("accountName", "زبون عام"), 150), 12, true, Color.rgb(22, 62, 74), Layout.Alignment.ALIGN_NORMAL, 4);
+            String accPhone = clean(input.optString("accountPhone"), 60);
+            if (!accPhone.isEmpty()) w.add("هاتف الزبون: " + accPhone, 10, false, Color.DKGRAY, Layout.Alignment.ALIGN_NORMAL, 3);
+            String accAddress = clean(input.optString("accountAddress"), 250);
+            if (!accAddress.isEmpty()) w.add("عنوان الزبون: " + accAddress, 10, false, Color.DKGRAY, Layout.Alignment.ALIGN_NORMAL, 3);
+            w.rule(Color.rgb(169, 195, 207), 12);
+            int priceDecimals = Math.min(4, Math.max(0, input.optInt("priceDecimals", 2)));
+            w.add("الأصناف  |  الوحدة  |  الكمية  |  السعر  |  الإجمالي", 11, true,
+                    Color.rgb(15, 91, 99), Layout.Alignment.ALIGN_NORMAL, 8);
+            for (int i = 0; i < rows.length(); i++) {
+                JSONObject row = rows.optJSONObject(i);
+                if (row == null) continue;
+                String name = (i+1) + ". " + clean(row.optString("itemName"), 250);
+                String detail = clean(row.optString("unitName"), 70) + "  |  " + clean(row.optString("qty"), 32)
+                        + " × " + formatPrice(row.optDouble("price"), currency, priceDecimals) + "  |  "
+                        + formatAmount(row.optDouble("total"), currency);
+                w.addRow(name, detail);
+            }
+            w.rule(Color.rgb(158, 183, 193), 11);
+            w.add("المجموع: " + formatAmount(input.optDouble("subTotal", 0), currency), 12, true,
+                    Color.BLACK, Layout.Alignment.ALIGN_NORMAL, 6);
+            if (input.optDouble("discountAmount", 0) != 0) w.add("الحسم: " + formatAmount(input.optDouble("discountAmount"), currency), 11,
+                    false, Color.DKGRAY, Layout.Alignment.ALIGN_NORMAL, 5);
+            if (input.optDouble("taxAmount", 0) != 0) w.add("الضريبة أو الإضافات: " + formatAmount(input.optDouble("taxAmount"), currency), 11,
+                    false, Color.DKGRAY, Layout.Alignment.ALIGN_NORMAL, 5);
+            w.add("صافي الفاتورة: " + formatAmount(input.optDouble("netTotal", 0), currency), 14, true,
+                    Color.rgb(10, 96, 83), Layout.Alignment.ALIGN_NORMAL, 8);
+            w.add("المدفوع: " + formatAmount(input.optDouble("paidAmount", 0), currency), 11, false,
+                    Color.DKGRAY, Layout.Alignment.ALIGN_NORMAL, 4);
+            w.add("المتبقي: " + formatAmount(input.optDouble("remainingAmount", 0), currency), 11, true,
+                    Color.BLACK, Layout.Alignment.ALIGN_NORMAL, 10);
+            if (!input.isNull("previousBalance") && input.has("previousBalance")) {
+                w.rule(Color.rgb(196, 214, 223), 8);
+                w.add("الرصيد قبل الفاتورة: " + formatAmount(input.optDouble("previousBalance"), currency), 11,
+                        false, Color.DKGRAY, Layout.Alignment.ALIGN_NORMAL, 5);
+                w.add("الرصيد النهائي: " + formatAmount(input.optDouble("finalBalance"), currency), 12,
+                        true, Color.rgb(15, 70, 82), Layout.Alignment.ALIGN_NORMAL, 7);
+            }
+            String note = clean(input.optString("note"), 500);
+            if (!note.isEmpty()) w.add("ملاحظات: " + note, 10, false, Color.GRAY, Layout.Alignment.ALIGN_NORMAL, 8);
+            w.add("تم إصدار هذه الفاتورة من التطبيق الرئيسي", 9, false,
+                    Color.GRAY, Layout.Alignment.ALIGN_CENTER, 10);
+            w.finish();
+            ByteArrayOutputStream out = new ByteArrayOutputStream(24 * 1024);
+            pdf.writeTo(out);
+            return out.toByteArray();
+        } finally { pdf.close(); }
+    }
+
     private static String clean(String raw, int limit) {
         if (raw == null) return "";
         String cleaned = raw.replaceAll("[\\p{Cntrl}&&[^\\n\\t]]", " ").trim();
         return cleaned.length() > limit ? cleaned.substring(0, limit) : cleaned;
+    }
+
+    private static String formatPrice(double n, String currency, int decimals) {
+        if (!Double.isFinite(n)) n = 0;
+        return String.format(java.util.Locale.US, "%,." + decimals + "f", n)
+                + ("SYP".equals(currency) ? " ل.س" : " $");
     }
 
     private static String formatAmount(double n, String currency) {
@@ -121,6 +219,17 @@ final class ReportPdfRenderer {
             if (y + item.getHeight() + after > BOTTOM) startPage();
             draw(item, y);
             y += item.getHeight() + after;
+        }
+        void addLogo(Bitmap bitmap) {
+            if (bitmap == null || bitmap.getWidth() <= 0 || bitmap.getHeight() <= 0) return;
+            float width = Math.min(140f, bitmap.getWidth());
+            float height = width * bitmap.getHeight() / bitmap.getWidth();
+            if (height > 70f) { height = 70f; width = height * bitmap.getWidth() / bitmap.getHeight(); }
+            if (y + height + 8 > BOTTOM) startPage();
+            canvas.drawBitmap(bitmap, null,
+                    new RectF((W - width)/2f, y, (W + width)/2f, y + height),
+                    new Paint(Paint.ANTI_ALIAS_FLAG|Paint.FILTER_BITMAP_FLAG));
+            y += height + 8;
         }
         void addRow(String name, String detail) {
             StaticLayout first = layout(name, 12, true, Color.rgb(28, 48, 65), Layout.Alignment.ALIGN_NORMAL);

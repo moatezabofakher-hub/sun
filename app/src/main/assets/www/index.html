@@ -4195,6 +4195,7 @@
                                     <i class="fas fa-sliders"></i>
                                     <span>البلوتوث</span>
                                 </button>
+                                <button onclick="InvoicePdfShare.share('${inv.id}')" class="bg-emerald-700 hover:bg-emerald-600 text-white font-bold px-2.5 py-2 rounded-xl text-xs flex items-center gap-1 border border-emerald-500" title="مشاركة الفاتورة كملف PDF من دون حفظ دائم على الجهاز"><i class="fas fa-share-nodes"></i><span>إرسال PDF</span></button>
                                 <!-- Secondary PDF / System Print Option -->
                                 <button onclick="window.print()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold px-2.5 py-2 rounded-xl text-xs flex items-center gap-1 border border-slate-700">
                                     <i class="fas fa-file-pdf text-rose-400"></i>
@@ -4917,8 +4918,8 @@
                 UI.setHeader('<i class="fas fa-sliders text-emerald-400"></i> <span>الضبط</span>', 'اضغط على القسم المطلوب لعرض خياراته');
                 const mode = State.settings.btPrintMode || 'auto';
                 main.innerHTML = `
-                    <div class="mb-3 flex items-center justify-between gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2" data-app-build="3.5.41">
-                        <span class="font-black text-xs text-emerald-800"><i class="fas fa-check-circle ml-1"></i> إصدار التطبيق: 3.5.41</span>
+                    <div class="mb-3 flex items-center justify-between gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2" data-app-build="3.5.43">
+                        <span class="font-black text-xs text-emerald-800"><i class="fas fa-check-circle ml-1"></i> إصدار التطبيق: 3.5.43</span>
                         <span class="text-[10px] font-bold text-emerald-700">مظهر ثلاثي الأبعاد موحّد</span>
                     </div>
                     <div class="mb-3 text-[11px] text-slate-500 font-semibold px-1">جميع خيارات التطبيق مرتبة ضمن فئات. اضغط على اسم أي فئة لفتحها أو إغلاقها.</div>
@@ -7467,6 +7468,7 @@
                         <button onclick="InvoiceController.openInvoicePayment('${inv.id}')" class="rounded-xl bg-emerald-50 text-emerald-700 py-4 font-extrabold text-sm flex flex-col items-center gap-2"><i class="fas fa-money-bill-transfer text-xl"></i>إضافة دفعة</button>
                         <button onclick="UI.forceCloseModal(); ThermalPrinter.printInvoiceDirect(State.invoices.find(i=>i.id==='${inv.id}'))" class="rounded-xl bg-amber-50 text-amber-700 py-4 font-extrabold text-sm flex flex-col items-center gap-2"><i class="fas fa-print text-xl"></i>طباعة</button>
                     </div>
+                    <button onclick="UI.forceCloseModal(); InvoicePdfShare.share('${inv.id}')" class="w-full mt-2 rounded-xl bg-emerald-100 text-emerald-800 py-3 font-black text-sm"><i class="fas fa-share-nodes ml-2"></i>مشاركة الفاتورة PDF مباشرة — دون حفظ على الهاتف</button>
                     <div class="mt-3 rounded-xl bg-slate-50 p-3 text-xs flex justify-between"><span>المدفوع: ${Accounting.format(inv.paidAmount, inv.currency)}</span><strong class="${remaining > 0 ? 'text-rose-600' : 'text-emerald-600'}">المتبقي: ${Accounting.format(remaining, inv.currency)}</strong></div>
                 `);
             },
@@ -8869,5 +8871,33 @@
             }
         };
     </script>
+<script>
+        // PDF invoices use Android's temporary cache, not Downloads or the permanent file library.
+        const InvoicePdfShare = {
+            share(id) {
+                const inv = State.invoices.find(i=>String(i.id)===String(id));
+                if(!inv) return UI.toast('لم تُعثر على الفاتورة', 'error');
+                if(!window.AndroidInvoicePdf?.shareInvoice) return UI.toast('إرسال PDF مباشرة يحتاج نسخة Android المحدثة', 'warn');
+                const acc=State.accounts.find(a=>a.id===inv.accountId);
+                const currency=inv.currency==='SYP'?'SYP':'USD';
+                let prev=null,final=null;
+                if(acc){
+                    const statement=Accounting.getAccountStatement(acc.id,null,null,inv.id);
+                    prev=Number(currency==='SYP'?statement.sypBalance:statement.usdBalance)||0;
+                    const impact=Number(inv.netTotal||0)-Number(inv.paidAmount||0);
+                    final=prev+((inv.type==='sale'||inv.type==='purchase_return')?impact:-impact);
+                }
+                const src={companyName:State.settings.companyName||'',companyPhone:State.settings.companyPhone||'',companyAddress:State.settings.companyAddress||'',
+                    companyLogo:State.settings.companyLogo||'',title:'فاتورة '+Accounting.getInvoiceTypeAr(inv.type),
+                    number:String(inv.number||''),date:String(inv.date||''),accountName:acc?.name||'زبون عام',accountPhone:acc?.phone||'',accountAddress:acc?.address||'',
+                    currency,priceDecimals:Math.min(4,Math.max(0,Number(State.settings.itemQuantityDecimals??2))),rows:(inv.rows||[]).map(r=>({itemName:String(r.itemName||''),unitName:String(r.unitName||''),qty:Number(r.qty)||0,price:Number(r.price)||0,total:Number(r.total)||0})),
+                    subTotal:Number(inv.subTotal)||0,discountAmount:Number(inv.discountAmount)||0,taxAmount:Number(inv.taxAmount)||0,
+                    netTotal:Number(inv.netTotal)||0,paidAmount:Number(inv.paidAmount)||0,remainingAmount:Number(inv.remainingAmount)||0,
+                    previousBalance:prev,finalBalance:final,note:String(inv.notes||inv.note||'')};
+                try { window.AndroidInvoicePdf.shareInvoice(JSON.stringify(src),'Invoice_'+String(inv.number||'').replace(/[^\w-]/g,'_')+'.pdf'); }
+                catch(e){ UI.toast('تعذر تجهيز مشاركة الفاتورة: '+e.message,'error'); }
+            }
+        };
+</script>
 </body>
 </html>

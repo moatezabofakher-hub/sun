@@ -4,7 +4,7 @@ const html=fs.readFileSync('app/src/main/assets/www/index.html','utf8');
 const gradle=fs.readFileSync('app/build.gradle','utf8');
 for(const marker of [
   'data-feature="print-reports-3523"',
-  'data-app-build="3.5.41"',
+  'data-app-build="3.5.43"',
   'أدخل كلمة السر الحالية لتأكيد حفظ إعدادات الحماية',
   'showInitialPinSaveDialog()',
   'ProfileManager.renderSettings()',

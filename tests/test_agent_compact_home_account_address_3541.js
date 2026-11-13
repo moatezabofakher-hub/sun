@@ -20,5 +20,5 @@ const modal=main.slice(main.indexOf('            openAccountModal(accId = null')
 for(const x of ['id="accAddress"','العنوان (اختياري)','${AppEscape.text(ex?.address || \'\')}','const address = document.getElementById(\'accAddress\')?.value.trim() || \'\'','name, type, phone, address, creditLimitUsd','id: targetId,'])assert(modal.includes(x),'address form or persistence missing '+x);
 assert(main.includes('acc.address || \'\''),'address is searchable');
 assert(main.includes('AppEscape.text(acc.address)'),'address is shown safely in card');
-assert(main.includes('data-app-build="3.5.41"'));
+assert(main.includes('data-app-build="3.5.43"'));
 console.log('PASS 3.5.41: agent cash compact on top and welcome last; customer/supplier address editable, persisted, searchable and displayed.');

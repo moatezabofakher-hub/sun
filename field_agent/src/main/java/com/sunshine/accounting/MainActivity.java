@@ -66,6 +66,7 @@ public final class MainActivity extends FragmentActivity {
     private static final int SAVE_BACKUP = 2402;
     private static final int REQUEST_ITEM_CAMERA = 2404;
     private WebView webView;
+    private volatile boolean trustedLocalMainFrame;
     private NativeBluetoothPrinter bluetoothPrinter;
     private NativeLocalSync nativeLocalSync;
     private BiometricPrompt biometricPrompt;
@@ -203,12 +204,14 @@ public final class MainActivity extends FragmentActivity {
             @Override
             public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
                 super.onPageStarted(view, url, favicon);
+                trustedLocalMainFrame = url != null && url.startsWith("https://" + HOST + "/assets/www/");
                 if (nativeLocalSync != null) nativeLocalSync.onMainFrameUrlChanged(url);
             }
 
             @Override
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
+                trustedLocalMainFrame = url != null && url.startsWith("https://" + HOST + "/assets/www/");
                 if (nativeLocalSync != null) nativeLocalSync.onMainFrameUrlChanged(url);
             }
 
@@ -282,6 +285,7 @@ public final class MainActivity extends FragmentActivity {
         webView.addJavascriptInterface(new ExitBridge(), "Android");
         webView.addJavascriptInterface(new BackupBridge(), "AndroidFiles");
         webView.addJavascriptInterface(new AutoBackupBridge(), "AndroidAutoBackup");
+        webView.addJavascriptInterface(new AgentWhatsAppBackupBridge(this), "AndroidAgentBackup");
         bluetoothPrinter = new NativeBluetoothPrinter(this, webView);
         webView.addJavascriptInterface(bluetoothPrinter, "AndroidPrinter");
         nativeLocalSync = new NativeLocalSync(this, webView, false);
@@ -476,6 +480,8 @@ public final class MainActivity extends FragmentActivity {
     }
 
     private String pendingBiometricId;
+
+    boolean trustedForBackupSharing() {return trustedLocalMainFrame;}
 
     private boolean isLocalPage() {
         return webView != null && webView.getUrl() != null
