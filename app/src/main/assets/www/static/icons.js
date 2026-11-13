@@ -9,6 +9,16 @@
     "fa-globe": '<svg aria-hidden="true" focusable="false" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c-3.2 3-4.2 6-4.2 9s1 6 4.2 9M12 3c3.2 3 4.2 6 4.2 9s-1 6-4.2 9"/></svg>',
     "fa-building": '<svg aria-hidden="true" focusable="false" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="1"/><path d="M9 21v-4h6v4M8 7h1M15 7h1M8 11h1M15 11h1"/></svg>'
   });
+  // 3.5.24: complete offline glyph coverage for every icon used in the app.
+  // These are original simple SVG line icons, avoiding missing/blank pictograms.
+  Object.assign(ICONS, {
+    "fa-chart-bar": '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18M5 16h3v4H5zM10.5 9h3v11h-3zM16 4h3v16h-3z"/></svg>',
+    "fa-whatsapp": '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 20 3 21l1.3-4a9 9 0 1 1 3 3z"/><path d="M9 8c.5 3 2.5 5 6 6l2-2.1"/></svg>',
+    "fa-chevron-up": '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m5 15 7-7 7 7"/></svg>',
+    "fa-headset": '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14v-3a8 8 0 0 1 16 0v4"/><rect x="3" y="12" width="4" height="7" rx="2"/><rect x="17" y="12" width="4" height="7" rx="2"/><path d="M19 19a4 4 0 0 1-4 3h-3"/></svg>',
+    "fa-folder-open": '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v2"/><path d="M2 11h20l-3 9H5z"/></svg>',
+    "fa-images": '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="6" y="6" width="15" height="15" rx="2"/><path d="M3 17V5a2 2 0 0 1 2-2h12M9 17l3-3 3 2 2-3 3 4"/><circle cx="11" cy="10" r="1"/></svg>'
+  });
   function apply(root) {
     if (!root || !root.querySelectorAll) return;
     const nodes = [];

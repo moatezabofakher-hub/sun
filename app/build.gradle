@@ -10,8 +10,8 @@ android {
         applicationId 'com.sunshine.technicalaccountant'
         minSdk 26
         targetSdk 35
-        versionCode 30
-        versionName '3.5.23-visible-reports-security'
+        versionCode 31
+        versionName '3.5.24-premium-3d-ui'
     }
 
     // A permanent signing key is required for in-place updates. The keystore is

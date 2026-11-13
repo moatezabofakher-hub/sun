@@ -410,6 +410,237 @@
             .ta-action-card,.ta-module-card,#trialProgressFill,nav.ta-bottom-nav .nav-btn{transition:none !important;}
         }
 
+
+        /* =====================================================================
+         * 3.5.24 – Accounting Atelier UI: unified elegant 3D surfaces.
+         * Presentation-only, offline-safe. No finance, print, security or data changes.
+         * ===================================================================== */
+        :root {
+            --ta-ink: #142e43;
+            --ta-muted: #61768a;
+            --ta-line: #d5e3ec;
+            --ta-raise: #b7cedc;
+            --ta-teal: #0a8b82;
+            --ta-blue: #2b73bc;
+            --ta-shadow: 0 5px 0 #d8e6ee, 0 13px 25px rgba(19,50,76,.11), inset 0 1.5px 0 rgba(255,255,255,.97);
+        }
+        body.ta-3d-v3524 {
+            background:radial-gradient(ellipse 85% 36% at 94% 0%,rgba(82,191,185,.17),transparent 70%),
+                       radial-gradient(ellipse 70% 30% at 5% 55%,rgba(134,167,223,.13),transparent 80%),
+                       linear-gradient(154deg,#f0f6fa,#e8f2f8 54%,#f7fbfd) fixed;
+            color:var(--ta-ink);
+        }
+        /* Floating deep-navy brand header, without disturbing currency / return controls. */
+        body.ta-3d-v3524 .ta-app-header {
+            background:linear-gradient(115deg,#15283c,#0d3c50 54%,#0c293e)!important;
+            border-bottom:1px solid rgba(134,229,224,.19);
+            box-shadow:0 4px 0 rgba(11,42,59,.18),0 12px 24px rgba(16,45,63,.15), inset 0 1px rgba(255,255,255,.13);
+        }
+        body.ta-3d-v3524 .ta-app-header::after{
+            content:'';position:absolute;left:14px;right:14px;bottom:0;height:1px;
+            background:linear-gradient(90deg,transparent,rgba(180,247,240,.45),transparent);pointer-events:none;
+        }
+        body.ta-3d-v3524 #headerBackBtn{
+            border:1px solid rgba(217,253,252,.19);border-radius:13px;
+            background:linear-gradient(145deg,rgba(255,255,255,.18),rgba(255,255,255,.035));
+            box-shadow:0 3px 0 rgba(0,10,28,.20),inset 0 1px rgba(255,255,255,.13);
+        }
+        body.ta-3d-v3524 #topBarRateButton{
+            background:linear-gradient(140deg,#1b5064,#103243)!important;border:1px solid #377184!important;
+            border-radius:13px;box-shadow:0 3px 0 #0a2434,inset 0 1px rgba(255,255,255,.19);
+        }
+        body.ta-3d-v3524 #headerTitleWrap h1 {font-weight:900;letter-spacing:.025em;}
+        body.ta-3d-v3524 #mainContent.ta-main{padding:17px 14px 118px;}
+        /* Elevated visual language for every icon, including local offline SVGs. */
+        body.ta-3d-v3524 .ta-icon-box,
+        body.ta-3d-v3524 #mainContent .settings-section-leading > i,
+        body.ta-3d-v3524 #mainContent .ta-item-group-heading i {
+            position:relative;isolation:isolate;
+            border:1px solid rgba(255,255,255,.92);
+            box-shadow:0 5px 0 rgba(31,78,95,.17),0 10px 14px rgba(20,57,80,.15),
+                       inset 0 2px 1px rgba(255,255,255,.85),inset 0 -2px 5px rgba(38,99,118,.07);
+        }
+        body.ta-3d-v3524 .ta-icon-box::after,
+        body.ta-3d-v3524 #mainContent .settings-section-leading > i::after{
+            content:'';position:absolute;inset:2px 3px auto;height:44%;z-index:-1;pointer-events:none;
+            background:linear-gradient(180deg,rgba(255,255,255,.76),transparent);border-radius:inherit;
+        }
+        body.ta-3d-v3524 .ta-tone-teal{background:linear-gradient(140deg,#efffff,#93e5d8);color:#075e60;}
+        body.ta-3d-v3524 .ta-tone-blue{background:linear-gradient(145deg,#f3fbff,#9bcaf9);color:#14538f;}
+        body.ta-3d-v3524 .ta-tone-purple{background:linear-gradient(145deg,#f8f2ff,#cfb5fb);color:#6741a5;}
+        body.ta-3d-v3524 .ta-tone-orange{background:linear-gradient(145deg,#fffcee,#ffd392);color:#955311;}
+        body.ta-3d-v3524 .ta-tone-red{background:linear-gradient(145deg,#fff6fa,#f7bacf);color:#ae3256;}
+        body.ta-3d-v3524 .ta-tone-cyan{background:linear-gradient(145deg,#f0feff,#9bdcea);color:#0d647e;}
+        /* Quick actions + section modules: robust raised objects with coherent rhythm. */
+        body.ta-3d-v3524 .ta-action-card,
+        body.ta-3d-v3524 .ta-module-card{
+            border:1px solid #cddfe9;
+            border-radius:22px;
+            background:linear-gradient(152deg,#fff 3%,#f9fcff 51%,#e7f1f7 100%);
+            box-shadow:var(--ta-shadow);
+            transition:transform .16s ease,box-shadow .16s ease,border-color .16s ease;
+        }
+        body.ta-3d-v3524 .ta-action-card {min-height:119px;padding:15px;}
+        body.ta-3d-v3524 .ta-module-card{min-height:107px;}
+        body.ta-3d-v3524 .ta-action-card strong,
+        body.ta-3d-v3524 .ta-module-card strong{color:#20384e;}
+        body.ta-3d-v3524 .ta-section-head h3{color:#17374b;font-weight:900;}
+        body.ta-3d-v3524 .ta-section-head p {color:#61788c;}
+        body.ta-3d-v3524 .ta-section-mark {
+            width:5px;height:28px;background:linear-gradient(#7be5df,#087c86);
+            box-shadow:0 3px 0 #08515a,1px 1px 0 #fff;
+        }
+        body.ta-3d-v3524 .ta-action-card:active,
+        body.ta-3d-v3524 .ta-module-card:active{transform:translateY(4px)!important;box-shadow:0 1px 0 #c2d7e2,0 4px 10px rgba(20,50,70,.09)!important;}
+        /* Reports / service actions retain their function and clear reading contrast. */
+        body.ta-3d-v3524 .invoice-report-action{
+            background:linear-gradient(142deg,#1c7790,#103a58 90%);
+            border:1px solid rgba(255,255,255,.34);border-radius:16px;
+            box-shadow:0 5px 0 #0b2f48,0 11px 18px rgba(9,48,75,.17),inset 0 1px rgba(255,255,255,.3);
+        }
+        body.ta-3d-v3524 #mainContent .ta-service-button{
+            border-radius:15px;box-shadow:0 4px 0 #b3d9d2,0 9px 13px rgba(22,68,86,.10),inset 0 1px rgba(255,255,255,.8);
+            background:linear-gradient(150deg,#f1fffc,#ccebe5);
+        }
+        body.ta-3d-v3524 #mainContent .ta-service-expense{box-shadow:0 4px 0 #e6c3ac,0 9px 13px rgba(91,58,33,.08),inset 0 1px white;
+            background:linear-gradient(150deg,#fffaf4,#ffe0c6);}
+        /* All navigation icons: small 3D pictograms with soft grouping and visible active state. */
+        body.ta-3d-v3524 nav.ta-bottom-nav{
+            background:linear-gradient(180deg,rgba(255,255,255,.98),rgba(237,246,251,.98));
+            border-top:1px solid #d0e0eb;box-shadow:0 -6px 24px rgba(13,53,76,.12),inset 0 1px #fff;
+        }
+        body.ta-3d-v3524 nav.ta-bottom-nav .nav-btn{background:transparent;border:1px solid transparent;border-radius:14px;padding:6px 1px;}
+        body.ta-3d-v3524 nav.ta-bottom-nav .nav-btn > i{
+            border:1px solid rgba(255,255,255,.9);border-radius:11px;
+            background:linear-gradient(150deg,#fff,#dfeaf2);color:#54748c;
+            box-shadow:0 3px 0 #c4d3de,0 5px 9px rgba(13,57,81,.11),inset 0 1px #fff;
+        }
+        body.ta-3d-v3524 nav.ta-bottom-nav .nav-btn.is-active{
+            background:linear-gradient(160deg,#e6fbf5,#d3f1ec);border-color:#b9e3dc;color:#0c7d74!important;
+            box-shadow:inset 0 1px #fff,0 3px 0 #acd7ce;
+        }
+        body.ta-3d-v3524 nav.ta-bottom-nav .nav-btn.is-active > i {
+            background:linear-gradient(145deg,#e8fff8,#8fe0cf);color:#075e62;
+            border-color:#c6faed;box-shadow:0 3px 0 #77bdb2,0 7px 10px rgba(4,91,83,.13),inset 0 1px #fff;
+        }
+        /* Card layouts across accounting, inventory, debt, analytics and settings pages. */
+        body.ta-3d-v3524 #mainContent :is(.ta-stock-card,.report-card,.profiles-chip,.invoice-entry-top,.ta-items-filters){
+            border-radius:20px;border:1px solid #d5e3ed;
+            box-shadow:0 4px 0 #d7e5ed,0 12px 21px rgba(17,54,78,.075),inset 0 1px #fff;
+        }
+        body.ta-3d-v3524 #mainContent :is(.bg-white.rounded-xl,.bg-white.rounded-2xl,.bg-white.rounded-3xl):not(.receipt-paper){
+            background-image:linear-gradient(158deg,#fff 0%,#fbfdff 72%,#f2f8fc 100%);
+            box-shadow:0 3px 0 #e4edf3,0 10px 16px rgba(22,52,79,.055),inset 0 1px white;
+            border-color:#dce8f1;border-radius:18px;
+        }
+        /* Don't inadvertently recolor printed receipts; preserve black-on-white thermal output. */
+        body.ta-3d-v3524 #mainContent #printableReceiptArea,
+        body.ta-3d-v3524 #mainContent #printableReceiptArea *{background-image:none;box-shadow:none;text-shadow:none;}
+        body.ta-3d-v3524 #mainContent .invoice-added-items{
+            background:#eaf5ff!important;box-shadow:0 4px 0 #c3e2f5,0 9px 18px rgba(28,78,133,.09)!important;
+        }
+        body.ta-3d-v3524 #mainContent .invoice-added-row{border-radius:10px;}
+        body.ta-3d-v3524 #mainContent .settings-section{
+            border:1px solid #d5e4ed;border-radius:19px;
+            background:linear-gradient(145deg,#fff,#f4f9fd);
+            box-shadow:0 4px 0 #d8e7ef,0 11px 19px rgba(21,61,84,.075),inset 0 1px #fff;
+            margin-bottom:14px;
+        }
+        body.ta-3d-v3524 #mainContent .settings-section[open]{border-color:#99d7d2;box-shadow:0 4px 0 #b2dcd6,0 13px 23px rgba(25,99,102,.11),inset 0 1px #fff;}
+        body.ta-3d-v3524 #mainContent .settings-section-heading {min-height:78px;}
+        body.ta-3d-v3524 #mainContent .settings-section-leading > i {
+            width:43px;height:43px;min-width:43px;border-radius:14px;
+            background:linear-gradient(145deg,#f1fffa,#9fe2d6);color:#0a726e;
+        }
+        body.ta-3d-v3524 #mainContent .settings-section-body{background:#f6fafc;border-top:1px solid #e3eef2;}
+        /* Contextual 3D controls everywhere; never replace danger/status colors. */
+        body.ta-3d-v3524 #mainContent button:not(.ta-action-card):not(.ta-module-card),
+        body.ta-3d-v3524 #modalBox button,
+        body.ta-3d-v3524 #dialogBox button {
+            touch-action:manipulation;transition:filter .15s ease,transform .13s ease,box-shadow .13s ease;
+        }
+        body.ta-3d-v3524 #mainContent :is(button[class*='bg-emerald-600'],button[class*='bg-blue-600'],button[class*='bg-sky-600'],button[class*='bg-slate-900'],button[class*='bg-indigo-600']),
+        body.ta-3d-v3524 #modalBox :is(button[class*='bg-emerald-600'],button[class*='bg-blue-600'],button[class*='bg-slate-900']),
+        body.ta-3d-v3524 #dialogBox :is(button[class*='bg-emerald-600'],button[class*='bg-slate-900']){
+            border-radius:13px;border:1px solid rgba(255,255,255,.24);
+            box-shadow:0 3px 0 rgba(15,49,69,.29),0 8px 13px rgba(24,70,92,.14),inset 0 1px rgba(255,255,255,.25);
+        }
+        body.ta-3d-v3524 #mainContent :is(.ta-primary-3d,.ta-secondary-3d,.ta-service-button,.ta-stock-card button):active,
+        body.ta-3d-v3524 #modalBox button:active,
+        body.ta-3d-v3524 #dialogBox button:active{transform:translateY(2px);filter:brightness(.97);}
+        body.ta-3d-v3524 #mainContent :is(input:not([type='checkbox']):not([type='radio']),select,textarea),
+        body.ta-3d-v3524 #modalBox :is(input:not([type='checkbox']):not([type='radio']),select,textarea),
+        body.ta-3d-v3524 #dialogBox :is(input:not([type='checkbox']):not([type='radio']),select,textarea){
+            border:1px solid #cbdde9;border-radius:12px;
+            background-color:#fafdff;box-shadow:inset 0 2px 4px rgba(18,52,78,.075),0 1px 0 white;
+            color:#203b51;
+        }
+        body.ta-3d-v3524 #mainContent :is(input,select,textarea):focus,
+        body.ta-3d-v3524 #modalBox :is(input,select,textarea):focus{
+            border-color:#4ab9ad;box-shadow:0 0 0 3px rgba(34,183,161,.13),inset 0 1px 2px rgba(15,71,83,.045);
+        }
+        /* Premium modal + confirmation surfaces. Stays within 90vh and fully scrollable. */
+        body.ta-3d-v3524 #modalContainer,
+        body.ta-3d-v3524 #dialogContainer{background:rgba(9,29,48,.62)!important;backdrop-filter:blur(7px) saturate(90%);}
+        body.ta-3d-v3524 #modalBox,
+        body.ta-3d-v3524 #dialogBox {
+            position:relative;overflow-x:hidden;
+            border:1px solid rgba(255,255,255,.96);border-radius:26px;
+            background:linear-gradient(158deg,#fff 0%,#f8fcff 62%,#edf6fb 100%)!important;
+            box-shadow:0 7px 0 rgba(5,26,48,.21),0 25px 58px rgba(3,30,52,.32),inset 0 2px rgba(255,255,255,.98);
+            padding:20px;
+        }
+        body.ta-3d-v3524 #modalBox::before,
+        body.ta-3d-v3524 #dialogBox::before {
+            content:'';position:sticky;display:block;top:0;height:4px;margin:-20px -20px 16px;
+            border-radius:26px 26px 0 0;
+            background:linear-gradient(90deg,#1a5775,#5cd4c4 50%,#1a5775);
+        }
+        body.ta-3d-v3524 #modalBox > :is(h2,h3),
+        body.ta-3d-v3524 #dialogBox > :is(h2,h3){color:#15364b;font-weight:900;}
+        body.ta-3d-v3524 #modalBox :is(.rounded-2xl,.rounded-xl),
+        body.ta-3d-v3524 #dialogBox :is(.rounded-2xl,.rounded-xl){border-radius:15px;}
+        body.ta-3d-v3524 #modalBox :is(button,.w-14.h-14) > i,
+        body.ta-3d-v3524 #dialogBox :is(button,.w-14.h-14) > i{filter:drop-shadow(0 2px 1px rgba(0,42,54,.12));}
+        body.ta-3d-v3524 #toastContainer > *{border:1px solid rgba(255,255,255,.7);border-radius:15px;
+            box-shadow:0 4px 0 rgba(26,75,87,.16),0 14px 20px rgba(8,38,57,.15);}
+        @media(max-width:380px) {
+            body.ta-3d-v3524 #mainContent.ta-main{padding-right:11px;padding-left:11px;}
+            body.ta-3d-v3524 .ta-action-card{min-height:109px;padding:12px;}
+            body.ta-3d-v3524 #modalBox,body.ta-3d-v3524 #dialogBox{padding:15px;}
+            body.ta-3d-v3524 #modalBox::before,body.ta-3d-v3524 #dialogBox::before{margin:-15px -15px 12px;}
+        }
+        @media(prefers-reduced-motion:reduce){body.ta-3d-v3524 *{transition-duration:0ms!important;animation-duration:0ms!important;}}
+
+        /* Preserve line-art SVGs (language/company), Tailwind's generic SVG fill would flatten them. */
+        body.ta-3d-v3524 .fas svg[fill="none"],
+        body.ta-3d-v3524 .fas svg[fill="none"] *{fill:none;}
+        /* Debt-choice cards match the 3D visual treatment of the rest of the app. */
+        body.ta-3d-v3524 #modalBox button[aria-label^="لنا"]{
+            background:linear-gradient(145deg,#f2fffa,#c3ecdf);border:1px solid #75c6a8;
+            box-shadow:0 5px 0 #7dbda8,0 12px 16px rgba(20,91,76,.13),inset 0 2px white;
+        }
+        body.ta-3d-v3524 #modalBox button[aria-label^="علينا"]{
+            background:linear-gradient(145deg,#fffaf0,#ffe6bb);border:1px solid #e9bd73;
+            box-shadow:0 5px 0 #d5b17b,0 12px 16px rgba(98,68,29,.11),inset 0 2px white;
+        }
+        body.ta-3d-v3524 #mainContent .report-period-pill{
+            background:linear-gradient(145deg,#fff,#eaf1f7);border-color:#cddde8;
+            box-shadow:0 3px 0 #cbdde7,inset 0 1px white;
+        }
+        body.ta-3d-v3524 #mainContent .report-period-pill.active{
+            background:linear-gradient(145deg,#267e99,#12546c);color:white;
+            border-color:#216a85;box-shadow:0 3px 0 #0c394e,inset 0 1px rgba(255,255,255,.2);
+        }
+        body.ta-3d-v3524 #mainContent .ta-item-actions button{
+            background:linear-gradient(155deg,#fff,#ddebf4);border-color:#d0e0ea;
+            box-shadow:0 3px 0 #c6d7e1,inset 0 1px white;
+        }
+        body.ta-3d-v3524 #mainContent .ta-item-actions button.ta-item-delete{
+            background:linear-gradient(155deg,#fff8f9,#ffe0e8);border-color:#efc9d4;
+            box-shadow:0 3px 0 #e5c5cf,inset 0 1px white;
+        }
+
         @media print {
             @page {
                 margin: 0;
@@ -582,7 +813,7 @@
         .profiles-chip{border:1px solid #a5b8d0;border-radius:14px;background:linear-gradient(145deg,#fff,#edf5ff);padding:10px;box-shadow:0 3px 0 #becbdc;}
     </style>
 </head>
-<body class="ta-premium-ui bg-slate-100 text-slate-800 min-h-screen flex flex-col w-full max-w-full overflow-x-hidden">
+<body class="ta-premium-ui ta-3d-v3524 bg-slate-100 text-slate-800 min-h-screen flex flex-col w-full max-w-full overflow-x-hidden">
 
     <!-- Top App Bar (Android Style) -->
     <header class="ta-app-header bg-slate-900 text-white sticky top-0 z-30 shadow-md w-full">
@@ -4400,9 +4631,9 @@
                 UI.setHeader('<i class="fas fa-sliders text-emerald-400"></i> <span>الضبط</span>', 'اضغط على القسم المطلوب لعرض خياراته');
                 const mode = State.settings.btPrintMode || 'auto';
                 main.innerHTML = `
-                    <div class="mb-3 flex items-center justify-between gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2" data-app-build="3.5.23">
-                        <span class="font-black text-xs text-emerald-800"><i class="fas fa-check-circle ml-1"></i> إصدار التطبيق: 3.5.23</span>
-                        <span class="text-[10px] font-bold text-emerald-700">تحديث التقارير والحماية</span>
+                    <div class="mb-3 flex items-center justify-between gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2" data-app-build="3.5.24">
+                        <span class="font-black text-xs text-emerald-800"><i class="fas fa-check-circle ml-1"></i> إصدار التطبيق: 3.5.24</span>
+                        <span class="text-[10px] font-bold text-emerald-700">مظهر ثلاثي الأبعاد موحّد</span>
                     </div>
                     <div class="mb-3 text-[11px] text-slate-500 font-semibold px-1">جميع خيارات التطبيق مرتبة ضمن فئات. اضغط على اسم أي فئة لفتحها أو إغلاقها.</div>
                     <div class="grid grid-cols-2 gap-2 mb-3" data-feature="report-shortcuts-3523">
