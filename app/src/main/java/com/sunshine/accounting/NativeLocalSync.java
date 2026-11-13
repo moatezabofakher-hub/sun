@@ -3,6 +3,10 @@ package com.sunshine.accounting;
 import android.app.Activity;
 import android.content.Context;
 import android.net.nsd.NsdManager;
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkCapabilities;
+import android.net.NetworkRequest;
 import android.net.nsd.NsdServiceInfo;
 import android.net.wifi.WifiManager;
 import android.os.Build;
@@ -44,6 +48,8 @@ public final class NativeLocalSync {
     private final WebView webView;
     private final boolean manager;
     private final NsdManager nsd;
+    private final ConnectivityManager connectivity;
+    private ConnectivityManager.NetworkCallback wifiCallback;
     private final ExecutorService io = Executors.newCachedThreadPool();
     private final ConcurrentHashMap<String, ArrayBlockingQueue<String>> answers = new ConcurrentHashMap<>();
     private final AtomicLong requestIds = new AtomicLong();
@@ -59,6 +65,17 @@ public final class NativeLocalSync {
         this.webView = webView;
         this.manager = manager;
         this.nsd = (NsdManager) activity.getSystemService(Context.NSD_SERVICE);
+        this.connectivity = (ConnectivityManager) activity.getSystemService(Context.CONNECTIVITY_SERVICE);
+        if (manager && connectivity != null) {
+            try {
+                wifiCallback = new ConnectivityManager.NetworkCallback() {
+                    @Override public void onAvailable(Network network) { managerStatus("network-changed"); }
+                    @Override public void onLost(Network network) { managerStatus("network-down"); }
+                };
+                connectivity.registerNetworkCallback(
+                    new NetworkRequest.Builder().addTransportType(NetworkCapabilities.TRANSPORT_WIFI).build(), wifiCallback);
+            } catch (Exception ignored) { wifiCallback = null; }
+        }
     }
 
     // JavascriptInterface methods execute on WebView's private JavaBridge thread,
@@ -158,6 +175,14 @@ public final class NativeLocalSync {
             } catch (Exception e) { if (!closing) managerStatus("تعذر استقبال Wi-Fi: " + e.getMessage()); }
         });
         return "starting";
+    }
+
+    /** Re-publish the local service after a Wi-Fi/network resume. */
+    @JavascriptInterface
+    public String restartReceiver(String companyId) {
+        if (!manager || !isCompany(companyId) || closing || !isTrustedPage()) return "invalid";
+        synchronized (this) { stopReceiverInternal(); }
+        return startReceiver(companyId);
     }
 
     private void serve(Socket socket) {
@@ -281,6 +306,10 @@ public final class NativeLocalSync {
 
     public void destroy() {
         closing = true;
+        if (connectivity != null && wifiCallback != null) {
+            try { connectivity.unregisterNetworkCallback(wifiCallback); } catch (Exception ignored) { }
+            wifiCallback = null;
+        }
         synchronized (this) { stopReceiverInternal(); }
         answers.clear();
         io.shutdownNow();

@@ -162,25 +162,28 @@ const Agent={
       }else throw Error('نوع الملف غير معروف');
     }catch(err){this.toast('تعذر استيراد الملف: '+err.message);}finally{input.value='';}
   },
-  async syncOneTap(){
-    if(this.lanSyncBusy)return;
+  async syncOneTap(options={}){
+    if(this.lanSyncBusy||this.busy)return;
+    this.lanSyncQuiet=options?.quiet===true;
     this.lanSyncBusy=true;this.lanSyncMessage='جارٍ البحث عن التطبيق الرئيسي…';this.syncPaint();
     try {
       if(!this.ready())throw Error('استورد كشف تجهيز المندوب أولًا');
       if(!await this.active())throw Error('يجب تفعيل جهاز المندوب أولًا');
       if(!window.AndroidLocalSync?.send)throw Error('التطبيق يحتاج نسخة APK تدعم الاتصال المباشر');
-      const ops=this.pending;
-      if(ops.length>1500)throw Error('عدد العمليات كبير؛ يلزم ترحيلها على دفعات');
+      // Bound each encrypted frame; large offline outboxes drain automatically in chunks.
+      const ops=this.pending.slice(0,250);
+      this.lanSentCount=ops.length;
       const nonce=FieldProtocol.uuid();this.lanRequestNonce=nonce;
       const msg={kind:'operations',nonce,companyId:this.state.companyId,agentId:this.state.agentId,
         warehouseId:this.state.warehouseId,issuedAt:new Date().toISOString(),operations:ops};
       const packet=await FieldLanCrypto.pack(msg,this.state.key,this.state.companyId,this.state.agentId);
       window.AndroidLocalSync.send(this.state.companyId,JSON.stringify(packet));
-    }catch(e){this.lanSyncBusy=false;this.lanSyncMessage=e.message;this.toast(e.message);this.syncPaint();}
+    }catch(e){this.lanSyncBusy=false;this.lanRequestNonce=null;this.lanSyncMessage=e.message;if(!this.lanSyncQuiet)this.toast(e.message);this.syncPaint();this.finishAutoSync?.(false);}
   },
   syncPaint(){const el=document.getElementById('agentLanStatus');if(el)el.textContent=this.lanSyncMessage;
     const btn=document.getElementById('agentLanSyncButton');if(btn){btn.disabled=this.lanSyncBusy;btn.textContent=this.lanSyncBusy?'جارٍ المزامنة…':'⇄ مزامنة الآن — Wi-Fi محلي';}},
   async onLocalSyncResult(raw){
+    let success=false;
     try {
       if(!this.lanSyncBusy||!this.lanRequestNonce)throw Error('تأكيد مزامنة غير متوقع');
       const result=JSON.parse(raw);
@@ -190,6 +193,10 @@ const Agent={
       if(ack.kind!=='sync_result'||ack.requestNonce!==this.lanRequestNonce||ack.companyId!==this.state.companyId||ack.agentId!==this.state.agentId||!Array.isArray(ack.knownIds))throw Error('تأكيد استلام غير صالح');
       const catalog=ack.catalog;
       if(!catalog||catalog.kind!=='provision'||catalog.companyId!==this.state.companyId||catalog.agentId!==this.state.agentId||catalog.key!==this.state.key||!Array.isArray(catalog.items)||!Array.isArray(catalog.accounts)||!catalog.stock)throw Error('كشف تحديث غير صالح');
+      // Local invoice/voucher saves must finish before replacing the snapshot.
+      // The server can safely receive a retry if this local save is delayed.
+      for(let tries=0;this.busy&&tries<80;tries++)await new Promise(r=>setTimeout(r,100));
+      if(this.busy)throw Error('البيانات المحلية مشغولة بالحفظ؛ ستتم إعادة المحاولة');
       const old=this.state;
       if(catalog.warehouseId!==old.warehouseId||!Array.isArray(catalog.categories||[])||
         !Array.isArray(catalog.knownIds)||!Number.isFinite(Number(catalog.exchangeRate))||Number(catalog.exchangeRate)<=0)
@@ -210,21 +217,37 @@ const Agent={
       // Accepted operations become synced only if the database commits successfully.
       const confirmed=ack.knownIds.filter(id=>owned.has(id));
       const knownIds=Array.from(new Set([...(old.knownIds||[]),...confirmed]));
-      this.state={...old,companyName:catalog.companyName,agentName:catalog.agentName,
-        vehicleName:catalog.vehicleName,warehouseId:catalog.warehouseId,issuedAt:catalog.issuedAt,
-        exchangeRate:catalog.exchangeRate,categories:catalog.categories||[],items:catalog.items,
-        accounts:catalog.accounts,stock:catalog.stock,snapshotIds:catalog.knownIds||[],knownIds,
-        lastSyncAt:new Date().toISOString(),
-        lastSyncSummary:{sent:old.ops.filter(o=>!(old.knownIds||[]).includes(o.id)).length,
-          confirmed:confirmed.filter(id=>!(old.knownIds||[]).includes(id)).length,
-          itemsChanged,accountsChanged,stockChanged,materials:catalog.items.length,
-          customers:catalog.accounts.length,serverAt:ack.serverAt||''}};
-      try {await this.save();}catch(e){this.state=old;throw e;}
-      const newCount=this.state.lastSyncSummary.confirmed;
+      const newlyConfirmed=confirmed.filter(id=>!(old.knownIds||[]).includes(id)).length;
+      const metadataChanged=old.companyName!==catalog.companyName||old.agentName!==catalog.agentName||
+        old.vehicleName!==catalog.vehicleName||Number(old.exchangeRate)!==Number(catalog.exchangeRate)||
+        JSON.stringify(old.categories||[])!==JSON.stringify(catalog.categories||[])||
+        JSON.stringify(old.snapshotIds||[])!==JSON.stringify(catalog.knownIds||[]);
+      // Persist real changes promptly; checkpoint a no-op heartbeat at most once per minute.
+      const checkpointDue=!old.lastSyncAt||Date.now()-Date.parse(old.lastSyncAt)>=60000;
+      const mustSave=!!(itemsChanged||accountsChanged||stockChanged||newlyConfirmed||metadataChanged||checkpointDue);
+      const summary={sent:Number(this.lanSentCount||0),
+        confirmed:newlyConfirmed,itemsChanged,accountsChanged,stockChanged,
+        materials:catalog.items.length,customers:catalog.accounts.length,serverAt:ack.serverAt||''};
+      if(mustSave){
+        this.state={...old,companyName:catalog.companyName,agentName:catalog.agentName,
+          vehicleName:catalog.vehicleName,warehouseId:catalog.warehouseId,issuedAt:catalog.issuedAt,
+          exchangeRate:catalog.exchangeRate,categories:catalog.categories||[],items:catalog.items,
+          accounts:catalog.accounts,stock:catalog.stock,snapshotIds:catalog.knownIds||[],knownIds,
+          lastSyncAt:new Date().toISOString(),lastSyncSummary:summary};
+        try {await this.save();}catch(e){this.state=old;throw e;}
+      } else {
+        // Show current heartbeat outcome without writing an unchanged catalog to flash.
+        this.state={...old,lastSyncSummary:summary};
+      }
+      const newCount=newlyConfirmed;
       this.lanSyncMessage='✅ تمت المزامنة بالاتجاهين: '+newCount+' عملية مؤكدة، وتحديث '+itemsChanged+' مادة و'+accountsChanged+' عميل و'+stockChanged+' رصيد. المتبقي '+this.pending.length+'.';
-      this.toast(this.lanSyncMessage);
-    }catch(e){this.lanSyncMessage='لم تكتمل المزامنة: '+e.message;this.toast(this.lanSyncMessage);}
-    finally{this.lanSyncBusy=false;this.lanRequestNonce=null;await this.show(this.screen||'home');this.syncPaint();}
+      if(!this.lanSyncQuiet)this.toast(this.lanSyncMessage);
+      // Never erase an invoice, voucher, or payment form being edited.
+      if(['home','ops','stock','sync'].includes(this.screen) &&
+          (newCount||itemsChanged||accountsChanged||stockChanged||(!this.lanSyncQuiet&&this.screen==='sync')))await this.show(this.screen);
+      success=true;
+    }catch(e){this.lanSyncMessage='لم تكتمل المزامنة: '+e.message;if(!this.lanSyncQuiet)this.toast(this.lanSyncMessage);}
+    finally{this.lanSyncBusy=false;this.lanRequestNonce=null;this.lanSentCount=0;this.syncPaint();this.finishAutoSync?.(success);}
   },
   async exportOutbox(){try{
     if(!this.ready())throw Error('المندوب غير مرتبط بالشركة');

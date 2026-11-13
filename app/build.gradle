@@ -10,8 +10,8 @@ android {
         applicationId 'com.sunshine.technicalaccountant'
         minSdk 26
         targetSdk 35
-        versionCode 38
-        versionName '3.5.31-transfer-and-agent-reports'
+        versionCode 39
+        versionName '3.5.32-auto-continuous-sync'
     }
 
     // A permanent signing key is required for in-place updates. The keystore is

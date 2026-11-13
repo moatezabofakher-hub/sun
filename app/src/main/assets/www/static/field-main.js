@@ -1,7 +1,7 @@
 /* Manager-side field dispatch. Import is previewed, validated, deduplicated and
  * committed only after explicit approval. Never merges a whole remote database. */
 const FieldSync = {
-  busy:false, staged:null, lanListening:false, lanBusy:false,
+  busy:false, staged:null, lanListening:false, lanBusy:false, autoReceiverBooted:false, autoReceiverWatchdog:null, autoReceiverCompany:null, lanNetworkTimer:null,
   data(){
     if(!State.fieldSync || typeof State.fieldSync!=='object') State.fieldSync={companyId:'',agents:[],imported:[],events:[]};
     const x=State.fieldSync;
@@ -22,13 +22,13 @@ const FieldSync = {
     const config=this.data(), opts=State.warehouses.map(w=>`<option value="${this.escape(w.id)}">${this.escape(w.name)}</option>`).join('');
     UI.openModal(`<div class="ta-field-panel space-y-3 text-right" dir="rtl">
       <h3 class="text-lg font-black text-slate-900"><i class="fas fa-truck ml-1 text-teal-700"></i> إدارة المندوبين والمزامنة المحلية</h3>
-      <p class="text-xs text-slate-500">المزامنة المباشرة تعمل عبر Wi-Fi محلي دون إنترنت. افتح هذه الشاشة عندما يضغط المندوب على «مزامنة الآن». وتبقى الملفات طريقة احتياطية.</p>
+      <p class="text-xs text-slate-500">يبدأ استقبال المندوب تلقائيًا بمجرد تشغيل التطبيق الرئيسي. يستمر الإرسال والاستقبال دوريًا طوال تشغيل التطبيقين واتصالهما عبر شبكة Wi-Fi محلية واحدة. وتبقى الملفات طريقة احتياطية.</p>
       <div class="rounded-xl border bg-slate-50 p-3 text-xs"><b>الشركة:</b> ${this.escape(State.settings.companyName)}<br/><b>المعرّف:</b> <span class="text-[10px]" dir="ltr">${config.companyId}</span></div>
       <div class="rounded-2xl border p-3 space-y-2 bg-teal-50" data-lan-manager="1">
-        <b class="text-sm">📡 استقبال العمليات وإرسال التحديثات تلقائيًا</b>
-        <p class="text-xs">وصّل الهاتفين بالشبكة المحلية نفسها، واترك التطبيق الرئيسي مفتوحًا. يستقبل هذا الهاتف عمليات المندوب المشفرة ويُرحّلها، ثم يرسل له أحدث المواد والأسعار والعملاء ورصيد السيارة حتى لو لم تكن لديه عمليات جديدة. كل ذلك دون اختيار ملفات.</p>
+        <b class="text-sm">📡 مزامنة تلقائية مستمرة بين الهاتفين</b>
+        <p class="text-xs">يكفي أن يكون التطبيقان قيد التشغيل على شبكة Wi-Fi تسمح بالاتصال بينهما؛ يستقبل الرئيسي العمليات الجديدة المشفرة ويرسل تحديثات المواد والأسعار والعملاء ورصيد السيارة باستمرار دون ضغط زر.</p>
         <div id="fieldLanStatus" class="text-xs font-bold text-teal-900">جارٍ تشغيل الاستقبال…</div>
-        <button type="button" class="ta-primary-3d w-full p-3 rounded-xl font-bold" onclick="FieldSync.startLanReceiver()">تشغيل / إعادة محاولة الاستقبال</button>
+        <button type="button" class="ta-primary-3d w-full p-3 rounded-xl font-bold" onclick="FieldSync.startLanReceiver()">إعادة تشغيل الاستقبال إذا لزم</button>
       </div>
       <div class="rounded-2xl border p-3 space-y-2 bg-white">
         <b class="text-sm">تسجيل سيارة / مندوب</b>
@@ -180,17 +180,57 @@ const FieldSync = {
         <button type="button" onclick="FieldSync.open()" class="bg-slate-100 p-3 w-full rounded-xl">رجوع</button></div>`);
     }catch(e){UI.toast('تعذر إصدار الترخيص: '+e.message,'error');}
   },
-  startLanReceiver(silent=false){
+  // Start automatically once the saved company profile is loaded. No modal is required.
+  async bootAutoReceiver(){
+    if(this.autoReceiverBooted)return;
+    this.autoReceiverBooted=true;
+    try {
+      const previousId=State.fieldSync?.companyId;
+      this.data();
+      // Persist the pairing identifier BEFORE publishing it on the local network.
+      if(!previousId && StorageEngine.db)await StorageEngine.saveState();
+      if(!previousId && !StorageEngine.db)throw Error('قاعدة البيانات غير جاهزة لحفظ هوية الشركة');
+      this.autoReceiverCompany=this.data().companyId;
+      this.startLanReceiver(true);
+      this.autoReceiverWatchdog=setInterval(()=>{
+        if(document.hidden||this.lanBusy)return;
+        const changed=this.autoReceiverCompany!==this.data().companyId;
+        if(changed){this.autoReceiverCompany=this.data().companyId;this.startLanReceiver(true,true);}
+        else if(!this.lanListening)this.startLanReceiver(true,true);
+      },30000);
+      document.addEventListener('visibilitychange',()=>{
+        if(!document.hidden)this.startLanReceiver(true,true);
+      });
+    }catch(e){
+      this.autoReceiverBooted=false;
+      console.warn('LAN auto receiver unavailable:',e);
+    }
+  },
+  startLanReceiver(silent=false, force=false){
     const status=document.getElementById('fieldLanStatus');
     if(!window.AndroidLocalSync?.startReceiver){if(status)status.textContent='الاتصال المباشر يحتاج نسخة APK محدثة؛ استعمل ملفات التبادل مؤقتًا.';return;}
     try {
-      const result=window.AndroidLocalSync.startReceiver(this.data().companyId);
-      if(status)status.textContent=result==='already'?'✅ جاهز لاستقبال المندوب على Wi-Fi':'جارٍ تشغيل الاستقبال على Wi-Fi…';
-    }catch(e){if(status)status.textContent='تعذر فتح الاستقبال: '+e.message;if(!silent)UI.toast('تعذر تشغيل Wi-Fi المحلي','warn');}
+      const bridge=window.AndroidLocalSync;
+      const result=force && typeof bridge.restartReceiver==='function'
+        ?bridge.restartReceiver(this.data().companyId):bridge.startReceiver(this.data().companyId);
+      if(result==='invalid')throw Error('لم يكتمل تجهيز اتصال أندرويد');
+      if(result!=='already')this.lanListening=false;
+      if(status)status.textContent=result==='already'?'✅ الاستقبال التلقائي جاهز':'جارٍ تشغيل الاستقبال التلقائي عبر Wi-Fi…';
+    }catch(e){this.lanListening=false;if(status)status.textContent='تعذر فتح الاستقبال: '+e.message;if(!silent)UI.toast('تعذر تشغيل Wi-Fi المحلي','warn');}
   },
   onLanStatus(status){
+    if(status==='ready')this.lanListening=true;
+    if(status==='stopped'||status==='network-down'||status.startsWith('فشل')||status.startsWith('تعذر'))this.lanListening=false;
+    if(status==='network-changed' && this.autoReceiverBooted){
+      clearTimeout(this.lanNetworkTimer);
+      this.lanNetworkTimer=setTimeout(()=>{
+        if(this.lanBusy){this.onLanStatus('network-changed');return;}
+        this.startLanReceiver(true,true);
+      },1800);
+    }
     const label=document.getElementById('fieldLanStatus');
-    if(label)label.textContent=status==='ready'?'✅ جاهز لاستقبال العمليات وإرسال التحديثات بضغطة المندوب':status==='stopped'?'الاستقبال متوقف':String(status);
+    if(label)label.textContent=status==='ready'?'✅ الاستقبال التلقائي يعمل — سيتم تبادل التحديثات طوال الاتصال':
+      status==='network-changed'?'تم رصد اتصال Wi-Fi، جارٍ إعادة الاستقبال…':status==='network-down'?'بانتظار عودة Wi-Fi…':status==='stopped'?'الاستقبال متوقف':String(status);
   },
   // Called only by Android's own local network bridge. No unverified document touches the ledger.
   async receiveLanPacket(requestId, raw){

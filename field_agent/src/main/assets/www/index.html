@@ -12,7 +12,7 @@
   <div class="brandcopy"><h1 id="agentScreenTitle">المحاسب التقني</h1><p id="agentScreenSubtitle">نسخة المندوب · توزيع ميداني</p></div>
   <button type="button" id="agentPrinterQuick" class="header-tool" onclick="Agent.navigate('printer')" aria-label="إعداد الطابعة">🖨</button>
  </div>
- <div class="headerbottom"><span class="tag" id="connectionTag">غير مفعّل</span><span id="agentVehicleHeader">مستودع السيارة</span></div>
+ <div class="headerbottom"><span class="tag" id="connectionTag">غير مفعّل</span><span class="tag" id="agentSyncConnection" aria-live="polite">◌ بانتظار الاتصال</span><span id="agentVehicleHeader">مستودع السيارة</span></div>
 </header>
 <main id="screen" class="wrap"><div class="panel">جارٍ فتح بيانات المندوب…</div></main>
 <nav id="bottom" class="bottom hide" aria-label="القائمة الرئيسية">
@@ -26,4 +26,5 @@
 <div id="toast" class="toast hide" role="alert"></div>
 <script defer src="static/agent-experience.js"></script>
 <script defer src="static/agent-lan-ui.js"></script>
+<script defer src="static/agent-auto-sync.js"></script>
 </body></html>

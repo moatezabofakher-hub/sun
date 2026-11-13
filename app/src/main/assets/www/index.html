@@ -4742,8 +4742,8 @@
                 UI.setHeader('<i class="fas fa-sliders text-emerald-400"></i> <span>الضبط</span>', 'اضغط على القسم المطلوب لعرض خياراته');
                 const mode = State.settings.btPrintMode || 'auto';
                 main.innerHTML = `
-                    <div class="mb-3 flex items-center justify-between gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2" data-app-build="3.5.31">
-                        <span class="font-black text-xs text-emerald-800"><i class="fas fa-check-circle ml-1"></i> إصدار التطبيق: 3.5.31</span>
+                    <div class="mb-3 flex items-center justify-between gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2" data-app-build="3.5.32">
+                        <span class="font-black text-xs text-emerald-800"><i class="fas fa-check-circle ml-1"></i> إصدار التطبيق: 3.5.32</span>
                         <span class="text-[10px] font-bold text-emerald-700">مظهر ثلاثي الأبعاد موحّد</span>
                     </div>
                     <div class="mb-3 text-[11px] text-slate-500 font-semibold px-1">جميع خيارات التطبيق مرتبة ضمن فئات. اضغط على اسم أي فئة لفتحها أو إغلاقها.</div>
@@ -8482,6 +8482,8 @@
                 history.replaceState({ appGuard: true, depth: 1 }, '');
                 history.pushState({ appGuard: true, depth: 1 }, '');
             } catch (e) {}
+            // Automatic, persistent LAN receiver: does not require opening the agents screen.
+            await FieldSync.bootAutoReceiver();
             BackupController.stageLatest(); // Stage existing IndexedDB data after first launch.
             I18n.install();
             AppNav.renderCurrent();
