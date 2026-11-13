@@ -10,8 +10,8 @@ android {
         applicationId 'com.sunshine.technicalaccountant'
         minSdk 26
         targetSdk 35
-        versionCode 43
-        versionName '3.5.36-print-pdf-warehouse-workflow'
+        versionCode 44
+        versionName '3.5.37-field-cash-history-recovery'
     }
 
     // A permanent signing key is required for in-place updates. The keystore is

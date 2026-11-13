@@ -3,6 +3,8 @@
 (function(){
  'use strict';
  const P=FieldPairCrypto,A=Agent;
+ const mergeHistory=(page,old)=>typeof A.mergeHistoryPage==='function'?A.mergeHistoryPage(page,old):{ops:old.ops||[],cursor:0,restoredIds:[]};
+ const mergeTransfer=(page,old)=>typeof A.mergeTransferPage==='function'?A.mergeTransferPage(page,old):{docs:old.warehouseTransfers||[],cursor:0};
  const existingActive=A.active.bind(A);
  A.active=async function(){
    if(await existingActive())return true;
@@ -89,7 +91,9 @@
      if(A.pending?.length)throw Error('هناك عمليات غير مرحّلة، يجب مزامنتها أولاً');
      const updated={...old,companyId:c.companyId,companyName:c.companyName,agentId:c.agentId,agentName:c.agentName,vehicleName:c.vehicleName,
        warehouseId:c.warehouseId,key:c.key,items:c.items,categories:c.categories||[],accounts:c.accounts,
-       stock:c.stock||{},knownIds:Array.from(new Set([...(old.knownIds||[]),...c.knownIds])),snapshotIds:c.knownIds,exchangeRate:c.exchangeRate,
+       stock:c.stock||{},agentCash:c.agentCash||null,cashTransfers:c.cashTransfers||[],warehouseTransfers:mergeTransfer(c.warehouseHistoryPage,{...old,companyId:c.companyId,agentId:c.agentId,warehouseId:c.warehouseId}).docs,warehouseHistoryCursor:mergeTransfer(c.warehouseHistoryPage,{...old,companyId:c.companyId,agentId:c.agentId,warehouseId:c.warehouseId}).cursor,warehouseTransferRevision:c.warehouseHistoryPage?.revision||'',
+       ops:mergeHistory(c.historyPage,{...old,companyId:c.companyId,agentId:c.agentId,warehouseId:c.warehouseId}).ops,historyCursor:mergeHistory(c.historyPage,{...old,companyId:c.companyId,agentId:c.agentId,warehouseId:c.warehouseId}).cursor,
+       knownIds:Array.from(new Set([...(old.knownIds||[]),...c.knownIds,...mergeHistory(c.historyPage,{...old,companyId:c.companyId,agentId:c.agentId,warehouseId:c.warehouseId}).restoredIds])),snapshotIds:c.knownIds,exchangeRate:c.exchangeRate,
        issuedAt:c.issuedAt,pairedAuthorityKey:message.authorityKey,enrollmentGrant:message.grant};
      A.state=updated;
      try{await A.save();}catch(e){A.state=old;throw e;}

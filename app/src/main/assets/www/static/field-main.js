@@ -9,6 +9,8 @@ const FieldSync = {
     if(!Array.isArray(x.agents))x.agents=[];
     if(!Array.isArray(x.imported))x.imported=[];
     if(!Array.isArray(x.events))x.events=[];
+    if(!Array.isArray(x.cashTransfers))x.cashTransfers=[];
+    if(!Array.isArray(x.operationHistory))x.operationHistory=[];
     return x;
   },
   escape(value){return AppEscape.text(value)},
@@ -80,7 +82,7 @@ const FieldSync = {
     try { await StorageEngine.saveState();this.open();UI.toast('تم إنشاء المندوب. افتح تطبيقه وسيظهر طلب الربط تلقائياً','success'); }
     catch(e){this.data().agents=this.data().agents.filter(x=>x.id!==a.id);UI.toast('فشل حفظ المندوب: '+e.message,'error');}
   },
-  catalog(a){
+  catalog(a, historyCursor=0){
     const config=this.data();
     const known=config.imported.filter(i=>i.agentId===a.id).map(i=>i.id);
     // Limit optional image payloads to keep periodic encrypted sync reliable on LAN.
@@ -112,7 +114,12 @@ const FieldSync = {
           sypBalance:st.sypBalance,usdBalance:st.usdBalance};
       }),
       stock:Object.fromEntries(State.items.map(it=>[it.id,Accounting.getItemBaseStock(it.id,null,a.warehouseId)])),
-      knownIds:known};
+      knownIds:known,
+      // A cashbox is a separate physical till, not a customer's receivable.
+      agentCash:(typeof FieldCash!=='undefined'?((x)=>({sypCash:x.sypCash,usdCash:x.usdCash}))(FieldCash.summary(a.id)):{sypCash:0,usdCash:0}),
+      cashTransfers:config.cashTransfers.filter(x=>x.agentId===a.id),
+      warehouseTransfers:[],
+      historyPage:typeof this.historyPage==='function'?this.historyPage(a,historyCursor):{ops:[],nextCursor:0,total:0}};
   },
   showEditAgent(id){
     const a=this.data().agents.find(x=>x.id===id&&!x.archived);if(!a)return;
@@ -286,7 +293,7 @@ const FieldSync = {
       const fresh=all.filter(x=>!known.has(x.id));
       const count=await this.commitLanOperations(agent,fresh);
       // Response generated only after the app database reports successful commit.
-      const snapshot=this.catalog(agent);
+      const snapshot=this.catalog(agent,Math.max(0,Number(payload.historyCursor)||0),Math.max(0,Number(payload.warehouseHistoryCursor)||0));
       const ack={kind:'sync_result',companyId:config.companyId,agentId:agent.id,accepted:count,
         knownIds:config.imported.filter(x=>x.agentId===agent.id).map(x=>x.id),catalog:snapshot,requestNonce:payload.nonce,serverAt:new Date().toISOString()};
       answer=await FieldLanCrypto.pack(ack,agent.key,config.companyId,agent.id);
@@ -301,7 +308,7 @@ const FieldSync = {
   },
   async commitLanOperations(agent,ops){
     if(!ops.length)return 0;
-    const config=this.data(),old={invoices:State.invoices,vouchers:State.vouchers,imported:config.imported,events:config.events,used:State.license.opsUsedCount};
+    const config=this.data(),old={invoices:State.invoices,vouchers:State.vouchers,imported:config.imported,events:config.events,history:config.operationHistory,used:State.license.opsUsedCount};
     const existing=new Set(config.imported.map(x=>x.id));
     const fresh=ops.filter(x=>!existing.has(x.id));
     if(!fresh.length)return 0;
@@ -321,10 +328,11 @@ const FieldSync = {
       State.invoices=[...old.invoices,...docs.invoices];State.vouchers=[...old.vouchers,...docs.vouchers];
       config.imported=[...old.imported,...fresh.map(x=>({id:x.id,agentId:agent.id,receivedAt:new Date().toISOString(),kind:x.kind}))];
       config.events=[...old.events,{id:FieldProtocol.uuid(),agentId:agent.id,at:new Date().toISOString(),count:fresh.length,mode:'wifi'}].slice(-3000);
+      config.operationHistory=[...old.history,...fresh.map(op=>JSON.parse(JSON.stringify(op)))];
       if(!State.license.isActivated)State.license.opsUsedCount+=fresh.length;
       await StorageEngine.saveState();
       return fresh.length;
-    }catch(e){State.invoices=old.invoices;State.vouchers=old.vouchers;config.imported=old.imported;config.events=old.events;State.license.opsUsedCount=old.used;throw e;}
+    }catch(e){State.invoices=old.invoices;State.vouchers=old.vouchers;config.imported=old.imported;config.events=old.events;config.operationHistory=old.history;State.license.opsUsedCount=old.used;throw e;}
   },
   async previewFile(input){
     const file=input.files?.[0];if(!file)return;
@@ -363,7 +371,7 @@ const FieldSync = {
     if(this.busy||this.lanBusy||!this.staged?.ops?.length)return;
     this.busy=true;
     const {agent,ops}=this.staged,c=this.data();
-    const old={invoices:State.invoices,vouchers:State.vouchers,imported:c.imported,events:c.events,opsUsedCount:State.license.opsUsedCount};
+    const old={invoices:State.invoices,vouchers:State.vouchers,imported:c.imported,events:c.events,history:c.operationHistory,opsUsedCount:State.license.opsUsedCount};
     try {
       const known=new Set(c.imported.map(x=>x.id));
       const fresh=ops.filter(x=>!known.has(x.id));
@@ -382,12 +390,13 @@ const FieldSync = {
       State.invoices=[...old.invoices,...docs.invoices];State.vouchers=[...old.vouchers,...docs.vouchers];
       c.imported=[...old.imported,...fresh.map(x=>({id:x.id,agentId:agent.id,receivedAt:new Date().toISOString(),kind:x.kind}))];
       c.events=[...old.events,{id:FieldProtocol.uuid(),agentId:agent.id,at:new Date().toISOString(),count:fresh.length}].slice(-3000);
+      c.operationHistory=[...old.history,...fresh.map(op=>JSON.parse(JSON.stringify(op)))];
       if(!State.license.isActivated)State.license.opsUsedCount+=fresh.length;
       await StorageEngine.saveState();
       this.staged=null;UI.forceCloseModal();UI.toast('تم استلام وترحيل '+fresh.length+' عملية باسم '+agent.name,'success');
       // Let owner transfer ACK back to agent through Quick Share / Bluetooth.
       await this.exportAck(agent.id);
-    }catch(e){State.invoices=old.invoices;State.vouchers=old.vouchers;c.imported=old.imported;c.events=old.events;State.license.opsUsedCount=old.opsUsedCount;UI.toast('لم يتم ترحيل البيانات: '+e.message,'error');}
+    }catch(e){State.invoices=old.invoices;State.vouchers=old.vouchers;c.imported=old.imported;c.events=old.events;c.operationHistory=old.history;State.license.opsUsedCount=old.opsUsedCount;UI.toast('لم يتم ترحيل البيانات: '+e.message,'error');}
     finally{this.busy=false;}
   }
 };

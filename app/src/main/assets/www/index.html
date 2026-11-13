@@ -87,6 +87,7 @@
     <script defer src="static/field-pair-crypto.js"></script>
     <script defer src="static/field-main.js"></script>
     <script defer src="static/field-pair-manager.js"></script>
+    <script defer src="static/field-cash.js"></script>
     <style>
         * {
             font-family: system-ui, 'Noto Sans Arabic', sans-serif;
@@ -4614,8 +4615,9 @@
                 // Do not build the cashbox ledger while rendering the profit report.
                 // Imported/older databases may contain incomplete voucher records;
                 // that unrelated data must never block the profit & sales tab.
+                const cashScope = ['all','office'].includes(params.cashAgentId) || (State.fieldSync?.agents||[]).some(a=>a.id===params.cashAgentId) ? (params.cashAgentId||'all') : 'all';
                 const cash = tab === 'cashbox'
-                    ? Accounting.getCashboxSummary()
+                    ? FieldCash.summary(cashScope)
                     : { sypCash: 0, usdCash: 0, movements: [] };
                 const period = params.period || 'all';
                 const agentId = ReportAgentFilter.active(params.agentId);
@@ -4719,6 +4721,18 @@
                        <button type="button" onclick="AppNav.navigate('reports',{tab:'debts_summary',side:'debit'},true)" class="bg-slate-100 rounded-xl p-3 text-xs font-bold">عرض ملخص الديون</button>
                     </div>
                     ${tab === 'cashbox' ? `
+                        <div class="bg-white border border-teal-200 rounded-2xl p-3 mb-3 space-y-2">
+                          <label class="block text-xs font-extrabold text-slate-800">عرض حركة الصندوق حسب المندوب</label>
+                          <select id="cashboxAgentFilter" class="w-full border rounded-xl bg-white p-3 text-sm" onchange="AppNav.navigate('reports',{tab:'cashbox',cashAgentId:this.value},true)">
+                            <option value="all" ${cashScope==='all'?'selected':''}>الصندوق الإجمالي — كل الصناديق</option>
+                            <option value="office" ${cashScope==='office'?'selected':''}>الصندوق الرئيسي فقط</option>
+                            ${(State.fieldSync?.agents||[]).map(a=>`<option value="${AppEscape.text(a.id)}" ${cashScope===a.id?'selected':''}>${AppEscape.text(a.name||'مندوب')}${a.archived?' (أرشيف)':''}</option>`).join('')}
+                          </select>
+                          <div class="grid grid-cols-2 gap-2 text-xs font-extrabold">
+                            <button type="button" class="rounded-xl bg-emerald-700 text-white p-3" onclick="FieldCash.openTransfer('fromAgent','${AppEscape.text(cashScope)}')">↙ دفعة من المندوب</button>
+                            <button type="button" class="rounded-xl bg-blue-800 text-white p-3" onclick="FieldCash.openTransfer('toAgent','${AppEscape.text(cashScope)}')">↗ إعطاء دفعة</button>
+                          </div>
+                        </div>
                         <div class="grid grid-cols-2 gap-2.5 mb-3">
                             <div class="bg-emerald-700 text-white p-3.5 rounded-2xl"><span class="text-xs opacity-80 block">صافي صندوق الليرة السورية</span><span class="font-extrabold text-base sm:text-lg">${Accounting.format(cash.sypCash, 'SYP')}</span></div>
                             <div class="bg-slate-900 text-white p-3.5 rounded-2xl"><span class="text-xs opacity-80 block">صافي صندوق الدولار الأمريكي</span><span class="font-extrabold text-base sm:text-lg text-amber-300">${Accounting.format(cash.usdCash, 'USD')}</span></div>
@@ -4813,8 +4827,8 @@
                 UI.setHeader('<i class="fas fa-sliders text-emerald-400"></i> <span>الضبط</span>', 'اضغط على القسم المطلوب لعرض خياراته');
                 const mode = State.settings.btPrintMode || 'auto';
                 main.innerHTML = `
-                    <div class="mb-3 flex items-center justify-between gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2" data-app-build="3.5.35">
-                        <span class="font-black text-xs text-emerald-800"><i class="fas fa-check-circle ml-1"></i> إصدار التطبيق: 3.5.35</span>
+                    <div class="mb-3 flex items-center justify-between gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2" data-app-build="3.5.37">
+                        <span class="font-black text-xs text-emerald-800"><i class="fas fa-check-circle ml-1"></i> إصدار التطبيق: 3.5.37</span>
                         <span class="text-[10px] font-bold text-emerald-700">مظهر ثلاثي الأبعاد موحّد</span>
                     </div>
                     <div class="mb-3 text-[11px] text-slate-500 font-semibold px-1">جميع خيارات التطبيق مرتبة ضمن فئات. اضغط على اسم أي فئة لفتحها أو إغلاقها.</div>

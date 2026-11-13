@@ -10,8 +10,8 @@ android {
         applicationId 'com.sunshine.technicalaccountant.agent'
         minSdk 26
         targetSdk 35
-        versionCode 9
-        versionName '1.2.6-company-print-parity'
+        versionCode 10
+        versionName '1.2.7-cashbox-invoices-recovery'
     }
 
     // A permanent signing key is required for in-place updates. The keystore is
