@@ -2113,9 +2113,11 @@
                     this.clearDirty();
                     this.clearModalDirty();
                     UI.forceCloseModal();
+                    const bottomDestinations = new Set(['dashboard','invoices_list','items','accounts','reports','settings']);
                     if (screen === 'dashboard') {
-                        // Reset stack when explicitly selecting main dashboard
                         this.stack = [{ screen: 'dashboard', params: {} }];
+                    } else if (bottomDestinations.has(screen) && !replace) {
+                        this.stack = [{ screen: 'dashboard', params: {} }, { screen, params }];
                     } else if (replace) {
                         this.stack[this.stack.length - 1] = { screen, params };
                     } else {
@@ -2224,7 +2226,10 @@
                     return;
                 }
 
-                if (this.stack.length > 1) {
+                if (['invoices_list','items','accounts','reports','settings'].includes(this.current().screen)) {
+                    this.stack = [{ screen: 'dashboard', params: {} }];
+                    this.renderCurrent();
+                } else if (this.stack.length > 1) {
                     this.popScreen();
                 } else {
                     this.stack = [{ screen: 'dashboard', params: {} }];
@@ -3961,6 +3966,7 @@
                             <div class="border-b py-2.5 text-xs flex items-center justify-between gap-2">
                                 <div class="min-w-0">
                                     <b>${AppEscape.text(e.category)}</b>
+                                    ${e.fieldOrigin?.agentId ? `<span class="inline-block bg-teal-100 text-teal-800 rounded px-2 py-0.5 mr-1 text-[10px] font-extrabold">مصروف من المندوب: ${AppEscape.text(e.fieldOrigin.agentName||e.fieldOrigin.agentId)}</span>` : ''}
                                     <div class="text-slate-500">${AppEscape.text(e.note||'')} · ${AppEscape.text(e.date||'')}</div>
                                     <div class="text-[10px] text-slate-400">سعر صرف العملية: ${Number(e.exchangeRate||1).toLocaleString('en-US')}</div>
                                 </div>
@@ -4827,8 +4833,8 @@
                 UI.setHeader('<i class="fas fa-sliders text-emerald-400"></i> <span>الضبط</span>', 'اضغط على القسم المطلوب لعرض خياراته');
                 const mode = State.settings.btPrintMode || 'auto';
                 main.innerHTML = `
-                    <div class="mb-3 flex items-center justify-between gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2" data-app-build="3.5.37">
-                        <span class="font-black text-xs text-emerald-800"><i class="fas fa-check-circle ml-1"></i> إصدار التطبيق: 3.5.37</span>
+                    <div class="mb-3 flex items-center justify-between gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2" data-app-build="3.5.38">
+                        <span class="font-black text-xs text-emerald-800"><i class="fas fa-check-circle ml-1"></i> إصدار التطبيق: 3.5.38</span>
                         <span class="text-[10px] font-bold text-emerald-700">مظهر ثلاثي الأبعاد موحّد</span>
                     </div>
                     <div class="mb-3 text-[11px] text-slate-500 font-semibold px-1">جميع خيارات التطبيق مرتبة ضمن فئات. اضغط على اسم أي فئة لفتحها أو إغلاقها.</div>

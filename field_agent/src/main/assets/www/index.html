@@ -22,7 +22,7 @@
  <button onclick="Agent.navigate('sync')" id="nav-sync"><span>⇄</span>مزامنة</button>
  <button onclick="Agent.navigate('settings')" id="nav-settings"><span>⚙</span>الضبط</button>
 </nav>
-<div id="agentDialog" class="dialog-mask hide" role="presentation"><div class="dialog-card" role="dialog" aria-modal="true" aria-labelledby="dialogTitle"><h3 id="dialogTitle"></h3><p id="dialogMessage"></p><div class="dialog-actions"><button type="button" class="secondary" onclick="Agent.dismissDialog()">إلغاء</button><button type="button" id="dialogAccept" class="primary" onclick="Agent.acceptDialog()">تأكيد</button></div></div></div>
+<div id="agentDialog" class="dialog-mask hide" role="presentation"><div class="dialog-card" role="dialog" aria-modal="true" aria-labelledby="dialogTitle"><h3 id="dialogTitle"></h3><p id="dialogMessage"></p><div class="dialog-actions"><button type="button" id="agentDialogCancel" class="secondary" onclick="Agent.dismissDialog()">إلغاء</button><button type="button" id="dialogAccept" class="primary" onclick="Agent.acceptDialog()">تأكيد</button></div></div></div>
 <div id="toast" class="toast hide" role="alert"></div>
 <script defer src="static/agent-experience.js"></script>
 <script defer src="static/agent-invoice-parity.js"></script>
@@ -32,4 +32,5 @@
 <script defer src="static/agent-pairing.js"></script>
 <script defer src="static/agent-auto-sync.js"></script>
 <script defer src="static/agent-cash-history.js"></script>
+<script defer src="static/agent-expenses.js"></script>
 </body></html>

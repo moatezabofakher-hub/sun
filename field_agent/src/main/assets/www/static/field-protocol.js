@@ -46,7 +46,7 @@
       if(typeof op.date!=='string'||!/^\d{4}-\d\d-\d\d/.test(op.date)||isNaN(Date.parse(op.date)))throw Error('تاريخ عملية غير صالح');
       const code=currency(op.currency);
       const rate=positiveNumber(op.exchangeRate);
-      if(!['sale','sale_return','receipt','payment'].includes(op.kind))throw Error('نوع عملية غير مصرح به');
+      if(!['sale','sale_return','receipt','payment','expense'].includes(op.kind))throw Error('نوع عملية غير مصرح به');
       if(op.kind==='sale'||op.kind==='sale_return') {
         if(!Array.isArray(op.rows)||op.rows.length<1||op.rows.length>100)throw Error('صفوف الفاتورة غير صالحة');
         const rows=op.rows.map(r=>{
@@ -84,23 +84,35 @@
         return {...op,rows,subTotal,discountType,discountValue,discountAmount,
           taxType,taxValue,taxAmount,netTotal:sum,paidAmount:paid,exchangeRate:rate};
       }
+      if(op.kind==='expense'){
+        // Expenses are independent of customer receivables and have a required category.
+        if(op.accountId)throw Error('المصروف لا يُربط بحساب زبون');
+        const category=String(op.category||'').trim(),note=String(op.note||'').trim();
+        if(category.length<2||category.length>80||note.length>200)throw Error('نوع المصروف أو بيانه غير صالح');
+        const value=money(op.amount,code);if(value<=0)throw Error('مبلغ المصروف يجب أن يكون موجبًا');
+        return {...op,amount:value,category,note,exchangeRate:rate};
+      }
       if(!op.accountId||!accMap.has(op.accountId))throw Error('السند يحتاج حسابًا صحيحًا');
       const value=money(op.amount,code);if(value<=0)throw Error('مبلغ السند يجب أن يكون أكبر من الصفر');
       return {...op,amount:value,exchangeRate:rate};
     });
   }
   function toLedgerDocuments(ops, agent, startingInvoice, startingVoucher) {
-    const invoices=[],vouchers=[];
+    const invoices=[],vouchers=[],expenses=[];
     for(const op of ops){
       const origin={agentId:agent.id,agentName:agent.name,vehicleName:agent.vehicleName||'',operationId:op.id,localNumber:op.localNumber||'',receivedAt:new Date().toISOString()};
       if(op.kind==='sale'||op.kind==='sale_return'){
         const net=op.netTotal,paid=op.paidAmount;
         invoices.push({id:'field_'+op.id,number:++startingInvoice,type:op.kind,warehouseId:agent.warehouseId,date:op.date,accountId:op.accountId||'',currency:op.currency,exchangeRate:op.exchangeRate,paymentMethod:paid>=net?'cash':paid>0?'partial':'credit',rows:op.rows.map((r,i)=>({...r,rowId:'fieldrow_'+op.id+'_'+i,discount:0})),subTotal:op.subTotal??net,discountValue:op.discountValue||0,discountType:op.discountType||'amount',discountAmount:op.discountAmount||0,taxValue:op.taxValue||0,taxType:op.taxType||'percent',taxAmount:op.taxAmount||0,netTotal:net,paidAmount:paid,remainingAmount:money(net-paid,op.currency),note:op.note||'',fieldOrigin:origin});
+      }else if(op.kind==='expense'){
+        expenses.push({id:'field_'+op.id,category:op.category,amount:op.amount,currency:op.currency,
+          exchangeRate:op.exchangeRate,date:op.date,note:op.note||'',updatedAt:new Date().toISOString(),
+          fieldOrigin:origin});
       }else{
         vouchers.push({id:'field_'+op.id,number:++startingVoucher,type:op.kind,date:op.date,accountId:op.accountId,currency:op.currency,amount:op.amount,exchangeRate:op.exchangeRate,accountCurrency:op.currency,accountAmount:op.amount,note:op.note||'',linkedInvoiceId:op.linkedInvoiceOpId?'field_'+op.linkedInvoiceOpId:'',fieldOrigin:{...origin,linkedInvoiceOperationId:op.linkedInvoiceOpId||''}});
       }
     }
-    return {invoices,vouchers};
+    return {invoices,vouchers,expenses};
   }
   function applyStock(baseStock, ops, ackIds) {
     const result={...baseStock},acked=new Set(ackIds||[]);

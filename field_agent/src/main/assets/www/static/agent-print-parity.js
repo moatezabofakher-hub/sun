@@ -49,21 +49,15 @@ const AgentInvoicePrint={
                 const fFooter = Math.round((is58 ? 18 : 25) * scale);
                 const fSep = Math.round((is58 ? 16 : 22) * scale);
 
-                const acc = this.agent.state.accounts.find(a => a.id === inv.accountId);
-                // Exact invoice chronology is not available from a snapshot, so never invent
-                // historical balances for invoices already accepted by the manager.
-                let prevVal = NaN, finalVal = NaN;
-                const balance = acc && this.agent.balanceFor ? this.agent.balanceFor(acc.id) : null;
-                const accepted = new Set(this.agent.state.snapshotIds || []);
-                const recent = (this.agent.state.ops||[]).filter(o=>o.accountId===inv.accountId && !accepted.has(o.id));
-                const isLast = recent.length && recent[recent.length-1].id===inv.id;
-                if(balance?.available && isLast && !accepted.has(inv.id)) {
-                    finalVal = inv.currency==='SYP'?balance.syp:balance.usd;
-                    const outstanding = Number(inv.netTotal||0)-Number(inv.paidAmount||0);
-                    prevVal = finalVal - (inv.type==='sale_return'?-outstanding:outstanding);
-                }
-                const prevBalText = this.formatPartyBalance(prevVal, inv.currency);
-                const finalBalText = this.formatPartyBalance(finalVal, inv.currency);
+                const acc = (this.agent.state.accounts||[]).find(a => a.id === inv.accountId);
+                // Print the immutable balances captured when the invoice was posted.
+                // Legacy invoices may have no historical balance: never replace that with today's value.
+                const prevVal = inv.accountId && inv.accountBalanceBefore!==null && Number.isFinite(Number(inv.accountBalanceBefore))
+                    ? Number(inv.accountBalanceBefore) : NaN;
+                const finalVal = inv.accountId && inv.accountBalanceAfter!==null && Number.isFinite(Number(inv.accountBalanceAfter))
+                    ? Number(inv.accountBalanceAfter) : NaN;
+                const prevBalText = inv.accountId?this.formatPartyBalance(prevVal, inv.currency):'فاتورة نقدية';
+                const finalBalText = inv.accountId?this.formatPartyBalance(finalVal, inv.currency):'فاتورة نقدية';
 
                 const wrapTextLines = (text, fontStr, maxWidth) => {
                     ctx.font = fontStr;
@@ -334,10 +328,11 @@ const AgentInvoicePrint={
     if(!window.AndroidPrinter?.printBase64)throw Error('طباعة بلوتوث تتطلب تطبيق أندرويد');
     const calcNet=op.netTotal??op.rows.reduce((sum,r)=>sum+Number(r.total||0),0);
     const paid=Number(op.paidAmount||0);
-    const inv={...op,id:op.id,number:op.localNumber||op.id,
+    const inv={...op,type:op.kind,id:op.id,number:op.localNumber||op.id,
       netTotal:Number(calcNet),paidAmount:paid,remainingAmount:Number(calcNet)-paid,
       subTotal:Number(op.subTotal??op.rows.reduce((sum,r)=>sum+Number(r.total||0),0)),
-      discountAmount:Number(op.discountAmount||0),taxAmount:Number(op.taxAmount||0)};
+      discountAmount:Number(op.discountAmount||0),taxAmount:Number(op.taxAmount||0),
+      accountBalanceBefore:op.accountBalanceBefore,accountBalanceAfter:op.accountBalanceAfter};
     const width=this.settings.printerWidth===58?384:576;
     const canvas=await this.renderInvoiceToCanvas(inv,width);
     const bytes=this.canvasToEscPosRaster(canvas);

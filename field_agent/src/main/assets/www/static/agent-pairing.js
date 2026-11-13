@@ -90,7 +90,10 @@
      if(old.agentId&&old.agentId!==c.agentId)throw Error('لا يمكن تغيير المندوب دون إعادة تجهيز الجهاز');
      if(A.pending?.length)throw Error('هناك عمليات غير مرحّلة، يجب مزامنتها أولاً');
      const updated={...old,companyId:c.companyId,companyName:c.companyName,agentId:c.agentId,agentName:c.agentName,vehicleName:c.vehicleName,
-       warehouseId:c.warehouseId,key:c.key,items:c.items,categories:c.categories||[],accounts:c.accounts,
+       warehouseId:c.warehouseId,key:c.key,companyPhone:c.companyPhone||'',companyAddress:c.companyAddress||'',companyLogo:c.companyLogo||'',footerNote:c.footerNote||'',
+       printerWidth:c.printerWidth===58?58:80,printFontScale:Number(c.printFontScale)||0.75,
+       itemQuantityDecimals:Number.isInteger(Number(c.itemQuantityDecimals))?Math.min(4,Math.max(0,Number(c.itemQuantityDecimals))):2,
+       items:c.items,categories:c.categories||[],accounts:c.accounts,
        stock:c.stock||{},agentCash:c.agentCash||null,cashTransfers:c.cashTransfers||[],warehouseTransfers:mergeTransfer(c.warehouseHistoryPage,{...old,companyId:c.companyId,agentId:c.agentId,warehouseId:c.warehouseId}).docs,warehouseHistoryCursor:mergeTransfer(c.warehouseHistoryPage,{...old,companyId:c.companyId,agentId:c.agentId,warehouseId:c.warehouseId}).cursor,warehouseTransferRevision:c.warehouseHistoryPage?.revision||'',
        ops:mergeHistory(c.historyPage,{...old,companyId:c.companyId,agentId:c.agentId,warehouseId:c.warehouseId}).ops,historyCursor:mergeHistory(c.historyPage,{...old,companyId:c.companyId,agentId:c.agentId,warehouseId:c.warehouseId}).cursor,
        knownIds:Array.from(new Set([...(old.knownIds||[]),...c.knownIds,...mergeHistory(c.historyPage,{...old,companyId:c.companyId,agentId:c.agentId,warehouseId:c.warehouseId}).restoredIds])),snapshotIds:c.knownIds,exchangeRate:c.exchangeRate,

@@ -10,7 +10,7 @@ A.mergeHistoryPage=function(page,old=this.state){
  if(!page||!Array.isArray(page.ops))return {ops,cursor,restoredIds};
  const current=new Set(ops.map(o=>o.id));
  for(const op of page.ops){
-  if(!op||typeof op.id!=='string'||!op.id.startsWith('op_')||op.agentId!==old.agentId||op.companyId!==old.companyId||!['sale','sale_return','receipt','payment'].includes(op.kind))continue;
+  if(!op||typeof op.id!=='string'||!op.id.startsWith('op_')||op.agentId!==old.agentId||op.companyId!==old.companyId||!['sale','sale_return','receipt','payment','expense'].includes(op.kind))continue;
   if(!current.has(op.id)){ops.push(op);current.add(op.id);restoredIds.push(op.id);}
  }
  cursor=Math.max(cursor,Math.min(1e8,Math.max(0,Number(page.nextCursor)||0)));
@@ -49,13 +49,13 @@ A.cashSummary=function(){
   if(!Number.isFinite(amount)||amount<=0)continue;
   const positive=['sale','receipt'].includes(op.kind);
   if(op.currency==='SYP')syp+=positive?amount:-amount;else if(op.currency==='USD')usd+=positive?amount:-amount;
-  pending.push({id:op.id,date:op.date,currency:op.currency,amount:positive?amount:-amount,desc:this.kindName(op.kind)+' · '+String(op.localNumber||''),pending:true});
+  pending.push({id:op.id,date:op.date,currency:op.currency,amount:positive?amount:-amount,desc:this.kindName(op.kind)+' · '+(op.kind==='expense'?op.category+' · ':'')+String(op.localNumber||''),pending:true});
  }
  const transfers=(this.state.cashTransfers||[]).map(t=>({id:t.id,date:t.date,currency:t.currency,amount:t.direction==='toAgent'?Number(t.amount):-Number(t.amount),desc:t.direction==='toAgent'?'استلام دفعة من الرئيسي':'تسليم دفعة للرئيسي',pending:false}));
  const local=(this.state.ops||[]).map(op=>{
    const amount=['sale','sale_return'].includes(op.kind)?Number(op.paidAmount||0):Number(op.amount||0);
    return {id:op.id,date:op.date,currency:op.currency,amount:['sale','receipt'].includes(op.kind)?amount:-amount,
-     desc:this.kindName(op.kind)+' · '+String(op.localNumber||''),pending:!accepted.has(op.id)};
+     desc:this.kindName(op.kind)+' · '+(op.kind==='expense'?op.category+' · ':'')+String(op.localNumber||''),pending:!accepted.has(op.id)};
  }).filter(x=>Number.isFinite(x.amount)&&x.amount!==0);
  return {syp:Math.round(syp),usd:Math.round(usd*100)/100,
    movements:[...local,...transfers].sort((a,b)=>String(b.date).localeCompare(String(a.date)))};
@@ -93,7 +93,7 @@ A.renderStock=function(){
  }).join(''):'<p class="muted">لم تُستلم فواتير مناقلة بعد.</p>'}</section>`;
 };
 const oldHome=A.renderHome.bind(A);
-A.renderHome=function(){const box=this.cashSummary();return oldHome()+`<section class="panel"><h3>صندوق المندوب</h3><div class="stats"><div class="stat"><b>${this.money(box.usd,'USD')}</b><small>USD</small></div><div class="stat"><b>${this.money(box.syp,'SYP')}</b><small>SYP</small></div><div class="stat"><button class="secondary" onclick="Agent.navigate('cashbox')">عرض الحركة</button><small>كشف الصندوق</small></div></div></section>`;};
+A.renderHome=function(){const box=this.cashSummary();return `<section class="panel" id="agentCashTop"><h3>صندوق المندوب</h3><div class="stats"><div class="stat"><b>${this.money(box.usd,'USD')}</b><small>USD</small></div><div class="stat"><b>${this.money(box.syp,'SYP')}</b><small>SYP</small></div><div class="stat"><button class="secondary" onclick="Agent.navigate('cashbox')">عرض الحركة</button><small>كشف الصندوق</small></div></div></section>`+oldHome();};
 // Preserve old back-button behavior; field screens are read-only except invoice creation.
 const oldShow=A.show.bind(A);
 A.show=async function(route){

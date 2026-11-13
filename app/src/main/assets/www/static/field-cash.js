@@ -31,7 +31,8 @@ const FieldCash={
       const incoming=v.type==='receipt';
       add({id:v.id,date:v.date||'',ref:'سند #'+(v.number||''),party:State.accounts.find(a=>a.id===v.accountId)?.name||'حساب عام',desc:v.note||v.fieldOrigin?.agentName||'سند مالي',currency:v.currency,inflow:incoming?amount:0,outflow:incoming?0:amount});
     }
-    if(scope==='all'||scope==='office')for(const e of (State.expenses||[])){
+    for(const e of (State.expenses||[])){
+      if(!matches(e))continue;
       const amount=Number(e.amount||0);if(amount>0)add({id:e.id,date:e.date||'',ref:'مصروف',party:e.category||'مصاريف',desc:e.note||'مصروف نقدي',currency:e.currency,inflow:0,outflow:amount});
     }
     for(const tr of cfg().cashTransfers){
@@ -113,6 +114,13 @@ F.historyFor=function(a){
       localNumber:x.localNumber||'V-'+(voucher.number||''),date:voucher.date,currency:voucher.currency,exchangeRate:voucher.exchangeRate,
       accountId:voucher.accountId,amount:voucher.amount,note:voucher.note||'',linkedInvoiceOpId:x.linkedInvoiceOperationId||'',restoredFromLedger:true});
   }
+  for(const exp of (State.expenses||[])){
+    const x=exp.fieldOrigin;
+    if(x?.agentId!==a.id||!x.operationId||archive.has(x.operationId))continue;
+    archive.set(x.operationId,{id:x.operationId,kind:'expense',companyId:cfg().companyId,agentId:a.id,warehouseId:a.warehouseId,
+      localNumber:x.localNumber||'E-'+x.operationId.slice(-6),date:exp.date,currency:exp.currency,exchangeRate:exp.exchangeRate,
+      category:exp.category,amount:exp.amount,note:exp.note||'',restoredFromLedger:true});
+  }
   return [...archive.values()].sort((x,y)=>String(x.date||'').localeCompare(String(y.date||''))||x.id.localeCompare(y.id));
 };
 F.historyPage=function(a,start=0){
@@ -186,6 +194,7 @@ F.showAgents=function(){
 F.historyViewLimit=100;
 F.showOperations=function(agentId='all'){
  const c=cfg(),records=[...(State.invoices||[]).filter(i=>i.fieldOrigin?.agentId).map(x=>({kind:'فاتورة',id:x.id,agentId:x.fieldOrigin.agentId,number:x.fieldOrigin.localNumber||x.number,date:x.date,display:`${x.netTotal} ${x.currency}`})),
+ ...(State.expenses||[]).filter(e=>e.fieldOrigin?.agentId).map(x=>({kind:'إيصال مصروف · '+x.category,id:x.id,agentId:x.fieldOrigin.agentId,number:x.fieldOrigin.localNumber||x.id,date:x.date,display:`${x.amount} ${x.currency}`})),
  ...(State.vouchers||[]).filter(v=>v.fieldOrigin?.agentId).map(x=>({kind:'سند عميل',id:x.id,agentId:x.fieldOrigin.agentId,number:x.fieldOrigin.localNumber||x.number,date:x.date,display:`${x.amount} ${x.currency}`})),
  ...c.cashTransfers.map(x=>({kind:x.direction==='fromAgent'?'دفعة من المندوب':'دفعة للمندوب',id:x.id,agentId:x.agentId,number:x.id.slice(-8),date:x.date,display:`${x.amount} ${x.currency}`})),
  ...c.agents.flatMap(a=>FieldCash.warehouseDocuments(a.warehouseId).map(x=>({kind:'مناقلة مستودع',id:x.id+'_'+a.id,agentId:a.id,number:x.id,date:x.date,display:x.lines.length+' صنف'})))].sort((a,b)=>String(b.date).localeCompare(String(a.date)));

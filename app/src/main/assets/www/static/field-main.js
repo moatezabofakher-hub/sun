@@ -308,7 +308,7 @@ const FieldSync = {
   },
   async commitLanOperations(agent,ops){
     if(!ops.length)return 0;
-    const config=this.data(),old={invoices:State.invoices,vouchers:State.vouchers,imported:config.imported,events:config.events,history:config.operationHistory,used:State.license.opsUsedCount};
+    const config=this.data(),old={invoices:State.invoices,vouchers:State.vouchers,expenses:Array.isArray(State.expenses)?State.expenses:[],imported:config.imported,events:config.events,history:config.operationHistory,used:State.license.opsUsedCount};
     const existing=new Set(config.imported.map(x=>x.id));
     const fresh=ops.filter(x=>!existing.has(x.id));
     if(!fresh.length)return 0;
@@ -325,14 +325,14 @@ const FieldSync = {
       const ni=Math.max(0,...State.invoices.map(x=>Number(x.number)||0));
       const nv=Math.max(0,...State.vouchers.map(x=>Number(x.number)||0));
       const docs=FieldProtocol.toLedgerDocuments(fresh,agent,ni,nv);
-      State.invoices=[...old.invoices,...docs.invoices];State.vouchers=[...old.vouchers,...docs.vouchers];
+      State.invoices=[...old.invoices,...docs.invoices];State.vouchers=[...old.vouchers,...docs.vouchers];State.expenses=[...old.expenses,...docs.expenses];
       config.imported=[...old.imported,...fresh.map(x=>({id:x.id,agentId:agent.id,receivedAt:new Date().toISOString(),kind:x.kind}))];
       config.events=[...old.events,{id:FieldProtocol.uuid(),agentId:agent.id,at:new Date().toISOString(),count:fresh.length,mode:'wifi'}].slice(-3000);
       config.operationHistory=[...old.history,...fresh.map(op=>JSON.parse(JSON.stringify(op)))];
       if(!State.license.isActivated)State.license.opsUsedCount+=fresh.length;
       await StorageEngine.saveState();
       return fresh.length;
-    }catch(e){State.invoices=old.invoices;State.vouchers=old.vouchers;config.imported=old.imported;config.events=old.events;config.operationHistory=old.history;State.license.opsUsedCount=old.used;throw e;}
+    }catch(e){State.invoices=old.invoices;State.vouchers=old.vouchers;State.expenses=old.expenses;config.imported=old.imported;config.events=old.events;config.operationHistory=old.history;State.license.opsUsedCount=old.used;throw e;}
   },
   async previewFile(input){
     const file=input.files?.[0];if(!file)return;
@@ -357,7 +357,7 @@ const FieldSync = {
           <div><b class="text-lg">${invoiceCount}</b><p class="text-[10px]">فواتير</p></div><div><b class="text-lg">${vouchers}</b><p class="text-[10px]">سندات</p></div><div><b class="text-lg">${this.staged.duplicates}</b><p class="text-[10px]">مكررة مستبعدة</p></div>
         </div>
         <div class="max-h-48 overflow-y-auto rounded-lg border bg-white p-2 text-[11px] space-y-1">
-          ${fresh.slice(0,40).map(op=>`<div class="border-b border-dashed py-1"><b>${op.kind==='sale'?'بيع':op.kind==='sale_return'?'مردود':op.kind==='receipt'?'قبض':'دفع'} · ${this.escape(op.localNumber||op.id)}</b><span class="block">${this.escape(State.accounts.find(x=>x.id===op.accountId)?.name||'نقدي')} · ${op.kind==='sale'||op.kind==='sale_return'?op.netTotal:op.amount} ${op.currency}</span></div>`).join('')}
+          ${fresh.slice(0,40).map(op=>`<div class="border-b border-dashed py-1"><b>${op.kind==='sale'?'بيع':op.kind==='sale_return'?'مردود':op.kind==='receipt'?'قبض':op.kind==='expense'?'مصروف':'دفع'} · ${this.escape(op.localNumber||op.id)}</b><span class="block">${this.escape(State.accounts.find(x=>x.id===op.accountId)?.name||'نقدي')} · ${op.kind==='sale'||op.kind==='sale_return'?op.netTotal:op.amount} ${op.currency}</span></div>`).join('')}
           ${fresh.length>40?'<p>تُعرض أول 40 عملية فقط؛ راجع كامل ملف البيانات قبل الاعتماد.</p>':''}
         </div>
         <p class="text-xs text-amber-800">سيتم الترحيل إلى قاعدة الشركة الحالية فقط بعد التأكيد. لا تُستبدل قاعدة بيانات الشركة.</p>
@@ -371,7 +371,7 @@ const FieldSync = {
     if(this.busy||this.lanBusy||!this.staged?.ops?.length)return;
     this.busy=true;
     const {agent,ops}=this.staged,c=this.data();
-    const old={invoices:State.invoices,vouchers:State.vouchers,imported:c.imported,events:c.events,history:c.operationHistory,opsUsedCount:State.license.opsUsedCount};
+    const old={invoices:State.invoices,vouchers:State.vouchers,expenses:Array.isArray(State.expenses)?State.expenses:[],imported:c.imported,events:c.events,history:c.operationHistory,opsUsedCount:State.license.opsUsedCount};
     try {
       const known=new Set(c.imported.map(x=>x.id));
       const fresh=ops.filter(x=>!known.has(x.id));
@@ -387,7 +387,7 @@ const FieldSync = {
       const latestInvoice=Math.max(0,...State.invoices.map(x=>Number(x.number)||0));
       const latestVoucher=Math.max(0,...State.vouchers.map(x=>Number(x.number)||0));
       const docs=FieldProtocol.toLedgerDocuments(fresh,agent,latestInvoice,latestVoucher);
-      State.invoices=[...old.invoices,...docs.invoices];State.vouchers=[...old.vouchers,...docs.vouchers];
+      State.invoices=[...old.invoices,...docs.invoices];State.vouchers=[...old.vouchers,...docs.vouchers];State.expenses=[...old.expenses,...docs.expenses];
       c.imported=[...old.imported,...fresh.map(x=>({id:x.id,agentId:agent.id,receivedAt:new Date().toISOString(),kind:x.kind}))];
       c.events=[...old.events,{id:FieldProtocol.uuid(),agentId:agent.id,at:new Date().toISOString(),count:fresh.length}].slice(-3000);
       c.operationHistory=[...old.history,...fresh.map(op=>JSON.parse(JSON.stringify(op)))];
@@ -396,7 +396,7 @@ const FieldSync = {
       this.staged=null;UI.forceCloseModal();UI.toast('تم استلام وترحيل '+fresh.length+' عملية باسم '+agent.name,'success');
       // Let owner transfer ACK back to agent through Quick Share / Bluetooth.
       await this.exportAck(agent.id);
-    }catch(e){State.invoices=old.invoices;State.vouchers=old.vouchers;c.imported=old.imported;c.events=old.events;c.operationHistory=old.history;State.license.opsUsedCount=old.opsUsedCount;UI.toast('لم يتم ترحيل البيانات: '+e.message,'error');}
+    }catch(e){State.invoices=old.invoices;State.vouchers=old.vouchers;State.expenses=old.expenses;c.imported=old.imported;c.events=old.events;c.operationHistory=old.history;State.license.opsUsedCount=old.opsUsedCount;UI.toast('لم يتم ترحيل البيانات: '+e.message,'error');}
     finally{this.busy=false;}
   }
 };
