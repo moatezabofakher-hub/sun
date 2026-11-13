@@ -23,6 +23,17 @@
  <button onclick="Agent.navigate('settings')" id="nav-settings"><span>⚙</span>الضبط</button>
 </nav>
 <div id="agentDialog" class="dialog-mask hide" role="presentation"><div class="dialog-card" role="dialog" aria-modal="true" aria-labelledby="dialogTitle"><h3 id="dialogTitle"></h3><p id="dialogMessage"></p><div class="dialog-actions"><button type="button" id="agentDialogCancel" class="secondary" onclick="Agent.dismissDialog()">إلغاء</button><button type="button" id="dialogAccept" class="primary" onclick="Agent.acceptDialog()">تأكيد</button></div></div></div>
+<div id="agentNewCustomerModal" class="dialog-mask hide" role="presentation">
+ <div class="dialog-card" role="dialog" aria-modal="true" aria-labelledby="agentCustomerTitle" style="max-height:88vh;overflow-y:auto">
+  <h3 id="agentCustomerTitle">إضافة حساب زبون جديد</h3>
+  <label class="label" for="agentCustomerName">اسم الزبون *</label><input id="agentCustomerName" class="field" maxlength="120" autocomplete="off" placeholder="اسم الزبون أو المحل" />
+  <label class="label" for="agentCustomerPhone">رقم الهاتف (اختياري)</label><input id="agentCustomerPhone" class="field ltr" maxlength="50" type="tel" placeholder="09..." />
+  <label class="label" for="agentCustomerAddress">العنوان (اختياري)</label><textarea id="agentCustomerAddress" class="field" rows="2" maxlength="500" placeholder="الحي، الشارع، العنوان"></textarea>
+  <label class="label" for="agentCustomerTerms">شروط الدفع (اختياري)</label><input id="agentCustomerTerms" class="field" maxlength="200" placeholder="مثلاً: آجل 30 يوماً" />
+  <p class="tiny">سيُحفظ الزبون على هذا الجهاز فوراً ويُضاف إلى الرئيسي عند المزامنة. لا يمكن إدخال رصيد افتتاحي من هاتف المندوب.</p>
+  <div class="dialog-actions"><button type="button" class="secondary" onclick="Agent.closeCustomerForm()">إلغاء</button><button type="button" class="primary" onclick="Agent.saveNewCustomer()">حفظ الزبون</button></div>
+ </div>
+</div>
 <div id="toast" class="toast hide" role="alert"></div>
 <script defer src="static/agent-experience.js"></script>
 <script defer src="static/agent-invoice-parity.js"></script>
@@ -33,4 +44,5 @@
 <script defer src="static/agent-auto-sync.js"></script>
 <script defer src="static/agent-cash-history.js"></script>
 <script defer src="static/agent-expenses.js"></script>
+<script defer src="static/agent-customers.js"></script>
 </body></html>

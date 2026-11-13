@@ -10,7 +10,7 @@ A.mergeHistoryPage=function(page,old=this.state){
  if(!page||!Array.isArray(page.ops))return {ops,cursor,restoredIds};
  const current=new Set(ops.map(o=>o.id));
  for(const op of page.ops){
-  if(!op||typeof op.id!=='string'||!op.id.startsWith('op_')||op.agentId!==old.agentId||op.companyId!==old.companyId||!['sale','sale_return','receipt','payment','expense'].includes(op.kind))continue;
+  if(!op||typeof op.id!=='string'||!op.id.startsWith('op_')||op.agentId!==old.agentId||op.companyId!==old.companyId||!['sale','sale_return','receipt','payment','expense','customer_create'].includes(op.kind))continue;
   if(!current.has(op.id)){ops.push(op);current.add(op.id);restoredIds.push(op.id);}
  }
  cursor=Math.max(cursor,Math.min(1e8,Math.max(0,Number(page.nextCursor)||0)));
@@ -44,7 +44,7 @@ A.cashSummary=function(){
  const accepted=new Set(this.state.snapshotIds||[]);
  const pending=[];
  for(const op of (this.state.ops||[])){
-  if(accepted.has(op.id))continue;
+  if(accepted.has(op.id)||op.kind==='customer_create')continue;
   const amount=['sale','sale_return'].includes(op.kind)?Number(op.paidAmount||0):Number(op.amount||0);
   if(!Number.isFinite(amount)||amount<=0)continue;
   const positive=['sale','receipt'].includes(op.kind);
@@ -52,7 +52,7 @@ A.cashSummary=function(){
   pending.push({id:op.id,date:op.date,currency:op.currency,amount:positive?amount:-amount,desc:this.kindName(op.kind)+' · '+(op.kind==='expense'?op.category+' · ':'')+String(op.localNumber||''),pending:true});
  }
  const transfers=(this.state.cashTransfers||[]).map(t=>({id:t.id,date:t.date,currency:t.currency,amount:t.direction==='toAgent'?Number(t.amount):-Number(t.amount),desc:t.direction==='toAgent'?'استلام دفعة من الرئيسي':'تسليم دفعة للرئيسي',pending:false}));
- const local=(this.state.ops||[]).map(op=>{
+ const local=(this.state.ops||[]).filter(op=>op.kind!=='customer_create').map(op=>{
    const amount=['sale','sale_return'].includes(op.kind)?Number(op.paidAmount||0):Number(op.amount||0);
    return {id:op.id,date:op.date,currency:op.currency,amount:['sale','receipt'].includes(op.kind)?amount:-amount,
      desc:this.kindName(op.kind)+' · '+(op.kind==='expense'?op.category+' · ':'')+String(op.localNumber||''),pending:!accepted.has(op.id)};

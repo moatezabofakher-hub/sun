@@ -1,0 +1,44 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const FieldProtocol=require('../app/src/main/assets/www/static/field-protocol.js');
+(async()=>{
+ const companyId='company_test1234',agent={id:'agent_abcdefgh12345678',name:'مندوب أ',warehouseId:'wh_1',vehicleName:'سيارة'};
+ const items=[{id:'item1',name:'سائل جلي',currency:'USD',units:[{name:'عبوة',factor:1,salePrice:3}]}];
+ const accounts=[{id:'acc_1',name:'زبون موجود',type:'customer',phone:'0990000'}];
+ const base={date:'2026-11-13T15:20:00Z',companyId,agentId:agent.id,warehouseId:agent.warehouseId,currency:'USD',exchangeRate:15000};
+ const account={id:'acc_field_'+'c'.repeat(32),name:'بقالية الساحة',type:'customer',phone:'09998887',address:'السويداء',paymentTerms:'أسبوع',openingUsd:99};
+ const create={...base,id:'op_'+'a'.repeat(32),kind:'customer_create',account};
+ const sale={...base,id:'op_'+'b'.repeat(32),kind:'sale',accountId:account.id,rows:[{itemId:'item1',unitName:'عبوة',unitFactor:1,qty:2,price:3,total:6}],paidAmount:0};
+ const valid=FieldProtocol.validateOps([create,sale],agent.id,companyId,agent.warehouseId,items,accounts);
+ const docs=FieldProtocol.toLedgerDocuments(valid,agent,1,2);
+ assert.equal(docs.customers[0].openingUsd,0);assert.equal(docs.invoices[0].accountId,account.id);assert.equal(docs.vouchers.length,0);
+ assert.throws(()=>FieldProtocol.validateOps([{...create,amount:3}],agent.id,companyId,agent.warehouseId,items,accounts),/حركة مالية/);
+ assert.throws(()=>FieldProtocol.validateOps([{...create,account:{...account,name:'زبون موجود',phone:'0990000'}}],agent.id,companyId,agent.warehouseId,items,accounts),/مسجل/);
+ // Check manager atomic transaction and deduplicated delivery.
+ let fails=false;
+ const State={settings:{companyName:'SAN SHINE',allowNegativeStockSales:false},license:{isActivated:true,opsUsedCount:0},warehouses:[{id:'wh_1',name:'سيارة'}],items,accounts:[...accounts],invoices:[],vouchers:[],expenses:[],fieldSync:{companyId,agents:[agent],imported:[],events:[],operationHistory:[]}};
+ const ctx={State,FieldProtocol,console,window:{},StorageEngine:{saveState:async()=>{if(fails)throw Error('disk full')}},Accounting:{getItemBaseStock:()=>10,getAccountStatement:()=>({sypBalance:0,usdBalance:0})},UI:{toast(){}},AppEscape:{text:v=>v},WarehouseController:{name:()=>''},LicenseManager:{MAX_TRIAL_OPS:100}};
+ vm.runInNewContext(fs.readFileSync('app/src/main/assets/www/static/field-main.js','utf8')+'\nglobalThis.FieldSync=FieldSync;',ctx);
+ assert.equal(await ctx.FieldSync.commitLanOperations(agent,valid),2);assert.equal(State.accounts.length,2);assert.equal(State.invoices.length,1);
+ assert.equal(await ctx.FieldSync.commitLanOperations(agent,valid),0);assert.equal(State.accounts.length,2);
+ assert.throws(()=>ctx.FieldSync.checkNewCustomers([{id:'newId',type:'customer',name:account.name,phone:account.phone}],State.accounts),/مسجل/);
+ const more={...create,id:'op_'+'d'.repeat(32),account:{...account,id:'acc_field_'+'f'.repeat(32),name:'مكتبة المدينة',phone:'09888'}};
+ const moreValidated=FieldProtocol.validateOps([more],agent.id,companyId,agent.warehouseId,items,State.accounts);
+ fails=true;await assert.rejects(ctx.FieldSync.commitLanOperations(agent,moreValidated),/disk full/);assert.equal(State.accounts.length,2);
+ // Offline agent create and catalog reconciliation.
+ const dom={agentCustomerName:{value:'محل الصفا'},agentCustomerPhone:{value:'09887777'},agentCustomerAddress:{value:'شارع السوق'},agentCustomerTerms:{value:'نقدي'},agentNewCustomerModal:{classList:{add(){},remove(){},contains(){return true}}}};
+ const notices=[];
+ const agentState={companyId,agentId:agent.id,warehouseId:'wh_1',exchangeRate:15000,items,accounts:[...accounts],ops:[],knownIds:[]};
+ const A={state:agentState,busy:false,ready:()=>true,active:async()=>true,goBack:async()=>{},save:async()=>{},toast:m=>notices.push(m),screen:'home',customerReturnContext:'home',closeCustomerForm(){this.customerReturnContext='';},show:async()=>{}};
+ const context={Agent:A,FieldProtocol,document:{getElementById:id=>dom[id]||null}};
+ vm.runInNewContext(fs.readFileSync('field_agent/src/main/assets/www/static/agent-customers.js','utf8'),context);
+ await A.saveNewCustomer();assert.equal(A.state.ops.length,1);assert.equal(A.state.accounts.length,2);
+ assert.equal(A.mergeCustomerCatalog(accounts,A.state).length,2);
+ assert.equal(A.mergeCustomerCatalog([...accounts,A.state.accounts[1]],A.state).length,2);
+ await A.saveNewCustomer();assert.equal(A.state.ops.length,1,'duplicate local customer rejected');
+ dom.agentCustomerName.value='محل آخر';dom.agentCustomerPhone.value='09112233';A.save=async()=>{throw Error('disk full')};await A.saveNewCustomer();
+ assert.equal(A.state.ops.length,1,'failed local save rolls back operation');assert.equal(A.state.accounts.length,2);
+ assert(fs.readFileSync('field_agent/src/main/assets/www/index.html','utf8').includes('agentNewCustomerModal'));
+ assert(['field_agent/src/main/assets/www/static/agent-experience.js','field_agent/src/main/assets/www/static/agent-invoice-parity.js'].every(p=>fs.readFileSync(p,'utf8').includes('openCustomerForm')));
+ console.log('PASS 3.5.42 customer creation offline, same ID on manager, contacts retained, validation, ACK dedupe, rollback');
+})().catch(e=>{console.error(e);process.exitCode=1});

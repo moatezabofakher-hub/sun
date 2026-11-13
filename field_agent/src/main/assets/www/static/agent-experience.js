@@ -12,7 +12,7 @@ Agent.invoiceMeta={accountId:'',currency:'USD',paymentMode:'cash',paid:'',date:'
 Agent.voucherKind='receipt';
 Agent.dialogAction=null;
 Agent.printerInfo={state:'disconnected',message:'لم تتصل بالطابعة بعد',address:''};
-Agent.kindName=k=>({sale:'فاتورة مبيعات',sale_return:'مردود مبيعات',receipt:'سند قبض',payment:'سند دفع',expense:'إيصال مصروف'})[k]||'عملية';
+Agent.kindName=k=>({sale:'فاتورة مبيعات',sale_return:'مردود مبيعات',receipt:'سند قبض',payment:'سند دفع',expense:'إيصال مصروف',customer_create:'زبون جديد'})[k]||'عملية';
 Agent.money=(n,cur)=>Number(n||0).toLocaleString('en-US',{minimumFractionDigits:cur==='USD'?2:0,maximumFractionDigits:cur==='USD'?2:0});
 Agent.currentTotal=()=>FieldProtocol.money(Agent.draft.reduce((s,r)=>s+Number(r.total),0),Agent.currency||'USD');
 Agent.defaultDate=()=>new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,16);
@@ -90,6 +90,7 @@ Agent.renderHome=function(){const o=this.state.ops||[],pending=this.pending.leng
   <button class="tile" onclick="Agent.startVoucher('receipt')"><span class="glyph">💵</span><strong>سند قبض</strong><small>استلام دفعة من عميل</small></button>
   <button class="tile" onclick="Agent.startVoucher('payment')"><span class="glyph">💳</span><strong>سند دفع</strong><small>تسجيل دفع مصرح به</small></button>
   <button class="tile" onclick="Agent.navigate('expense')"><span class="glyph">🧾</span><strong>إيصال مصروف</strong><small>تسجيل مصروف على صندوق المندوب</small></button>
+  <button class="tile" onclick="Agent.openCustomerForm()"><span class="glyph">👤</span><strong>زبون جديد</strong><small>إضافة حساب زبون للمبيعات والسندات</small></button>
   <button class="tile" onclick="Agent.navigate('stock')"><span class="glyph">📦</span><strong>رصيد السيارة</strong><small>جرد المستودع المتنقل</small></button>
   </div></section>
   <section class="panel"><h3>الطباعة السريعة</h3><p class="form-help">طابعة حرارية 80 مم / 58 مم عبر البلوتوث المباشر</p>
@@ -178,7 +179,7 @@ Agent.switchVoucherKind=function(kind){
 Agent.renderVoucher=function(){const k=this.voucherKind||'receipt';return `<div class="hero"><h2>${k==='receipt'?'سند قبض':'سند دفع'}</h2><p>سند مالي مرتبط بحساب العميل، يُرحّل إلى المحاسب الرئيسي عند المزامنة.</p></div>
  <section class="panel"><h3>معلومات السند</h3><div class="agent-mode"><button class="${k==='receipt'?'current':''}" onclick="Agent.switchVoucherKind('receipt')">قبض</button><button class="${k==='payment'?'current':''}" onclick="Agent.switchVoucherKind('payment')">دفع</button></div>
   <select id="vKind" class="hide"><option ${k==='receipt'?'selected':''} value="receipt">قبض</option><option ${k==='payment'?'selected':''} value="payment">دفع</option></select>
-  <label class="label">العميل</label><select id="vAcc" class="field">${this.state.accounts.map(a=>`<option value="${this.escape(a.id)}">${this.escape(a.name)}</option>`).join('')}</select>
+  <label class="label">العميل</label><div class="row"><select id="vAcc" class="field">${this.state.accounts.map(a=>`<option value="${this.escape(a.id)}">${this.escape(a.name)}</option>`).join('')}</select><button type="button" class="secondary" style="width:auto;margin:0;flex:0 0 auto" onclick="Agent.openCustomerForm('voucher')">+ زبون</button></div>
   <div class="row"><div><label class="label">التاريخ</label><input id="vDate" type="datetime-local" class="field" value="${this.defaultDate()}"></div><div><label class="label">العملة</label><select id="vCurrency" class="field"><option>USD</option><option>SYP</option></select></div></div>
   <label class="label">المبلغ</label><input type="number" id="vAmount" class="field ltr" placeholder="0.00" min="0.01" step="any">
   <label class="label">البيان</label><textarea id="vNote" class="field" rows="2" placeholder="بيان السند (اختياري)"></textarea>
@@ -214,9 +215,10 @@ Agent.renderOps=function(){const ops=this.state.ops.slice().reverse(),kind=this.
  const filtered=ops.filter(o=>kind==='all'||o.kind===kind);
  return `<div class="hero"><h2>الفواتير والسندات</h2><p>سجل العمليات الميدانية وأرصدة المندوب. لا توجد تقارير أرباح في هذا التطبيق.</p></div><div class="panel">
   <div class="stats"><div class="stat"><b>${ops.length}</b><small>المحفوظة</small></div><div class="stat"><b>${this.pending.length}</b><small>بانتظار المزامنة</small></div><div class="stat"><b>${ops.length-this.pending.length}</b><small>تمت مزامنتها</small></div></div>
-  <label class="label">عرض نوع الحركة</label><select class="field" onchange="Agent.opsFilter=this.value;Agent.show('ops')"><option value="all">كل العمليات</option>${['sale','sale_return','receipt','payment','expense'].map(k=>`<option value="${k}" ${kind===k?'selected':''}>${this.kindName(k)}</option>`).join('')}</select>
+  <label class="label">عرض نوع الحركة</label><select class="field" onchange="Agent.opsFilter=this.value;Agent.show('ops')"><option value="all">كل العمليات</option>${['sale','sale_return','receipt','payment','expense','customer_create'].map(k=>`<option value="${k}" ${kind===k?'selected':''}>${this.kindName(k)}</option>`).join('')}</select>
   ${filtered.length?filtered.map(o=>{const net=o.rows?o.rows.reduce((s,r)=>s+Number(r.total),0):Number(o.amount);
    const remaining=o.kind==='sale'?this.invoiceRemaining(o):0;
+   if(o.kind==='customer_create')return `<div class="itemrow"><div class="itemhead"><b>👤 ${this.escape(o.account?.name||'زبون جديد')} · إضافة زبون</b><span class="pill ${this.state.knownIds.includes(o.id)?'':'wait'}">${this.state.knownIds.includes(o.id)?'مزامن':'بانتظار المزامنة'}</span></div><p class="tiny">${this.escape(o.date.slice(0,16).replace('T',' '))} · ${this.escape(o.account?.phone||'دون هاتف')}</p></div>`;
    return `<div class="itemrow"><div class="itemhead"><b>${this.escape(o.localNumber)} · ${this.kindName(o.kind)}</b><span class="pill ${this.state.knownIds.includes(o.id)?'':'wait'}">${this.state.knownIds.includes(o.id)?'مرحّلة':'بانتظار المزامنة'}</span></div>
     <p class="tiny">${this.escape(o.date.slice(0,16).replace('T',' '))} · ${this.escape(o.kind==='expense' ? o.category : (this.state.accounts.find(a=>a.id===o.accountId)?.name||'نقدي'))}</p>
     <div class="itemhead"><b>${this.money(net,o.currency)} ${o.currency}</b><button class="secondary" style="margin:0;width:auto;padding:6px 12px" onclick="Agent.printOp('${o.id}')">🖨 طباعة</button></div>
@@ -252,7 +254,7 @@ Agent.renderPrinter=function(){const p=this.printerInfo;return `<div class="hero
   <label class="label">عرض الورق</label><select id="agentPrintWidth" class="field" onchange="Agent.updatePrinterWidth(this.value)"><option value="80" ${this.state.printerWidth!==58?'selected':''}>80 مم</option><option value="58" ${this.state.printerWidth===58?'selected':''}>58 مم</option></select>
   <p class="form-help">تستخدم الفواتير صورة نقطية لإظهار العربية والأرقام بصورة متوافقة مع معظم الطابعات الحرارية، ويجب اختبارها على الطابعة الفعلية.</p></div>`;};
 Agent.renderSettings=function(){return `<div class="hero"><h2>الضبط</h2><p>إعدادات المندوب وإدارة الاتصال والطباعة — دون صلاحيات إدارة أرباح الشركة.</p></div>
- <section class="panel"><h3>معلومات التفعيل</h3><div class="itemrow"><b>المندوب</b><p class="tiny">${this.escape(this.state.agentName)}</p></div><div class="itemrow"><b>السيارة</b><p class="tiny">${this.escape(this.state.vehicleName)}</p></div><div class="itemrow"><b>الجهاز</b><p class="tiny ltr">${this.escape(this.state.deviceId)}</p></div><p class="form-help">إصدار المندوب 1.2.9. لا يمكن تغيير الشركة أو مستودع السيارة من تطبيق المندوب. التعديل يأتي بملف تجهيز معتمد من الإدارة.</p></section>
+ <section class="panel"><h3>معلومات التفعيل</h3><div class="itemrow"><b>المندوب</b><p class="tiny">${this.escape(this.state.agentName)}</p></div><div class="itemrow"><b>السيارة</b><p class="tiny">${this.escape(this.state.vehicleName)}</p></div><div class="itemrow"><b>الجهاز</b><p class="tiny ltr">${this.escape(this.state.deviceId)}</p></div><p class="form-help">إصدار المندوب 1.2.11. لا يمكن تغيير الشركة أو مستودع السيارة من تطبيق المندوب. التعديل يأتي بملف تجهيز معتمد من الإدارة.</p></section>
  <section class="panel"><h3>إعدادات الطباعة</h3><button class="primary" onclick="Agent.navigate('printer')">🖨 إعداد البلوتوث والطابعة</button></section>
  <section class="panel"><h3>المزامنة والنسخ</h3><button class="secondary" onclick="Agent.navigate('sync')">⇄ إرسال واستقبال العمليات</button><button class="secondary" onclick="Agent.exportOutbox()" ${this.pending.length?'':'disabled'}>تصدير العمليات غير المُزامنة</button></section>`;};
 Agent.pairPrinter=function(){if(window.AndroidPrinter?.pairPrinter)window.AndroidPrinter.pairPrinter();else this.toast('الاقتران المباشر متاح داخل APK فقط');};

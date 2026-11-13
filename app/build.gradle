@@ -10,8 +10,8 @@ android {
         applicationId 'com.sunshine.technicalaccountant'
         minSdk 26
         targetSdk 35
-        versionCode 48
-        versionName '3.5.41-account-address-agent-home'
+        versionCode 49
+        versionName '3.5.42-agent-customer-create'
     }
 
     // A permanent signing key is required for in-place updates. The keystore is

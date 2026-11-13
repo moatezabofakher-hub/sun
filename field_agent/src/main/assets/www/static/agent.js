@@ -20,7 +20,7 @@ const Agent={
   escape(t){return String(t??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));},
   ready(){return !!(this.state?.companyId&&this.state.key)},
   async active(){return this.ready() && await FieldProtocol.verifyLicense(this.state.license,AGENT_LICENSE_PUBLIC_KEY,this.state.deviceId,this.state.companyId,this.state.agentId);},
-  get pending(){return this.state.ops.filter(o=>!this.state.knownIds.includes(o.id));},
+  get pending(){return this.state.ops.filter(o=>!this.state.knownIds.includes(o.id)).sort((a,b)=>Number(b.kind==='customer_create')-Number(a.kind==='customer_create'));},
   get stock(){return FieldProtocol.applyStock(this.state.stock,this.state.ops,this.state.snapshotIds||[]);},
   async show(where){
     this.screen=where;
@@ -153,7 +153,7 @@ const Agent={
         const payload=await FieldProtocol.unseal(e,this.ready()?this.state.key:raw.key);
         if(this.ready() && (payload.companyId!==this.state.companyId||payload.agentId!==this.state.agentId||payload.key!==this.state.key))throw Error('لا يمكن تغيير الشركة أو المندوب أو مفتاح الاقتران على جهاز مرتبط مسبقًا');
         if(!Array.isArray(payload.items)||!Array.isArray(payload.accounts)||!payload.companyId||!payload.agentId)throw Error('ملف تجهيز ناقص');
-        this.state={...this.state,companyId:payload.companyId,companyName:payload.companyName,companyPhone:payload.companyPhone||'',companyAddress:payload.companyAddress||'',companyLogo:payload.companyLogo||'',footerNote:payload.footerNote||'',printerWidth:payload.printerWidth===58?58:80,printFontScale:Number(payload.printFontScale)||0.75,itemQuantityDecimals:Number.isInteger(Number(payload.itemQuantityDecimals))?Math.min(4,Math.max(0,Number(payload.itemQuantityDecimals))):2,agentId:payload.agentId,agentName:payload.agentName,vehicleName:payload.vehicleName,warehouseId:payload.warehouseId,key:payload.key,items:payload.items,categories:payload.categories||[],accounts:payload.accounts,stock:payload.stock,
+        this.state={...this.state,companyId:payload.companyId,companyName:payload.companyName,companyPhone:payload.companyPhone||'',companyAddress:payload.companyAddress||'',companyLogo:payload.companyLogo||'',footerNote:payload.footerNote||'',printerWidth:payload.printerWidth===58?58:80,printFontScale:Number(payload.printFontScale)||0.75,itemQuantityDecimals:Number.isInteger(Number(payload.itemQuantityDecimals))?Math.min(4,Math.max(0,Number(payload.itemQuantityDecimals))):2,agentId:payload.agentId,agentName:payload.agentName,vehicleName:payload.vehicleName,warehouseId:payload.warehouseId,key:payload.key,items:payload.items,categories:payload.categories||[],accounts:this.mergeCustomerCatalog?.(payload.accounts,this.state)||payload.accounts,stock:payload.stock,
           agentCash:payload.agentCash||null,cashTransfers:payload.cashTransfers||[],warehouseTransfers:this.mergeTransferPage(payload.warehouseHistoryPage,{...this.state,companyId:payload.companyId,agentId:payload.agentId,warehouseId:payload.warehouseId}).docs,warehouseHistoryCursor:this.mergeTransferPage(payload.warehouseHistoryPage,{...this.state,companyId:payload.companyId,agentId:payload.agentId,warehouseId:payload.warehouseId}).cursor,warehouseTransferRevision:payload.warehouseHistoryPage?.revision||'',
           ops:this.mergeHistoryPage(payload.historyPage,{...this.state,companyId:payload.companyId,agentId:payload.agentId,warehouseId:payload.warehouseId}).ops,
           historyCursor:this.mergeHistoryPage(payload.historyPage,{...this.state,companyId:payload.companyId,agentId:payload.agentId,warehouseId:payload.warehouseId}).cursor,
@@ -218,7 +218,8 @@ const Agent={
         return n;
       };
       const itemsChanged=changed(old.items,catalog.items);
-      const accountsChanged=changed(old.accounts,catalog.accounts);
+      const receivedAccounts=this.mergeCustomerCatalog?.(catalog.accounts,old)||catalog.accounts;
+      const accountsChanged=changed(old.accounts,receivedAccounts);
       const stockChanged=Object.keys({...old.stock,...catalog.stock}).filter(id=>Number(old.stock?.[id]??0)!==Number(catalog.stock?.[id]??0)).length;
       const owned=new Set(old.ops.map(x=>x.id));
       // Accepted operations become synced only if the database commits successfully.
@@ -253,7 +254,7 @@ const Agent={
           printerWidth:catalog.printerWidth===58?58:80,printFontScale:Number(catalog.printFontScale)||0.75,
           itemQuantityDecimals:Number.isInteger(Number(catalog.itemQuantityDecimals))?Math.min(4,Math.max(0,Number(catalog.itemQuantityDecimals))):2,
           exchangeRate:catalog.exchangeRate,categories:catalog.categories||[],items:catalog.items,
-          accounts:catalog.accounts,stock:catalog.stock,snapshotIds:catalog.knownIds||[],
+          accounts:receivedAccounts,stock:catalog.stock,snapshotIds:catalog.knownIds||[],
           agentCash:catalog.agentCash||null,cashTransfers:catalog.cashTransfers||[],
           warehouseTransfers:transfersResult.docs,warehouseHistoryCursor:transfersResult.cursor,warehouseTransferRevision:transfersResult.revision,
           ops:historyResult.ops,historyCursor:historyResult.cursor,knownIds:Array.from(new Set([...knownIds,...historyResult.restoredIds])),

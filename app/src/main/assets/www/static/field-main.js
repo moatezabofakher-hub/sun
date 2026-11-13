@@ -110,7 +110,7 @@ const FieldSync = {
         // Export balances derived from the same posted double-entry ledger as the main app.
         // The agent adjusts only operations not represented in this synchronized snapshot.
         const st=Accounting.getAccountStatement(acc.id);
-        return {id:acc.id,name:acc.name,type:acc.type,
+        return {id:acc.id,name:acc.name,type:acc.type,phone:acc.phone||'',address:acc.address||'',paymentTerms:acc.paymentTerms||'',
           sypBalance:st.sypBalance,usdBalance:st.usdBalance};
       }),
       stock:Object.fromEntries(State.items.map(it=>[it.id,Accounting.getItemBaseStock(it.id,null,a.warehouseId)])),
@@ -307,9 +307,20 @@ const FieldSync = {
       window.AndroidLocalSync?.reply(String(requestId),JSON.stringify(answer));
     }
   },
+  checkNewCustomers(customers,existing){
+    const norm=v=>String(v||'').trim().replace(/\s+/g,' ').toLocaleLowerCase();
+    const phone=v=>String(v||'').replace(/[\s()+-]/g,'');
+    const seen=[...(existing||[])];
+    for(const account of customers||[]){
+      if(seen.some(a=>a.id===account.id))throw Error('معرّف الزبون مسجل مسبقًا؛ راجع حركة المزامنة');
+      if(seen.some(a=>a.type==='customer'&&norm(a.name)===norm(account.name)&&(!a.phone||!account.phone||phone(a.phone)===phone(account.phone))))
+        throw Error('الزبون «'+account.name+'» مسجل مسبقًا؛ يجب معالجة التعارض قبل المزامنة');
+      seen.push(account);
+    }
+  },
   async commitLanOperations(agent,ops){
     if(!ops.length)return 0;
-    const config=this.data(),old={invoices:State.invoices,vouchers:State.vouchers,expenses:Array.isArray(State.expenses)?State.expenses:[],imported:config.imported,events:config.events,history:config.operationHistory,used:State.license.opsUsedCount};
+    const config=this.data(),old={accounts:State.accounts,invoices:State.invoices,vouchers:State.vouchers,expenses:Array.isArray(State.expenses)?State.expenses:[],imported:config.imported,events:config.events,history:config.operationHistory,used:State.license.opsUsedCount};
     const existing=new Set(config.imported.map(x=>x.id));
     const fresh=ops.filter(x=>!existing.has(x.id));
     if(!fresh.length)return 0;
@@ -326,6 +337,8 @@ const FieldSync = {
       const ni=Math.max(0,...State.invoices.map(x=>Number(x.number)||0));
       const nv=Math.max(0,...State.vouchers.map(x=>Number(x.number)||0));
       const docs=FieldProtocol.toLedgerDocuments(fresh,agent,ni,nv);
+      this.checkNewCustomers(docs.customers,old.accounts);
+      State.accounts=[...old.accounts,...docs.customers];
       State.invoices=[...old.invoices,...docs.invoices];State.vouchers=[...old.vouchers,...docs.vouchers];State.expenses=[...old.expenses,...docs.expenses];
       config.imported=[...old.imported,...fresh.map(x=>({id:x.id,agentId:agent.id,receivedAt:new Date().toISOString(),kind:x.kind}))];
       config.events=[...old.events,{id:FieldProtocol.uuid(),agentId:agent.id,at:new Date().toISOString(),count:fresh.length,mode:'wifi'}].slice(-3000);
@@ -333,7 +346,7 @@ const FieldSync = {
       if(!State.license.isActivated)State.license.opsUsedCount+=fresh.length;
       await StorageEngine.saveState();
       return fresh.length;
-    }catch(e){State.invoices=old.invoices;State.vouchers=old.vouchers;State.expenses=old.expenses;config.imported=old.imported;config.events=old.events;config.operationHistory=old.history;State.license.opsUsedCount=old.used;throw e;}
+    }catch(e){State.accounts=old.accounts;State.invoices=old.invoices;State.vouchers=old.vouchers;State.expenses=old.expenses;config.imported=old.imported;config.events=old.events;config.operationHistory=old.history;State.license.opsUsedCount=old.used;throw e;}
   },
   async previewFile(input){
     const file=input.files?.[0];if(!file)return;
@@ -349,16 +362,17 @@ const FieldSync = {
       const known=new Set(c.imported.map(x=>x.id));
       const fresh=all.filter(x=>!known.has(x.id));
       const invoiceCount=fresh.filter(x=>x.kind==='sale'||x.kind==='sale_return').length;
-      const vouchers=fresh.length-invoiceCount;
+      const customers=fresh.filter(x=>x.kind==='customer_create').length;
+      const vouchers=fresh.length-invoiceCount-customers;
       this.staged={agent:a,ops:fresh,duplicates:all.length-fresh.length};
       UI.openModal(`<div class="ta-field-panel space-y-3 text-right" dir="rtl">
         <h3 class="font-black text-lg">معاينة استلام عمليات ${this.escape(a.name)}</h3>
         <p class="text-xs">السيارة: ${this.escape(a.vehicleName)} · المستودع: ${this.escape(WarehouseController.name(a.warehouseId))}</p>
         <div class="bg-slate-50 rounded-xl p-3 grid grid-cols-3 text-center gap-2">
-          <div><b class="text-lg">${invoiceCount}</b><p class="text-[10px]">فواتير</p></div><div><b class="text-lg">${vouchers}</b><p class="text-[10px]">سندات</p></div><div><b class="text-lg">${this.staged.duplicates}</b><p class="text-[10px]">مكررة مستبعدة</p></div>
+          <div><b class="text-lg">${invoiceCount}</b><p class="text-[10px]">فواتير</p></div><div><b class="text-lg">${vouchers}</b><p class="text-[10px]">سندات ومصاريف · ${customers} زبائن جدد</p></div><div><b class="text-lg">${this.staged.duplicates}</b><p class="text-[10px]">مكررة مستبعدة</p></div>
         </div>
         <div class="max-h-48 overflow-y-auto rounded-lg border bg-white p-2 text-[11px] space-y-1">
-          ${fresh.slice(0,40).map(op=>`<div class="border-b border-dashed py-1"><b>${op.kind==='sale'?'بيع':op.kind==='sale_return'?'مردود':op.kind==='receipt'?'قبض':op.kind==='expense'?'مصروف':'دفع'} · ${this.escape(op.localNumber||op.id)}</b><span class="block">${this.escape(State.accounts.find(x=>x.id===op.accountId)?.name||'نقدي')} · ${op.kind==='sale'||op.kind==='sale_return'?op.netTotal:op.amount} ${op.currency}</span></div>`).join('')}
+          ${fresh.slice(0,40).map(op=>`<div class="border-b border-dashed py-1"><b>${op.kind==='sale'?'بيع':op.kind==='sale_return'?'مردود':op.kind==='receipt'?'قبض':op.kind==='expense'?'مصروف':op.kind==='customer_create'?'زبون جديد':'دفع'} · ${this.escape(op.localNumber||op.id)}</b><span class="block">${op.kind==='customer_create'?this.escape(op.account.name):this.escape(State.accounts.find(x=>x.id===op.accountId)?.name||'نقدي')}${op.kind==='customer_create'?'':' · '+(op.kind==='sale'||op.kind==='sale_return'?op.netTotal:op.amount)+' '+op.currency}</span></div>`).join('')}
           ${fresh.length>40?'<p>تُعرض أول 40 عملية فقط؛ راجع كامل ملف البيانات قبل الاعتماد.</p>':''}
         </div>
         <p class="text-xs text-amber-800">سيتم الترحيل إلى قاعدة الشركة الحالية فقط بعد التأكيد. لا تُستبدل قاعدة بيانات الشركة.</p>
@@ -372,7 +386,7 @@ const FieldSync = {
     if(this.busy||this.lanBusy||!this.staged?.ops?.length)return;
     this.busy=true;
     const {agent,ops}=this.staged,c=this.data();
-    const old={invoices:State.invoices,vouchers:State.vouchers,expenses:Array.isArray(State.expenses)?State.expenses:[],imported:c.imported,events:c.events,history:c.operationHistory,opsUsedCount:State.license.opsUsedCount};
+    const old={accounts:State.accounts,invoices:State.invoices,vouchers:State.vouchers,expenses:Array.isArray(State.expenses)?State.expenses:[],imported:c.imported,events:c.events,history:c.operationHistory,opsUsedCount:State.license.opsUsedCount};
     try {
       const known=new Set(c.imported.map(x=>x.id));
       const fresh=ops.filter(x=>!known.has(x.id));
@@ -388,6 +402,8 @@ const FieldSync = {
       const latestInvoice=Math.max(0,...State.invoices.map(x=>Number(x.number)||0));
       const latestVoucher=Math.max(0,...State.vouchers.map(x=>Number(x.number)||0));
       const docs=FieldProtocol.toLedgerDocuments(fresh,agent,latestInvoice,latestVoucher);
+      this.checkNewCustomers(docs.customers,old.accounts);
+      State.accounts=[...old.accounts,...docs.customers];
       State.invoices=[...old.invoices,...docs.invoices];State.vouchers=[...old.vouchers,...docs.vouchers];State.expenses=[...old.expenses,...docs.expenses];
       c.imported=[...old.imported,...fresh.map(x=>({id:x.id,agentId:agent.id,receivedAt:new Date().toISOString(),kind:x.kind}))];
       c.events=[...old.events,{id:FieldProtocol.uuid(),agentId:agent.id,at:new Date().toISOString(),count:fresh.length}].slice(-3000);
@@ -397,7 +413,7 @@ const FieldSync = {
       this.staged=null;UI.forceCloseModal();UI.toast('تم استلام وترحيل '+fresh.length+' عملية باسم '+agent.name,'success');
       // Let owner transfer ACK back to agent through Quick Share / Bluetooth.
       await this.exportAck(agent.id);
-    }catch(e){State.invoices=old.invoices;State.vouchers=old.vouchers;State.expenses=old.expenses;c.imported=old.imported;c.events=old.events;c.operationHistory=old.history;State.license.opsUsedCount=old.opsUsedCount;UI.toast('لم يتم ترحيل البيانات: '+e.message,'error');}
+    }catch(e){State.accounts=old.accounts;State.invoices=old.invoices;State.vouchers=old.vouchers;State.expenses=old.expenses;c.imported=old.imported;c.events=old.events;c.operationHistory=old.history;State.license.opsUsedCount=old.opsUsedCount;UI.toast('لم يتم ترحيل البيانات: '+e.message,'error');}
     finally{this.busy=false;}
   }
 };
