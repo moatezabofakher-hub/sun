@@ -2,7 +2,7 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const FieldProtocol=require('../app/src/main/assets/www/static/field-protocol.js');
 (async()=>{
- const companyId='company_test1234',agent={id:'agent_abcdefgh12345678',name:'مندوب أ',warehouseId:'wh_1',vehicleName:'سيارة'};
+ const companyId='company_test1234',agent={id:'agent_abcdefgh12345678',name:'موظف بيع أ',warehouseId:'wh_1',vehicleName:'سيارة'};
  const items=[{id:'item1',name:'سائل جلي',currency:'USD',units:[{name:'عبوة',factor:1,salePrice:3}]}];
  const accounts=[{id:'acc_1',name:'زبون موجود',type:'customer',phone:'0990000'}];
  const base={date:'2026-11-13T15:20:00Z',companyId,agentId:agent.id,warehouseId:agent.warehouseId,currency:'USD',exchangeRate:15000};

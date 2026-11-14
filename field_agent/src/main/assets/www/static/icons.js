@@ -19,6 +19,12 @@
     "fa-folder-open": '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v2"/><path d="M2 11h20l-3 9H5z"/></svg>',
     "fa-images": '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="6" y="6" width="15" height="15" rx="2"/><path d="M3 17V5a2 2 0 0 1 2-2h12M9 17l3-3 3 2 2-3 3 4"/><circle cx="11" cy="10" r="1"/></svg>'
   });
+  // Alias older FontAwesome class names to packaged local SVGs, never show an empty pictogram.
+  const ICON_ALIASES = {"fa-arrows-rotate": "fa-arrow-rotate-right", "fa-box": "fa-box-open", "fa-cash-register": "fa-receipt", "fa-chevron-left": "fa-arrow-right", "fa-list-alt": "fa-table-list", "fa-list-check": "fa-table-list", "fa-location-dot": "fa-building", "fa-plug": "fa-bolt", "fa-share-nodes": "fa-upload", "fa-th-large": "fa-table-cells-large", "fa-th": "fa-table-cells-large", "fa-arrow-down": "fa-download", "fa-arrow-up": "fa-upload"};
+  for (const [name,original] of Object.entries(ICON_ALIASES)) {
+    if (!ICONS[name] && ICONS[original]) ICONS[name] = ICONS[original];
+  }
+  ICONS["fa-qrcode"]='<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="2" y="2" width="7" height="7" rx="1"/><rect x="4.5" y="4.5" width="2" height="2" fill="currentColor" stroke="none"/><rect x="15" y="2" width="7" height="7" rx="1"/><rect x="17.5" y="4.5" width="2" height="2" fill="currentColor" stroke="none"/><rect x="2" y="15" width="7" height="7" rx="1"/><rect x="4.5" y="17.5" width="2" height="2" fill="currentColor" stroke="none"/><path d="M12 11h3v3h-3zM19 12h3M12 17h3v5M19 17h3v5M18 20h2"/></svg>';
   function apply(root) {
     if (!root || !root.querySelectorAll) return;
     const nodes = [];

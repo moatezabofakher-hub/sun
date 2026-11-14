@@ -4,8 +4,8 @@ const html=fs.readFileSync('app/src/main/assets/www/index.html','utf8');
 const hub=fs.readFileSync('app/src/main/assets/www/static/manager-agent-hub.js','utf8');
 const agentId='agent_test',carId='car_test';
 const state={settings:{defaultViewPeriod:'month',defaultViewStart:'2026-11-01',defaultViewEnd:'2026-11-30'},
- fieldSync:{agents:[{id:agentId,name:'مندوب الاختبار',vehicleName:'سيارة تجريبية',warehouseId:carId}],cashTransfers:[{agentId,direction:'fromAgent',amount:4,currency:'USD',date:'2026-11-13',id:'cash1'}]},
- warehouses:[{id:'wh_main',name:'المستودع الرئيسي'},{id:carId,name:'مستودع المندوب'}],
+ fieldSync:{agents:[{id:agentId,name:'موظف بيع الاختبار',vehicleName:'سيارة تجريبية',warehouseId:carId}],cashTransfers:[{agentId,direction:'fromAgent',amount:4,currency:'USD',date:'2026-11-13',id:'cash1'}]},
+ warehouses:[{id:'wh_main',name:'المستودع الرئيسي'},{id:carId,name:'مستودع موظف البيع'}],
  invoices:[{id:'invoice1',number:1,date:'2026-11-13',netTotal:25,currency:'USD',fieldOrigin:{agentId,localNumber:'S-1'}}],vouchers:[],expenses:[],items:[{id:'i1',name:'منظف',units:[{name:'عبوة'}]}],transfers:[]};
 const calls=[];let lastModal='';
 const cx={State:state,console,Math,Date,Map,Set,Number,String,Array,Object,JSON,
@@ -32,11 +32,11 @@ assert.match(html,/data-settings-section="default_period"/);
 assert.match(html,/setDefaultViewPeriod/);
 assert.match(html,/State\.settings\.defaultViewPeriod=mode/);
 let main={innerHTML:''};cx.screen='agent_hub';cx.AgentHub.render(main,{});
-assert.match(main.innerHTML,/اختيار المندوب/);assert.doesNotMatch(main.innerHTML,/مناقلة إلى مستودعه/);
-cx.AgentHub.choose();assert.match(lastModal,/مندوب الاختبار/);
+assert.match(main.innerHTML,/اختيار موظف البيع/);assert.doesNotMatch(main.innerHTML,/مناقلة إلى مستودعه/);
+cx.AgentHub.choose();assert.match(lastModal,/موظف بيع الاختبار/);
 cx.AgentHub.select(agentId);assert.equal(calls.at(-1)[0],'agent_detail');
 cx.screen='agent_detail';cx.AgentHub.render(main,{agentId});
-for(const text of ['مناقلة إلى مستودعه','مناقلة من مستودعه','الصندوق والحركات','تعديل المندوب','فواتير المندوب','جرد مستودع المندوب'])assert.ok(main.innerHTML.includes(text),text);
+for(const text of ['مناقلة إلى مستودعه','مناقلة من مستودعه','الصندوق والحركات','تعديل موظف البيع','فواتير موظف البيع','جرد مستودع موظف البيع'])assert.ok(main.innerHTML.includes(text),text);
 cx.AgentHub.transfer(agentId,'toAgent');assert.equal(calls.at(-1)[1].transferDirection,'toAgent');assert.equal(calls.at(-1)[1].transferAgentId,agentId);
 cx.AgentHub.transfer(agentId,'fromAgent');assert.equal(calls.at(-1)[1].transferDirection,'fromAgent');
 cx.screen='agent_activity';cx.AgentHub.render(main,{agentId,view:'cash'});

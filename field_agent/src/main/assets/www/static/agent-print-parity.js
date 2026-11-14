@@ -277,8 +277,8 @@ const AgentInvoicePrint={
                 if(inv.accountId){
                     // Print only the ledger belonging to the invoice currency.
                     const c=inv.currency==='SYP'?'SYP':'USD';
-                    drawTotalRow('الرصيد قبل الفاتورة ('+c+')',dualFmt(snapshots.before[c]??null,c),fBalPrev,false);
-                    drawTotalRow('الرصيد النهائي ('+c+')',dualFmt(snapshots.after[c]??null,c),fBalFinal,true);
+                    drawTotalRow('الرصيد قبل الفاتورة ('+(c==='SYP'?'ل.س':c)+')',dualFmt(snapshots.before[c]??null,c),fBalPrev,false);
+                    drawTotalRow('الرصيد النهائي ('+(c==='SYP'?'ل.س':c)+')',dualFmt(snapshots.after[c]??null,c),fBalFinal,true);
                 }
 
                 y += 6;
@@ -347,7 +347,7 @@ const original=A.printOp.bind(A);
 A.printOp=async function(id){
  const op=this.state.ops.find(o=>o.id===id);if(!op)return;
  if(!['sale','sale_return'].includes(op.kind))return original(id);
- try{await AgentInvoicePrint.print(id);this.toast('أُرسلت فاتورة المندوب للطابعة بتنسيق الإدارة الرئيسي.');}
- catch(e){this.toast('تعذر طباعة فاتورة المندوب: '+e.message);}
+ try{await AgentInvoicePrint.print(id);this.toast('أُرسلت فاتورة موظف البيع للطابعة بتنسيق الإدارة الرئيسي.');}
+ catch(e){this.toast('تعذر طباعة فاتورة موظف البيع: '+e.message);}
 };
 })();

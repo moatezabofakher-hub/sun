@@ -1,7 +1,7 @@
 /* Manager-side field dispatch. Import is previewed, validated, deduplicated and
  * committed only after explicit approval. Never merges a whole remote database. */
 const FieldSync = {
-  busy:false, staged:null, lanListening:false, lanBusy:false, autoReceiverBooted:false, autoReceiverWatchdog:null, autoReceiverCompany:null, lanNetworkTimer:null,
+  busy:false, staged:null, connectedAt:{}, lanListening:false, lanBusy:false, autoReceiverBooted:false, autoReceiverWatchdog:null, autoReceiverCompany:null, lanNetworkTimer:null,
   data(){
     if(!State.fieldSync || typeof State.fieldSync!=='object') State.fieldSync={companyId:'',agents:[],imported:[],events:[]};
     const x=State.fieldSync;
@@ -13,6 +13,26 @@ const FieldSync = {
     if(!Array.isArray(x.operationHistory))x.operationHistory=[];
     return x;
   },
+  presenceTTL: 40000, // Field phones sync every 12s; count as connected only after an authenticated exchange.
+  markConnectedAgent(id){
+    if(!id)return;
+    this.connectedAt[id]=Date.now();
+    this.refreshConnectedBadge();
+  },
+  connectedCount(){
+    const now=Date.now();
+    const active=new Set(this.data().agents.filter(a=>!a.archived&&!a.disabled).map(a=>String(a.id)));
+    for(const [id,when] of Object.entries(this.connectedAt)){
+      if(!active.has(id)||!Number.isFinite(when)||now-when>this.presenceTTL)delete this.connectedAt[id];
+    }
+    return Object.keys(this.connectedAt).length;
+  },
+  refreshConnectedBadge(){
+    const el=document.getElementById('salesStaffConnectedCount');if(!el)return;
+    const count=this.connectedCount();el.textContent=String(count);
+    el.parentElement?.setAttribute('title',count+' موظفي بيع متصلين خلال آخر 40 ثانية بمزامنة موثّقة');
+    el.parentElement?.classList.toggle('has-staff',count>0);
+  },
   escape(value){return AppEscape.text(value)},
   async saveFile(name, data){
     const raw=JSON.stringify(data,null,2);
@@ -23,7 +43,7 @@ const FieldSync = {
   accountPicker(prefix,selected=null){
     const restricted=Array.isArray(selected),allowed=new Set(selected||[]);
     return `<section class="p-3 bg-sky-50 rounded-xl border border-sky-200 text-xs" data-account-picker="${prefix}">
-      <div class="font-extrabold mb-2">الحسابات المتاحة لهذا المندوب</div>
+      <div class="font-extrabold mb-2">الحسابات المتاحة لهذا موظف البيع</div>
       <label class="flex gap-2 items-center mb-1"><input type="radio" name="${prefix}Mode" value="all" ${!restricted?'checked':''} onchange="FieldSync.setAccountPickerMode('${prefix}')"/>كل الحسابات</label>
       <label class="flex gap-2 items-center mb-2"><input type="radio" name="${prefix}Mode" value="selected" ${restricted?'checked':''} onchange="FieldSync.setAccountPickerMode('${prefix}')"/>حسابات محددة</label>
       <div id="${prefix}Selected" class="${restricted?'':'hidden'} space-y-2">
@@ -33,7 +53,7 @@ const FieldSync = {
           ${State.accounts.filter(a=>a.type==='customer').map(a=>`<label class="flex items-center gap-2 py-1" data-account-label="${prefix}" data-search="${this.escape((a.name+' '+(a.phone||'')).toLowerCase())}"><input type="checkbox" data-agent-acc="${prefix}" value="${this.escape(a.id)}" ${allowed.has(a.id)?'checked':''} /><span>${this.escape(a.name)}</span></label>`).join('')}
         </div>
       </div>
-      <div class="text-slate-500 mt-1">عند اختيار حسابات محددة لا تُرسل بقية حسابات الرئيسي إلى المندوب.</div>
+      <div class="text-slate-500 mt-1">عند اختيار حسابات محددة لا تُرسل بقية حسابات الرئيسي إلى موظف البيع.</div>
     </section>`;
   },
   setAccountPickerMode(prefix){const selected=document.querySelector(`input[name="${prefix}Mode"]:checked`)?.value==='selected';document.getElementById(prefix+'Selected')?.classList.toggle('hidden',!selected);},
@@ -43,8 +63,8 @@ const FieldSync = {
   open(){
     const config=this.data(), opts=State.warehouses.map(w=>`<option value="${this.escape(w.id)}">${this.escape(w.name)}</option>`).join('');
     UI.openModal(`<div class="ta-field-panel space-y-3 text-right" dir="rtl">
-      <h3 class="text-lg font-black text-slate-900"><i class="fas fa-truck ml-1 text-teal-700"></i> إدارة المندوبين والمزامنة المحلية</h3>
-      <p class="text-xs text-slate-500">يبدأ استقبال المندوب تلقائيًا بمجرد تشغيل التطبيق الرئيسي. يستمر الإرسال والاستقبال دوريًا طوال تشغيل التطبيقين واتصالهما عبر شبكة Wi-Fi محلية واحدة. وتبقى الملفات طريقة احتياطية.</p>
+      <h3 class="text-lg font-black text-slate-900"><i class="fas fa-truck ml-1 text-teal-700"></i> إدارة موظفي البيع والمزامنة المحلية</h3>
+      <p class="text-xs text-slate-500">يبدأ استقبال موظف البيع تلقائيًا بمجرد تشغيل التطبيق الرئيسي. يستمر الإرسال والاستقبال دوريًا طوال تشغيل التطبيقين واتصالهما عبر شبكة Wi-Fi محلية واحدة. وتبقى الملفات طريقة احتياطية.</p>
       <div class="rounded-xl border bg-slate-50 p-3 text-xs"><b>الشركة:</b> ${this.escape(State.settings.companyName)}<br/><b>المعرّف:</b> <span class="text-[10px]" dir="ltr">${config.companyId}</span></div>
       <div class="rounded-2xl border p-3 space-y-2 bg-teal-50" data-lan-manager="1">
         <b class="text-sm">📡 مزامنة تلقائية مستمرة بين الهاتفين</b>
@@ -53,40 +73,40 @@ const FieldSync = {
         <button type="button" class="ta-primary-3d w-full p-3 rounded-xl font-bold" onclick="FieldSync.startLanReceiver()">إعادة تشغيل الاستقبال إذا لزم</button>
       </div>
       <div class="rounded-2xl border border-teal-300 p-3 space-y-2 bg-teal-50">
-        <b class="text-sm">🔗 ربط جهاز مندوب جديد تلقائياً</b>
-        <p class="text-xs">افتح تطبيق المندوب الجديد على شبكة Wi-Fi نفسها. سيظهر الطلب هنا تلقائياً. طابق رمز الأمان على الهاتفين، اختر المندوب واضغط موافقة واحدة؛ لا حاجة إلى ملفات أو نسخ معرّفات أو مفاتيح.</p>
-        <div id="fieldPairingRequests">${this.pairingCards?.()||'بانتظار طلب جهاز المندوب…'}</div>
+        <b class="text-sm">🔗 ربط جهاز موظف بيع جديد تلقائياً</b>
+        <p class="text-xs">افتح تطبيق موظف البيع الجديد على شبكة Wi-Fi نفسها. سيظهر الطلب هنا تلقائياً. طابق رمز الأمان على الهاتفين، اختر موظف البيع واضغط موافقة واحدة؛ لا حاجة إلى ملفات أو نسخ معرّفات أو مفاتيح.</p>
+        <div id="fieldPairingRequests">${this.pairingCards?.()||'بانتظار طلب جهاز موظف البيع…'}</div>
       </div>
       <div class="rounded-2xl border p-3 space-y-2 bg-white">
-        <b class="text-sm">تسجيل سيارة / مندوب</b>
-        <input id="fieldNewAgent" class="w-full border rounded-xl p-3" placeholder="اسم المندوب" maxlength="70"/>
+        <b class="text-sm">تسجيل سيارة / موظف بيع</b>
+        <input id="fieldNewAgent" class="w-full border rounded-xl p-3" placeholder="اسم موظف البيع" maxlength="70"/>
         <input id="fieldNewVehicle" class="w-full border rounded-xl p-3" placeholder="اسم السيارة / خط التوزيع" maxlength="70"/>
         <select id="fieldNewWarehouse" class="w-full border rounded-xl p-3">${opts}</select>
         ${this.accountPicker('fieldNewAccounts')}
         <p class="text-[11px] text-amber-800">أنشئ مستودع سيارة مستقلًا، وحمّله بالمخزون من شاشة المناقلات قبل بدء البيع.</p>
-        <button type="button" onclick="FieldSync.addAgent()" class="ta-primary-3d w-full p-3 rounded-xl font-black">إضافة مندوب معتمد</button>
+        <button type="button" onclick="FieldSync.addAgent()" class="ta-primary-3d w-full p-3 rounded-xl font-black">إضافة موظف بيع معتمد</button>
       </div>
-      <div class="rounded-2xl border p-3 space-y-2 bg-white"><b class="text-sm">المندوبون المسجلون</b>
+      <div class="rounded-2xl border p-3 space-y-2 bg-white"><b class="text-sm">موظفو البيع المسجلون</b>
          ${config.agents.filter(a=>!a.archived).length? config.agents.filter(a=>!a.archived).map(a=>`<div class="rounded-xl bg-slate-50 border p-3 space-y-2">
              <div class="flex justify-between gap-2"><span class="font-bold">${this.escape(a.name)} · ${this.escape(a.vehicleName||'')}</span><span class="text-[10px]">${a.disabled?'موقوف':'معتمد'}</span></div>
              <p class="text-[10px] text-slate-500">${this.escape(WarehouseController.name(a.warehouseId))}</p>
              <p class="text-[10px] ${a.pairedDeviceId?'text-teal-700':'text-amber-700'}">${a.pairedDeviceId?'🔒 مرتبط بجهاز ينتهي معرفه بـ '+this.escape(a.pairedDeviceId.slice(-8)):'بانتظار طلب ربط جهاز جديد'}</p>
              <div class="grid grid-cols-2 gap-2">
-               <button type="button" class="rounded-lg bg-teal-700 text-white p-2 font-bold" onclick="FieldSync.exportProvision('${a.id}')">تجهيز بيانات المندوب</button>
+               <button type="button" class="rounded-lg bg-teal-700 text-white p-2 font-bold" onclick="FieldSync.exportProvision('${a.id}')">تجهيز بيانات موظف البيع</button>
                <button type="button" class="rounded-lg bg-blue-700 text-white p-2 font-bold" onclick="FieldSync.exportAck('${a.id}')">تأكيد الاستلام</button>
-               <button type="button" class="rounded-lg bg-amber-100 p-2 font-bold col-span-2" onclick="FieldSync.showActivation('${a.id}')">إصدار كود تفعيل لجهاز المندوب</button>
-               <button type="button" class="rounded-lg bg-slate-200 text-slate-800 p-2 font-bold col-span-2" onclick="FieldSync.toggleAgent('${a.id}')">${a.disabled?'إعادة السماح بالمزامنة':'إيقاف استقبال عمليات هذا المندوب'}</button>
-               <button type="button" class="rounded-lg bg-blue-100 text-blue-900 p-2 font-black" onclick="FieldSync.showEditAgent('${a.id}')">✎ تعديل المندوب</button>
-               <button type="button" class="rounded-lg bg-rose-100 text-rose-800 p-2 font-black" onclick="FieldSync.confirmRemoveAgent('${a.id}')">× حذف المندوب</button>
-             </div></div>`).join(''):'<p class="text-xs text-slate-500">لا يوجد مندوبون حتى الآن.</p>'}
+               <button type="button" class="rounded-lg bg-amber-100 p-2 font-bold col-span-2" onclick="FieldSync.showActivation('${a.id}')">إصدار كود تفعيل لجهاز موظف البيع</button>
+               <button type="button" class="rounded-lg bg-slate-200 text-slate-800 p-2 font-bold col-span-2" onclick="FieldSync.toggleAgent('${a.id}')">${a.disabled?'إعادة السماح بالمزامنة':'إيقاف استقبال عمليات هذا موظف البيع'}</button>
+               <button type="button" class="rounded-lg bg-blue-100 text-blue-900 p-2 font-black" onclick="FieldSync.showEditAgent('${a.id}')">✎ تعديل موظف البيع</button>
+               <button type="button" class="rounded-lg bg-rose-100 text-rose-800 p-2 font-black" onclick="FieldSync.confirmRemoveAgent('${a.id}')">× حذف موظف البيع</button>
+             </div></div>`).join(''):'<p class="text-xs text-slate-500">لا يوجد موظفو بيع حتى الآن.</p>'}
       </div>
-      ${config.agents.some(a=>a.archived)?`<div class="rounded-xl border bg-rose-50 p-3 text-xs"><strong>مندوبون محذوفون (أرشيف)</strong><p class="mt-1">تبقى سجلاتهم التاريخية محفوظة لمنع ضياع الفواتير والسندات.</p>${config.agents.filter(a=>a.archived).map(a=>`<div class="flex justify-between items-center py-2 border-b"><span>${this.escape(a.name)}</span><button type="button" class="bg-white border px-2 py-1 rounded" onclick="FieldSync.restoreAgent('${a.id}')">استعادة المندوب</button></div>`).join('')}</div>`:''}
+      ${config.agents.some(a=>a.archived)?`<div class="rounded-xl border bg-rose-50 p-3 text-xs"><strong>موظفو بيع محذوفون (أرشيف)</strong><p class="mt-1">تبقى سجلاتهم التاريخية محفوظة لمنع ضياع الفواتير والسندات.</p>${config.agents.filter(a=>a.archived).map(a=>`<div class="flex justify-between items-center py-2 border-b"><span>${this.escape(a.name)}</span><button type="button" class="bg-white border px-2 py-1 rounded" onclick="FieldSync.restoreAgent('${a.id}')">استعادة موظف البيع</button></div>`).join('')}</div>`:''}
       <div class="rounded-2xl border p-3 bg-emerald-50 space-y-2">
-        <b class="text-sm">استلام عمليات المندوب</b>
-        <p class="text-xs">اختر ملف العمليات الوارد من هاتف المندوب. ستظهر معاينة قبل أي ترحيل.</p>
+        <b class="text-sm">استلام عمليات موظف البيع</b>
+        <p class="text-xs">اختر ملف العمليات الوارد من هاتف موظف البيع. ستظهر معاينة قبل أي ترحيل.</p>
         <input id="fieldImportFile" type="file" accept="application/json,.json" onchange="FieldSync.previewFile(this)" class="w-full text-xs"/>
         <b class="text-[11px]">العمليات المستلمة حتى الآن: ${config.imported.length}</b>
-        ${config.events.slice(-4).reverse().map(x=>`<div class="text-[11px] border-b border-emerald-100 py-1">${this.escape(config.agents.find(a=>a.id===x.agentId)?.name||'مندوب')}: ${x.count} عملية · ${x.at.slice(0,16).replace('T',' ')}</div>`).join('')}
+        ${config.events.slice(-4).reverse().map(x=>`<div class="text-[11px] border-b border-emerald-100 py-1">${this.escape(config.agents.find(a=>a.id===x.agentId)?.name||'موظف بيع')}: ${x.count} عملية · ${x.at.slice(0,16).replace('T',' ')}</div>`).join('')}
       </div>
       <button type="button" onclick="UI.forceCloseModal()" class="w-full rounded-xl bg-slate-100 p-3 font-bold">إغلاق</button>
     </div>`);
@@ -95,14 +115,14 @@ const FieldSync = {
   async addAgent(){
     const name=document.getElementById('fieldNewAgent')?.value.trim(), vehicleName=document.getElementById('fieldNewVehicle')?.value.trim();
     const warehouseId=document.getElementById('fieldNewWarehouse')?.value;
-    if(!name||name.length<2||!warehouseId)return UI.toast('اكتب اسم المندوب واختر المستودع','warn');
+    if(!name||name.length<2||!warehouseId)return UI.toast('اكتب اسم موظف البيع واختر المستودع','warn');
     let allowedAccountIds;try{allowedAccountIds=this.readAccountPicker('fieldNewAccounts');}catch(e){return UI.toast(e.message,'warn');}
-    if(this.data().agents.some(a=>a.warehouseId===warehouseId && !a.disabled))return UI.toast('المستودع مربوط بمندوب آخر؛ خصص مستودع سيارة مستقلًا','warn');
+    if(this.data().agents.some(a=>a.warehouseId===warehouseId && !a.disabled))return UI.toast('المستودع مربوط بموظف بيع آخر؛ خصص مستودع سيارة مستقلًا','warn');
     const key=new Uint8Array(32);crypto.getRandomValues(key);
     const a={id:'agent_'+FieldProtocol.uuid(),name,vehicleName:vehicleName||name,warehouseId,key:FieldProtocol.b64u(key),allowedAccountIds,createdAt:new Date().toISOString(),disabled:false};
     this.data().agents.push(a);
-    try { await StorageEngine.saveState();this.open();UI.toast('تم إنشاء المندوب. افتح تطبيقه وسيظهر طلب الربط تلقائياً','success'); }
-    catch(e){this.data().agents=this.data().agents.filter(x=>x.id!==a.id);UI.toast('فشل حفظ المندوب: '+e.message,'error');}
+    try { await StorageEngine.saveState();this.open();UI.toast('تم إنشاء موظف البيع. افتح تطبيقه وسيظهر طلب الربط تلقائياً','success'); }
+    catch(e){this.data().agents=this.data().agents.filter(x=>x.id!==a.id);UI.toast('فشل حفظ موظف البيع: '+e.message,'error');}
   },
   catalog(a, historyCursor=0){
     const config=this.data();
@@ -147,9 +167,9 @@ const FieldSync = {
   showEditAgent(id){
     const a=this.data().agents.find(x=>x.id===id&&!x.archived);if(!a)return;
     UI.openModal(`<div class="ta-field-panel space-y-3 text-right" dir="rtl">
-      <h3 class="text-base font-black">تعديل بيانات المندوب</h3>
-      <p class="text-xs text-slate-600">تعديل الاسم والسيارة لا يغيّر فواتير المندوب المرحّلة سابقًا. أرسل كشف تجهيز جديدًا بعد الحفظ.</p>
-      <label class="text-xs font-black">اسم المندوب</label><input id="editFieldAgentName" class="w-full border rounded-xl p-3" maxlength="70" value="${this.escape(a.name)}"/>
+      <h3 class="text-base font-black">تعديل بيانات موظف البيع</h3>
+      <p class="text-xs text-slate-600">تعديل الاسم والسيارة لا يغيّر فواتير موظف البيع المرحّلة سابقًا. أرسل كشف تجهيز جديدًا بعد الحفظ.</p>
+      <label class="text-xs font-black">اسم موظف البيع</label><input id="editFieldAgentName" class="w-full border rounded-xl p-3" maxlength="70" value="${this.escape(a.name)}"/>
       <label class="text-xs font-black">السيارة / خط التوزيع</label><input id="editFieldAgentVehicle" class="w-full border rounded-xl p-3" maxlength="70" value="${this.escape(a.vehicleName||'')}"/>
       ${this.accountPicker('fieldEditAccounts',a.allowedAccountIds)}
       <div class="bg-slate-100 rounded-xl p-2 text-xs">مستودع السيارة: ${this.escape(WarehouseController.name(a.warehouseId))} — ثابت لحماية جرد العمليات</div>
@@ -161,18 +181,18 @@ const FieldSync = {
     const a=this.data().agents.find(x=>x.id===id&&!x.archived);if(!a)return;
     const name=String(document.getElementById('editFieldAgentName')?.value||'').trim();
     const vehicleName=String(document.getElementById('editFieldAgentVehicle')?.value||'').trim();
-    if(name.length<2||name.length>70||vehicleName.length>70)return UI.toast('اسم المندوب يجب أن يكون بين حرفين و70 حرفًا','warn');
+    if(name.length<2||name.length>70||vehicleName.length>70)return UI.toast('اسم موظف البيع يجب أن يكون بين حرفين و70 حرفًا','warn');
     let allowedAccountIds;try{allowedAccountIds=this.readAccountPicker('fieldEditAccounts');}catch(e){return UI.toast(e.message,'warn');}
     const original={name:a.name,vehicleName:a.vehicleName,allowedAccountIds:a.allowedAccountIds};a.name=name;a.vehicleName=vehicleName||name;a.allowedAccountIds=allowedAccountIds;
-    try{await StorageEngine.saveState();this.open();UI.toast('حُفظ التعديل. أرسل كشف تجهيز جديدًا إلى هاتف المندوب','success');}
-    catch(e){Object.assign(a,original);UI.toast('لم يُحفظ تعديل المندوب: '+e.message,'error');}
+    try{await StorageEngine.saveState();this.open();UI.toast('حُفظ التعديل. أرسل كشف تجهيز جديدًا إلى هاتف موظف البيع','success');}
+    catch(e){Object.assign(a,original);UI.toast('لم يُحفظ تعديل موظف البيع: '+e.message,'error');}
   },
   confirmRemoveAgent(id){
     const a=this.data().agents.find(x=>x.id===id&&!x.archived);if(!a)return;
     const imported=this.data().imported.filter(x=>x.agentId===id).length;
     UI.openModal(`<div class="ta-field-panel space-y-3 text-right" dir="rtl">
-      <h3 class="text-lg font-black text-rose-800">حذف المندوب: ${this.escape(a.name)}</h3>
-      <p class="text-xs text-rose-800">سيُمنع استقبال عمليات جديدة من هذا المندوب، ويُخفى من القائمة النشطة. ستبقى سجلاته وسنداته المرحّلة (${imported}) محفوظة في الأرشيف لأغراض التدقيق.</p>
+      <h3 class="text-lg font-black text-rose-800">حذف موظف البيع: ${this.escape(a.name)}</h3>
+      <p class="text-xs text-rose-800">سيُمنع استقبال عمليات جديدة من موظف البيع هذا، ويُخفى من القائمة النشطة. ستبقى سجلاته وسنداته المرحّلة (${imported}) محفوظة في الأرشيف لأغراض التدقيق.</p>
       <p class="text-xs text-amber-800">لا يمكن سحب الترخيص فورًا من هاتف يعمل دون اتصال؛ المنع يُطبق عند محاولة المزامنة.</p>
       <button type="button" class="w-full bg-rose-700 text-white p-3 rounded-xl font-black" onclick="FieldSync.removeAgent('${a.id}')">متابعة إلى التحقق من كلمة السر</button>
       <button type="button" class="w-full bg-slate-100 p-3 rounded-xl" onclick="FieldSync.open()">إلغاء</button>
@@ -180,40 +200,48 @@ const FieldSync = {
   },
   removeAgent(id){
     const a=this.data().agents.find(x=>x.id===id&&!x.archived);if(!a)return;
+    // No configured password: open the protection settings directly; never proceed with deletion.
+    if(!State.settings.appProtection?.pinHash || !State.settings.appProtection?.pinSalt){
+      ProtectionController.goToPinSetup();
+      UI.toast('عيّن كلمة سر التطبيق من إعدادات الحماية أولاً، ثم أعد حذف موظف البيع','warn');
+      return;
+    }
     // The phone need not be online. Revocation is written locally and enforced on its next sync.
     ProtectionController.requirePinForDestructiveAction(
-      'أدخل كلمة سر حماية التطبيق الرئيسي لتأكيد حذف المندوب «'+this.escape(a.name)+'» حتى لو كان غير متصل. العمليات غير المرسلة من جهازه لن تُستقبل بعد الحذف.',
-      async(pin)=>this.removeAgentAuthorized(id,pin), 'حذف مندوب غير متصل');
+      'أدخل كلمة سر التطبيق لتأكيد إلغاء موظف البيع «'+this.escape(a.name)+'»، سواء كان متصلاً أو غير متصل. ستُرفض محاولات مزامنته التالية. انسخ بياناته غير المرسلة قبل الحذف.',
+      async(pin)=>this.removeAgentAuthorized(id,pin), 'حذف موظف البيع');
   },
   async removeAgentAuthorized(id,pin){
-    if(!pin || !await ProtectionController.verifyPin(pin))return UI.toast('كلمة السر غير صحيحة، لم يتم حذف المندوب','error');
+    if(!pin || !await ProtectionController.verifyPin(pin))return UI.toast('كلمة السر غير صحيحة، لم يتم حذف موظف البيع','error');
     const a=this.data().agents.find(x=>x.id===id&&!x.archived);if(!a)return;
     const old={archived:a.archived,disabled:a.disabled,deletedAt:a.deletedAt};
+    const previousPresence=this.connectedAt[id];
     a.archived=true;a.disabled=true;a.deletedAt=new Date().toISOString();
-    try{await StorageEngine.saveState();this.open();UI.toast('تم إلغاء صلاحية المندوب وأرشفته؛ سيُرفض اتصاله عند العودة للشبكة','success');}
-    catch(e){Object.assign(a,old);UI.toast('تعذر حذف المندوب: '+e.message,'error');}
+    delete this.connectedAt[id];
+    try{await StorageEngine.saveState();this.refreshConnectedBadge();this.open();UI.toast('تم إلغاء صلاحية موظف البيع وأرشفته؛ سيُرفض اتصاله عند العودة للشبكة','success');}
+    catch(e){Object.assign(a,old);if(previousPresence!==undefined)this.connectedAt[id]=previousPresence;this.refreshConnectedBadge();UI.toast('تعذر حذف موظف البيع: '+e.message,'error');}
   },
   async restoreAgent(id){
     const a=this.data().agents.find(x=>x.id===id&&x.archived);if(!a)return;
-    if(this.data().agents.some(x=>!x.archived&&!x.disabled&&x.warehouseId===a.warehouseId))return UI.toast('مستودع السيارة مرتبط بمندوب آخر','warn');
+    if(this.data().agents.some(x=>!x.archived&&!x.disabled&&x.warehouseId===a.warehouseId))return UI.toast('مستودع السيارة مرتبط بموظف بيع آخر','warn');
     const old={archived:a.archived,disabled:a.disabled,deletedAt:a.deletedAt};a.archived=false;a.disabled=false;a.deletedAt=null;
-    try{await StorageEngine.saveState();this.open();UI.toast('تمت استعادة المندوب','success');}
-    catch(e){Object.assign(a,old);UI.toast('فشلت استعادة المندوب','error');}
+    try{await StorageEngine.saveState();this.open();UI.toast('تمت استعادة موظف البيع','success');}
+    catch(e){Object.assign(a,old);UI.toast('فشلت استعادة موظف البيع','error');}
   },
   async toggleAgent(id){
     const a=this.data().agents.find(x=>x.id===id&&!x.archived);if(!a)return;
     const old=a.disabled;a.disabled=!a.disabled;
-    try{await StorageEngine.saveState();this.open();UI.toast(a.disabled?'توقف استقبال العمليات من هذا المندوب حتى إعادة السماح':'تم إعادة السماح بالمزامنة','info');}
-    catch(e){a.disabled=old;UI.toast('فشل حفظ صلاحية المندوب','error');}
+    try{await StorageEngine.saveState();this.refreshConnectedBadge();this.open();UI.toast(a.disabled?'توقف استقبال العمليات من موظف البيع هذا حتى إعادة السماح':'تم إعادة السماح بالمزامنة','info');}
+    catch(e){a.disabled=old;UI.toast('فشل حفظ صلاحية موظف البيع','error');}
   },
   async exportProvision(id){
-    const a=this.data().agents.find(x=>x.id===id&&!x.disabled);if(!a)return UI.toast('المندوب غير موجود','error');
+    const a=this.data().agents.find(x=>x.id===id&&!x.disabled);if(!a)return UI.toast('موظف البيع غير موجود','error');
     try {
       await StorageEngine.saveState();
       const envelope=await FieldProtocol.seal(this.catalog(a),a.key);
       // Provision contains an authentication key: share privately and not through public sites.
       await this.saveFile('TA_Provision_'+a.id+'.json',envelope);
-      UI.toast('ملف تجهيز المندوب جاهز للحفظ والإرسال الخاص','success');
+      UI.toast('ملف تجهيز موظف البيع جاهز للحفظ والإرسال الخاص','success');
     }catch(e){UI.toast(e.message,'error');}
   },
   async exportAck(id){
@@ -224,9 +252,9 @@ const FieldSync = {
   showActivation(id){
     const a=this.data().agents.find(x=>x.id===id);if(!a)return;
     UI.openModal(`<div class="ta-field-panel space-y-3 text-right" dir="rtl">
-       <h3 class="text-base font-black">إصدار تفعيل المندوب: ${this.escape(a.name)}</h3>
-       <p class="text-xs text-slate-600">انسخ رمز جهاز المندوب من تطبيقه. اختر ملف مفتاح التفعيل الخاص بك (PEM)، ولن يُحفظ داخل التطبيق أو يرفع إلى أي خادم.</p>
-       <input id="fieldDeviceId" placeholder="معرّف جهاز المندوب" dir="ltr" class="w-full p-3 border rounded-xl text-xs"/>
+       <h3 class="text-base font-black">إصدار تفعيل موظف البيع: ${this.escape(a.name)}</h3>
+       <p class="text-xs text-slate-600">انسخ رمز جهاز موظف البيع من تطبيقه. اختر ملف مفتاح التفعيل الخاص بك (PEM)، ولن يُحفظ داخل التطبيق أو يرفع إلى أي خادم.</p>
+       <input id="fieldDeviceId" placeholder="معرّف جهاز موظف البيع" dir="ltr" class="w-full p-3 border rounded-xl text-xs"/>
        <label class="text-xs font-bold">ينتهي التفعيل في</label>
        <input id="fieldExpiry" type="date" class="w-full p-3 border rounded-xl"/>
        <label class="text-xs font-bold">المفتاح الخاص — للاستعمال المحلي فقط</label>
@@ -242,8 +270,8 @@ const FieldSync = {
     try {
       const license={role:'field',companyId:this.data().companyId,agentId:a.id,deviceId,expiresAt:new Date(date+'T23:59:59Z').toISOString(),issuedAt:new Date().toISOString(),nonce:FieldProtocol.uuid()};
       const token=await FieldProtocol.issueLicense(license,await file.text());
-      UI.openModal(`<div class="ta-field-panel space-y-3 text-right" dir="rtl"><h3 class="font-black">رمز التفعيل الخاص بالمندوب</h3>
-        <p class="text-xs text-amber-800">أرسله إلى المندوب فقط. احتفظ بمفتاح التوقيع الخاص بعيدًا عن GitHub.</p>
+      UI.openModal(`<div class="ta-field-panel space-y-3 text-right" dir="rtl"><h3 class="font-black">رمز التفعيل الخاص بموظف البيع</h3>
+        <p class="text-xs text-amber-800">أرسله إلى موظف البيع فقط. احتفظ بمفتاح التوقيع الخاص بعيدًا عن GitHub.</p>
         <textarea id="issuedFieldLicense" rows="8" dir="ltr" readonly class="w-full p-2 border rounded-xl text-[10px]">${token}</textarea>
         <button type="button" onclick="navigator.clipboard?.writeText(document.getElementById('issuedFieldLicense').value).then(()=>UI.toast('تم نسخ الرمز','success')).catch(()=>{})" class="ta-primary-3d w-full p-3 rounded-xl">نسخ الرمز</button>
         <button type="button" onclick="FieldSync.open()" class="bg-slate-100 p-3 w-full rounded-xl">رجوع</button></div>`);
@@ -310,9 +338,9 @@ const FieldSync = {
       const packet=JSON.parse(raw), config=this.data();
       if(packet.companyId!==config.companyId)throw Error('الشركة غير مطابقة');
       agent=config.agents.find(a=>a.id===packet.agentId&&!a.disabled&&!a.archived);
-      if(!agent)throw Error('المندوب غير مسجل أو موقوف');
+      if(!agent)throw Error('موظف البيع غير مسجل أو موقوف');
       const payload=await FieldLanCrypto.open(packet,agent.key,config.companyId,agent.id);
-      if(payload.kind!=='operations'||payload.companyId!==config.companyId||payload.agentId!==agent.id||payload.warehouseId!==agent.warehouseId||typeof payload.nonce!=='string'||!/^[a-zA-Z0-9_-]{8,90}$/.test(payload.nonce))throw Error('بيانات المندوب غير مطابقة');
+      if(payload.kind!=='operations'||payload.companyId!==config.companyId||payload.agentId!==agent.id||payload.warehouseId!==agent.warehouseId||typeof payload.nonce!=='string'||!/^[a-zA-Z0-9_-]{8,90}$/.test(payload.nonce))throw Error('بيانات موظف البيع غير مطابقة');
       const all=FieldProtocol.validateOps(payload.operations,agent.id,config.companyId,agent.warehouseId,State.items,State.accounts,(this.historyFor?.(agent)||this.data().operationHistory||[]));
       const known=new Set(config.imported.map(x=>x.id));
       const fresh=all.filter(x=>!known.has(x.id));
@@ -322,6 +350,7 @@ const FieldSync = {
       const ack={kind:'sync_result',companyId:config.companyId,agentId:agent.id,accepted:count,
         knownIds:config.imported.filter(x=>x.agentId===agent.id).map(x=>x.id),catalog:snapshot,requestNonce:payload.nonce,serverAt:new Date().toISOString()};
       answer=await FieldLanCrypto.pack(ack,agent.key,config.companyId,agent.id);
+      this.markConnectedAgent(agent.id);
       if(count)UI.toast('تم ترحيل '+count+' عملية من '+agent.name,'success');
       if(count && typeof AppNav!=='undefined') AppNav.refreshAfterSync?.();
       const st=document.getElementById('fieldLanStatus');if(st)st.textContent='✅ تمت المزامنة مع '+agent.name+': استلام '+count+' عملية وإرسال تحديثات السيارة والمواد والعملاء';
@@ -352,7 +381,7 @@ const FieldSync = {
     for(const op of ops||[]){
       const id=op.kind==='document_edit'?op.replacement?.accountId:op.accountId;
       if(id&&!allowed.has(id)&&!justCreated.has(id)&&!State.accounts.some(acc=>acc.id===id&&acc.fieldOrigin?.agentId===agent.id))
-        throw Error('لا يملك المندوب صلاحية التعامل مع الحساب المحدد. حدّث صلاحياته من الرئيسي.');
+        throw Error('لا يملك موظف البيع صلاحية التعامل مع الحساب المحدد. حدّث صلاحياته من الرئيسي.');
     }
   },
   async commitLanOperations(agent,ops){
@@ -391,13 +420,13 @@ const FieldSync = {
   async previewFile(input){
     const file=input.files?.[0];if(!file)return;
     try {
-      if(file.size>8_000_000)throw Error('حجم ملف عمليات المندوب أكبر من المسموح');
+      if(file.size>8_000_000)throw Error('حجم ملف عمليات موظف البيع أكبر من المسموح');
       const envelope=JSON.parse(await file.text());
       const candidate=JSON.parse(envelope.data||'null'),c=this.data();
       if(candidate?.kind!=='operations'||candidate.companyId!==c.companyId)throw Error('ملف لا يخص الشركة الحالية');
-      const a=c.agents.find(x=>x.id===candidate.agentId&&!x.disabled);if(!a)throw Error('المندوب غير معروف أو موقوف');
+      const a=c.agents.find(x=>x.id===candidate.agentId&&!x.disabled);if(!a)throw Error('موظف البيع غير معروف أو موقوف');
       const payload=await FieldProtocol.unseal(envelope,a.key);
-      if(payload.warehouseId!==a.warehouseId)throw Error('مستودع ملف المندوب لا يطابق سجل السيارة');
+      if(payload.warehouseId!==a.warehouseId)throw Error('مستودع ملف موظف البيع لا يطابق سجل السيارة');
       const all=FieldProtocol.validateOps(payload.operations,a.id,c.companyId,a.warehouseId,State.items,State.accounts,(this.historyFor?.(a)||this.data().operationHistory||[]));
       const known=new Set(c.imported.map(x=>x.id));
       const fresh=all.filter(x=>!known.has(x.id));
@@ -445,7 +474,7 @@ const FieldSync = {
         for(const row of op.rows){const item=State.items.find(x=>x.id===row.itemId);const parts=item?.isBundle?item.bundleComponents:[{itemId:row.itemId,quantity:1}];for(const b of parts||[]){deltas[b.itemId]=(deltas[b.itemId]||0)+(op.kind==='sale_return'?1:-1)*row.qty/row.unitFactor*Number(b.quantity);}}}
       if(!State.settings.allowNegativeStockSales){for(const [id,delta] of Object.entries(deltas)){
         const stock=Accounting.getItemBaseStock(id,null,agent.warehouseId);
-        if(stock+delta < -0.0001)throw Error('رصيد سيارة المندوب غير كافٍ للمادة: '+(State.items.find(x=>x.id===id)?.name||id));}}
+        if(stock+delta < -0.0001)throw Error('رصيد سيارة موظف البيع غير كافٍ للمادة: '+(State.items.find(x=>x.id===id)?.name||id));}}
       const latestInvoice=Math.max(0,...State.invoices.map(x=>Number(x.number)||0));
       const latestVoucher=Math.max(0,...State.vouchers.map(x=>Number(x.number)||0));
       const docs=FieldProtocol.toLedgerDocuments(fresh,agent,latestInvoice,latestVoucher);
@@ -466,3 +495,11 @@ const FieldSync = {
     finally{this.busy=false;}
   }
 };
+
+// Presence is runtime-only and is never persisted as an online claim.
+(function(){
+  if(typeof document==='undefined')return;
+  const init=()=>{try{FieldSync.refreshConnectedBadge();}catch(_e){};
+    if(typeof setInterval==='function')setInterval(()=>{try{FieldSync.refreshConnectedBadge();}catch(_e){};},12000);};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
+})();

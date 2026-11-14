@@ -26,7 +26,7 @@ F.commitOperationsWithRevisions=async function(agent,ops){
    const docId='field_'+edit.targetOperationId,isInvoice=['sale','sale_return'].includes(edit.originalKind);
    const coll=isInvoice?invoices:vouchers;
    const index=coll.findIndex(x=>x.id===docId&&x.fieldOrigin?.agentId===agent.id);
-   if(index<0)throw Error('المستند المطلوب تعديله غير موجود أو ليس لهذا المندوب');
+   if(index<0)throw Error('المستند المطلوب تعديله غير موجود أو ليس لهذا موظف البيع');
    const old=coll[index],next=edit.replacement;
    if(Number(old.fieldRevision||0)!==edit.baseRevision)throw Error('تعارض مراجعة: المستند تغير منذ آخر مزامنة');
    if(!isInvoice&&old.type!==next.kind||isInvoice&&old.type!==next.kind)throw Error('نوع المستند مختلف');
@@ -61,7 +61,7 @@ F.commitOperationsWithRevisions=async function(agent,ops){
  }
  if(!State.settings.allowNegativeStockSales)for(const [id,delta] of Object.entries(deltas)){
    if(Accounting.getItemBaseStock(id,null,agent.warehouseId)+delta< -0.0001)
-    throw Error('رصيد سيارة المندوب غير كافٍ بعد التعديل: '+(State.items.find(x=>x.id===id)?.name||id));
+    throw Error('رصيد سيارة موظف البيع غير كافٍ بعد التعديل: '+(State.items.find(x=>x.id===id)?.name||id));
  }
  try{
    State.accounts=[...original.accounts,...docs.customers];State.invoices=invoices;State.vouchers=vouchers;

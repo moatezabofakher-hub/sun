@@ -21,7 +21,7 @@ const Agent={
     // can run while the app is closed, and reads the most recent recoverable snapshot.
     try { if(window.AndroidAutoBackup?.stageSnapshot){
       const data={invoices:(this.state.ops||[]).filter(o=>o.kind==='sale'||o.kind==='sale_return'),items:this.state.items||[],accounts:this.state.accounts||[],agentState:this.state};
-      window.AndroidAutoBackup.stageSnapshot(JSON.stringify({app:'AlMohaseb_Field_Agent',backupFormat:1,profileId:'field_'+(this.state.agentId||'unpaired'),profileName:this.state.agentName||'المندوب',exportedAt:new Date().toISOString(),data}));
+      window.AndroidAutoBackup.stageSnapshot(JSON.stringify({app:'AlMohaseb_Field_Agent',backupFormat:1,profileId:'field_'+(this.state.agentId||'unpaired'),profileName:this.state.agentName||'موظف البيع',exportedAt:new Date().toISOString(),data}));
     }} catch(_) { /* Saved in IndexedDB; the backup status screen shows native errors. */ }
     return true;
   },
@@ -47,11 +47,11 @@ const Agent={
     else if(where==='voucher')e.innerHTML=this.renderVoucher();
     else e.innerHTML=this.renderHome();
   },
-  renderSetup(){return `<div class="hero"><h2>مرحبًا بك في نسخة المندوب</h2><p>هذه النسخة مستقلة عن التطبيق الرئيسي. تبدأ بالارتباط بالشركة عبر ملف تجهيز خاص يرسله مسؤول الحسابات.</p></div>
+  renderSetup(){return `<div class="hero"><h2>مرحبًا بك في نسخة موظف البيع</h2><p>هذه النسخة مستقلة عن التطبيق الرئيسي. تبدأ بالارتباط بالشركة عبر ملف تجهيز خاص يرسله مسؤول الحسابات.</p></div>
    <div class="panel"><h3>معرّف هذا الجهاز</h3><div class="field ltr" style="font-size:11px;user-select:text">${this.state.deviceId}</div>
    <button class="secondary" onclick="Agent.copy('${this.state.deviceId}')">نسخ معرّف الجهاز</button>
    <p class="tiny">أرسل المعرّف إلى صاحب الشركة كي يصدر لك رمز التفعيل بعد تجهيز حسابك.</p>
-   <label class="label">استيراد ملف تجهيز المندوب</label><input class="field" type="file" accept="*/*" onchange="Agent.importFile(this)">
+   <label class="label">استيراد ملف تجهيز موظف البيع</label><input class="field" type="file" accept="*/*" onchange="Agent.importFile(this)">
    <p class="tiny">استلم الملف من هاتف الإدارة عبر Quick Share أو البلوتوث أو وسيط موثوق. لا تقبل ملفات إعداد من جهات مجهولة.</p></div>`;},
   renderActivation(){return `<div class="hero"><h2>تم ربط الجهاز بالشركة</h2><p>${this.escape(this.state.companyName)} · ${this.escape(this.state.agentName)} · ${this.escape(this.state.vehicleName)}</p></div>
     <div class="panel"><h3>تفعيل الجهاز بكود من مالك التطبيق</h3>
@@ -118,7 +118,7 @@ const Agent={
       await this.save();this.draft=[];this.toast('حُفظت الفاتورة. لن تُرحّل إلا عند المزامنة');await this.show('ops');
     }catch(e){this.toast('لم تحفظ الفاتورة: '+e.message);}finally{this.busy=false;}
   },
-  renderVoucher(){return `<div class="hero"><h2>سند المندوب</h2><p>سند قبض أو دفع مرتبط بحساب أحد العملاء المعتمدين</p></div><div class="panel">
+  renderVoucher(){return `<div class="hero"><h2>سند موظف البيع</h2><p>سند قبض أو دفع مرتبط بحساب أحد العملاء المعتمدين</p></div><div class="panel">
     <label class="label">نوع السند</label><select id="vKind" class="field"><option value="receipt">سند قبض</option><option value="payment">سند دفع</option></select>
     <label class="label">حساب العميل</label><select id="vAcc" class="field">${this.state.accounts.map(a=>`<option value="${this.escape(a.id)}">${this.escape(a.name)}</option>`).join('')}</select>
     <label class="label">العملة</label><select id="vCurrency" class="field"><option>USD</option><option>SYP</option></select>
@@ -126,7 +126,7 @@ const Agent={
     <label class="label">ملاحظة</label><input id="vNote" class="field" maxlength="200">
     <button class="primary" onclick="Agent.saveVoucher()">حفظ السند</button></div>`;},
   async saveVoucher(){if(this.busy)return;this.busy=true;
-    try{if(!await this.active())throw Error('تفعيل المندوب مطلوب');
+    try{if(!await this.active())throw Error('تفعيل موظف البيع مطلوب');
       const currency=document.getElementById('vCurrency').value,accountId=document.getElementById('vAcc').value,
         amount=FieldProtocol.money(document.getElementById('vAmount').value,currency);
       if(amount<=0||!accountId)throw Error('أدخل المبلغ واختر العميل');
@@ -135,7 +135,7 @@ const Agent={
       this.state.ops.push(op);await this.save();this.toast('حُفظ السند محليًا');await this.show('ops');
     }catch(e){this.toast('لم يُحفظ السند: '+e.message);}finally{this.busy=false;}
   },
-  renderStock(){const stock=this.stock;return `<div class="hero"><h2>جرد سيارة المندوب</h2><p>الرصيد محسوب من آخر كشف من الشركة بعد خصم/إضافة الحركات المحلية غير المشمولة فيه</p></div><div class="panel">
+  renderStock(){const stock=this.stock;return `<div class="hero"><h2>جرد سيارة موظف البيع</h2><p>الرصيد محسوب من آخر كشف من الشركة بعد خصم/إضافة الحركات المحلية غير المشمولة فيه</p></div><div class="panel">
     ${this.state.items.map(it=>`<div class="itemrow"><div class="itemhead"><span>${this.escape(it.name)}</span><b>${Number(stock[it.id]||0).toFixed(3)}</b></div><small class="muted">رصيد بالوحدة الأساسية</small></div>`).join('')}</div>
     <button class="secondary" onclick="Agent.show('home')">رجوع</button>`;},
   renderOps(){return `<div class="hero"><h2>سجل العمليات الميدانية</h2><p>لا يتم حذف العملية أو تعديلها بعد حفظها؛ تصحيح العمليات المرحّلة يكون في الإدارة المركزية.</p></div><div class="panel">
@@ -152,7 +152,7 @@ const Agent={
    <div class="panel"><h3>التجهيز والطباعة</h3><button class="secondary" onclick="Agent.choosePrinter()">اختيار طابعة البلوتوث</button><p class="tiny">تُطبع الفواتير من شاشة العمليات بعد حفظها.</p></div>`;},
   async activate(){const token=document.getElementById('agentLicenseInput')?.value.trim();
     if(!await FieldProtocol.verifyLicense(token,AGENT_LICENSE_PUBLIC_KEY,this.state.deviceId,this.state.companyId,this.state.agentId))return this.toast('الترخيص غير صحيح أو منتهي أو لجهاز آخر');
-    this.state.license=token;try{await this.save();this.toast('تم تفعيل جهاز المندوب');await this.show('home');}catch(e){this.toast(e.message);}},
+    this.state.license=token;try{await this.save();this.toast('تم تفعيل جهاز موظف البيع');await this.show('home');}catch(e){this.toast(e.message);}},
   async importFile(input){const f=input.files?.[0];if(!f)return;
     try{
       if(f.size>8_000_000)throw Error('الملف كبير جدًا');
@@ -160,7 +160,7 @@ const Agent={
       const raw=JSON.parse(e.data||'null');
       if(raw?.kind==='provision'){
         const payload=await FieldProtocol.unseal(e,this.ready()?this.state.key:raw.key);
-        if(this.ready() && (payload.companyId!==this.state.companyId||payload.agentId!==this.state.agentId||payload.key!==this.state.key))throw Error('لا يمكن تغيير الشركة أو المندوب أو مفتاح الاقتران على جهاز مرتبط مسبقًا');
+        if(this.ready() && (payload.companyId!==this.state.companyId||payload.agentId!==this.state.agentId||payload.key!==this.state.key))throw Error('لا يمكن تغيير الشركة أو موظف البيع أو مفتاح الاقتران على جهاز مرتبط مسبقًا');
         if(!Array.isArray(payload.items)||!Array.isArray(payload.accounts)||!payload.companyId||!payload.agentId)throw Error('ملف تجهيز ناقص');
         this.state={...this.state,companyId:payload.companyId,companyName:payload.companyName,companyPhone:payload.companyPhone||'',companyAddress:payload.companyAddress||'',companyLogo:payload.companyLogo||'',footerNote:payload.footerNote||'',printerWidth:payload.printerWidth===58?58:80,printFontScale:Number(payload.printFontScale)||0.75,itemQuantityDecimals:Number.isInteger(Number(payload.itemQuantityDecimals))?Math.min(4,Math.max(0,Number(payload.itemQuantityDecimals))):2,agentId:payload.agentId,agentName:payload.agentName,vehicleName:payload.vehicleName,warehouseId:payload.warehouseId,key:payload.key,items:payload.items,categories:payload.categories||[],accounts:this.mergeCustomerCatalog?.(payload.accounts,this.state)||payload.accounts,stock:payload.stock,
           agentCash:payload.agentCash||null,cashTransfers:payload.cashTransfers||[],warehouseTransfers:this.mergeTransferPage(payload.warehouseHistoryPage,{...this.state,companyId:payload.companyId,agentId:payload.agentId,warehouseId:payload.warehouseId}).docs,warehouseHistoryCursor:this.mergeTransferPage(payload.warehouseHistoryPage,{...this.state,companyId:payload.companyId,agentId:payload.agentId,warehouseId:payload.warehouseId}).cursor,warehouseTransferRevision:payload.warehouseHistoryPage?.revision||'',
@@ -185,8 +185,8 @@ const Agent={
     this.lanSyncQuiet=options?.quiet===true;
     this.lanSyncBusy=true;this.lanSyncMessage='جارٍ البحث عن التطبيق الرئيسي…';this.syncPaint();
     try {
-      if(!this.ready())throw Error('استورد كشف تجهيز المندوب أولًا');
-      if(!await this.active())throw Error('يجب تفعيل جهاز المندوب أولًا');
+      if(!this.ready())throw Error('استورد كشف تجهيز موظف البيع أولًا');
+      if(!await this.active())throw Error('يجب تفعيل جهاز موظف البيع أولًا');
       if(!window.AndroidLocalSync?.send)throw Error('التطبيق يحتاج نسخة APK تدعم الاتصال المباشر');
       // Bound each encrypted frame; large offline outboxes drain automatically in chunks.
       const ops=this.pending.slice(0,250);
@@ -298,7 +298,7 @@ const Agent={
     finally{this.lanSyncBusy=false;this.lanRequestNonce=null;this.lanSentCount=0;this.syncPaint();this.finishAutoSync?.(success);}
   },
   async exportOutbox(){try{
-    if(!this.ready())throw Error('المندوب غير مرتبط بالشركة');
+    if(!this.ready())throw Error('موظف البيع غير مرتبط بالشركة');
     const operations=this.pending;if(!operations.length)throw Error('لا توجد عمليات جديدة');
     const data={kind:'operations',companyId:this.state.companyId,agentId:this.state.agentId,warehouseId:this.state.warehouseId,issuedAt:new Date().toISOString(),operations};
     await this.saveFile('TA_Ops_'+this.state.agentId+'_'+Date.now()+'.json',await FieldProtocol.seal(data,this.state.key));
@@ -311,7 +311,7 @@ const Agent={
   async printOp(id){const o=this.state.ops.find(x=>x.id===id);if(!o)return;
     if(!window.AndroidPrinter?.printBase64){this.toast('الطباعة الحرارية تحتاج نسخة Android');return;}
     try{
-      const width=this.state.printerWidth===58?384:576,lines=[this.state.companyName,'فاتورة المندوب: '+this.state.agentName,'السيارة: '+this.state.vehicleName,o.localNumber+'  '+o.date.slice(0,16),'----------------------------------'];
+      const width=this.state.printerWidth===58?384:576,lines=[this.state.companyName,'فاتورة موظف البيع: '+this.state.agentName,'السيارة: '+this.state.vehicleName,o.localNumber+'  '+o.date.slice(0,16),'----------------------------------'];
       if(o.rows){o.rows.forEach((r,i)=>lines.push((i+1)+' - '+r.itemName+'  '+r.qty+' '+r.unitName+'  '+r.total+' '+o.currency));lines.push('----------------------------------');lines.push('إجمالي الأصناف: '+o.rows.reduce((a,r)=>a+Number(r.total),0)+' '+o.currency);
         if(Number(o.discountValue||0))lines.push('الحسم: '+o.discountValue+(o.discountType==='percent'?' %':' '+o.currency));
         if(Number(o.taxValue||0))lines.push('الإضافات: '+o.taxValue+(o.taxType==='percent'?' %':' '+o.currency));

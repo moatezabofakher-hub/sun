@@ -1,0 +1,17 @@
+/* Tiqany professional 3D visuals: display only, no accounting logic. */
+:root{--ta-3d-shadow:0 3px 0 rgba(10,52,75,.24),0 8px 16px rgba(10,42,60,.12)}
+button:not([hidden]),[role="button"],.ta-action-card,.ta-module-card,.tile,summary{outline-offset:2px;transition:box-shadow .13s ease,transform .13s ease,filter .13s ease;
+  box-shadow:var(--ta-3d-shadow),inset 0 1px 0 rgba(255,255,255,.55);}
+button:not([disabled]):not([hidden]):active,[role="button"]:active,.ta-action-card:active,.ta-module-card:active,.tile:active{transform:translateY(2px);box-shadow:0 1px 1px rgba(10,52,75,.25),inset 0 1px 2px rgba(0,0,0,.08)}
+button:not([disabled]):not([hidden]):hover,.ta-action-card:hover,.ta-module-card:hover,.tile:hover{filter:brightness(1.035)}
+button:not([disabled]):focus-visible,[role="button"]:focus-visible,summary:focus-visible{outline:3px solid #0ea5e9}
+button:not([disabled]) > i[class*="fa-"],button:not([disabled]) .fas,.tile .glyph,.ta-icon-box i,.ta-module-card i{filter:drop-shadow(0 2px 1px rgba(5,55,75,.28));text-shadow:0 1px 0 rgba(255,255,255,.28)}
+button:not([hidden]):not([disabled]):not([class*="bg-"]):not(.primary):not(.secondary):not(.danger):not(.ta-action-card):not(.ta-module-card):not(.tile):not(.nav-btn):not(.pos-product):not(.pos-switch){background:linear-gradient(155deg,#fff,#e5f2f9);color:#16455f;border:1px solid #b8d3e0;border-radius:12px;}
+button[disabled]{box-shadow:0 1px 0 rgba(55,70,90,.14)!important;filter:grayscale(.25)}
+.ta-staff-counter{display:flex;align-items:center;justify-content:center;gap:5px;white-space:nowrap;min-height:34px;padding:5px 8px;color:#f0fdff!important;
+ background:linear-gradient(150deg,#176579,#123f62)!important;border:1px solid #61b6ca!important;border-radius:12px!important;box-shadow:inset 0 1px 0 #ffffff57,0 3px 0 #09263f,0 8px 12px #0003!important;font-size:11px;font-weight:850;}
+.ta-staff-counter strong{background:#dcfce7;color:#065f46;font-size:13px;padding:1px 7px;border-radius:8px;min-width:22px;text-align:center}
+.ta-staff-counter.has-staff strong{background:#4ade80;color:#052e1b}
+.ta-staff-counter-label{font-size:10px}
+/* Invoice currency is visually sky blue, not changed in the ledger. */
+.ta-invoice-currency-choice,button[onclick*="InvoiceController.changeCurrency"],button[onclick*="InvoiceController.openCurrency"]{background:linear-gradient(150deg,#60d9fb,#0284c7)!important;color:#fff!important;border:1px solid #67e8f9!important;box-shadow:0 4px 0 #075985,0 10px 15px #0369a13d!important}

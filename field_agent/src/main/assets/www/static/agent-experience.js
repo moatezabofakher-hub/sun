@@ -53,7 +53,7 @@ Agent.goBack=async function(){
  }
  if(this.screen==='home'){
    this.stack=['home'];
-   this.confirmAction('تأكيد الخروج من التطبيق','هل تريد الخروج من تطبيق المندوب أم البقاء في التطبيق؟',()=>{
+   this.confirmAction('تأكيد الخروج من التطبيق','هل تريد الخروج من تطبيق موظف البيع أم البقاء في التطبيق؟',()=>{
      if(window.Android?.exitApp)window.Android.exitApp();else this.toast('الخروج المباشر متاح في تطبيق أندرويد');
    });
    return;
@@ -90,7 +90,7 @@ Agent.renderHome=function(){const o=this.state.ops||[],pending=this.pending.leng
   <button class="tile" onclick="Agent.startInvoice('sale_return')"><span class="glyph">↩</span><strong>مردود مبيعات</strong><small>إرجاع المواد إلى السيارة</small></button>
   <button class="tile" onclick="Agent.startVoucher('receipt')"><span class="glyph">💵</span><strong>سند قبض</strong><small>استلام دفعة من عميل</small></button>
   <button class="tile" onclick="Agent.startVoucher('payment')"><span class="glyph">💳</span><strong>سند دفع</strong><small>تسجيل دفع مصرح به</small></button>
-  <button class="tile" onclick="Agent.navigate('expense')"><span class="glyph">🧾</span><strong>إيصال مصروف</strong><small>تسجيل مصروف على صندوق المندوب</small></button>
+  <button class="tile" onclick="Agent.navigate('expense')"><span class="glyph">🧾</span><strong>إيصال مصروف</strong><small>تسجيل مصروف على صندوق موظف البيع</small></button>
   <button class="tile" onclick="Agent.openCustomerForm()"><span class="glyph">👤</span><strong>زبون جديد</strong><small>إضافة حساب زبون للمبيعات والسندات</small></button>
   <button class="tile" onclick="Agent.navigate('stock')"><span class="glyph">📦</span><strong>رصيد السيارة</strong><small>جرد المستودع المتنقل</small></button>
   </div></section>
@@ -189,7 +189,7 @@ Agent.renderVoucher=function(){const k=this.voucherKind||'receipt';return `<div 
 Agent.appendOperation=async function(op){const before=this.state.ops.slice();this.state.ops.push(op);
  try{await this.save();}catch(e){this.state.ops=before;throw e;}};
 Agent.saveInvoice=async function(){if(this.busy)return;this.busy=true;
- try{if(!await this.active())throw Error('يجب تفعيل المندوب أولًا');
+ try{if(!await this.active())throw Error('يجب تفعيل موظف البيع أولًا');
   if(!this.draft.length)throw Error('أضف مادة واحدة على الأقل');this.captureInvoiceMeta();
   const meta=this.invoiceMeta,currency=this.currency||'USD',net=this.currentTotal();
   const paid=FieldProtocol.money(meta.paymentMode==='cash'?net:meta.paymentMode==='credit'?0:Number(meta.paid||0),currency);
@@ -203,7 +203,7 @@ Agent.saveInvoice=async function(){if(this.busy)return;this.busy=true;
   this.toast('حُفظت الفاتورة محليًا. تبقى للمزامنة مع الإدارة');this.stack=['home','ops'];await this.show('ops');
  }catch(e){this.toast('لم تُحفظ الفاتورة: '+e.message);}finally{this.busy=false;}};
 Agent.saveVoucher=async function(){if(this.busy)return;this.busy=true;
- try{if(!await this.active())throw Error('يجب تفعيل المندوب أولًا');
+ try{if(!await this.active())throw Error('يجب تفعيل موظف البيع أولًا');
   const currency=document.getElementById('vCurrency')?.value,accountId=document.getElementById('vAcc')?.value,
    amount=FieldProtocol.money(document.getElementById('vAmount')?.value,currency),kind=this.voucherKind;
   if(!accountId||amount<=0)throw Error('اختر العميل وأدخل مبلغًا صحيحًا');
@@ -214,7 +214,7 @@ Agent.saveVoucher=async function(){if(this.busy)return;this.busy=true;
  }catch(e){this.toast('لم يُحفظ السند: '+e.message);}finally{this.busy=false;}};
 Agent.renderOps=function(){const ops=this.state.ops.filter(o=>o.kind!=='document_edit').slice().reverse(),kind=this.opsFilter||'all';
  const filtered=ops.filter(o=>kind==='all'||o.kind===kind);
- return `<div class="hero"><h2>الفواتير والسندات</h2><p>سجل العمليات الميدانية وأرصدة المندوب. لا توجد تقارير أرباح في هذا التطبيق.</p></div><div class="panel">
+ return `<div class="hero"><h2>الفواتير والسندات</h2><p>سجل العمليات الميدانية وأرصدة موظف البيع. لا توجد تقارير أرباح في هذا التطبيق.</p></div><div class="panel">
   <div class="stats"><div class="stat"><b>${ops.length}</b><small>المحفوظة</small></div><div class="stat"><b>${this.pending.length}</b><small>بانتظار المزامنة</small></div><div class="stat"><b>${ops.length-this.pending.length}</b><small>تمت مزامنتها</small></div></div>
   <label class="label">عرض نوع الحركة</label><select class="field" onchange="Agent.opsFilter=this.value;Agent.show('ops')"><option value="all">كل العمليات</option>${['sale','sale_return','receipt','payment','expense','customer_create'].map(k=>`<option value="${k}" ${kind===k?'selected':''}>${this.kindName(k)}</option>`).join('')}</select>
   ${filtered.length?filtered.map(o=>{const net=o.rows?o.rows.reduce((s,r)=>s+Number(r.total),0):Number(o.amount);
@@ -245,7 +245,7 @@ Agent.saveInvoicePayment=async function(){if(this.busy)return;this.busy=true;
   FieldProtocol.validateOps([op],this.state.agentId,this.state.companyId,this.state.warehouseId,this.state.items,this.state.accounts);
   await this.appendOperation(op);this.stack=['home','ops'];await this.show('ops');this.toast('تم حفظ سند القبض وربطه بالفاتورة');
  }catch(e){this.toast(e.message)}finally{this.busy=false;}};
-Agent.renderPrinter=function(){const p=this.printerInfo;return `<div class="hero"><h2>الطابعة الحرارية</h2><p>اقتران واتصال مباشر من داخل تطبيق المندوب عبر Bluetooth Classic / SPP.</p></div>
+Agent.renderPrinter=function(){const p=this.printerInfo;return `<div class="hero"><h2>الطابعة الحرارية</h2><p>اقتران واتصال مباشر من داخل تطبيق موظف البيع عبر Bluetooth Classic / SPP.</p></div>
   <div class="panel"><h3>حالة الاتصال</h3><div class="note-safe" id="nativePrinterStatus">${this.escape(p.message||'لم يتم الاتصال')}</div>
   <button class="primary" onclick="Agent.pairPrinter()">🔍 البحث والاقتران بطابعة جديدة</button>
   <button class="secondary" onclick="Agent.choosePrinter()">🖨 اختيار طابعة مقترنة</button>
@@ -254,8 +254,8 @@ Agent.renderPrinter=function(){const p=this.printerInfo;return `<div class="hero
   <div class="panel"><h3>إعدادات ورق الطباعة</h3>
   <label class="label">عرض الورق</label><select id="agentPrintWidth" class="field" onchange="Agent.updatePrinterWidth(this.value)"><option value="80" ${this.state.printerWidth!==58?'selected':''}>80 مم</option><option value="58" ${this.state.printerWidth===58?'selected':''}>58 مم</option></select>
   <p class="form-help">تستخدم الفواتير صورة نقطية لإظهار العربية والأرقام بصورة متوافقة مع معظم الطابعات الحرارية، ويجب اختبارها على الطابعة الفعلية.</p></div>`;};
-Agent.renderSettings=function(){return `<div class="hero"><h2>الضبط</h2><p>إعدادات المندوب وإدارة الاتصال والطباعة — دون صلاحيات إدارة أرباح الشركة.</p></div>
- <section class="panel"><h3>معلومات التفعيل</h3><div class="itemrow"><b>المندوب</b><p class="tiny">${this.escape(this.state.agentName)}</p></div><div class="itemrow"><b>السيارة</b><p class="tiny">${this.escape(this.state.vehicleName)}</p></div><div class="itemrow"><b>الجهاز</b><p class="tiny ltr">${this.escape(this.state.deviceId)}</p></div><p class="form-help">إصدار المندوب 3.5.44. لا يمكن تغيير الشركة أو مستودع السيارة من تطبيق المندوب. التعديل يأتي بملف تجهيز معتمد من الإدارة.</p></section>
+Agent.renderSettings=function(){return `<div class="hero"><h2>الضبط</h2><p>إعدادات موظف البيع وإدارة الاتصال والطباعة — دون صلاحيات إدارة أرباح الشركة.</p></div>
+ <section class="panel"><h3>معلومات التفعيل</h3><div class="itemrow"><b>موظف البيع</b><p class="tiny">${this.escape(this.state.agentName)}</p></div><div class="itemrow"><b>السيارة</b><p class="tiny">${this.escape(this.state.vehicleName)}</p></div><div class="itemrow"><b>الجهاز</b><p class="tiny ltr">${this.escape(this.state.deviceId)}</p></div><p class="form-help">إصدار موظف البيع 3.5.44. لا يمكن تغيير الشركة أو مستودع السيارة من تطبيق موظف البيع. التعديل يأتي بملف تجهيز معتمد من الإدارة.</p></section>
  <section class="panel"><h3>إعدادات الطباعة</h3><button class="primary" onclick="Agent.navigate('printer')">🖨 إعداد البلوتوث والطابعة</button></section>
  <section class="panel"><h3>المزامنة والنسخ</h3><button class="secondary" onclick="Agent.navigate('sync')">⇄ إرسال واستقبال العمليات</button><button class="secondary" onclick="Agent.exportOutbox()" ${this.pending.length?'':'disabled'}>تصدير العمليات غير المُزامنة</button><button class="primary" onclick="Agent.navigate('backup')">🗂 النسخ الاحتياطي التلقائي وواتساب</button></section>`;};
 Agent.pairPrinter=function(){if(window.AndroidPrinter?.pairPrinter)window.AndroidPrinter.pairPrinter();else this.toast('الاقتران المباشر متاح داخل APK فقط');};
@@ -281,8 +281,8 @@ Agent.show=async function(route){
  const active=this.ready()&&await this.active();const back=document.getElementById('agentBack');
  back?.classList.toggle('hide',!active||this.stack.length<2);
  const header=document.getElementById('agentScreenTitle');if(header)header.textContent=this.screen==='home'?'المحاسب التقني':({invoice:'الفاتورة',ops:'الفواتير والسندات',sync:'المزامنة',voucher:'سند مالي',printer:'الطابعة',settings:'الضبط',backup:'النسخ الاحتياطي',stock:'مستودع السيارة',payment:'تسجيل دفعة'})[this.screen]||'المحاسب التقني';
- const sub=document.getElementById('agentScreenSubtitle');if(sub)sub.textContent=active?'نسخة المندوب · '+this.state.companyName:'نسخة المندوب · تطبيق التوزيع';
- const vehicle=document.getElementById('agentVehicleHeader');if(vehicle)vehicle.textContent=this.state.vehicleName||'جهاز المندوب';
+ const sub=document.getElementById('agentScreenSubtitle');if(sub)sub.textContent=active?'نسخة موظف البيع · '+this.state.companyName:'نسخة موظف البيع · تطبيق التوزيع';
+ const vehicle=document.getElementById('agentVehicleHeader');if(vehicle)vehicle.textContent=this.state.vehicleName||'جهاز موظف البيع';
  document.getElementById('bottom')?.classList.toggle('hide',!active);
  document.querySelectorAll('.bottom button').forEach(b=>b.classList.toggle('active',b.id==='nav-'+this.screen));
  if(this.screen==='invoice')this.paintUnits();

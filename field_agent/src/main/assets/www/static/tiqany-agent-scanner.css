@@ -1,0 +1,8 @@
+
+.ta-agent-primary-scanner{display:flex;align-items:center;justify-content:center;gap:12px;min-height:58px!important;width:100%;padding:12px 16px!important;
+ background:linear-gradient(145deg,#5eead4,#0ea5e9 48%,#1760ae)!important;border:2px solid #98efff!important;border-radius:16px!important;color:white!important;
+ font-weight:950!important;font-size:15px!important;box-shadow:inset 0 2px 0 #ffffff88,0 5px 0 #075985,0 13px 18px #1a5c9a55!important;text-shadow:0 2px 1px #0c4a6e9c}
+.ta-agent-scanner-icon{width:35px;height:35px;border-radius:10px;display:grid;place-items:center;background:linear-gradient(155deg,#efffff,#9bf4ff);
+ color:#046b82;font-size:22px;box-shadow:inset 0 2px 0 white,0 3px 0 #2891ac,0 6px 8px #074f6a66}
+
+.ta-agent-scanner-icon svg{width:23px;height:23px;filter:drop-shadow(0 2px 2px #082f49aa)}

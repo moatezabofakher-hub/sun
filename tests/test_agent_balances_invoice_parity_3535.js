@@ -10,7 +10,7 @@ vm.createContext(scope);
 vm.runInContext(fs.readFileSync(agentRoot+'invoice-dual-balances.js','utf8'),scope);scope.InvoiceDualBalances=scope.window.InvoiceDualBalances;
 for(const f of ['agent.js','agent-experience.js','agent-invoice-parity.js'])vm.runInContext(fs.readFileSync(agentRoot+f,'utf8'),scope,{filename:f});
 const A=vm.runInContext('Agent',scope);
-A.state={companyId:'company_1234',agentId:'agent_1234',warehouseId:'car_1234',key:'abc',companyName:'SUN SHINE',agentName:'مندوب',vehicleName:'سيارة',exchangeRate:15000,
+A.state={companyId:'company_1234',agentId:'agent_1234',warehouseId:'car_1234',key:'abc',companyName:'SUN SHINE',agentName:'موظف بيع',vehicleName:'سيارة',exchangeRate:15000,
  accounts:[{id:'c1',name:'عميل 1',type:'customer',usdBalance:12,sypBalance:10000}],
  items:[{id:'i1',name:'منظف',currency:'USD',units:[{name:'عبوة',factor:1,salePrice:100}]}],stock:{i1:100},categories:[],ops:[],snapshotIds:[],knownIds:[]};
 A.draft=[];A.currency='USD';A.draftKind='sale';
@@ -39,7 +39,7 @@ A.active=async()=>true;A.appendOperation=async op=>{pending.push(op);A.state.ops
  assert.equal(op.netTotal,94.5);assert.equal(op.discountValue,10);assert.equal(op.taxValue,5);assert.equal(op.paidAmount,25);
  const validated=FieldProtocol.validateOps([op],A.state.agentId,A.state.companyId,A.state.warehouseId,A.state.items,A.state.accounts);
  assert.equal(validated[0].netTotal,94.5);
- const ledger=FieldProtocol.toLedgerDocuments(validated,{id:A.state.agentId,name:'مندوب',warehouseId:A.state.warehouseId},0,0);
+ const ledger=FieldProtocol.toLedgerDocuments(validated,{id:A.state.agentId,name:'موظف بيع',warehouseId:A.state.warehouseId},0,0);
  assert.equal(ledger.invoices[0].netTotal,94.5);assert.equal(ledger.invoices[0].discountAmount,10);assert.equal(ledger.invoices[0].taxAmount,4.5);
  assert.equal(ledger.invoices[0].remainingAmount,69.5);
  assert.equal(A.state.ops.length,1);

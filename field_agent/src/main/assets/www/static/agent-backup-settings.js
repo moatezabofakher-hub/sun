@@ -14,7 +14,7 @@ Agent.renderBackupSettings = function () {
     const enabled = !!cfg.localEnabled;
     const folder = !!cfg.localFolderConfigured;
     const showTime = ms => ms ? new Date(ms).toLocaleString('ar-SY') : 'لم تُنشأ نسخة بعد';
-    return `<div class="hero"><h2>النسخ الاحتياطي التلقائي</h2><p>حفظ نسخة من جميع بيانات المندوب بعد كل تغيير، وتجهيز نسخة في المجلد المحدد تلقائياً.</p></div>
+    return `<div class="hero"><h2>النسخ الاحتياطي التلقائي</h2><p>حفظ نسخة من جميع بيانات موظف البيع بعد كل تغيير، وتجهيز نسخة في المجلد المحدد تلقائياً.</p></div>
     <section class="panel"><h3>النسخ التلقائي إلى مجلد</h3>
        <p class="tiny">${folder?'✓ تم اختيار مجلد النسخ':'⚠ لم يتم اختيار مجلد'}</p>
        <button type="button" class="secondary" onclick="Agent.chooseBackupFolder()">📁 اختيار أو تغيير المجلد</button>

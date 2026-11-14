@@ -1,0 +1,6 @@
+
+/* Currency field in sales invoice: visually identifiable cyan surface. */
+[data-screen="invoice_form"] [data-invoice-currency],
+#invoiceCurrencyButton,#invoiceCurrencySelect,#invCurrency,#invCurrencyButton,
+button[onclick*="changeInvoiceCurrency"],button[onclick*="InvoiceController.switchCurrency"],
+button[onclick*="InvoiceController.setCurrency"]{background:linear-gradient(145deg,#d6f6ff,#67d5fb)!important;border:1px solid #38bdf8!important;color:#075985!important;box-shadow:0 3px 0 #0e7490,0 7px 12px #0284c72e!important;font-weight:900!important}

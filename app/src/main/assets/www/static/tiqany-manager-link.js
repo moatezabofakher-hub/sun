@@ -14,7 +14,7 @@ const API={
     const company=FieldSync.data()?.companyId||'';
     if(company!==info.companyId){UI.toast('هوية الشركة غير متطابقة مع الاستقبال','error');return;}
     const option=info.ips.map(ip=>'<option value="'+FieldSync.escape(ip)+'">'+FieldSync.escape(ip)+'</option>').join('');
-    UI.openModal('<div dir="rtl" class="p-4 space-y-3 text-right"><h3 class="font-black">▦ ربط مندوب برمز QR محلي</h3><p class="text-xs">افتح تطبيق المندوب واختر «مسح رمز QR». يجب أن يتصل الجهازان بالشبكة نفسها. قارن رمز الأمان ثم وافق من إدارة المندوبين.</p><select class="w-full border rounded-xl p-2" id="taQrIp" onchange="TiqanyManagerLink.refresh()">'+option+'</select><div id="taQrCode" style="margin:auto;max-width:280px;background:#fff;padding:12px;border-radius:16px"></div><p id="taQrAddress" class="text-xs text-center" dir="ltr"></p><button onclick="FieldSync.open()" class="ta-primary-3d w-full p-3 rounded-xl">العودة إلى إدارة المندوبين</button></div>');
+    UI.openModal('<div dir="rtl" class="p-4 space-y-3 text-right"><h3 class="font-black">▦ ربط موظف بيع برمز QR محلي</h3><p class="text-xs">افتح تطبيق موظف البيع واختر «مسح رمز QR». يجب أن يتصل الجهازان بالشبكة نفسها. قارن رمز الأمان ثم وافق من إدارة موظفي البيع.</p><select class="w-full border rounded-xl p-2" id="taQrIp" onchange="TiqanyManagerLink.refresh()">'+option+'</select><div id="taQrCode" style="margin:auto;max-width:280px;background:#fff;padding:12px;border-radius:16px"></div><p id="taQrAddress" class="text-xs text-center" dir="ltr"></p><button onclick="FieldSync.open()" class="ta-primary-3d w-full p-3 rounded-xl">العودة إلى إدارة موظفي البيع</button></div>');
     this.port=info.port;this.company=company;this.refresh();
   },
   refresh(){
@@ -31,7 +31,7 @@ const install=()=>{
  const old=FieldSync.open.bind(FieldSync);
  FieldSync.open=function(...args){const out=old(...args);
   const el=document.querySelector('[data-lan-manager]');
-  if(el&&!document.getElementById('taQrOpen'))el.insertAdjacentHTML('beforeend','<button id="taQrOpen" class="ta-primary-3d w-full p-3 rounded-xl font-bold mt-2" onclick="TiqanyManagerLink.open()">▦ ربط مندوب عبر رمز QR</button>');
+  if(el&&!document.getElementById('taQrOpen'))el.insertAdjacentHTML('beforeend','<button id="taQrOpen" class="ta-primary-3d w-full p-3 rounded-xl font-bold mt-2" onclick="TiqanyManagerLink.open()">▦ ربط موظف بيع عبر رمز QR</button>');
   return out;};FieldSync.__qrWrapped=true;
 };
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install);else install();

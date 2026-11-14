@@ -6,7 +6,7 @@ const A=Agent;
 const expenseCategories=['نقل ومحروقات','رواتب وأجور','إيجار','كهرباء ومياه','صيانة','تسويق','مصاريف إدارية','أخرى'];
 A.renderExpense=function(){
  const cash=this.cashSummary(),available=!!this.state.agentCash;
- return `<div class="hero"><h2>إيصال دفع مصاريف</h2><p>يسجل المصروف على صندوق المندوب، ويُضاف إلى مصاريف الشركة باسم المندوب بعد المزامنة. لا يؤثر على ذمم الزبائن.</p></div>
+ return `<div class="hero"><h2>إيصال دفع مصاريف</h2><p>يسجل المصروف على صندوق موظف البيع، ويُضاف إلى مصاريف الشركة باسم موظف البيع بعد المزامنة. لا يؤثر على ذمم الزبائن.</p></div>
  <section class="panel"><h3>تفاصيل المصروف</h3>
  <label class="label" for="eCategory">نوع المصروف</label><select id="eCategory" class="field">${expenseCategories.map(x=>`<option value="${this.escape(x)}">${this.escape(x)}</option>`).join('')}</select>
  <label class="label" for="eAmount">المبلغ المدفوع</label><input id="eAmount" class="field ltr" type="number" inputmode="decimal" min="0.01" step="any" placeholder="0"/>
@@ -19,7 +19,7 @@ A.renderExpense=function(){
 A.saveExpense=async function(){
  if(this.busy)return;this.busy=true;
  try{
-  if(!await this.active())throw Error('يجب تفعيل جهاز المندوب');
+  if(!await this.active())throw Error('يجب تفعيل جهاز موظف البيع');
   const el=id=>document.getElementById(id)?.value;
   const category=String(el('eCategory')||'').trim(),currency=el('eCurrency'),note=String(el('eNote')||'').trim(),date=el('eDate');
   if(!expenseCategories.includes(category))throw Error('اختر نوع المصروف من القائمة');
@@ -27,7 +27,7 @@ A.saveExpense=async function(){
   const amount=FieldProtocol.money(el('eAmount'),currency);
   if(amount<=0)throw Error('مبلغ المصروف يجب أن يكون موجبًا');
   if(this.state.agentCash){const box=this.cashSummary(),balance=currency==='USD'?box.usd:box.syp;
-   if(amount>balance+0.001)throw Error('رصيد صندوق المندوب لا يكفي لهذا المصروف');
+   if(amount>balance+0.001)throw Error('رصيد صندوق موظف البيع لا يكفي لهذا المصروف');
   }
   const op={id:'op_'+FieldProtocol.uuid(),kind:'expense',companyId:this.state.companyId,agentId:this.state.agentId,warehouseId:this.state.warehouseId,
    localNumber:'E-'+(this.state.ops.length+1),date:new Date(date+'T12:00:00').toISOString(),currency,exchangeRate:Number(this.state.exchangeRate),
@@ -47,7 +47,7 @@ A.show=async function(route){
  document.getElementById('screen').innerHTML=this.renderExpense();
  document.getElementById('agentBack')?.classList.remove('hide');
  document.getElementById('agentScreenTitle').textContent='إيصال مصروف';
- document.getElementById('agentScreenSubtitle').textContent='نسخة المندوب · '+(this.state.companyName||'');
+ document.getElementById('agentScreenSubtitle').textContent='نسخة موظف البيع · '+(this.state.companyName||'');
  document.getElementById('bottom')?.classList.remove('hide');
  document.querySelectorAll('.bottom button').forEach(b=>b.classList.toggle('active',false));
 };

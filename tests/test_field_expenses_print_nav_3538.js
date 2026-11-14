@@ -72,7 +72,7 @@ const A=vm.runInContext('Agent',agentCtx);
   accountBalanceBefore:12,accountBalanceAfter:16,agentCash:{usdCash:20,sypCash:0},
   accounts:[{id:'c1',name:'زبون',type:'customer',usdBalance:25,sypBalance:0}],ops:[],knownIds:[],snapshotIds:[],exchangeRate:15000};
  A.active=async()=>true;A.save=async()=>{};A.show=async(route)=>{A.screen=route;};A.toast=()=>{};A.scheduleAutoSync=()=>{};
- assert.match(A.renderHome().slice(0,130),/صندوق المندوب/,'cashbox comes BEFORE greeting/actions');
+ assert.match(A.renderHome().slice(0,130),/صندوق موظف البيع/,'cashbox comes BEFORE greeting/actions');
  assert.equal(A.cashSummary().usd,20);
  A.stack=['home','expense'];A.screen='expense';await A.saveExpense();
  assert.equal(A.state.ops.length,1);assert.equal(A.state.ops[0].kind,'expense');assert.equal(A.state.ops[0].category,'نقل ومحروقات');

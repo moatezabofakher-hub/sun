@@ -7,7 +7,7 @@ const FieldProtocol = require('../app/src/main/assets/www/static/field-protocol.
 const FieldLanCrypto = require('../app/src/main/assets/www/static/field-lan-crypto.js');
 const namespace = {companyId:'company_1234567890',agentId:'agent_1234567890',warehouseId:'wh_car_1'};
 const key = FieldProtocol.b64u(crypto.randomBytes(32));
-const agent = {id:namespace.agentId,name:'مندوب 1',vehicleName:'سيارة 1',warehouseId:namespace.warehouseId,key,disabled:false,archived:false};
+const agent = {id:namespace.agentId,name:'موظف بيع 1',vehicleName:'سيارة 1',warehouseId:namespace.warehouseId,key,disabled:false,archived:false};
 const state = {fieldSync:{companyId:namespace.companyId,agents:[agent],imported:[],events:[]},
   items:[{id:'i1',name:'منظف',currency:'USD',units:[{name:'علبة',factor:1,salePrice:3}]}],
   accounts:[{id:'c1',name:'عميل',type:'customer'}],
@@ -51,7 +51,7 @@ async function send(ops,nonce){
  assert.deepEqual(ack1.knownIds,['op_12345678901']);
  assert.equal(ack1.requestNonce,'nonce_12345678901');
  assert.equal(state.invoices.length,1);
- assert.equal(state.invoices[0].fieldOrigin.agentName,'مندوب 1');
+ assert.equal(state.invoices[0].fieldOrigin.agentName,'موظف بيع 1');
  assert.equal(vmScope.saves,1);
  const second=await send([operation('op_12345678901')],'nonce_12345678902');
  const ack2=await FieldLanCrypto.open(second,key,namespace.companyId,namespace.agentId);

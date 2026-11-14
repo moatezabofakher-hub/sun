@@ -58,7 +58,7 @@ public final class AgentWhatsAppBackupBridge {
                 JSONObject backup=new JSONObject(new String(bytes,StandardCharsets.UTF_8));
                 if(!"AlMohaseb_Field_Agent".equals(backup.optString("app")) ||
                     backup.optJSONObject("data")==null || backup.getJSONObject("data").optJSONObject("agentState")==null)
-                    throw new IllegalStateException("النسخة المتوفرة ليست نسخة بيانات المندوب");
+                    throw new IllegalStateException("النسخة المتوفرة ليست نسخة بيانات موظف البيع");
                 File dir=new File(activity.getCacheDir(),"agent_backup_share");
                 if(!dir.exists()&&!dir.mkdirs())throw new IllegalStateException("تعذر إعداد المشاركة");
                 // Avoid overwriting an attachment another app is still reading.
@@ -74,8 +74,8 @@ public final class AgentWhatsAppBackupBridge {
                     share.setType("application/json");
                     share.putExtra(Intent.EXTRA_STREAM,uri);
                     if(!recipient.isEmpty()) share.putExtra("jid", recipient.replace("+", "") + "@s.whatsapp.net"); // Best-effort hint; the user must verify the chat.
-                    share.putExtra(Intent.EXTRA_TEXT,"نسخة احتياطية من تطبيق المندوب. المستلم المطلوب: "+recipient+". رجاء تأكد من المحادثة قبل الإرسال.");
-                    share.setClipData(ClipData.newUri(activity.getContentResolver(),"نسخة المندوب",uri));
+                    share.putExtra(Intent.EXTRA_TEXT,"نسخة احتياطية من تطبيق موظف البيع. المستلم المطلوب: "+recipient+". رجاء تأكد من المحادثة قبل الإرسال.");
+                    share.setClipData(ClipData.newUri(activity.getContentResolver(),"نسخة موظف البيع",uri));
                     share.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
                     try{ activity.startActivity(Intent.createChooser(share,"اختر واتساب ثم المستلم لإرسال النسخة")); }
                     catch(Exception e){Toast.makeText(activity,"تعذر فتح المشاركة؛ تأكد من تثبيت واتساب",Toast.LENGTH_LONG).show();}

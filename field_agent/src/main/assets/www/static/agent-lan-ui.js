@@ -16,7 +16,7 @@
    <button type="button" id="agentLanSyncButton" class="primary" onclick="Agent.syncOneTap()" ${this.lanSyncBusy?'disabled':''}>${this.lanSyncBusy?'جارٍ تبادل البيانات…':'⇄ مزامنة فورية'}</button>
    <p class="tiny" role="status" id="agentLanStatus">${this.escape(this.lanSyncMessage||'جاهز للمزامنة التلقائية في الاتجاهين')}</p>
    <p class="tiny">${window.TiqanyCloudAgent?.ready()?'☁️ اتصال سحابي مشفر مهيأ — يتم تأكيد كل فاتورة من الرئيسي':'🌐 الربط المحلي يعمل دون إنترنت؛ المزامنة السحابية تحتاج إلى إعدادها على الرئيسي أولاً'}</p>
-   <button type="button" onclick="AgentPairing.scanQr()">▦ تحديث اتصال الإدارة بمسح QR (عند تغيير الكمبيوتر أو الراوتر)</button></section>`;
+   <button type="button" class="ta-agent-primary-scanner" onclick="AgentPairing.scanQr()"><span class="ta-agent-scanner-icon" aria-hidden="true"><i class="fas fa-qrcode"></i></span><span>مسح الباركود الرئيسي</span></button></section>`;
   return main+report+`<details class="panel" style="padding:12px 16px"><summary style="cursor:pointer;font-weight:800">الطريقة الاحتياطية: مزامنة عبر الملفات</summary>${original()}</details>`;
  };
 })();

@@ -73,14 +73,14 @@ A.showMoreCash=function(){this.cashShown+=60;this.show('cashbox');};
 A.showMoreInvoices=function(){this.invoicesShown+=60;this.show('invoices');};
 A.renderCashbox=function(){
  const box=this.cashSummary(),updated=this.state.lastSyncAt||this.state.issuedAt;
- return `<div class="hero"><h2>صندوق المندوب</h2><p>رصيد النقد الخاص بك بالدولار والليرة؛ يتأثر بالفواتير المقبوضة والسندات، وبالدفعات التي يسجلها الرئيسي مع صندوقك.</p></div>
+ return `<div class="hero"><h2>صندوق موظف البيع</h2><p>رصيد النقد الخاص بك بالدولار والليرة؛ يتأثر بالفواتير المقبوضة والسندات، وبالدفعات التي يسجلها الرئيسي مع صندوقك.</p></div>
  <section class="panel"><h3>الرصيد الحالي</h3><div class="grid grid-cols-2 gap-2"><div class="stat"><b>${this.money(box.syp,'SYP')}</b><small>ليرة سورية SYP</small></div><div class="stat"><b>${this.money(box.usd,'USD')}</b><small>دولار USD</small></div></div>
  <p class="tiny">${updated?'آخر كشف من الرئيسي: '+esc(new Date(updated).toLocaleString('ar')):'لم يتم استلام كشف من الرئيسي بعد'}. تُضاف الحركات المحلية غير المرحّلة دون ازدواج.</p></section>
  <section class="panel"><h3>حركة الصندوق</h3>${box.movements.length?box.movements.slice(0,this.cashShown).map(x=>`<div class="itemrow ${x.amount>0?'agent-cash-inflow':'agent-cash-outflow'}"><div class="itemhead"><b>${esc(x.desc)}</b><b class="agent-cash-amount">${x.amount>=0?'+':'−'}${this.money(Math.abs(x.amount),x.currency)} ${esc(x.currency)}</b></div><p class="tiny">${esc(String(x.date||'').replace('T',' ').slice(0,16))} ${x.pending?'· بانتظار المزامنة':''}</p></div>`).join(''):'<p class="muted">لا توجد حركات نقدية.</p>'}</section>`;
 };
 A.renderInvoices=function(){
  const invoices=(this.state.ops||[]).filter(o=>o.kind==='sale'||o.kind==='sale_return').slice().reverse();
- return `<div class="hero"><h2>الفواتير</h2><p>جميع الفواتير التي أُنشئت في تطبيق المندوب، بما فيها الفواتير التي استعدت من الحساب الرئيسي بعد استبدال الهاتف.</p></div>
+ return `<div class="hero"><h2>الفواتير</h2><p>جميع الفواتير التي أُنشئت في تطبيق موظف البيع، بما فيها الفواتير التي استعدت من الحساب الرئيسي بعد استبدال الهاتف.</p></div>
  <div class="grid" style="margin-bottom:16px"><button class="tile" onclick="Agent.startInvoice('sale')"><span class="glyph">🛒</span><strong>فاتورة جديدة</strong></button><button class="tile" onclick="Agent.startInvoice('sale_return')"><span class="glyph">↩</span><strong>مردود مبيعات</strong></button></div>
  <section class="panel"><h3>سجل الفواتير (${invoices.length})</h3>${invoices.length?invoices.slice(0,this.invoicesShown).map(o=>`<div class="itemrow"><div class="itemhead"><b>${esc(o.localNumber||o.id)} · ${esc(this.kindName(o.kind))}</b><span class="pill ${this.state.knownIds.includes(o.id)?'':'wait'}">${this.state.knownIds.includes(o.id)?'مرحّلة':'غير مرحّلة'}</span></div>
  <p class="tiny">${esc(String(o.date||'').replace('T',' ').slice(0,16))} · ${esc((this.state.accounts||[]).find(x=>x.id===o.accountId)?.name||'نقدي')}</p>
@@ -100,7 +100,7 @@ A.renderStock=function(){
  }).join(''):'<p class="muted">لم تُستلم فواتير مناقلة بعد.</p>'}</section>`;
 };
 const oldHome=A.renderHome.bind(A);
-A.renderHome=function(){const box=this.cashSummary();return `<section class="panel agent-cash-compact" id="agentCashTop"><h3>صندوق المندوب</h3><div class="stats"><div class="stat"><b>${this.money(box.usd,'USD')}</b><small>USD</small></div><div class="stat"><b>${this.money(box.syp,'SYP')}</b><small>SYP</small></div><div class="stat"><button class="secondary" onclick="Agent.navigate('cashbox')">عرض الحركة</button><small>كشف الصندوق</small></div></div></section>`+oldHome();};
+A.renderHome=function(){const box=this.cashSummary();return `<section class="panel agent-cash-compact" id="agentCashTop"><h3>صندوق موظف البيع</h3><div class="stats"><div class="stat"><b>${this.money(box.usd,'USD')}</b><small>USD</small></div><div class="stat"><b>${this.money(box.syp,'SYP')}</b><small>SYP</small></div><div class="stat"><button class="secondary" onclick="Agent.navigate('cashbox')">عرض الحركة</button><small>كشف الصندوق</small></div></div></section>`+oldHome();};
 // Preserve old back-button behavior; field screens are read-only except invoice creation.
 const oldShow=A.show.bind(A);
 A.show=async function(route){
@@ -111,7 +111,7 @@ A.show=async function(route){
  document.getElementById('bottom')?.classList.remove('hide');
  document.querySelectorAll('.bottom button').forEach(b=>b.classList.toggle('active',b.id==='nav-'+route));
  document.getElementById('agentBack')?.classList.toggle('hide',!(this.stack||[]).length||this.stack.length<2);
- const head=document.getElementById('agentScreenTitle');if(head)head.textContent=route==='cashbox'?'صندوق المندوب':'الفواتير';
- const sub=document.getElementById('agentScreenSubtitle');if(sub)sub.textContent='نسخة المندوب · '+(this.state.companyName||'');
+ const head=document.getElementById('agentScreenTitle');if(head)head.textContent=route==='cashbox'?'صندوق موظف البيع':'الفواتير';
+ const sub=document.getElementById('agentScreenSubtitle');if(sub)sub.textContent='نسخة موظف البيع · '+(this.state.companyName||'');
 };
 })();

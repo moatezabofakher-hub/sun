@@ -8,16 +8,16 @@ const AgentHub = {
   agent(id){return this.agents().find(a=>a.id===id)||null;},
   choose(){
     const agents=this.agents();
-    UI.openModal(`<div dir="rtl" class="text-right space-y-3"><h3 class="text-lg font-black">اختيار المندوب</h3>
-      <p class="text-xs text-slate-500">اختر المندوب لعرض صندوقه ومستودعه وعملياته ومعلوماته.</p>
-      ${agents.length?agents.map(a=>`<button type="button" class="w-full rounded-xl border p-3 flex items-center justify-between text-right ${a.archived?'bg-slate-100':'bg-white'}" onclick="AgentHub.select('${this.esc(a.id)}')"><span><strong class="text-sm">${this.esc(a.name)}</strong><small class="block text-xs text-slate-500">${this.esc(a.vehicleName||WarehouseController.name(a.warehouseId))}${a.archived?' · مؤرشف':''}</small></span><i class="fas fa-chevron-left"></i></button>`).join(''):'<p class="text-xs">لا يوجد مندوبون. أضف مندوباً من الضبط أولاً.</p>'}
+    UI.openModal(`<div dir="rtl" class="text-right space-y-3"><h3 class="text-lg font-black">اختيار موظف البيع</h3>
+      <p class="text-xs text-slate-500">اختر موظف البيع لعرض صندوقه ومستودعه وعملياته ومعلوماته.</p>
+      ${agents.length?agents.map(a=>`<button type="button" class="w-full rounded-xl border p-3 flex items-center justify-between text-right ${a.archived?'bg-slate-100':'bg-white'}" onclick="AgentHub.select('${this.esc(a.id)}')"><span><strong class="text-sm">${this.esc(a.name)}</strong><small class="block text-xs text-slate-500">${this.esc(a.vehicleName||WarehouseController.name(a.warehouseId))}${a.archived?' · مؤرشف':''}</small></span><i class="fas fa-chevron-left"></i></button>`).join(''):'<p class="text-xs">لا يوجد موظفو بيع. أضف موظف بيعاً من الضبط أولاً.</p>'}
       <button type="button" class="w-full rounded-xl p-3 bg-slate-100 font-bold" onclick="UI.forceCloseModal()">إغلاق</button></div>`);
   },
-  select(id){if(!this.agent(id))return UI.toast('المندوب غير موجود','warn');UI.forceCloseModal();AppNav.navigate('agent_detail',{agentId:id});},
-  openActivity(view,agentId){if(!this.agent(agentId))return UI.toast('المندوب غير موجود','warn');AppNav.navigate('agent_activity',{agentId,view,period:'all'});},
+  select(id){if(!this.agent(id))return UI.toast('موظف البيع غير موجود','warn');UI.forceCloseModal();AppNav.navigate('agent_detail',{agentId:id});},
+  openActivity(view,agentId){if(!this.agent(agentId))return UI.toast('موظف البيع غير موجود','warn');AppNav.navigate('agent_activity',{agentId,view,period:'all'});},
   transfer(agentId,direction){
-    const a=this.agent(agentId);if(!a||a.archived||a.disabled)return UI.toast('المندوب غير متاح للمناقلة','warn');
-    if(a.warehouseId==='wh_main'||!State.warehouses.some(w=>w.id===a.warehouseId))return UI.toast('يجب تخصيص مستودع مستقل للمندوب قبل المناقلة','warn');
+    const a=this.agent(agentId);if(!a||a.archived||a.disabled)return UI.toast('موظف البيع غير متاح للمناقلة','warn');
+    if(a.warehouseId==='wh_main'||!State.warehouses.some(w=>w.id===a.warehouseId))return UI.toast('يجب تخصيص مستودع مستقل للموظف بيع قبل المناقلة','warn');
     AppNav.navigate('warehouses',{action:'transfer',transferAgentId:a.id,transferDirection:direction});
   },
   activityRecords(a,view){
@@ -31,7 +31,7 @@ const AgentHub = {
     if(['all','transfers'].includes(view))for(const x of FieldCash.warehouseDocuments(a.warehouseId))
       add('مناقلة مواد',x.id,x.date,x.lines.length+' أصناف',x.fromName+' ← '+x.toName,x.id);
     if(view==='all')for(const x of (State.fieldSync?.cashTransfers||[]))if(x.agentId===a.id)
-      add(x.direction==='toAgent'?'دفعة للمندوب':'دفعة من المندوب',x.id,x.date,Accounting.format(Number(x.amount||0),x.currency),x.note||'حركة نقدية',x.id);
+      add(x.direction==='toAgent'?'دفعة للموظف بيع':'دفعة من موظف البيع',x.id,x.date,Accounting.format(Number(x.amount||0),x.currency),x.note||'حركة نقدية',x.id);
     return ops.sort((x,y)=>y.date.localeCompare(x.date)||y.ref.localeCompare(x.ref));
   },
   render(main,params={}){
@@ -42,35 +42,35 @@ const AgentHub = {
     return this.renderActivity(main,a,params);
   },
   renderLanding(main){
-    UI.setHeader('<i class="fas fa-truck text-emerald-400"></i> <span>المندوب</span>','إدارة المستودع والصندوق والحركات لكل مندوب');
+    UI.setHeader('<i class="fas fa-truck text-emerald-400"></i> <span>موظف البيع</span>','إدارة المستودع والصندوق والحركات لكل موظف بيع');
     main.innerHTML=`<div class="space-y-4" dir="rtl">
-      <div class="rounded-2xl border bg-white p-5 shadow-sm"><h2 class="text-base font-black">إدارة المندوبين</h2><p class="text-xs text-slate-500 mt-2">اختر مندوباً لعرض أدواته داخل صفحة واحدة، دون خلط عملياته بعمليات مندوب آخر.</p></div>
-      <button type="button" class="w-full rounded-2xl border border-emerald-200 bg-emerald-700 text-white p-6 flex flex-col items-center gap-3 font-black" onclick="AgentHub.choose()"><i class="fas fa-users text-3xl"></i><span>اختيار المندوب</span><span class="text-xs font-medium opacity-90">${this.agents().filter(a=>!a.archived).length} مندوب فعّال</span></button>
-      <div class="pt-2"><button type="button" class="ta-agent-hub-manage w-full rounded-2xl p-4 font-extrabold" onclick="FieldSync.open()"><i class="fas fa-users ml-2 text-lg" aria-hidden="true"></i>إدارة المندوبين والمزامنة المحلية</button></div>
+      <div class="rounded-2xl border bg-white p-5 shadow-sm"><h2 class="text-base font-black">إدارة موظفي البيع</h2><p class="text-xs text-slate-500 mt-2">اختر موظف بيعاً لعرض أدواته داخل صفحة واحدة، دون خلط عملياته بعمليات موظف بيع آخر.</p></div>
+      <button type="button" class="w-full rounded-2xl border border-emerald-200 bg-emerald-700 text-white p-6 flex flex-col items-center gap-3 font-black" onclick="AgentHub.choose()"><i class="fas fa-users text-3xl"></i><span>اختيار موظف البيع</span><span class="text-xs font-medium opacity-90">${this.agents().filter(a=>!a.archived).length} موظف بيع فعّال</span></button>
+      <div class="pt-2"><button type="button" class="ta-agent-hub-manage w-full rounded-2xl p-4 font-extrabold" onclick="FieldSync.open()"><i class="fas fa-users ml-2 text-lg" aria-hidden="true"></i>إدارة موظفي البيع والمزامنة المحلية</button></div>
     </div>`;
   },
   renderDetail(main,a){
-    UI.setHeader('<i class="fas fa-truck text-emerald-400"></i> <span>'+this.esc(a.name)+'</span>','عمليات المندوب ومستودعه وصندوقه');
+    UI.setHeader('<i class="fas fa-truck text-emerald-400"></i> <span>'+this.esc(a.name)+'</span>','عمليات موظف البيع ومستودعه وصندوقه');
     const id=this.esc(a.id),stockName=WarehouseController.name(a.warehouseId);
     const icon=(name,label,code,tone='bg-white')=>`<button type="button" class="${tone} border rounded-2xl p-4 min-h-24 flex flex-col items-center justify-center gap-2 text-center shadow-sm" onclick="${code}"><i class="fas fa-${name} text-xl text-teal-700"></i><span class="font-extrabold text-xs">${label}</span></button>`;
     main.innerHTML=`<div dir="rtl" class="space-y-3">
-      <div class="bg-white rounded-2xl border p-4"><div class="flex items-center justify-between"><div><h2 class="text-base font-black">${this.esc(a.name)}</h2><p class="text-xs text-slate-500 mt-1">${this.esc(a.vehicleName||'')} · ${this.esc(stockName)}</p></div><button type="button" onclick="AgentHub.choose()" class="rounded-xl bg-slate-100 px-3 py-2 text-xs font-extrabold"><i class="fas fa-users ml-1"></i>تغيير المندوب</button></div>${a.archived?'<div class="mt-3 text-xs text-rose-700 font-bold">مندوب مؤرشف — يمكن عرض السجلات فقط.</div>':''}</div>
+      <div class="bg-white rounded-2xl border p-4"><div class="flex items-center justify-between"><div><h2 class="text-base font-black">${this.esc(a.name)}</h2><p class="text-xs text-slate-500 mt-1">${this.esc(a.vehicleName||'')} · ${this.esc(stockName)}</p></div><button type="button" onclick="AgentHub.choose()" class="rounded-xl bg-slate-100 px-3 py-2 text-xs font-extrabold"><i class="fas fa-users ml-1"></i>تغيير موظف البيع</button></div>${a.archived?'<div class="mt-3 text-xs text-rose-700 font-bold">موظف بيع مؤرشف — يمكن عرض السجلات فقط.</div>':''}</div>
       <div class="grid grid-cols-2 gap-2">
         ${icon('truck-ramp-box','مناقلة إلى مستودعه',`AgentHub.transfer('${id}','toAgent')`,'bg-sky-50')}
         ${icon('truck','مناقلة من مستودعه',`AgentHub.transfer('${id}','fromAgent')`,'bg-sky-50')}
-        ${icon('hand-holding-dollar','استلام دفعة من المندوب',`FieldCash.openTransfer('fromAgent','${id}')`,'bg-emerald-50')}
-        ${icon('money-bill-transfer','إعطاء دفعة للمندوب',`FieldCash.openTransfer('toAgent','${id}')`,'bg-emerald-50')}
+        ${icon('hand-holding-dollar','استلام دفعة من موظف البيع',`FieldCash.openTransfer('fromAgent','${id}')`,'bg-emerald-50')}
+        ${icon('money-bill-transfer','إعطاء دفعة للموظف بيع',`FieldCash.openTransfer('toAgent','${id}')`,'bg-emerald-50')}
         ${icon('money-bill-transfer','الصندوق والحركات',`AgentHub.openActivity('cash','${id}')`,'bg-teal-50')}
         ${icon('file-contract','جميع العمليات',`AgentHub.openActivity('all','${id}')`)}
-        ${icon('file-invoice','فواتير المندوب',`AgentHub.openActivity('invoices','${id}')`)}
-        ${icon('receipt','سندات المندوب',`AgentHub.openActivity('vouchers','${id}')`)}
-        ${icon('money-bill-wave','مصاريف المندوب',`AgentHub.openActivity('expenses','${id}')`)}
+        ${icon('file-invoice','فواتير موظف البيع',`AgentHub.openActivity('invoices','${id}')`)}
+        ${icon('receipt','سندات موظف البيع',`AgentHub.openActivity('vouchers','${id}')`)}
+        ${icon('money-bill-wave','مصاريف موظف البيع',`AgentHub.openActivity('expenses','${id}')`)}
         ${icon('boxes-stacked','فواتير المناقلة',`AgentHub.openActivity('transfers','${id}')`)}
-        ${icon('box-open','جرد مستودع المندوب',`AgentHub.openActivity('stock','${id}')`)}
-        ${icon('pen-to-square','تعديل المندوب',`FieldSync.showEditAgent('${id}')`)}
+        ${icon('box-open','جرد مستودع موظف البيع',`AgentHub.openActivity('stock','${id}')`)}
+        ${icon('pen-to-square','تعديل موظف البيع',`FieldSync.showEditAgent('${id}')`)}
         ${icon('rotate-right','المزامنة والملفات',`FieldSync.showSyncTools()`)}
       </div>
-      <p class="text-[11px] text-slate-500">الحركات المعروضة هي البيانات التي وصلت إلى التطبيق الرئيسي بالمزامنة. لا تظهر العمليات غير المرسلة بعد من هاتف المندوب.</p>
+      <p class="text-[11px] text-slate-500">الحركات المعروضة هي البيانات التي وصلت إلى التطبيق الرئيسي بالمزامنة. لا تظهر العمليات غير المرسلة بعد من هاتف موظف البيع.</p>
     </div>`;
   },
   changePeriod(agentId,view,period,start,end){
@@ -79,7 +79,7 @@ const AgentHub = {
   renderActivity(main,a,params){
     const id=this.esc(a.id),mode=TimeFilter.mode(params.period||'all'),view=['cash','stock','all','invoices','vouchers','expenses','transfers'].includes(params.view)?params.view:'all';
     const start=params.date||TimeFilter.localDate(),end=params.end||start;
-    const titles={cash:'الصندوق والحركات',stock:'جرد مستودع المندوب',all:'كل عمليات المندوب',invoices:'فواتير المندوب',vouchers:'سندات المندوب',expenses:'مصاريف المندوب',transfers:'فواتير المناقلة'};
+    const titles={cash:'الصندوق والحركات',stock:'جرد مستودع موظف البيع',all:'كل عمليات موظف البيع',invoices:'فواتير موظف البيع',vouchers:'سندات موظف البيع',expenses:'مصاريف موظف البيع',transfers:'فواتير المناقلة'};
     UI.setHeader('<i class="fas fa-list-check text-emerald-400"></i> <span>'+titles[view]+'</span>',this.esc(a.name));
     const control=`<div class="rounded-2xl bg-white border p-3 space-y-2"><label class="block text-xs font-extrabold">الفترة الزمنية — الافتراضي كل المدة</label><select class="w-full p-2.5 rounded-xl border text-xs" onchange="AgentHub.changePeriod('${id}','${view}',this.value,'${this.esc(start)}','${this.esc(end)}')">${TimeFilter.options(mode)}</select>
       ${['custom','range'].includes(mode)?`<div class="grid grid-cols-2 gap-2"><label class="text-xs font-bold">من<input type="date" value="${this.esc(start)}" class="border rounded-xl p-2 w-full" onchange="AgentHub.changePeriod('${id}','${view}','${mode}',this.value,'${this.esc(end)}')"></label>${mode==='range'?`<label class="text-xs font-bold">إلى<input type="date" value="${this.esc(end)}" class="border rounded-xl p-2 w-full" onchange="AgentHub.changePeriod('${id}','${view}','range','${this.esc(start)}',this.value)"></label>`:''}</div>`:''}</div>`;

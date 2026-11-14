@@ -11,14 +11,14 @@
    for(const [id,x] of this.pairingRequests)if(now-x.createdAt>lifetime)this.pairingRequests.delete(id);
    const rows=[...this.pairingRequests.values()];
    const agents=this.data().agents.filter(a=>!a.archived&&!a.disabled);
-   if(!rows.length)return '<p class="text-xs text-slate-500">لا توجد طلبات ربط حالياً. افتح تطبيق المندوب الجديد على شبكة Wi-Fi نفسها وسيظهر طلبه هنا تلقائياً.</p>';
+   if(!rows.length)return '<p class="text-xs text-slate-500">لا توجد طلبات ربط حالياً. افتح تطبيق موظف البيع الجديد على شبكة Wi-Fi نفسها وسيظهر طلبه هنا تلقائياً.</p>';
    return rows.map(r=>`<div class="rounded-xl border border-teal-200 bg-white p-3 my-2 space-y-2">
-     <div class="font-bold text-sm">📱 جهاز مندوب جديد <span class="text-[10px] text-slate-500">${this.escape(r.deviceId.slice(-8))}</span></div>
-     <p class="text-xs text-slate-600">قارن رقم الأمان الظاهر هنا بالرقم على هاتف المندوب، ولا توافق إذا كان مختلفاً.</p>
+     <div class="font-bold text-sm">📱 جهاز موظف بيع جديد <span class="text-[10px] text-slate-500">${this.escape(r.deviceId.slice(-8))}</span></div>
+     <p class="text-xs text-slate-600">قارن رقم الأمان الظاهر هنا بالرقم على هاتف موظف البيع، ولا توافق إذا كان مختلفاً.</p>
      <div class="text-center text-2xl font-black tracking-[.3em] bg-slate-50 rounded-xl p-2" dir="ltr">${r.code}</div>
-     <p class="text-[11px] text-amber-800">عند تفعيل جهاز بديل للمندوب نفسه يتوقف اتصال الجهاز السابق؛ زامن فواتيره غير المرحّلة قبل الاستبدال.</p>
+     <p class="text-[11px] text-amber-800">عند تفعيل جهاز بديل للموظف بيع نفسه يتوقف اتصال الجهاز السابق؛ زامن فواتيره غير المرحّلة قبل الاستبدال.</p>
      ${r.status==='approved'?'<p class="text-sm font-bold text-teal-700">✅ تمت الموافقة. جارٍ تسليم بيانات التفعيل إلى الهاتف…</p>':
-     `<select id="pairAgent_${r.id}" class="w-full border rounded-xl p-3 text-sm"><option value="">اختر المندوب المسجّل</option>${agents.map(a=>`<option value="${a.id}">${this.escape(a.name)} · ${this.escape(a.vehicleName||'')}${a.pairedDeviceId?' (استبدال جهاز قديم)':''}</option>`).join('')}</select>
+     `<select id="pairAgent_${r.id}" class="w-full border rounded-xl p-3 text-sm"><option value="">اختر موظف البيع المسجّل</option>${agents.map(a=>`<option value="${a.id}">${this.escape(a.name)} · ${this.escape(a.vehicleName||'')}${a.pairedDeviceId?' (استبدال جهاز قديم)':''}</option>`).join('')}</select>
       <button type="button" class="ta-primary-3d w-full p-3 rounded-xl font-black" onclick="FieldSync.approvePairing('${r.id}')">✓ مطابقة الرقم والموافقة على الربط</button>
       <button type="button" class="w-full bg-rose-50 text-rose-800 p-2 rounded-xl" onclick="FieldSync.rejectPairing('${r.id}')">رفض الطلب</button>`}
    </div>`).join('');
@@ -44,16 +44,16 @@
          session={id:msg.requestId,deviceId:msg.deviceId,createdAt:Date.now(),code:derived.code,key:derived.key,managerPublic:ep.publicKey,status:'pending'};
          this.pairingRequests.set(msg.requestId,session);
          this.paintPairingRequests();
-         UI.toast('📱 جهاز مندوب جديد يطلب الربط. افتح إدارة المندوبين للموافقة','info');
+         UI.toast('📱 جهاز موظف بيع جديد يطلب الربط. افتح إدارة موظفي البيع للموافقة','info');
        }
-     }else if(!session)throw Error('انتهت مهلة الطلب؛ أعد المحاولة من هاتف المندوب');
+     }else if(!session)throw Error('انتهت مهلة الطلب؛ أعد المحاولة من هاتف موظف البيع');
      if(msg.kind==='confirm'){
        if(session.status!=='approved')throw Error('الربط لم يُوافق عليه بعد');
        const ack=await P.open(session.key,msg.requestId,msg.encrypted);
        if(ack.kind!=='confirm'||ack.requestId!==msg.requestId||ack.agentId!==session.agentId||ack.deviceId!==msg.deviceId)throw Error('تأكيد الربط غير مطابق');
        this.pairingRequests.delete(msg.requestId);this.paintPairingRequests();
        answer={pairingProtocol:P.VERSION,kind:'done',requestId:msg.requestId};
-       UI.toast('✅ ارتبط جهاز المندوب الجديد بنجاح','success');
+       UI.toast('✅ ارتبط جهاز موظف البيع الجديد بنجاح','success');
      }else if(msg.kind==='hello'||msg.kind==='poll'){
        answer={pairingProtocol:P.VERSION,kind:session.status==='approved'?'approved':'pending',requestId:msg.requestId,companyId:this.data().companyId,companyName:State.settings.companyName||'المركز الرئيسي',managerPublic:session.managerPublic};
        if(session.status==='approved')answer.encrypted=session.encrypted;
@@ -65,8 +65,8 @@
    if(this.pairingBusy||this.lanBusy||this.busy)return UI.toast('المزامنة أو حفظ البيانات قيد العمل؛ أعد الموافقة بعد اكتمالها','warn');
    const session=this.pairingRequests.get(id),agentId=document.getElementById('pairAgent_'+id)?.value;
    const cfg=this.data(),a=cfg.agents.find(x=>x.id===agentId&&!x.archived&&!x.disabled);
-   if(!session||!a)return UI.toast('اختر مندوباً مسجلاً أولاً','warn');
-   if(Date.now()-session.createdAt>lifetime)return UI.toast('انتهت صلاحية الطلب، أعد الربط من جهاز المندوب','warn');
+   if(!session||!a)return UI.toast('اختر موظف بيعاً مسجلاً أولاً','warn');
+   if(Date.now()-session.createdAt>lifetime)return UI.toast('انتهت صلاحية الطلب، أعد الربط من جهاز موظف البيع','warn');
    if(session.status!=='pending')return;
    this.pairingBusy=true;
    const prev={key:a.key,device:a.pairedDeviceId,pairedAt:a.pairedAt,signer:cfg.enrollmentSigner};
@@ -84,7 +84,7 @@
      const encrypted=await P.seal(session.key,id,payload);
      await StorageEngine.saveState();
      session.encrypted=encrypted;session.agentId=a.id;session.status='approved';
-     this.paintPairingRequests();UI.toast('تمت الموافقة. سيصل التفعيل إلى المندوب تلقائياً','success');
+     this.paintPairingRequests();UI.toast('تمت الموافقة. سيصل التفعيل إلى موظف البيع تلقائياً','success');
    }catch(e){a.key=prev.key;a.pairedDeviceId=prev.device;a.pairedAt=prev.pairedAt;cfg.enrollmentSigner=prev.signer;UI.toast('تعذّر تفعيل الجهاز: '+e.message,'error');}
    finally{this.pairingBusy=false;}
  };

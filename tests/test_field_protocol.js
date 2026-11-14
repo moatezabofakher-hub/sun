@@ -6,7 +6,7 @@ const FieldProtocol=require('../app/src/main/assets/www/static/field-protocol.js
 function randomKey(){return FieldProtocol.b64u(crypto.randomBytes(32))}
 (async()=>{
  const key=randomKey(),other=randomKey();
- const a={id:'agent_12345678',name:'مندوب أ',vehicleName:'سيارة 1',warehouseId:'wh_car_1'};
+ const a={id:'agent_12345678',name:'موظف بيع أ',vehicleName:'سيارة 1',warehouseId:'wh_car_1'};
  const companyId='company_1234';
  const items=[{id:'i1',name:'منظف',currency:'USD',units:[{name:'علبة',factor:1,salePrice:3},{name:'كرتونة',factor:6,salePrice:17}]}];
  const accounts=[{id:'c1',name:'عميل',type:'customer'}];
@@ -24,7 +24,7 @@ function randomKey(){return FieldProtocol.b64u(crypto.randomBytes(32))}
  const docs=FieldProtocol.toLedgerDocuments(validated,a,7,12);
  assert.equal(docs.invoices[0].number,8);
  assert.equal(docs.invoices[0].remainingAmount,3);
- assert.equal(docs.invoices[0].fieldOrigin.agentName,'مندوب أ');
+ assert.equal(docs.invoices[0].fieldOrigin.agentName,'موظف بيع أ');
  assert.equal(docs.vouchers[0].number,13);
  assert.equal(docs.invoices[0].warehouseId,'wh_car_1');
  assert.equal(FieldProtocol.revokeDuplicate(ops,['op_00000000001']).length,1);

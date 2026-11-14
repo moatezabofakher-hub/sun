@@ -44,7 +44,7 @@ const transferRecovery=A.mergeTransferPage(provision.warehouseHistoryPage,A.stat
 assert.equal(transferRecovery.docs.length,1);
 A.state.warehouseTransfers=transferRecovery.docs;
 assert.match(A.renderStock(),/فواتير المناقلة/);assert.match(A.renderStock(),/حمولة سيارة/);
-assert.match(A.renderInvoices(),/S-5/);assert.match(A.renderCashbox(),/صندوق المندوب/);
+assert.match(A.renderInvoices(),/S-5/);assert.match(A.renderCashbox(),/صندوق موظف البيع/);
 A.state.warehouseTransferRevision=transferRecovery.revision;A.state.warehouseHistoryCursor=transferRecovery.cursor;
 const changedPage={...provision.warehouseHistoryPage,revision:'new-revision',offset:1,docs:[]};
 const reset=A.mergeTransferPage(changedPage,A.state);

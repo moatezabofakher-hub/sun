@@ -7,7 +7,7 @@ const P=require('../app/src/main/assets/www/static/field-pair-crypto.js');
 const FP=require('../app/src/main/assets/www/static/field-protocol.js');
 const companyId='company_123456789abc',agentId='agent_123456789abc',deviceId='TD-'+FP.uuid().toUpperCase();
 const randomKey=()=>FP.b64u(crypto.randomBytes(32));
-const agent={id:agentId,name:'مندوب جديد',vehicleName:'سيارة 3',warehouseId:'wh_car_3',key:randomKey(),disabled:false};
+const agent={id:agentId,name:'موظف بيع جديد',vehicleName:'سيارة 3',warehouseId:'wh_car_3',key:randomKey(),disabled:false};
 const cfg={companyId,agents:[agent],imported:[],events:[]};
 let saved=0,lastReply=null,replyCount=0,uiNotices=[];
 const managerDoc={getElementById(id){if(id.startsWith('pairAgent_'))return {value:agentId};return null;}};

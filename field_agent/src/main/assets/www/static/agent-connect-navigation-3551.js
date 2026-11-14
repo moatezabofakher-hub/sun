@@ -2,7 +2,7 @@
 (function(){'use strict';
  const A=Agent;
  A.requestSyncFromHeader=function(){
-   if(!this.ready()){this.toast('اربط هاتف المندوب بالتطبيق الرئيسي أولاً');return;}
+   if(!this.ready()){this.toast('اربط هاتف موظف البيع بالتطبيق الرئيسي أولاً');return;}
    if(this.lanSyncBusy){this.toast('تجري المزامنة الآن، سيعاد الاتصال عند انتهائها');this.scheduleAutoSync?.(2000);return;}
    this.markSyncState?.('connecting');
    this.syncOneTap({quiet:false});

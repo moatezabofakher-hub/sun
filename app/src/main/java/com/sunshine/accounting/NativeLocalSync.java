@@ -297,7 +297,7 @@ public final class NativeLocalSync {
         io.execute(() -> {
             try {
                 final InetSocketAddress destination = findServer(companyId);
-                if (destination == null) throw new IOException("لم يظهر التطبيق الرئيسي على Wi-Fi. افتحه في صفحة المندوبين، وتأكّد من اتصال الهاتفين بالشبكة نفسها وأن الشبكة لا تعزل الأجهزة.");
+                if (destination == null) throw new IOException("لم يظهر التطبيق الرئيسي على Wi-Fi. افتحه في صفحة موظفي البيع، وتأكّد من اتصال الهاتفين بالشبكة نفسها وأن الشبكة لا تعزل الأجهزة.");
                 try (Socket socket = new Socket()) {
                     socket.connect(destination, 7000);
                     socket.setSoTimeout(44000);

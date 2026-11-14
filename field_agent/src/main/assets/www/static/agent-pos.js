@@ -19,14 +19,14 @@ A.renderSettings=function(){
    <label class="label">تسعير نقطة البيع</label><select class="field" id="agentPosTier" onchange="Agent.savePosSettings()">
      ${[['account','حسب الحساب / الإعدادات'],['wholesale','الجملة'],['center','المركز'],['consumer','المستهلك']].map(([id,title])=>`<option value="${id}" ${String(this.state.posPriceTier||'account')===id?'selected':''}>${title}</option>`).join('')}</select>
    <label class="label"><input id="agentPosHomeScan" type="checkbox" ${this.state.posScanFromHome===true?'checked':''} onchange="Agent.savePosSettings()"> فتح نقطة بيع جديدة عند قراءة باركود من الرئيسية (قارئ خارجي)</label>
-   <p class="tiny">الإعدادات خاصة بنقطة البيع، وتُحفظ على جهاز المندوب. تسجَّل المبيعات في صندوق المندوب وتُرسل مع مزامنته المعتادة.</p>
+   <p class="tiny">الإعدادات خاصة بنقطة البيع، وتُحفظ على جهاز موظف البيع. تسجَّل المبيعات في صندوق موظف البيع وتُرسل مع مزامنته المعتادة.</p>
   </section>`;
   return html+settings;
 };
 A.savePosSettings=async function(){
   const account=document.getElementById('agentPosAccount')?.value||'';
   const tier=document.getElementById('agentPosTier')?.value||'account';
-  if(account && !(this.state.accounts||[]).some(a=>String(a.id)===account))return this.toast('حساب غير متاح للمندوب');
+  if(account && !(this.state.accounts||[]).some(a=>String(a.id)===account))return this.toast('حساب غير متاح للموظف بيع');
   if(!['account','wholesale','center','consumer'].includes(tier))return;
   const oldA=this.state.posAccountId,oldT=this.state.posPriceTier,oldH=this.state.posScanFromHome;
   this.state.posAccountId=account;this.state.posPriceTier=tier;this.state.posScanFromHome=document.getElementById('agentPosHomeScan')?.checked===true;
@@ -74,7 +74,7 @@ A.renderInvoice=function(){
   // Add the simplified names-only picker without changing the protected invoice form.
   const namesBtn='<button type="button" class="secondary" onclick="Agent.openPosNameList()">☷ اختيار مادة من قائمة الأسماء</button>';
   html=html.replace('إضافة مواد', 'إضافة مواد');
-  html=html.replace('<div class="agent-main-invoice">',`<div class="agent-main-invoice" data-point-of-sale="true"><div class="panel" style="padding:10px"><strong>نقطة البيع — نقدي</strong><p class="tiny">${this.posViewId?'عرض فقط — لا يمكن تعديل البيانات إلا بعد الضغط على تعديل نقطة البيع.':this.editingId?'التعديل يحفظ على الفاتورة نفسها دون إنشاء فاتورة أخرى.':'بعد الحفظ أو الحفظ والطباعة ستفتح نقطة بيع جديدة تلقائياً.'}</p>`+namesBtn+'</div>');
+  html=html.replace('<div class="agent-main-invoice">',`<div class="agent-main-invoice" data-point-of-sale="true"><div class="agent-pos-names-compact">${this.posViewId?'<p class="tiny">عرض فقط — هذه الفاتورة للقراءة دون تعديل.</p>':''}${namesBtn}</div>`);
   // In alternate render layouts insert next to search field.
   if(!html.includes(namesBtn))html='<div class="panel">'+namesBtn+'</div>'+html;
   return html;

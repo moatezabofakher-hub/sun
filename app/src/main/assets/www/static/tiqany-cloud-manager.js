@@ -54,7 +54,7 @@
   },
   catalog(agent){const cfg=this.cfg();return cfg.enabled && agent.cloudToken && validUrl(cfg.url)?{url:cfg.url,token:agent.cloudToken,enabled:true}:null;},
   paint(){const el=document.getElementById('taCloudStatus');if(el)el.textContent=this.status;},
-  controls(){const cfg=this.cfg();return '<div class="rounded-xl border p-3 space-y-2 bg-sky-50" dir="rtl"><b>☁️ مزامنة سحابية مشفّرة (اختيارية)</b><p class="text-xs">تتطلب خادماً خاصاً بعنوان HTTPS. لا تُرسل البيانات المالية قبل تفعيل الخادم. يجب أن يكون هناك تطبيق رئيسي واحد مسؤول عن ترحيل عمليات المندوبين.</p><input id="taCloudUrl" class="w-full border rounded-lg p-2 text-sm" type="url" placeholder="https://relay.example.com" value="'+FieldSync.escape(cfg.url||'')+'"/><div id="taCloudStatus" class="text-xs">'+FieldSync.escape(this.status)+'</div><button type="button" onclick="TiqanyCloudManager.enable()" class="ta-primary-3d w-full rounded-xl p-2">تفعيل / اختبار الربط السحابي</button><button type="button" onclick="TiqanyCloudManager.disable()" class="bg-slate-200 w-full rounded-xl p-2">إيقاف المزامنة السحابية</button></div>';},
+  controls(){const cfg=this.cfg();return '<div class="rounded-xl border p-3 space-y-2 bg-sky-50" dir="rtl"><b>☁️ مزامنة سحابية مشفّرة (اختيارية)</b><p class="text-xs">تتطلب خادماً خاصاً بعنوان HTTPS. لا تُرسل البيانات المالية قبل تفعيل الخادم. يجب أن يكون هناك تطبيق رئيسي واحد مسؤول عن ترحيل عمليات موظفي البيع.</p><input id="taCloudUrl" class="w-full border rounded-lg p-2 text-sm" type="url" placeholder="https://relay.example.com" value="'+FieldSync.escape(cfg.url||'')+'"/><div id="taCloudStatus" class="text-xs">'+FieldSync.escape(this.status)+'</div><button type="button" onclick="TiqanyCloudManager.enable()" class="ta-primary-3d w-full rounded-xl p-2">تفعيل / اختبار الربط السحابي</button><button type="button" onclick="TiqanyCloudManager.disable()" class="bg-slate-200 w-full rounded-xl p-2">إيقاف المزامنة السحابية</button></div>';},
   start(){if(this.timer)return;this.timer=setInterval(()=>this.poll(),5000);this.poll();}
  };
  root.TiqanyCloudManager=api;
@@ -67,7 +67,7 @@
   const boot=FieldSync.bootAutoReceiver.bind(FieldSync);
   FieldSync.bootAutoReceiver=async function(...args){const v=await boot(...args);api.start();return v;};
   const add=FieldSync.addAgent.bind(FieldSync);
-  FieldSync.addAgent=async function(...args){const r=await add(...args);api.lastRegistered=0;if(api.cfg().enabled)api.register().catch(e=>{api.status='تعذر تحديث المندوبين في السحابة: '+e.message;});return r;};
+  FieldSync.addAgent=async function(...args){const r=await add(...args);api.lastRegistered=0;if(api.cfg().enabled)api.register().catch(e=>{api.status='تعذر تحديث موظفي البيع في السحابة: '+e.message;});return r;};
   FieldSync.__cloudWrapped=true;
   api.start();
  };

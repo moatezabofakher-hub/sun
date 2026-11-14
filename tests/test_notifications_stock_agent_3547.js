@@ -15,7 +15,7 @@ assert(agent.includes('نفدت كمية المادة')&&agent.includes('outOfSt
 (async()=>{
  let fail=false, persist=0;
  const moves=[],notified=[];
- const a={id:'agent_test',name:'مندوب أ'},itm={id:'item1',name:'جلي',units:[{name:'قطعة',factor:1}]};
+ const a={id:'agent_test',name:'موظف بيع أ'},itm={id:'item1',name:'جلي',units:[{name:'قطعة',factor:1}]};
  const State={fieldSync:{agents:[a],imported:[],operationHistory:[]},items:[itm],warehouses:[{id:'wh_main',name:'الرئيسي'}],invoices:[],vouchers:[],expenses:[],accounts:[],alertCenter:{entries:[],seenImportIds:null,stockLevels:null}};
  let qty=2;
  const ctx={State,console,window:{AndroidAlerts:{show:(...args)=>notified.push(args)}},AppEscape:{text:x=>String(x).replaceAll('&','&amp;')},

@@ -12,10 +12,10 @@
  };
  const oldSetup=A.renderSetup.bind(A),oldActivation=A.renderActivation.bind(A);
  const controls=()=>`<div class="panel"><h3>🔗 الربط التلقائي مع التطبيق الرئيسي</h3>
-   <p class="tiny">شغّل التطبيق الرئيسي على شبكة Wi-Fi نفسها؛ سيظهر طلب جهازك للإدارة تلقائياً. بعد مطابقة رمز الأمان وموافقة المسؤول تُستلم بيانات المندوب وتُفعّل تلقائياً، دون ملفات أو رموز طويلة.</p>
+   <p class="tiny">شغّل التطبيق الرئيسي على شبكة Wi-Fi نفسها؛ سيظهر طلب جهازك للإدارة تلقائياً. بعد مطابقة رمز الأمان وموافقة المسؤول تُستلم بيانات موظف البيع وتُفعّل تلقائياً، دون ملفات أو رموز طويلة.</p>
    <div id="agentPairStatus" class="field" aria-live="polite">جارٍ البحث عن الإدارة على الشبكة المحلية…</div>
    <div id="agentPairCode" class="hide" style="text-align:center;border:1px solid #99d6cd;border-radius:14px;padding:12px;margin-top:10px;background:#eefefa"><p class="tiny" style="margin:0">طابق هذا الرقم مع الرقم لدى الإدارة قبل الموافقة</p><strong id="agentPairCodeDigits" style="display:block;direction:ltr;letter-spacing:.2em;font-size:28px;color:#056e68"></strong></div>
-   <button class="primary" onclick="AgentPairing.scanQr()">▦ مسح رمز QR من تطبيق الإدارة</button>
+   <button class="primary ta-agent-primary-scanner" onclick="AgentPairing.scanQr()"><span class="ta-agent-scanner-icon"><i class="fas fa-qrcode"></i></span> مسح الباركود الرئيسي</button>
    <button onclick="AgentPairing.restart()">🔍 البحث التلقائي (بديل)</button>
  </div>`;
  A.renderSetup=function(){return controls()+`<details class="panel"><summary style="font-weight:800;cursor:pointer">طريقة التجهيز بالملف (احتياطية)</summary>${oldSetup()}</details>`;};
@@ -95,7 +95,7 @@
          this.sessionKey=derived.key;this.code=derived.code;
        }
        if(data.kind==='approved')return await this.finish(data);
-       this.status='⏳ تم العثور على «'+this.companyName+'». قارن رقم الأمان على الهاتفين، ثم اطلب من الإدارة اختيار المندوب والموافقة.';
+       this.status='⏳ تم العثور على «'+this.companyName+'». قارن رقم الأمان على الهاتفين، ثم اطلب من الإدارة اختيار موظف البيع والموافقة.';
        this.paint();this.schedule(3000);
      }catch(e){
        this.status='الربط: '+String(e.message||e);this.paint();
@@ -110,7 +110,7 @@
      if(!await P.verifyGrant(message.grant,message.authorityKey,A.state.deviceId,c.companyId,c.agentId))throw Error('فشل التحقق من موافقة الإدارة');
      const old=A.state;
      if(old.companyId&&old.companyId!==c.companyId)throw Error('لا يمكن تبديل الشركة على جهاز مرتبط سابقاً');
-     if(old.agentId&&old.agentId!==c.agentId)throw Error('لا يمكن تغيير المندوب دون إعادة تجهيز الجهاز');
+     if(old.agentId&&old.agentId!==c.agentId)throw Error('لا يمكن تغيير موظف البيع دون إعادة تجهيز الجهاز');
      if(A.pending?.length)throw Error('هناك عمليات غير مرحّلة، يجب مزامنتها أولاً');
      const updated={...old,companyId:c.companyId,companyName:c.companyName,agentId:c.agentId,agentName:c.agentName,vehicleName:c.vehicleName,
        warehouseId:c.warehouseId,key:c.key,companyPhone:c.companyPhone||'',companyAddress:c.companyAddress||'',companyLogo:c.companyLogo||'',footerNote:c.footerNote||'',

@@ -19,7 +19,7 @@
    if(status)status.textContent=state==='connected'?'✅ متصل — إرسال واستقبال تلقائي كل 12 ثانية':
       state==='connecting'?'جارٍ البحث عن الرئيسي في الشبكة المحلية…':
       state==='offline'?'بانتظار اتصال الرئيسي؛ سنعيد المحاولة تلقائيًا':
-      'بانتظار ربط المندوب وتفعيل جهازه';
+      'بانتظار ربط موظف البيع وتفعيل جهازه';
  };
  A.scheduleAutoSync=function(delay=0){
    if(!this.autoSyncStarted)return;

@@ -74,7 +74,7 @@ A.renderAccounts=function(){
  const updated=this.state.lastSyncAt||this.state.issuedAt;
  return `<div class="hero"><h2>أرصدة الحسابات</h2><p>الذمم الحالية بحسب آخر كشف من الرئيسي مع حركاتك المحلية غير المشمولة في الكشف.</p></div>
   <section class="panel"><label class="label">البحث باسم الزبون</label><input class="field" id="balanceAccountSearch" value="${esc(this.balanceQuery)}" placeholder="اسم الحساب..." oninput="Agent.balanceQuery=this.value;Agent.paintAccountList()">
-   <p class="form-help">${updated?'تاريخ آخر كشف: '+esc(new Date(updated).toLocaleString('ar')):'لم تكتمل المزامنة الأولى بعد'}. الأرصدة لا تشمل عمليات المندوبين الآخرين غير المرسلة إلى المركز.</p>
+   <p class="form-help">${updated?'تاريخ آخر كشف: '+esc(new Date(updated).toLocaleString('ar')):'لم تكتمل المزامنة الأولى بعد'}. الأرصدة لا تشمل عمليات موظفي البيع الآخرين غير المرسلة إلى المركز.</p>
    <div id="agentAccountList">${this.accountRowsHTML(rows)}</div></section>`;
 };
 A.accountRowsHTML=function(rows){return rows.length?rows.map(acc=>`
@@ -161,7 +161,7 @@ A.addGridItem=function(id){
  const it=this.state.items.find(x=>x.id===id);if(!it)return;
  const u=it.units?.[0];if(!u)return this.toast('لا توجد وحدة معتمدة للصنف');
  const available=this.remainingStockForItem(it.id);
- if(this.draftKind==='sale'&&(1/Number(u.factor))>available+1e-5)return this.toast(available<=1e-5?'نفدت كمية المادة «'+it.name+'» من مستودع المندوب':'الكمية المتاحة من «'+it.name+'» غير كافية');
+ if(this.draftKind==='sale'&&(1/Number(u.factor))>available+1e-5)return this.toast(available<=1e-5?'نفدت كمية المادة «'+it.name+'» من مستودع موظف البيع':'الكمية المتاحة من «'+it.name+'» غير كافية');
  this.captureInvoiceMeta();let r=this.draft.find(r=>r.itemId===it.id&&r.unitName===u.name);
  if(r){r.qty=round(r.qty+1,'USD');r.total=round(r.qty*r.price,this.currency);}
  else{const p=this.unitPrice(it,u,this.currency);this.draft.push({itemId:it.id,itemName:it.name,unitName:u.name,unitFactor:Number(u.factor),qty:1,price:p,total:round(p,this.currency),bomComponents:it.isBundle?JSON.parse(JSON.stringify(it.bundleComponents||[])):undefined});}
@@ -224,8 +224,8 @@ A.renderInvoice=function(){
  <div class="invoice-entry-top rounded-2xl p-3 mb-3 space-y-2.5">
   <div class="flex flex-wrap items-center justify-between gap-1.5 border-b border-slate-100 pb-2"><div class="flex items-center gap-1"><span class="bg-slate-900 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-md">#F-${this.state.ops.length+1}</span><i class="fas fa-file-invoice text-emerald-600 text-[10px]"></i>
    <select class="bg-slate-100 border border-slate-200 rounded-lg px-2 py-1 text-[10px] font-bold" onchange="Agent.captureInvoiceMeta();Agent.switchInvoiceKind(this.value)"><option value="sale" ${kind==='sale'?'selected':''}>فاتورة مبيعات</option><option value="sale_return" ${kind==='sale_return'?'selected':''}>مردود مبيعات</option></select></div>
-   <button type="button" onclick="Agent.changeInvoiceCurrency()" class="bg-amber-50 border border-amber-300 text-amber-900 px-2 py-1 rounded-lg text-[10px] font-extrabold flex items-center gap-1"><i class="fas fa-coins text-amber-600"></i><span>${c==='SYP'?'ليرة سورية':'دولار'}</span><span class="text-[9px] bg-white px-1 py-0.5 rounded border">تبديل</span></button></div>
-  <div class="mb-1.5 rounded-lg bg-sky-50 border border-sky-200 px-2 py-1.5"><label class="block text-[10px] font-extrabold text-sky-900 mb-1">المستودع الذي تتأثر به هذه الفاتورة</label><div class="bg-white rounded-lg p-2 border border-sky-300 text-xs font-bold">${esc(this.state.vehicleName||'مستودع المندوب')} — محدد من الإدارة</div></div>
+   <button type="button" onclick="Agent.changeInvoiceCurrency()" class="ta-invoice-currency-choice bg-sky-100 border border-sky-300 text-sky-900 px-2 py-1 rounded-lg text-[10px] font-extrabold flex items-center gap-1"><i class="fas fa-coins text-amber-600"></i><span>${c==='SYP'?'ليرة سورية':'دولار'}</span><span class="text-[9px] bg-white px-1 py-0.5 rounded border">تبديل</span></button></div>
+  <div class="mb-1.5 rounded-lg bg-sky-50 border border-sky-200 px-2 py-1.5"><label class="block text-[10px] font-extrabold text-sky-900 mb-1">المستودع الذي تتأثر به هذه الفاتورة</label><div class="bg-white rounded-lg p-2 border border-sky-300 text-xs font-bold">${esc(this.state.vehicleName||'مستودع موظف البيع')} — محدد من الإدارة</div></div>
   <div class="grid grid-cols-2 gap-1.5 text-[10px]"><div class="min-w-0 ta-invoice-party-highlight"><label class="font-bold text-slate-700 flex items-center gap-1 mb-0.5"><i class="fas fa-user text-emerald-600"></i>العميل</label><select id="fAccount" aria-label="العميل" class="ta-invoice-party-select w-full border border-slate-300 rounded-lg px-2 py-1.5 text-[11px] font-bold bg-slate-50" onchange="Agent.accountPricingChanged(this.value)"><option value="">-- عميل نقدي مباشر --</option>${this.state.accounts.map(a=>`<option value="${esc(a.id)}" ${meta.accountId===a.id?'selected':''}>${esc(a.name)}</option>`).join('')}</select><button type="button" class="mt-1 w-full bg-emerald-50 border border-emerald-300 text-emerald-800 font-extrabold text-[10px] p-1.5 rounded-lg" onclick="Agent.openCustomerForm('invoice')">+ إضافة زبون جديد</button></div>
   <div><label class="flex items-center gap-1 font-bold text-slate-700 mb-0.5"><i class="fas fa-calendar-days text-blue-600"></i>التاريخ</label><input id="fDate" class="w-full min-w-0 border border-slate-300 rounded-lg px-1.5 py-1.5 text-[10px]" type="datetime-local" value="${esc(meta.date||this.defaultDate())}" onchange="Agent.captureInvoiceMeta()"></div></div>
   <div id="invoiceAccountBalance" class="bg-sky-50 border border-sky-200 rounded-lg p-2 text-xs">${this.accountBalanceHTML(meta.accountId)}</div>
@@ -263,7 +263,7 @@ A.addRow=function(){this.addGridItem(value('fItem'));};
 A.saveInvoiceAndPrint=function(){return this.saveInvoice(true);};
 A.saveInvoice=async function(andPrint=false){if(this.busy)return;this.busy=true;
  try{
-  if(!await this.active())throw Error('يجب تفعيل جهاز المندوب');
+  if(!await this.active())throw Error('يجب تفعيل جهاز موظف البيع');
   if(!this.draft.length||this.draft.length>100)throw Error('أضف أصنافًا إلى الفاتورة');
   this.captureInvoiceMeta();
   const m=this.invoiceMeta,c=this.currency||'USD',calc=this.invoiceCalc();

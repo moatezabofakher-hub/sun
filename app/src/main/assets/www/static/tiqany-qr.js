@@ -1260,5 +1260,5 @@ function load(name){let k=name.replace(/^\.\//,'');if(!modules[k])throw Error('Q
  if(!cache[k]){const module={exports:{}};cache[k]=module;modules[k](load,module,module.exports);}return cache[k].exports;}
 const QRCode=load('index'), EC=load('QRErrorCorrectLevel');
 root.TiqanyQr={matrix: function(s){const q=new QRCode(-1,EC.M);q.addData(s);q.make();return q.modules;},
-svg:function(s){const m=this.matrix(s),n=m.length,b=4,parts=['<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 '+(n+2*b)+' '+(n+2*b)+'" role="img" aria-label="رمز ربط المندوب" style="max-width:260px;width:100%;background:white">','<rect width="100%" height="100%" fill="white"/>'];for(let i=0;i<n;i++)for(let j=0;j<n;j++)if(m[i][j])parts.push('<rect x="'+(j+b)+'" y="'+(i+b)+'" width="1" height="1" fill="#071e30"/>');return parts.join('')+'</svg>';}};
+svg:function(s){const m=this.matrix(s),n=m.length,b=4,parts=['<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 '+(n+2*b)+' '+(n+2*b)+'" role="img" aria-label="رمز ربط موظف البيع" style="max-width:260px;width:100%;background:white">','<rect width="100%" height="100%" fill="white"/>'];for(let i=0;i<n;i++)for(let j=0;j<n;j++)if(m[i][j])parts.push('<rect x="'+(j+b)+'" y="'+(i+b)+'" width="1" height="1" fill="#071e30"/>');return parts.join('')+'</svg>';}};
 })(typeof window!=='undefined'?window:globalThis);

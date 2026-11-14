@@ -18,7 +18,7 @@ A.mergeCustomerCatalog=function(catalog,old=this.state){
  return incoming;
 };
 A.openCustomerForm=function(context='home'){
- if(!this.state||!this.ready()){this.toast('اربط جهاز المندوب أولًا');return;}
+ if(!this.state||!this.ready()){this.toast('اربط جهاز موظف البيع أولًا');return;}
  this.customerReturnContext=context;
  if(context==='invoice')this.captureInvoiceMeta?.();
  const modal=document.getElementById('agentNewCustomerModal');if(!modal)return;
@@ -30,7 +30,7 @@ A.openCustomerForm=function(context='home'){
 A.closeCustomerForm=function(){document.getElementById('agentNewCustomerModal')?.classList.add('hide');this.customerReturnContext='';};
 A.saveNewCustomer=async function(){if(this.busy)return;this.busy=true;
  try{
-  if(!await this.active())throw Error('يجب تفعيل المندوب قبل إضافة زبون');
+  if(!await this.active())throw Error('يجب تفعيل موظف البيع قبل إضافة زبون');
   const name=String(document.getElementById('agentCustomerName')?.value||'').trim().replace(/\s+/g,' '),
     phoneValue=String(document.getElementById('agentCustomerPhone')?.value||'').trim(),
     address=String(document.getElementById('agentCustomerAddress')?.value||'').trim(),

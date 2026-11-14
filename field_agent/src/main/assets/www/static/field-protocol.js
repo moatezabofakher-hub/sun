@@ -44,7 +44,7 @@
     return ops.map(op=>{
       if(!op||typeof op.id!=='string'||!/^[a-zA-Z0-9_-]{8,90}$/.test(op.id)||seen.has(op.id))throw Error('معرف عملية غير صالح أو مكرر داخل الملف');
       seen.add(op.id);
-      if(op.agentId!==agentId||op.companyId!==companyId||op.warehouseId!==warehouseId)throw Error('العملية تابعة لمندوب أو شركة أو مستودع آخر');
+      if(op.agentId!==agentId||op.companyId!==companyId||op.warehouseId!==warehouseId)throw Error('العملية تابعة لموظف بيع أو شركة أو مستودع آخر');
       if(typeof op.date!=='string'||!/^\d{4}-\d\d-\d\d/.test(op.date)||isNaN(Date.parse(op.date)))throw Error('تاريخ عملية غير صالح');
       const code=currency(op.currency);
       const rate=positiveNumber(op.exchangeRate);
@@ -59,7 +59,7 @@
         if(history){
           const previous=history.find(x=>x.id===op.targetOperationId);
           if(!previous||previous.agentId!==agentId||previous.kind!==next.kind||Number(previous.revision||0)!==op.baseRevision)
-            throw Error('تعذر تعديل مستند غير مُرحّل أو تغير في الحساب الرئيسي؛ حدث بيانات المندوب');
+            throw Error('تعذر تعديل مستند غير مُرحّل أو تغير في الحساب الرئيسي؛ حدث بيانات موظف البيع');
         }
         return {...op,revision:op.baseRevision+1,replacement:next};
       }

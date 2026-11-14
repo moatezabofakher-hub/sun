@@ -4,12 +4,12 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('nod
 const html=fs.readFileSync('app/src/main/assets/www/index.html','utf8');
 const cut=(a,b)=>html.slice(html.indexOf(a),html.indexOf(b,html.indexOf(a)));
 const calls=[];
-const State={settings:{companyName:'SAN SHINE',exchangeRate:1000},fieldSync:{agents:[{id:'agent_a',name:'المندوب أحمد',archived:false},{id:'agent_b',name:'المندوب خالد',archived:true}]},
+const State={settings:{companyName:'SAN SHINE',exchangeRate:1000},fieldSync:{agents:[{id:'agent_a',name:'موظف البيع أحمد',archived:false},{id:'agent_b',name:'موظف البيع خالد',archived:true}]},
  items:[{id:'i',name:'صابون',currency:'USD',category:'تنظيف',units:[{name:'حبة',factor:1,costPrice:3}]}],accounts:[],expenses:[{date:'2026-11-13',amount:2,currency:'USD'}],
  invoices:[
-  {id:'a1',number:1,type:'sale',date:'2026-11-13',currency:'USD',netTotal:20,rows:[{itemId:'i',qty:2,price:10,total:20,unitName:'حبة'}],fieldOrigin:{agentId:'agent_a',agentName:'المندوب أحمد'}},
-  {id:'a2',number:2,type:'sale_return',date:'2026-11-13',currency:'USD',netTotal:10,rows:[{itemId:'i',qty:1,price:10,total:10,unitName:'حبة'}],fieldOrigin:{agentId:'agent_a',agentName:'المندوب أحمد'}},
-  {id:'b1',number:3,type:'sale',date:'2026-11-13',currency:'USD',netTotal:40,rows:[{itemId:'i',qty:4,price:10,total:40,unitName:'حبة'}],fieldOrigin:{agentId:'agent_b',agentName:'المندوب خالد'}},
+  {id:'a1',number:1,type:'sale',date:'2026-11-13',currency:'USD',netTotal:20,rows:[{itemId:'i',qty:2,price:10,total:20,unitName:'حبة'}],fieldOrigin:{agentId:'agent_a',agentName:'موظف البيع أحمد'}},
+  {id:'a2',number:2,type:'sale_return',date:'2026-11-13',currency:'USD',netTotal:10,rows:[{itemId:'i',qty:1,price:10,total:10,unitName:'حبة'}],fieldOrigin:{agentId:'agent_a',agentName:'موظف البيع أحمد'}},
+  {id:'b1',number:3,type:'sale',date:'2026-11-13',currency:'USD',netTotal:40,rows:[{itemId:'i',qty:4,price:10,total:40,unitName:'حبة'}],fieldOrigin:{agentId:'agent_b',agentName:'موظف البيع خالد'}},
   {id:'main1',number:4,type:'sale',date:'2026-11-13',currency:'USD',netTotal:50,rows:[{itemId:'i',qty:5,price:10,total:50,unitName:'حبة'}]}
  ]};
 const sandbox={State,console,Date,Math,Map,Set,Array,Object,Number,String,JSON,Intl,
@@ -29,10 +29,10 @@ assert.equal(R.sales('all','','','agent_b').totals.USD,40);
 assert.equal(R.sales('all','','','office').totals.USD,50);
 assert.equal(R.sales('all','','','all').totals.USD,100);
 const main={innerHTML:''};R.render(main,{tab:'sales_summary',period:'all',agentId:'agent_b'});
-assert.match(main.innerHTML,/اختيار المندوب لتقرير المبيعات/);
-assert.match(main.innerHTML,/المندوب خالد/);
+assert.match(main.innerHTML,/اختيار موظف البيع لتقرير المبيعات/);
+assert.match(main.innerHTML,/موظف البيع خالد/);
 R.goPeriod('today');assert.equal(calls[0][1].agentId,'agent_b');
-R.print();assert.match(calls[1].title,/المندوب خالد/);
+R.print();assert.match(calls[1].title,/موظف البيع خالد/);
 // The complete P&L screen uses the exact same attribution helper and does not
 // subtract head-office expenses from an agent who has no assigned expense.
 const profitSnippet=cut('renderReports(main, params = {})','// ==================== 6.9 SETTINGS');

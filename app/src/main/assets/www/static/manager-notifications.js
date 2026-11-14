@@ -69,7 +69,7 @@ const ManagerNotifications = {
     const kind=String(imported.kind||operation?.kind||'');
     const agentId=String(imported.agentId||operation?.agentId||'');
     const agent=State.fieldSync?.agents?.find(a=>a.id===agentId);
-    const agentName=String(agent?.name||'المندوب');
+    const agentName=String(agent?.name||'موظف البيع');
     const ref=String(operation?.localNumber||operation?.replacement?.localNumber||imported.id);
     const edit=kind==='document_edit',deleted=kind==='document_delete'||kind==='delete';
     const docKind=edit||deleted?String(operation?.originalKind||operation?.replacement?.kind||''):kind;
@@ -84,7 +84,7 @@ const ManagerNotifications = {
       :target==='customer'?String(operation?.account?.id||''):String(originalId||'');
     const title=`${verb} ${docLabel} بواسطة ${agentName}`;
     const changes=edit?this.changesForEdit(operation):[];
-    const detail=`${agentName} · ${docLabel} ${ref} · ${edit?changes.slice(0,4).join('؛ '):deleted?'تم إلغاؤها أو حذفها':'وصلت من تطبيق المندوب'}`;
+    const detail=`${agentName} · ${docLabel} ${ref} · ${edit?changes.slice(0,4).join('؛ '):deleted?'تم إلغاؤها أو حذفها':'وصلت من تطبيق موظف البيع'}`;
     return {id:'agent:'+String(imported.id),type:'agent',action:verb,agentId,agentName,
       operationId:String(imported.id),target,targetId,docKind,title,detail,
       changes,revision:edit?Number(operation?.revision||0):null,
@@ -132,7 +132,7 @@ const ManagerNotifications = {
     if(btn)btn.setAttribute('aria-label',count?'الإشعارات: '+count+' غير مقروء':'الإشعارات');
   },
   render(main){
-    UI.setHeader('<i class="fas fa-bell text-emerald-400"></i> <span>الإشعارات</span>','عمليات المندوب ونفاد المواد من المستودعات');
+    UI.setHeader('<i class="fas fa-bell text-emerald-400"></i> <span>الإشعارات</span>','عمليات موظف البيع ونفاد المواد من المستودعات');
     const n=this.ensure(),list=n.entries;
     main.innerHTML=`<div class="space-y-3" dir="rtl">
       <div class="rounded-2xl bg-white border p-4 flex items-center justify-between gap-2">
@@ -171,7 +171,7 @@ const ManagerNotifications = {
     const expense=entry.target==='expense'?(State.expenses||[]).find(x=>x.id===entry.targetId):null;
     const expenseInfo=expense?`<div class="rounded-xl bg-slate-50 p-3 text-sm"><b>نوع المصروف:</b> ${this.escape(expense.category||'أخرى')}<p><b>المبلغ:</b> ${this.escape(expense.amount)} ${this.escape(expense.currency)}</p><p><b>التاريخ:</b> ${this.escape(expense.date)}</p><p><b>البيان:</b> ${this.escape(expense.note||'—')}</p></div>`:'';
     UI.openModal(`<div dir="rtl" class="text-right space-y-3"><h3 class="font-black text-base">${this.escape(entry.title)}</h3><p class="text-sm">${this.escape(entry.detail)}</p>${expenseInfo}<p class="text-xs text-slate-500">${this.escape(entry.at)}</p>
-      ${entry.agentId?`<button type="button" class="w-full rounded-xl p-3 bg-teal-700 text-white font-bold" onclick="UI.forceCloseModal();AppNav.navigate('agent_activity',{agentId:${JSON.stringify(entry.agentId).replace(/"/g,'&quot;')},view:'${entry.target==='expense'?'expenses':'all'}',period:'all'})">عرض سجل معاملات المندوب</button>`:''}
+      ${entry.agentId?`<button type="button" class="w-full rounded-xl p-3 bg-teal-700 text-white font-bold" onclick="UI.forceCloseModal();AppNav.navigate('agent_activity',{agentId:${JSON.stringify(entry.agentId).replace(/"/g,'&quot;')},view:'${entry.target==='expense'?'expenses':'all'}',period:'all'})">عرض سجل معاملات موظف البيع</button>`:''}
       <button type="button" class="w-full rounded-xl p-3 bg-slate-100 font-bold" onclick="UI.forceCloseModal()">إغلاق</button></div>`);
   },
   openNativePending(){

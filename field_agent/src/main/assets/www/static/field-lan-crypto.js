@@ -23,7 +23,7 @@
   }
   function ids(companyId,agentId){
     if(typeof companyId!=='string'||!/^company_[A-Za-z0-9_-]{8,128}$/.test(companyId))throw Error('هوية الشركة غير صالحة');
-    if(typeof agentId!=='string'||!/^agent_[A-Za-z0-9_-]{8,128}$/.test(agentId))throw Error('هوية المندوب غير صالحة');
+    if(typeof agentId!=='string'||!/^agent_[A-Za-z0-9_-]{8,128}$/.test(agentId))throw Error('هوية موظف البيع غير صالحة');
     return {companyId,agentId};
   }
   async function pack(payload,key,companyId,agentId){
@@ -36,14 +36,14 @@
     return {version:VERSION,companyId,agentId,iv:base64(iv),body:base64(new Uint8Array(sealed))};
   }
   async function open(packet,key,companyId,agentId){
-    if(!packet||packet.version!==VERSION||packet.companyId!==companyId||packet.agentId!==agentId)throw Error('الملف لا يخص الشركة أو المندوب');
+    if(!packet||packet.version!==VERSION||packet.companyId!==companyId||packet.agentId!==agentId)throw Error('الملف لا يخص الشركة أو موظف البيع');
     ids(companyId,agentId);
     const iv=unbase64(packet.iv),body=unbase64(packet.body);
     if(iv.length!==12||body.length<17||body.length>7500000)throw Error('حزمة غير صحيحة');
     const aad=enc.encode(VERSION+'|'+companyId+'|'+agentId);
     try { const plain=await subtle().decrypt({name:'AES-GCM',iv,additionalData:aad,tagLength:128},await aesKey(key),body);
       return JSON.parse(dec.decode(plain));
-    }catch(_){throw Error('فشل التحقق المشفر من المندوب أو البيانات');}
+    }catch(_){throw Error('فشل التحقق المشفر من موظف البيع أو البيانات');}
   }
   return {VERSION,pack,open};
 });

@@ -24,7 +24,7 @@ assert(main.includes('id="headerNotificationsCount" class="ta-alert-count" role=
 (async()=>{
  let saves=0,shown=[];
  const badge={hidden:true,textContent:'',setAttribute(){}},btn={setAttribute(k,v){this[k]=v;}};
- const State={fieldSync:{agents:[{id:'a',name:'مندوب أحمد'}],imported:[],operationHistory:[],revisionAudit:[]},alertCenter:{entries:[],seenImportIds:[],stockLevels:{}},warehouses:[],items:[],invoices:[],vouchers:[],accounts:[],expenses:[]};
+ const State={fieldSync:{agents:[{id:'a',name:'موظف بيع أحمد'}],imported:[],operationHistory:[],revisionAudit:[]},alertCenter:{entries:[],seenImportIds:[],stockLevels:{}},warehouses:[],items:[],invoices:[],vouchers:[],accounts:[],expenses:[]};
  const ctx={State,console,window:{AndroidAlerts:{show:(...a)=>shown.push(a)}},
   AppEscape:{text:x=>String(x)},StorageEngine:{saveState:async()=>{saves++;}},
   document:{getElementById:(id)=>id==='headerNotificationsCount'?badge:id==='headerNotificationsBtn'?btn:null},
