@@ -37,8 +37,9 @@ A.startPOS=async function(){
   if(this.draft?.length && this.screen==='invoice'){
     this.confirmAction('فاتورة غير محفوظة','هل تريد ترك الفاتورة الحالية؟',()=>{this.draft=[];this.startPOS();});return;
   }
-  this.posMode=true;
-  this.startInvoice('sale');
+  this.posMode=true;this.posViewId=null;
+  this._posStart=true;
+  try {this.startInvoice('sale');} finally {this._posStart=false;}
   // startInvoice creates a draft using the field-app's normal transaction controls.
   this.invoiceMeta.accountId=this.state.accounts.some(a=>a.id===this.state.posAccountId)?this.state.posAccountId:'';
   this.invoiceMeta.paymentMode='cash';this.invoiceMeta.paid='';
@@ -67,13 +68,13 @@ A.switchInvoiceKind=function(kind){
 const originalRender=A.renderInvoice.bind(A);
 A.renderInvoice=function(){
   let html=originalRender();
-  if(!this.posMode||this.editingId)return html;
-  html=html.replace('فاتورة مبيعات','نقطة البيع السريعة');
+  if(!this.posMode)return html;
+  html=html.replace('فاتورة مبيعات',this.posViewId?'عرض نقطة بيع نقدية':this.editingId?'تعديل نقطة البيع النقدية':'نقطة البيع السريعة');
   // Existing invoice screen provides product grid, search, scanning, row editing and save/print.
   // Add the simplified names-only picker without changing the protected invoice form.
   const namesBtn='<button type="button" class="secondary" onclick="Agent.openPosNameList()">☷ اختيار مادة من قائمة الأسماء</button>';
   html=html.replace('إضافة مواد', 'إضافة مواد');
-  html=html.replace('<div class="agent-main-invoice">','<div class="agent-main-invoice" data-point-of-sale="true"><div class="panel" style="padding:10px"><strong>نقطة البيع — نقدي</strong><p class="tiny">بعد الحفظ أو الحفظ والطباعة ستفتح نقطة بيع جديدة تلقائياً.</p>'+namesBtn+'</div>');
+  html=html.replace('<div class="agent-main-invoice">',`<div class="agent-main-invoice" data-point-of-sale="true"><div class="panel" style="padding:10px"><strong>نقطة البيع — نقدي</strong><p class="tiny">${this.posViewId?'عرض فقط — لا يمكن تعديل البيانات إلا بعد الضغط على تعديل نقطة البيع.':this.editingId?'التعديل يحفظ على الفاتورة نفسها دون إنشاء فاتورة أخرى.':'بعد الحفظ أو الحفظ والطباعة ستفتح نقطة بيع جديدة تلقائياً.'}</p>`+namesBtn+'</div>');
   // In alternate render layouts insert next to search field.
   if(!html.includes(namesBtn))html='<div class="panel">'+namesBtn+'</div>'+html;
   return html;
@@ -142,5 +143,79 @@ A.saveInvoice=async function(andPrint=false){
       this.toast('حُفظ البيع؛ نقطة بيع جديدة جاهزة');
     }
   }finally{this.posSaving=false;}
+};
+// Preserve POS identity across original field operations, including edits and sync.
+const posAppend=A.appendOperation.bind(A);
+A.appendOperation=async function(op){
+  const previous=this.editingId && (this.state.ops||[]).find(x=>x.id===this.editingId);
+  if(op?.kind==='sale' && ((this.posMode && !this.editingId) || previous?.source==='agent-pos'))op.source='agent-pos';
+  return posAppend(op);
+};
+const posEdit=A.editDocument.bind(A);
+A.editDocument=function(id){
+  const op=(this.state.ops||[]).find(o=>o.id===id);
+  this.posMode=op?.kind==='sale' && op.source==='agent-pos';
+  this.posViewId=null;
+  return posEdit(id);
+};
+// Normal sale forms must not inherit a POS mode from the preceding transaction.
+const posStart=A.startInvoice.bind(A);
+A.startInvoice=function(kind){
+  if(!this._posStart)this.posMode=false;
+  return posStart(kind);
+};
+// A read-only POS receipt opens inside the same point-of-sale visual language.
+A.viewPosInvoice=function(id){
+  const op=(this.state.ops||[]).find(x=>x.id===id && x.kind==='sale' && x.source==='agent-pos');
+  if(!op)return this.toast('هذه الفاتورة ليست نقطة بيع مسجلة');
+  // Render the SAME POS layout, backed by a copy of the saved invoice.
+  this.posViewId=id;
+  this.posMode=true;
+  this.editingId=null;
+  this.draft=JSON.parse(JSON.stringify(op.rows||[]));
+  this.draftKind='sale';this.currency=op.currency;
+  const net=Number(op.netTotal??this.draft.reduce((sum,r)=>sum+Number(r.total||0),0));
+  const paid=Number(op.paidAmount||0);
+  const date=new Date(op.date);
+  this.invoiceMeta={accountId:op.accountId||'',currency:op.currency,paymentMode:'cash',paid:String(paid),
+    date:Number.isFinite(date.getTime())?new Date(date.getTime()-date.getTimezoneOffset()*60000).toISOString().slice(0,16):this.defaultDate(),
+    note:op.note||'',discountValue:op.discountValue||0,discountType:op.discountType||'amount',
+    taxValue:op.taxValue||0,taxType:op.taxType||'percent'};
+  this.navigate('pos_view');
+};
+A.renderPosView=function(){
+  const op=(this.state.ops||[]).find(x=>x.id===this.posViewId);
+  if(!op)return '<div class="panel">الفاتورة غير موجودة.</div>';
+  return `<div class="panel" data-pos-mode="view"><strong>نقطة البيع النقدية — عرض الفاتورة ${esc(op.localNumber||'')}</strong></div>`+this.renderInvoice();
+};
+const posShow=A.show.bind(A);
+A.show=async function(route){
+  if(route==='pos_view'){
+    this.screen='pos_view';
+    const el=document.getElementById('screen');
+    if(el){
+      el.innerHTML=this.renderPosView();
+      // Make the same POS form strictly read-only, including add/remove and payment controls.
+      el.querySelectorAll('input,select,textarea,button').forEach(input=>{input.disabled=true;});
+      const actions=document.createElement('div');actions.className='panel';
+      const op=(this.state.ops||[]).find(x=>x.id===this.posViewId);
+      if(op){actions.innerHTML=`<button type="button" class="primary" onclick="Agent.editDocument('${esc(op.id)}')">✎ تعديل نقطة البيع</button><button type="button" class="secondary" onclick="Agent.printOp('${esc(op.id)}')">🖨 طباعة</button><button type="button" class="secondary" onclick="Agent.goBack()">رجوع</button>`;el.appendChild(actions);}
+    }
+    return;
+  }
+  this.posViewId=null;
+  return posShow(route);
+};
+const posInvoiceList=A.renderInvoices.bind(A);
+A.renderInvoices=function(){
+  let html=posInvoiceList();
+  // Invoice list is shared with all sales; edit POS from the POS screen, not a regular sale.
+  for(const op of (this.state.ops||[]).filter(o=>o.kind==='sale' && o.source==='agent-pos')){
+    const print=`<button class="secondary" style="width:auto;margin:0;padding:7px 12px" onclick="Agent.printOp('${op.id}')">🖨 طباعة</button>`;
+    const view=`<button type="button" class="secondary" style="width:auto;margin:0;padding:7px 12px" onclick="Agent.viewPosInvoice('${op.id}')">👁 عرض نقطة البيع</button>`;
+    html=html.replace(print,view+print);
+    html=html.replace(String(op.localNumber||op.id)+' · '+this.kindName(op.kind),String(op.localNumber||op.id)+' · نقطة بيع نقدية');
+  }
+  return html;
 };
 })();

@@ -3,8 +3,11 @@
  * accounting state, IndexedDB persistence and printer adapters. No parallel ledger.
  */
 const POSController = {
-  query: '', category: 'all', saving: false,
+  query: '', category: 'all', saving: false, readOnly: false,
   esc(value) { return AppEscape.text(String(value ?? '')); },
+  // A POS document is still a normal SALE in the ledger. Its source controls only the editor.
+  isPOS(inv) { return Boolean(inv && inv.type === 'sale' && (inv.source === 'windows-pos' || inv.source === 'agent-pos' || inv.posSale === true)); },
+  canChange() { return !this.readOnly && AppNav.current()?.screen === 'pos'; },
   accountId() {
     const id=String(State.settings.posAccountId || '');
     return id && State.accounts.some(a => a.id === id && a.type === 'customer') ? id : '';
@@ -48,12 +51,18 @@ const POSController = {
   render(main, params={}) {
     // Initialize a normal sale invoice using its original controller, including
     // its operation guard, before switching to a desktop-optimized POS view.
-    InvoiceController.renderForm(main,{type:'sale'});
+    const existing=params.id ? State.invoices.find(i=>i.id===params.id) : null;
+    if(params.id && !this.isPOS(existing)) return AppNav.navigate('invoices_list');
+    InvoiceController.renderForm(main,existing ? {id:existing.id} : {type:'sale'});
     const d=InvoiceController.draft;
-    d.type='sale'; d.paymentMethod='cash'; d.accountId=this.accountId(); d.source='windows-pos';
+    d.type='sale';
+    this.readOnly=Boolean(existing && params.view===true);
+    if(!existing){ d.paymentMethod='cash';d.accountId=this.accountId();d.source='windows-pos'; }
+    // Preserve ID, customer, currency, date and stored prices during edits/previews.
     this.query='';this.category='all';this.saving=false;
-    UI.setHeader('<i class="fas fa-cart-plus text-emerald-400"></i> <span>نقطة البيع</span>', 'بيع نقدي سريع • شبكة مواد • بحث • قارئ باركود USB');
-    AppNav.enableOperationGuard(async()=>await this.save(false));
+    UI.setHeader('<i class="fas fa-cart-plus text-emerald-400"></i> <span>'+(this.readOnly?'عرض نقطة بيع':existing?'تعديل نقطة بيع':'نقطة البيع')+'</span>', 'بيع نقدي سريع • شبكة مواد • بحث • قارئ باركود');
+    if(this.readOnly)AppNav.clearDirty();
+    else AppNav.enableOperationGuard(async()=>await this.save(false));
     this.paint(main);
     // A home-screen scan starts a fresh draft and adds exactly one unit; it is not saved.
     if(params.startBarcode) this.addBarcode(params.startBarcode);
@@ -80,6 +89,7 @@ const POSController = {
     }
   },
   add(itemId){
+    if(!this.canChange())return false;
     const item=State.items.find(x=>x.id===itemId);
     const d=InvoiceController.draft;
     if(!item || !d || AppNav.current()?.screen!=='pos')return false;
@@ -101,6 +111,7 @@ const POSController = {
     return true;
   },
   addBarcode(raw){
+    if(!this.canChange())return false;
     const code=String(raw||'').trim().toLowerCase();if(!code)return false;
     const item=State.items.find(x=>String(x.barcode||'').trim().toLowerCase()===code);
     if(!item){UI.toast('هذا الباركود غير مسجل في المواد','warn');return false;}
@@ -138,6 +149,7 @@ const POSController = {
       `<div class="pos-name-blank">${State.items.length?'لا توجد مادة بهذا الاسم':'لا توجد مواد معرفة بعد'}</div>`;
   },
   openNameList(){
+    if(!this.canChange())return;
     UI.openModal(`<div class="pos-picker" dir="rtl"><header><strong><i class="fas fa-table-list"></i> اختيار مادة من قائمة الأسماء</strong><button type="button" onclick="UI.forceCloseModal()" aria-label="إغلاق">×</button></header>
       <label for="posNameSearch">البحث حسب اسم المادة</label><input id="posNameSearch" type="search" placeholder="اكتب اسم المادة..." oninput="POSController.renderNameList()" autocomplete="off"/>
       <div class="pos-picker-note">تعرض القائمة اسم المادة فقط، والضغط عليه يضيف قطعة إلى الفاتورة دون إغلاق النافذة.</div>
@@ -145,12 +157,14 @@ const POSController = {
     this.renderNameList();setTimeout(()=>document.getElementById('posNameSearch')?.focus(),60);
   },
   updateQty(idx,value){
+    if(!this.canChange())return;
     const row=InvoiceController.draft.rows[idx];if(!row)return;
     const amount=Accounting.parseNum(value);
     if(!Number.isFinite(amount)||amount<=0){UI.toast('الكمية يجب أن تكون أكبر من صفر','warn');this.paint(document.getElementById('mainContent'));return;}
     row.qty=amount;this.mark();InvoiceController.recalculate();this.paint(document.getElementById('mainContent'));
   },
   updatePrice(idx,value){
+    if(!this.canChange())return;
     const row=InvoiceController.draft.rows[idx];if(!row)return;
     const price=Accounting.parseNum(value);
     if(!Number.isFinite(price)||price<0){UI.toast('أدخل سعراً صحيحاً','warn');this.paint(document.getElementById('mainContent'));return;}
@@ -158,12 +172,15 @@ const POSController = {
     row.basePrice=Accounting.convert(price,InvoiceController.draft.currency,row.baseCurrency||InvoiceController.draft.currency,InvoiceController.draft.exchangeRate);
     this.mark();InvoiceController.recalculate();this.paint(document.getElementById('mainContent'));
   },
-  remove(idx){InvoiceController.draft.rows.splice(idx,1);if(InvoiceController.draft.rows.length)this.mark();else AppNav.clearDirty();InvoiceController.recalculate();this.paint(document.getElementById('mainContent'));},
+  remove(idx){
+    if(!this.canChange())return;InvoiceController.draft.rows.splice(idx,1);if(InvoiceController.draft.rows.length)this.mark();else AppNav.clearDirty();InvoiceController.recalculate();this.paint(document.getElementById('mainContent'));},
   changeWarehouse(id){
+    if(!this.canChange())return;
     if(!State.warehouses.some(w=>w.id===id))return;
     InvoiceController.draft.warehouseId=id;this.mark();this.paint(document.getElementById('mainContent'));
   },
   switchCurrency(){
+    if(!this.canChange())return;
     if(State.settings.primaryOnlyMode)return UI.toast('العملة الرئيسية فقط مفعّلة','warn');
     const d=InvoiceController.draft,old=d.currency,next=old==='USD'?'SYP':'USD';
     d.currency=next;
@@ -175,26 +192,29 @@ const POSController = {
     InvoiceController.recalculate();
     const acc=State.accounts.find(a=>a.id===d.accountId);
     const money=v=>Accounting.format(v,d.currency);
-    main.innerHTML=`<div class="pos-page" dir="rtl">
-      <section class="pos-banner"><div class="pos-banner-icon"><i class="fas fa-cart-plus"></i></div><div><div class="pos-overline">TIQANY ACC · QUICK POS</div><h2>نقطة البيع السريعة</h2><p>بيع نقدي مباشر مع تحديث المخزون والأرصدة عند الحفظ</p></div><div class="pos-banner-actions"><button type="button" onclick="POSController.openSettings()"><i class="fas fa-sliders"></i> ضبط نقطة البيع</button><button type="button" onclick="POSController.openBarcodeScanner()"><i class="fas fa-barcode"></i> قارئ باركود</button></div></section>
-      <section class="pos-meta"><div><span>الحساب</span><strong><i class="fas fa-user"></i> ${this.esc(acc?.name||'الزبون النقدي')}</strong></div><div><span>التسعير</span><strong><i class="fas fa-sliders"></i> ${this.tierLabel()}</strong></div><div><span>رقم الفاتورة</span><strong>#${d.number}</strong></div><div><span>العملة</span><button type="button" class="pos-switch" onclick="POSController.switchCurrency()">${d.currency} <i class="fas fa-rotate-right"></i></button></div></section>
-      <div class="pos-layout"><section class="pos-catalog"><div class="pos-section-head"><div><h3><i class="fas fa-boxes-stacked"></i> اختيار المواد</h3><small>انقر على المادة لإضافتها إلى السلة</small></div><span>${State.items.length} مادة</span></div>
+    main.innerHTML=`<div class="pos-page" dir="rtl" data-pos-mode="${this.readOnly?'view':d.isEditing?'edit':'new'}">
+      <section class="pos-banner"><div class="pos-banner-icon"><i class="fas fa-cart-plus"></i></div><div><div class="pos-overline">TIQANY ACC · QUICK POS</div><h2>${this.readOnly?'عرض نقطة بيع نقدية':d.isEditing?'تعديل نقطة بيع نقدية':'نقطة البيع السريعة'}</h2><p>بيع نقدي مباشر مع تحديث المخزون والأرصدة عند الحفظ</p></div><div class="pos-banner-actions" ${this.readOnly?'hidden':''}><button type="button" onclick="POSController.openSettings()"><i class="fas fa-sliders"></i> ضبط نقطة البيع</button><button type="button" onclick="POSController.openBarcodeScanner()"><i class="fas fa-barcode"></i> قارئ باركود</button></div></section>
+      <section class="pos-meta"><div><span>الحساب</span><strong><i class="fas fa-user"></i> ${this.esc(acc?.name||'الزبون النقدي')}</strong></div><div><span>التسعير</span><strong><i class="fas fa-sliders"></i> ${this.tierLabel()}</strong></div><div><span>رقم الفاتورة</span><strong>#${d.number}</strong></div><div><span>العملة</span><button type="button" class="pos-switch" ${this.readOnly?'disabled':''} onclick="POSController.switchCurrency()">${d.currency} <i class="fas fa-rotate-right"></i></button></div></section>
+      <div class="pos-layout"><section class="pos-catalog" ${this.readOnly?'hidden':''}><div class="pos-section-head"><div><h3><i class="fas fa-boxes-stacked"></i> اختيار المواد</h3><small>انقر على المادة لإضافتها إلى السلة</small></div><span>${State.items.length} مادة</span></div>
         <div class="pos-mode-switch"><button class="active" type="button" onclick="document.getElementById('posSearch').focus()"><i class="fas fa-table-cells-large"></i> عرض المواد شبكة</button><button type="button" onclick="document.getElementById('posSearch').focus()"><i class="fas fa-search"></i> البحث عن مادة</button><button type="button" onclick="POSController.openNameList()"><i class="fas fa-table-list"></i> قائمة الأسماء</button></div>
         <div class="pos-filters"><div class="pos-search"><i class="fas fa-search"></i><input id="posSearch" type="search" placeholder="ابحث باسم المادة أو الباركود..." value="${this.esc(this.query)}" oninput="POSController.setQuery(this.value)"/></div><select aria-label="تصفية حسب المجموعة" onchange="POSController.setCategory(this.value)"><option value="all">كل المجموعات</option>${State.categories.map(c=>`<option value="${this.esc(c)}" ${c===this.category?'selected':''}>${this.esc(c)}</option>`).join('')}</select></div>
         <div id="posGrid" class="pos-grid"></div>
       </section>
       <aside class="pos-cart"><div class="pos-cart-head"><div><h3><i class="fas fa-receipt"></i> فاتورة البيع الحالية</h3><p>${this.esc(d.date.replace('T',' '))} · ${d.rows.length} أصناف</p></div><span class="pos-cash-label"><i class="fas fa-coins"></i> نقدي</span></div>
         <div class="pos-cart-columns"><span>المادة / الكمية / السعر</span><span>الإجمالي</span></div>
-        <div class="pos-cart-rows">${d.rows.length?d.rows.map((r,i)=>`<div class="pos-line"><div class="pos-line-label"><strong>${this.esc(r.itemName)}</strong><button onclick="POSController.remove(${i})" aria-label="حذف الصنف"><i class="fas fa-times"></i></button></div><div class="pos-line-fields"><label>الكمية <input type="number" min="0.001" step="any" value="${r.qty}" onchange="POSController.updateQty(${i},this.value)" /></label><label>السعر <input type="number" min="0" step="any" value="${r.price}" onchange="POSController.updatePrice(${i},this.value)" /></label><b>${money(r.total)}</b></div></div>`).join(''):`<div class="pos-cart-empty"><i class="fas fa-cart-plus"></i><strong>السلة فارغة</strong><p>اختر الأصناف من الشبكة، أو ابحث عنها بالاسم، أو استخدم قارئ الباركود.</p></div>`}</div>
-        <div class="pos-cart-bottom"><div class="pos-subtotal"><span>إجمالي الأصناف</span><strong>${money(d.subTotal)}</strong></div><div class="pos-grand-total"><span>الإجمالي المستحق</span><strong>${money(d.netTotal)}</strong></div><div class="pos-pay-note"><i class="fas fa-shield-halved"></i> بيع نقدي مسدّد بالكامل · تحفظ الفاتورة في سجل المبيعات</div><div class="pos-cart-actions"><button type="button" onclick="POSController.save(false)" ${!d.rows.length||this.saving?'disabled':''}><i class="fas fa-check"></i> حفظ البيع</button><button type="button" onclick="POSController.save(true)" ${!d.rows.length||this.saving?'disabled':''}><i class="fas fa-print"></i> حفظ وطباعة</button></div><small>الحفظ يحدّث أرصدة الصندوق والمستودع والتقارير، باستخدام محرك الفواتير الأصلي.</small></div>
+        <div class="pos-cart-rows">${d.rows.length?d.rows.map((r,i)=>`<div class="pos-line"><div class="pos-line-label"><strong>${this.esc(r.itemName)}</strong><button ${this.readOnly?'hidden':''} onclick="POSController.remove(${i})" aria-label="حذف الصنف"><i class="fas fa-times"></i></button></div><div class="pos-line-fields"><label>الكمية <input type="number" min="0.001" step="any" value="${r.qty}" ${this.readOnly?'disabled':''} onchange="POSController.updateQty(${i},this.value)" /></label><label>السعر <input type="number" min="0" step="any" value="${r.price}" ${this.readOnly?'disabled':''} onchange="POSController.updatePrice(${i},this.value)" /></label><b>${money(r.total)}</b></div></div>`).join(''):`<div class="pos-cart-empty"><i class="fas fa-cart-plus"></i><strong>السلة فارغة</strong><p>اختر الأصناف من الشبكة، أو ابحث عنها بالاسم، أو استخدم قارئ الباركود.</p></div>`}</div>
+        <div class="pos-cart-bottom"><div class="pos-subtotal"><span>إجمالي الأصناف</span><strong>${money(d.subTotal)}</strong></div><div class="pos-grand-total"><span>الإجمالي المستحق</span><strong>${money(d.netTotal)}</strong></div><div class="pos-pay-note"><i class="fas fa-shield-halved"></i> بيع نقدي مسدّد بالكامل · تحفظ الفاتورة في سجل المبيعات</div><div class="pos-cart-actions" ${this.readOnly?'hidden':''}><button type="button" onclick="POSController.save(false)" ${!d.rows.length||this.saving?'disabled':''}><i class="fas fa-check"></i> حفظ البيع</button><button type="button" onclick="POSController.save(true)" ${!d.rows.length||this.saving?'disabled':''}><i class="fas fa-print"></i> حفظ وطباعة</button></div>${this.readOnly?`<div class="pos-cart-actions"><button type="button" onclick="AppNav.navigate('pos',{id:'${this.esc(d.id)}'},true)"><i class="fas fa-pen"></i> تعديل نقطة البيع</button></div>`:''}<small>الحفظ يحدّث أرصدة الصندوق والمستودع والتقارير، باستخدام محرك الفواتير الأصلي.</small></div>
       </aside></div></div>`;
     this.renderGrid();
   },
   async save(andPrint=false){
     if(this.saving)return false;
     const d=InvoiceController.draft;
-    if(!d||AppNav.current()?.screen!=='pos')return false;
-    d.type='sale';d.paymentMethod='cash';d.accountId=this.accountId();d.source='windows-pos';
+    if(!d||!this.canChange())return false;
+    d.type='sale';d.paymentMethod='cash';
+    // Never replace a saved invoice's original customer on edit.
+    if(!d.isEditing)d.accountId=this.accountId();
+    d.source=d.source==='agent-pos'?'agent-pos':'windows-pos';
     this.saving=true;
     try {
       // InvoiceController performs stock/account validation and writes the sole ledger.
@@ -211,9 +231,10 @@ const POSController = {
           }
         }catch(e){UI.toast('تم حفظ البيع، ولكن تعذرت الطباعة: '+e.message,'warn');}
       }
-      // Do not reuse the saved draft: open a brand new POS transaction.
+      // New sale: start next POS; existing invoice: return to sales history.
       AppNav.clearDirty();
-      AppNav.navigate('pos',{},true);
+      if(d.isEditing) AppNav.navigate('invoices_list',{type:'sale'},true);
+      else AppNav.navigate('pos',{},true);
       return true;
     } finally {this.saving=false;}
   }

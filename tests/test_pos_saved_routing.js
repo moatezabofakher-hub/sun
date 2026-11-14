@@ -1,0 +1,18 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
+const base=path.resolve(__dirname,'../app/src/main/assets/www');
+const source=fs.readFileSync(path.join(base,'static/windows-pos.js'),'utf8');
+const html=fs.readFileSync(path.join(base,'index.html'),'utf8');
+assert.match(html,/openSavedInvoice\(invoiceId, mode='edit'\)/);
+assert.match(html,/نقطة بيع نقدية/);
+assert.match(html,/AppNav\.navigate\('pos',\{id:params.id\},true\)/);
+const ctx={State:{accounts:[]},AppEscape:{text:String},AppNav:{current:()=>({screen:'pos'})}};
+vm.createContext(ctx);vm.runInContext(source+';globalThis.pos=POSController;',ctx);
+assert.equal(ctx.pos.isPOS({type:'sale',source:'windows-pos'}),true);
+assert.equal(ctx.pos.isPOS({type:'sale',source:'agent-pos'}),true);
+assert.equal(ctx.pos.isPOS({type:'sale',source:null,paymentMethod:'cash'}),false);
+assert.equal(ctx.pos.isPOS({type:'purchase',source:'windows-pos'}),false);
+assert.match(source,/if\(d\.isEditing\) AppNav\.navigate\('invoices_list'/);
+const proto=fs.readFileSync(path.join(base,'static/field-protocol.js'),'utf8');
+assert.match(proto,/source:op\.source==='agent-pos'\?'agent-pos':undefined/);
+console.log('Main POS edit/view source routing passed.');

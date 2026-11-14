@@ -4330,11 +4330,11 @@
                             const acc = State.accounts.find(a => a.id === inv.accountId);
                             const payLabel = inv.paymentMethod === 'cash' ? 'نقدي' : inv.paymentMethod === 'credit' ? 'آجل' : 'دفع جزئي';
                             return `
-                                <div data-invoice-search="${encodeURIComponent(`${inv.number} ${acc ? acc.name : 'عميل نقدي مباشر'} ${Accounting.getInvoiceTypeAr(inv.type)} ${String(inv.date || '')} ${(inv.rows || []).map(row => row.name || '').join(' ')}`)}" class="bg-white rounded-2xl border border-slate-200 p-3.5 shadow-xs">
+                                <div data-invoice-search="${encodeURIComponent(`${inv.number} ${acc ? acc.name : 'عميل نقدي مباشر'} ${POSController.isPOS(inv)?'نقطة بيع نقدية':Accounting.getInvoiceTypeAr(inv.type)} ${String(inv.date || '')} ${(inv.rows || []).map(row => row.name || '').join(' ')}`)}" class="bg-white rounded-2xl border border-slate-200 p-3.5 shadow-xs">
                                     <div class="flex items-center justify-between border-b border-slate-100 pb-2 mb-2">
                                         <div class="flex items-center gap-2">
                                             <span class="bg-slate-900 text-white text-xs font-bold px-2.5 py-0.5 rounded-lg">#${inv.number}</span>
-                                            <span class="font-bold text-xs sm:text-sm text-slate-800">${Accounting.getInvoiceTypeAr(inv.type)} (${payLabel})</span>
+                                            <span class="font-bold text-xs sm:text-sm text-slate-800">${POSController.isPOS(inv)?'نقطة بيع نقدية':Accounting.getInvoiceTypeAr(inv.type)} (${payLabel})</span>
                                         </div>
                                         <span class="text-[11px] text-slate-400">${String(inv.date || '').replace('T', ' ')}</span>
                                     </div>
@@ -4409,7 +4409,7 @@
                                     <span>PDF</span>
                                 </button>
                             </div>
-                            <button onclick="AppNav.navigate('invoice_form', { id: '${inv.id}' })" class="bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold px-2.5 py-2 rounded-xl text-xs border border-slate-700">
+                            <button onclick="InvoiceController.openSavedInvoice('${inv.id}','edit')" class="bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold px-2.5 py-2 rounded-xl text-xs border border-slate-700">
                                 <i class="fas fa-pen ml-1"></i> تعديل الفاتورة
                             </button>
                         </div>
@@ -6983,6 +6983,14 @@
             gridCatFilter: 'all',
             gridSearchQuery: '',
 
+            openSavedInvoice(invoiceId, mode='edit') {
+                const inv=State.invoices.find(x=>x.id===invoiceId);
+                if(!inv)return UI.toast('الفاتورة غير موجودة','warn');
+                UI.forceCloseModal();
+                if(POSController.isPOS(inv))return AppNav.navigate('pos',{id:inv.id,view:mode==='view'});
+                return AppNav.navigate(mode==='view'?'invoice_print':'invoice_form',{id:inv.id});
+            },
+
             openInvoiceActions(invoiceId) {
                 const inv = State.invoices.find(i => i.id === invoiceId);
                 if (!inv) return;
@@ -6997,8 +7005,8 @@
                     </div>
                     <div class="space-y-2">
                         ${canPay ? `<button onclick="InvoiceController.openInvoicePayment('${inv.id}')" class="w-full bg-emerald-600 text-white rounded-xl p-3 text-sm font-extrabold text-right"><i class="fas fa-money-bill-wave ml-2"></i>إضافة دفعة</button>` : ''}
-                        <button onclick="AppNav.navigate('invoice_print',{id:'${inv.id}'})" class="w-full bg-slate-100 text-slate-800 rounded-xl p-3 text-sm font-bold text-right"><i class="fas fa-eye ml-2 text-blue-600"></i>معاينة</button>
-                        <button onclick="AppNav.navigate('invoice_form',{id:'${inv.id}'})" class="w-full bg-slate-100 text-slate-800 rounded-xl p-3 text-sm font-bold text-right"><i class="fas fa-pen-to-square ml-2 text-amber-600"></i>تعديل</button>
+                        <button onclick="InvoiceController.openSavedInvoice('${inv.id}','view')" class="w-full bg-slate-100 text-slate-800 rounded-xl p-3 text-sm font-bold text-right"><i class="fas fa-eye ml-2 text-blue-600"></i>معاينة</button>
+                        <button onclick="InvoiceController.openSavedInvoice('${inv.id}','edit')" class="w-full bg-slate-100 text-slate-800 rounded-xl p-3 text-sm font-bold text-right"><i class="fas fa-pen-to-square ml-2 text-amber-600"></i>تعديل</button>
                         <button onclick="UI.forceCloseModal(); ThermalPrinter.printInvoiceDirect(State.invoices.find(i=>i.id==='${inv.id}'))" class="w-full bg-slate-100 text-slate-800 rounded-xl p-3 text-sm font-bold text-right"><i class="fab fa-bluetooth-b ml-2 text-emerald-600"></i>طباعة</button>
                     </div>
                 `);
@@ -7124,6 +7132,9 @@
             },
 
             renderForm(main, params = {}) {
+                if(params.id && AppNav.current()?.screen==='invoice_form' && POSController.isPOS(State.invoices.find(x=>x.id===params.id))) {
+                    return AppNav.navigate('pos',{id:params.id},true);
+                }
                 if (params.id) {
                     const existing = State.invoices.find(i => i.id === params.id);
                     if (!existing) return AppNav.navigate('invoices_list');
@@ -8035,8 +8046,9 @@
                         <div><h3 class="font-extrabold text-base text-slate-900">الفاتورة #${inv.number}</h3><p class="text-xs text-slate-500 mt-1">${Accounting.getInvoiceTypeAr(inv.type)} · ${Accounting.format(inv.netTotal, inv.currency)}</p></div>
                         <button onclick="UI.requestCloseModal()" class="w-8 h-8 rounded-lg bg-slate-100 text-slate-500"><i class="fas fa-times"></i></button>
                     </div>
-                    <div class="grid grid-cols-3 gap-2">
-                        <button onclick="UI.forceCloseModal(); AppNav.navigate('invoice_form',{id:'${inv.id}'})" class="rounded-xl bg-blue-50 text-blue-700 py-4 font-extrabold text-sm flex flex-col items-center gap-2"><i class="fas fa-pen-to-square text-xl"></i>تعديل</button>
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        <button onclick="InvoiceController.openSavedInvoice('${inv.id}','view')" class="rounded-xl bg-cyan-50 text-cyan-700 py-4 font-extrabold text-sm flex flex-col items-center gap-2"><i class="fas fa-eye text-xl"></i>عرض</button>
+                        <button onclick="UI.forceCloseModal(); InvoiceController.openSavedInvoice('${inv.id}','edit')" class="rounded-xl bg-blue-50 text-blue-700 py-4 font-extrabold text-sm flex flex-col items-center gap-2"><i class="fas fa-pen-to-square text-xl"></i>تعديل</button>
                         <button onclick="InvoiceController.openInvoicePayment('${inv.id}')" class="rounded-xl bg-emerald-50 text-emerald-700 py-4 font-extrabold text-sm flex flex-col items-center gap-2"><i class="fas fa-money-bill-transfer text-xl"></i>إضافة دفعة</button>
                         <button onclick="UI.forceCloseModal(); ThermalPrinter.printInvoiceDirect(State.invoices.find(i=>i.id==='${inv.id}'))" class="rounded-xl bg-amber-50 text-amber-700 py-4 font-extrabold text-sm flex flex-col items-center gap-2"><i class="fas fa-print text-xl"></i>طباعة</button>
                     </div>

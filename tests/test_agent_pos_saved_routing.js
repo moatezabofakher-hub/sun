@@ -1,0 +1,20 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
+const source=fs.readFileSync(path.resolve(__dirname,'../field_agent/src/main/assets/www/static/agent-pos.js'),'utf8');
+const sold={id:'op_sale_1',kind:'sale',source:'agent-pos',localNumber:'F-3',currency:'USD',date:'2026-11-14T11:00:00Z',paidAmount:20,rows:[{itemName:'مادة',unitName:'قطعة',qty:2,price:10,total:20}]};
+const agent={state:{ops:[sold],accounts:[],items:[],posAccountId:'',posPriceTier:'account',knownIds:[]},kindName:()=> 'فاتورة مبيعات',screen:'invoices',stack:['home','invoices'],invoiceMeta:{},draft:[],escape:String,money:String,toast(){},save(){},renderHome(){return ''},renderSettings(){return ''},startInvoice(){this.draft=[];this.invoiceMeta={accountId:'',paymentMode:'cash'};},unitPrice(){return 1},changeInvoicePayment(){},switchInvoiceKind(){},renderInvoice(){return '<div class="agent-main-invoice">فاتورة مبيعات</div>'},goBack(){},show(){},saveInvoice(){},appendOperation(op){this.state.ops.push(op);return op},editDocument(id){this.editingId=id;return id},renderInvoices(){return `<button class="secondary" style="width:auto;margin:0;padding:7px 12px" onclick="Agent.printOp('${sold.id}')">🖨 طباعة</button>`},navigate(x){this.screen=x;return this.show(x)},printOp(){}};
+const ctx={Agent:agent,document:{getElementById(id){return id==='screen'?{innerHTML:'',querySelectorAll:()=>[{disabled:false}],appendChild(){}}:null},createElement(){return {className:'',innerHTML:''}}},FieldProtocol:{money:Number},window:{},setTimeout(){}};
+vm.createContext(ctx);vm.runInContext(source,ctx);
+const out=agent.renderInvoices();assert.match(out,/Agent\.viewPosInvoice/);
+assert.match(out,/Agent\.printOp/);
+agent.viewPosInvoice(sold.id);assert.equal(agent.screen,'pos_view');
+const html=agent.renderPosView();assert.match(html,/نقطة البيع النقدية/);assert.match(html,/عرض فقط/);
+agent.editDocument(sold.id);assert.equal(agent.posMode,true);assert.equal(agent.editingId,sold.id);
+assert.match(agent.renderInvoice(),/نقطة البيع/);
+(async()=>{
+ const update={id:sold.id,kind:'sale',rows:sold.rows};await agent.appendOperation(update);assert.equal(update.source,'agent-pos');
+ agent.editingId=null;agent.posMode=true;
+ const fresh={id:'op_sale_2',kind:'sale',rows:sold.rows};await agent.appendOperation(fresh);assert.equal(fresh.source,'agent-pos');
+ agent.startInvoice('sale');assert.equal(agent.posMode,false);
+ console.log('Agent POS stored source, list view and edit route passed.');
+})().catch(e=>{console.error(e);process.exitCode=1});
