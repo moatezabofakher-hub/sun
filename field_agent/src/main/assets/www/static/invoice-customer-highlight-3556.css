@@ -1,0 +1,47 @@
+/* Highlight the customer/supplier selector in new invoice forms (3.5.56 / Solo 3.5.54). */
+/* Scoped only to the party field; the date, currency and other invoice controls are unchanged. */
+.ta-invoice-party-highlight {
+  position:relative;
+  isolation:isolate;
+  box-sizing:border-box;
+  min-width:0;
+  padding:6px 7px 7px;
+  border-radius:14px;
+  background:linear-gradient(150deg,#e8fff5 0%,#bff7e5 58%,#d2f5f0 100%);
+  border:1.5px solid #0fa58f;
+  box-shadow:0 3px 0 #74bdac,0 7px 14px #076e5b29,inset 0 2px 1px #ffffffed;
+  transition:border-color .16s ease,box-shadow .16s ease;
+}
+.ta-invoice-party-highlight::before {
+  content:"";position:absolute;inset:2px 3px auto;height:37%;border-radius:10px 10px 6px 6px;
+  background:linear-gradient(180deg,#ffffff7d,#ffffff00);pointer-events:none;
+}
+.ta-invoice-party-highlight label {
+  position:relative;
+  color:#075b50!important;
+  font-weight:900!important;
+}
+.ta-invoice-party-highlight .ta-invoice-party-select {
+  position:relative;display:block;width:100%;min-width:0;box-sizing:border-box;
+  min-height:39px!important;padding:6px 7px!important;
+  color:#064f46!important;font-size:12px!important;font-weight:850!important;
+  background:linear-gradient(180deg,#ffffff,#effffb)!important;
+  border:2px solid #0b907e!important;border-radius:10px!important;
+  box-shadow:inset 0 1px #ffffff,0 2px 0 #8fcbc0,0 4px 7px #086b592b;
+  outline-offset:2px;
+  cursor:pointer;
+}
+.ta-invoice-party-highlight:focus-within {
+  border-color:#04796c;
+  box-shadow:0 3px 0 #6bad9d,0 0 0 3px #10b9813d,0 8px 18px #076e5b2e,inset 0 2px #fff;
+}
+.ta-invoice-party-highlight .ta-invoice-party-select:focus-visible {
+  outline:2px solid #065f55;
+}
+/* The representative's legacy invoice form shares the same visual treatment. */
+.ta-invoice-party-highlight.wide { width:100%; }
+@media(max-width:370px){
+  .ta-invoice-party-highlight{padding:5px 5px 6px;border-radius:12px;}
+  .ta-invoice-party-highlight .ta-invoice-party-select{padding:5px!important;font-size:11px!important;}
+}
+@media(prefers-reduced-motion:reduce){.ta-invoice-party-highlight{transition:none;}}

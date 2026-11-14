@@ -115,7 +115,8 @@
     <!-- Local Android font fallback, no CDN dependency -->
     <!-- Font Awesome Icons -->
     <script defer src="static/icons.js"></script>
-    <script defer src="static/field-protocol.js"></script><script defer src="static/invoice-dual-balances.js"></script>
+    <script defer src="static/account-balance-summary.js"></script>
+    <script defer src="static/field-protocol.js"></script><script defer src="static/purchase-cost-engine.js"></script><script defer src="static/invoice-dual-balances.js"></script><script defer src="static/draft-invoice-balance-preview.js"></script>
     <script defer src="static/field-lan-crypto.js"></script>
     <script defer src="static/field-pair-crypto.js"></script>
     <script defer src="static/field-main.js"></script>
@@ -899,6 +900,10 @@
         .ta-stock-card.is-grid .ta-item-actions{justify-content:flex-end;gap:7px;margin-top:3px;border-top:1px solid #edf2f5;padding-top:8px;}
         .ta-stock-card.is-grid .ta-item-actions button{width:33px;height:31px;}
         .ta-item-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:165px;background:#fff;border:1px dashed #ccdfe9;border-radius:17px;color:#678399;font-size:12px;gap:8px;text-align:center;padding:16px;}
+        /* Live material search: display:flex on cards used to override generic .hidden. */
+        #itemCardsList [data-item-search][hidden], #itemCardsList [data-item-search].hidden,
+        #itemCardsList [data-item-group-section][hidden], #itemCardsList [data-item-group-section].hidden,
+        #itemCardsList #itemsSearchEmpty[hidden]{display:none !important;}
         .ta-item-empty.hidden{display:none !important;}
         .ta-item-group.hidden{display:none !important;}
         .ta-item-empty i{font-size:28px;color:#a1bac6;}
@@ -981,6 +986,7 @@
 #dialogContainer[data-dialog-type="exit"] .ta-exit-actions button:active {transform:translateY(2px);box-shadow:0 1px 0 #115e59;}
 </style>
     <link rel="stylesheet" href="static/glossy-ui-3549.css">
+    <link rel="stylesheet" href="static/invoice-customer-highlight-3556.css">
 </head>
 <body class="ta-premium-ui ta-3d-v3524 bg-slate-100 text-slate-800 min-h-screen flex flex-col w-full max-w-full overflow-x-hidden">
 
@@ -1271,6 +1277,7 @@
                                 State.settings.selectedWarehouseId = 'wh_main';
                         }
                         await ProfileManager.initialize();
+                        if (typeof PurchaseCostEngine !== 'undefined') PurchaseCostEngine.refresh(State.items, State.invoices);
                         await LicenseManager.syncFallbackStorage();
                         ThermalPrinter.updateStatusUI();
                         resolve();
@@ -1283,6 +1290,9 @@
                 });
             },
             async saveState() {
+                // Re-evaluate latest purchase net cost before the atomic state snapshot.
+                // Invoice deletion, editing, currency, discount and additions share this path.
+                if (typeof PurchaseCostEngine !== 'undefined') PurchaseCostEngine.refresh(State.items, State.invoices);
                 LicenseManager.persistFallbackStorage();
                 if (!this.db) return;
                 return new Promise((resolve, reject) => {
@@ -3420,6 +3430,8 @@
             },
 
             openModal(html) {
+                // Clean up any nested currency picker before replacing modal content.
+                document.getElementById('itmCurrencyPopup')?.remove();
                 AppNav.clearModalDirty();
                 const c = document.getElementById('modalContainer');
                 const b = document.getElementById('modalBox');
@@ -3428,6 +3440,8 @@
             },
 
             requestCloseModal() {
+                const currencyPopup=document.getElementById('itmCurrencyPopup');
+                if(currencyPopup){currencyPopup.remove();return;}
                 if (typeof InvoiceController !== 'undefined' && InvoiceController.barcodeScanActive
                         && document.getElementById('invoiceBarcodeVideo')) {
                     UI.toast('اضغط زر × للخروج من كاميرا الباركود', 'info');
@@ -3449,6 +3463,7 @@
             },
 
             forceCloseModal() {
+                document.getElementById('itmCurrencyPopup')?.remove();
                 if (typeof InvoiceController !== 'undefined' && InvoiceController.barcodeScanActive) {
                     InvoiceController.stopBarcodeScanner();
                 }
@@ -3980,14 +3995,11 @@
             renderItems(main, params = {}) {
                 UI.setHeader('<i class="fas fa-boxes-stacked text-emerald-400"></i> <span>المواد والمستودع</span>', 'قائمة بسيطة أو شبكة مرتبة حسب المجموعة');
 
-                const searchQ = (params.q || '').trim().toLocaleLowerCase();
                 const catFilter = params.cat || 'all';
                 const view = ItemController.viewMode === 'group_grid' ? 'group_grid' : 'list';
-                const filtered = State.items.filter(item => {
-                    const matchCat = catFilter === 'all' || (item.category || '') === catFilter;
-                    const searchable = `${item.name || ''} ${item.barcode || ''}`.toLocaleLowerCase();
-                    return matchCat && (!searchQ || searchable.includes(searchQ));
-                });
+                // Always render all items. The live filter then hides cards in-place,
+                // so clearing/changing the query can restore items without losing focus.
+                const filtered = State.items;
                 const orderedGroupNames = Array.from(new Set(filtered.map(item => item.category || 'بدون مجموعة')))
                     .sort((a,b) => {
                         const ai=State.categories.indexOf(a), bi=State.categories.indexOf(b);
@@ -4070,11 +4082,12 @@
                             </div>
                         </div>
                         <div id="itemCardsList" class="${view==='group_grid'?'ta-stock-groups':'ta-stock-list'}">
-                            ${filtered.length ? itemsMarkup : `<div class="ta-item-empty"><i class="fas fa-box-open" aria-hidden="true"></i><strong>لا توجد مواد مطابقة</strong><p>أضف مادة جديدة أو غيّر المجموعة والبحث.</p></div>`}
-                            <div id="itemsSearchEmpty" class="ta-item-empty hidden"><i class="fas fa-search" aria-hidden="true"></i><strong>لا توجد مواد مطابقة</strong></div>
+                            ${itemsMarkup}
+                            <div id="itemsSearchEmpty" class="ta-item-empty hidden" hidden><i class="fas fa-search" aria-hidden="true"></i><strong>لا توجد مواد مطابقة</strong><p>جرّب كلمة أخرى أو غيّر المجموعة المحددة.</p></div>
                         </div>
                     </div>
                 `;
+                ItemController.filterItems();
             },
 
             // ==================== WAREHOUSES & INTERNAL TRANSFERS ====================
@@ -4115,7 +4128,7 @@
                             <div><label class="block text-xs font-bold mb-1" for="transferFrom">من المستودع</label>
                                 <select id="transferFrom" onchange="WarehouseController.refreshTransferAvailability()" class="w-full border rounded-xl p-2.5 text-xs">${WarehouseController.options(State.settings.selectedWarehouseId)}</select></div>
                             <div><label class="block text-xs font-bold mb-1" for="transferTo">إلى المستودع</label>
-                                <select id="transferTo" class="w-full border rounded-xl p-2.5 text-xs">${WarehouseController.options((State.warehouses||[]).find(w=>w.id !== (State.settings.selectedWarehouseId||'wh_main'))?.id || 'wh_main')}</select></div>
+                                <select id="transferTo" onchange="WarehouseController.refreshTransferHistory()" class="w-full border rounded-xl p-2.5 text-xs">${WarehouseController.options((State.warehouses||[]).find(w=>w.id !== (State.settings.selectedWarehouseId||'wh_main'))?.id || 'wh_main')}</select></div>
                         </div>
                         <div class="ta-transfer-filter">
                             <input id="transferSearchInput" type="search" oninput="WarehouseController.filterTransferGrid()" placeholder="ابحث باسم المادة..." aria-label="البحث باسم المادة">
@@ -4147,9 +4160,9 @@
                         <button type="button" id="transferCancelEditButton" onclick="WarehouseController.cancelTransferEdit()" hidden class="mt-2 w-full rounded-xl bg-slate-100 border border-slate-300 text-slate-700 text-xs font-extrabold p-3">إلغاء التعديل والعودة لفاتورة جديدة</button>
                     </div>
                     <div class="rounded-2xl bg-white border p-3 ta-transfer-history">
-                        <h3 class="font-extrabold text-sm mb-2"><i class="fas fa-clock text-teal-700 ml-1"></i>سجل المناقلات (${WarehouseController.transferDocuments().length} عملية)</h3>
-                        <p class="text-[11px] text-slate-500 mb-2">كل عملية تظهر كفاتورة واحدة قابلة للفتح والتعديل لاحقاً. اضغط «فتح الفاتورة» ثم «تعديل الفاتورة» لتعديل موادها ومستودعاتها وتاريخها.</p>
-                        ${WarehouseController.renderTransferHistoryHtml()}
+                        <h3 id="transferHistoryTitle" class="font-extrabold text-sm mb-2"><i class="fas fa-clock text-teal-700 ml-1"></i>المناقلات الواردة إلى المستودع المختار</h3>
+                        <p class="text-[11px] text-slate-500 mb-2">تظهر عمليات المناقلة الواردة إلى المستودع المحدد في خانة «إلى المستودع» فقط. يمكن فتح فواتير المناقلة وتعديلها لاحقاً.</p>
+                        <div id="transferHistoryList" aria-live="polite">${WarehouseController.renderTransferHistoryHtml((State.warehouses||[]).find(w=>w.id !== (State.settings.selectedWarehouseId||'wh_main'))?.id || 'wh_main')}</div>
                     </div>
                 `;
                 WarehouseController.transferDraft = [];
@@ -4157,6 +4170,7 @@
                 WarehouseController.filterTransferGrid();
                 WarehouseController.refreshTransferAvailability();
                 WarehouseController.renderTransferDraft();
+                WarehouseController.refreshTransferHistory();
                 if (params.action === 'add') WarehouseController.toggleWarehouseCreate();
                 if (params.action === 'transfer') {
                     WarehouseController.openTransferForm();
@@ -4167,6 +4181,7 @@
                         if(source)source.value=toAgent?'wh_main':selectedAgent.warehouseId;
                         if(target)target.value=toAgent?selectedAgent.warehouseId:'wh_main';
                         WarehouseController.refreshTransferAvailability();
+                        WarehouseController.refreshTransferHistory();
                     }
                 }
             },
@@ -4539,10 +4554,21 @@
                 const debtsMode = params.debts === true || !!params.balanceSide;
                 const balanceSide = params.balanceSide || 'debit';
 
+                // Keep one consistent snapshot while rendering; a statement can otherwise
+                // be recalculated repeatedly for the same account on large account lists.
+                const statementCache = new Map();
+                const statementFor = id => {
+                    if (!statementCache.has(id)) {
+                        statementCache.set(id, Accounting.getAccountStatement(id));
+                    }
+                    return statementCache.get(id);
+                };
+                const accountTotals = debtsMode ? null : AccountBalanceSummary.calculate(State.accounts, tab, statementFor);
+
                 UI.setHeader(debtsMode ? `<i class="fas fa-scale-balanced text-emerald-400"></i> <span>الديون: ${balanceSide === 'debit' ? 'لنا' : 'علينا'}</span>` : '<i class="fas fa-users text-emerald-400"></i> <span>العملاء والموردون</span>', debtsMode ? 'التبديل بين «لنا» و«علينا» من الأزرار أسفل الملخص' : 'أرصدة مزدوجة العملة (SYP / USD) وسقف الائتمان');
                 const filtered = State.accounts.filter(a => {
                     if (!debtsMode) return tab === 'all' || a.type === tab;
-                    const st = Accounting.getAccountStatement(a.id);
+                    const st = statementFor(a.id);
                     const hasDebit = Number(st.sypBalance) > 0 || Number(st.usdBalance) > 0;
                     const hasCredit = Number(st.sypBalance) < 0 || Number(st.usdBalance) < 0;
                     return balanceSide === 'debit' ? hasDebit : hasCredit;
@@ -4551,7 +4577,7 @@
                 // Only the debt screen exposes aggregate totals. Accounts are filtered by
                 // signed balance, independently for SYP and USD, regardless of party type.
                 const debtTotals = State.accounts.reduce((totals, acc) => {
-                    const st = Accounting.getAccountStatement(acc.id);
+                    const st = statementFor(acc.id);
                     const syp = Number(st.sypBalance) || 0;
                     const usd = Number(st.usdBalance) || 0;
                     totals.debit.syp += Math.max(0, syp);
@@ -4636,6 +4662,32 @@
                         </div>
                     </div>
 
+                    ${accountTotals ? `
+                    <section class="bg-gradient-to-l from-emerald-50 to-white border border-emerald-200 rounded-2xl p-3 mb-3 shadow-xs" aria-label="ملخص أرصدة ${tab === 'customer' ? 'العملاء' : 'الموردين'}" data-account-balance-summary="${tab}">
+                        <div class="flex items-center justify-between gap-2 mb-2">
+                            <div class="flex items-center gap-2">
+                                <div class="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center"><i class="fas fa-scale-balanced" aria-hidden="true"></i></div>
+                                <div>
+                                    <div class="font-extrabold text-sm text-slate-900">مجموع أرصدة ${tab === 'customer' ? 'العملاء' : 'الموردين'}</div>
+                                    <div class="text-[10px] text-slate-500">الأرصدة الفعلية لكل عملة دون مقاصة</div>
+                                </div>
+                            </div>
+                            <span class="bg-white border border-emerald-100 text-emerald-800 px-2 py-1 rounded-lg text-[10px] font-bold">${accountTotals.count} حساب</span>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <div class="rounded-xl border border-sky-100 bg-white p-2.5 min-w-0">
+                                <div class="font-extrabold text-xs text-sky-700 mb-1"><i class="fas fa-arrow-up ml-1" aria-hidden="true"></i>المدين (لنا)</div>
+                                <div class="font-black text-xs sm:text-sm text-sky-800 break-words" data-summary="debit-syp">${Accounting.format(accountTotals.debit.SYP, 'SYP')}</div>
+                                <div class="font-black text-xs sm:text-sm text-sky-800 break-words mt-1" data-summary="debit-usd">${Accounting.format(accountTotals.debit.USD, 'USD')}</div>
+                            </div>
+                            <div class="rounded-xl border border-amber-100 bg-white p-2.5 min-w-0">
+                                <div class="font-extrabold text-xs text-amber-700 mb-1"><i class="fas fa-arrow-down ml-1" aria-hidden="true"></i>الدائن (علينا)</div>
+                                <div class="font-black text-xs sm:text-sm text-amber-800 break-words" data-summary="credit-syp">${Accounting.format(accountTotals.credit.SYP, 'SYP')}</div>
+                                <div class="font-black text-xs sm:text-sm text-amber-800 break-words mt-1" data-summary="credit-usd">${Accounting.format(accountTotals.credit.USD, 'USD')}</div>
+                            </div>
+                        </div>
+                    </section>
+                    ` : ''}
                     <div class="relative mb-3">
                         <i class="fas fa-search absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
                         <input
@@ -4655,7 +4707,7 @@
                                 <p class="text-xs text-slate-400 mt-1">أضف حساب عميل أو مورد لمتابعة الذمم المالية وكشوف الحساب بالليرة والدولار</p>
                             </div>
                         ` : filtered.map(acc => {
-                            const st = Accounting.getAccountStatement(acc.id);
+                            const st = statementFor(acc.id);
                             const overLimit = Number(acc.creditLimitUsd) > 0 && st.evalUsd > Number(acc.creditLimitUsd);
 
                             let balanceHtml = '';
@@ -4912,7 +4964,7 @@
                             const itemUnits = Array.isArray(item.units) ? item.units : [];
                             const unitObj = itemUnits.find(u => u && u.name === r.unitName) || itemUnits[0] || {};
                             const qty = Number(r.qty) || 0;
-                            const costItemCurrency = (Number(item.isBundle ? (r.baseCostPrice ?? Accounting.itemCostPrice(item,unitObj)) : unitObj.costPrice) || 0) * qty;
+                            const costItemCurrency = (Number(r.baseCostPrice ?? (item.isBundle ? Accounting.itemCostPrice(item,unitObj) : unitObj.costPrice)) || 0) * qty;
                             const configuredRate = Number(State.settings && State.settings.exchangeRate);
                             const safeRate = Number(rate) > 0 ? Number(rate) : (configuredRate > 0 ? configuredRate : 1);
                             const itemCurrency = item.currency || inv.currency || 'SYP';
@@ -5600,27 +5652,47 @@
             },
 
             filterItems() {
-                const q = (document.getElementById('itemSearchInput')?.value || '').trim().toLocaleLowerCase();
+                const list = document.getElementById('itemCardsList');
+                if (!list) return;
+                const input = document.getElementById('itemSearchInput');
+                const rawQuery = input?.value || '';
                 const cat = document.getElementById('itemCatSelect')?.value || 'all';
-                const cards = document.querySelectorAll('#itemCardsList [data-item-search]');
+                // Normalization lets Arabic users find a material even when typing
+                // hamza/diacritics differently than its saved name.
+                const normalize = text => String(text || '').normalize('NFKC')
+                    .replace(/[\u064b-\u065f\u0670\u0640]/g, '')
+                    .replace(/[أإآٱ]/g, 'ا').replace(/ى/g, 'ي')
+                    .trim().toLocaleLowerCase();
+                const q = normalize(rawQuery);
+                const cards = list.querySelectorAll('[data-item-search]');
                 let visible = 0;
-
                 cards.forEach(card => {
-                    const searchable = decodeURIComponent(card.dataset.itemSearch || '').toLocaleLowerCase();
+                    const searchable = normalize(decodeURIComponent(card.dataset.itemSearch || ''));
                     const category = decodeURIComponent(card.dataset.itemCategory || '');
                     const matches = (!q || searchable.includes(q)) && (cat === 'all' || category === cat);
+                    card.hidden = !matches;
                     card.classList.toggle('hidden', !matches);
                     if (matches) visible++;
                 });
-
-                document.querySelectorAll('#itemCardsList [data-item-group-section]').forEach(group => {
-                    const shown = group.querySelectorAll('[data-item-search]:not(.hidden)').length;
+                list.querySelectorAll('[data-item-group-section]').forEach(group => {
+                    const shown = group.querySelectorAll('[data-item-search]:not([hidden])').length;
+                    group.hidden = shown === 0;
                     group.classList.toggle('hidden', shown === 0);
                     const counter = group.querySelector('[data-group-count]');
                     if (counter) counter.textContent = `${shown} مادة`;
                 });
                 const empty = document.getElementById('itemsSearchEmpty');
-                if (empty) empty.classList.toggle('hidden', visible !== 0);
+                if (empty) {
+                    empty.hidden = visible !== 0;
+                    empty.classList.toggle('hidden', visible !== 0);
+                }
+                const counter = document.querySelector('.ta-items-screen .ta-items-counter');
+                if (counter) counter.textContent = q || cat !== 'all' ? `${visible} من ${cards.length} مادة` : `${visible} مادة`;
+                // Keep search/category when opening an item then returning to the list.
+                const route = AppNav.current();
+                if (route?.screen === 'items') {
+                    route.params = {...(route.params || {}), q: rawQuery, cat};
+                }
             },
 
             markItemDirty() {
@@ -5788,6 +5860,7 @@
                                 <div>
                                     <label class="block font-extrabold text-slate-700 mb-1">تكلفة الوحدة الكبرى (<span class="unit-curr-label">${currSym}</span>)</label>
                                     <input type="text" inputmode="decimal" dir="ltr" id="itmMainCostPrice" value="${baseU.costPrice !== undefined && baseU.costPrice !== null ? Accounting.formatEditableItemPrice(baseU.costPrice) : ''}" placeholder="${Accounting.itemPricePlaceholder()}" onfocus="this.value=ItemController.tempUnits[0].costPrice;this.select()" onblur="this.value=Accounting.formatEditableItemPrice(ItemController.tempUnits[0].costPrice)" oninput="ItemController.onUnitPriceInput(0, 'costPrice', this.value, this)" class="w-full border-2 border-slate-300 focus:border-emerald-600 rounded-xl px-3 py-2 text-sm font-extrabold text-center bg-white shadow-2xs focus:outline-none">
+                                    <p class="text-[10px] text-emerald-800 mt-1">يتحدّث سعر التكلفة آلياً من صافي آخر فاتورة شراء (بعد حسم السطر وحسم الفاتورة والإضافات)، عند وجود مشتريات محفوظة.</p>
                                 </div>
                             </div>
                             <div class="grid grid-cols-2 gap-2 mt-2">
@@ -5890,10 +5963,23 @@
                 const allowed = State.settings.primaryOnlyMode ? [CurrencyCatalog.primary()] : ['USD','SYP'];
                 const box=document.getElementById('itmCurrencyPopup');
                 if(box){box.remove();return;}
-                const wrapper=document.createElement('div');wrapper.id='itmCurrencyPopup';wrapper.className='fixed inset-0 z-[9999] bg-slate-900/45 flex justify-center items-center px-4';
+                const wrapper=document.createElement('div');
+                wrapper.id='itmCurrencyPopup';
+                // Tailwind is bundled as a precompiled stylesheet: z-[9999] is not generated.
+                // An explicit layer prevents this nested picker appearing behind the item editor.
+                wrapper.className='fixed inset-0 bg-slate-900/45 flex justify-center items-center px-4';
+                wrapper.style.cssText='position:fixed;inset:0;z-index:11000;';
+                wrapper.setAttribute('role','dialog');
+                wrapper.setAttribute('aria-modal','true');
+                wrapper.setAttribute('aria-label','اختر عملة تسعير الصنف');
                 wrapper.onclick=e=>{if(e.target===wrapper)wrapper.remove();};
                 wrapper.innerHTML=`<div class="w-full max-w-xs bg-white rounded-2xl p-4 space-y-3 shadow-xl text-right"><b>اختر عملة تسعير الصنف</b>${allowed.map(c=>`<button type="button" class="block w-full rounded-xl p-3 border bg-emerald-50 font-bold" data-curr="${c}">${c==='USD'?'دولار أمريكي USD':'ليرة سورية SYP'}</button>`).join('')}<button type="button" class="w-full p-2 border rounded-lg" data-close>إلغاء</button></div>`;
-                wrapper.querySelectorAll('[data-curr]').forEach(btn=>btn.onclick=()=>{this.setItemBaseCurrency(btn.dataset.curr);document.getElementById('itmCurrencySelect').textContent=btn.dataset.curr+' ▾';wrapper.remove();});
+                wrapper.querySelectorAll('[data-curr]').forEach(btn=>btn.onclick=()=>{
+                    this.setItemBaseCurrency(btn.dataset.curr);
+                    const pickerButton=document.getElementById('itmCurrencySelect');
+                    if(pickerButton)pickerButton.innerHTML='<i class="fas fa-coins ml-1" aria-hidden="true"></i>'+btn.dataset.curr+' ▾';
+                    wrapper.remove();
+                });
                 wrapper.querySelector('[data-close]').onclick=()=>wrapper.remove();document.body.append(wrapper);
             },
             // Open a real, searchable item grid rather than silently choosing the first item.
@@ -6579,6 +6665,7 @@
                 const editingRef=document.getElementById('transferEditingRef');if(editingRef)editingRef.textContent='رقم الفاتورة: '+doc.id;
                 const cancel=document.getElementById('transferCancelEditButton');if(cancel)cancel.hidden=false;
                 this.updateTransferGridSelections();this.renderTransferDraft();
+                this.refreshTransferHistory();
                 if(typeof Views.jumpToEntry==='function')Views.jumpToEntry('warehouseTransferPanel','transferDate');
             },
             cancelTransferEdit(){
@@ -6699,9 +6786,24 @@
                 }
                 return [...groups.values()].sort((a,b)=>String(b.createdAt||b.date).localeCompare(String(a.createdAt||a.date)));
             },
-            renderTransferHistoryHtml(){
-                const docs=this.transferDocuments();
-                if(!docs.length)return '<p class="text-xs text-slate-400">لا توجد فواتير مناقلة بعد.</p>';
+            transferDocumentsForDestination(warehouseId){
+                // Filter at document level, not at line level; one invoice remains one operation.
+                return this.transferDocuments().filter(doc=>String(doc.toWarehouseId)===String(warehouseId));
+            },
+            refreshTransferHistory(){
+                const destination=document.getElementById('transferTo')?.value;
+                const title=document.getElementById('transferHistoryTitle');
+                const list=document.getElementById('transferHistoryList');
+                if(!title && !list)return;
+                const docs=destination?this.transferDocumentsForDestination(destination):[];
+                if(title)title.textContent=`المناقلات الواردة إلى ${this.name(destination)} (${docs.length} عملية)`;
+                if(list)list.innerHTML=destination?this.renderTransferHistoryHtml(destination):'<p class="text-xs text-slate-400">اختر المستودع المستلم لعرض مناقلاته.</p>';
+            },
+            renderTransferHistoryHtml(destinationId){
+                const docs=destinationId==null?this.transferDocuments():this.transferDocumentsForDestination(destinationId);
+                if(!docs.length)return destinationId==null
+                    ?'<p class="text-xs text-slate-400">لا توجد فواتير مناقلة بعد.</p>'
+                    :`<p class="text-xs text-slate-400">لا توجد مناقلات واردة إلى ${AppEscape.text(this.name(destinationId))} بعد.</p>`;
                 return docs.map((doc,index)=>{
                     const safeId=AppEscape.text(JSON.stringify(String(doc.id)));
                     const shortNo=AppEscape.text(doc.id);
@@ -6940,6 +7042,45 @@
             applyInvoiceDateFilter(filterType, dateMode, customDate, endDate='') {
                 if(dateMode==='range'&&(!customDate||!endDate||customDate>endDate))return UI.toast('أدخل فترة زمنية صحيحة','warn');
                 AppNav.navigate('invoices_list',{type:filterType,dateMode,dateValue:customDate,endDate:endDate||TimeFilter.defaultEnd()},true);
+            },
+
+            // Preview only: no ledger mutations before the invoice is saved.
+            draftBalancePreview() {
+                const d=this.draft;
+                if (!d?.accountId || !State.accounts.some(a=>a.id===d.accountId)) return {available:false,unselected:true};
+                // Editing excludes the original invoice so its impact is not added twice.
+                const statement=Accounting.getAccountStatement(d.accountId,d.isEditing?d.id:null);
+                const before=d.currency==='SYP'?statement.sypBalance:statement.usdBalance;
+                return DraftInvoiceBalancePreview.project(before,d);
+            },
+            draftBalanceLabel(value,currency) {
+                if(value==null)return '—';
+                const dir=value>0?'عليه':value<0?'له':'مسدد';
+                return Accounting.format(Math.abs(value),currency)+' · '+dir;
+            },
+            draftBalanceHTML() {
+                const p=this.draftBalancePreview(),c=this.draft.currency;
+                const previous=p.available?this.draftBalanceLabel(p.before,c):'—';
+                const final=p.available?this.draftBalanceLabel(p.after,c):'—';
+                const note=p.unselected?'اختر حساب العميل أو المورد لعرض الرصيد. لا رصيد لحساب الزبون النقدي المباشر.':
+                  !p.available?'الرصيد غير متاح حتى تصحيح القيم المدخلة.':'يُحدَّث تلقائياً حسب نوع الفاتورة وطريقة الدفع.';
+                return `<div class="mt-2 rounded-2xl border border-sky-200 bg-sky-50 p-3" aria-label="الرصيد السابق والرصيد المتوقع بعد الفاتورة" data-draft-balance="${c}">
+                  <div class="text-xs font-extrabold text-sky-900 mb-2">أرصدة الحساب (${c})</div>
+                  <div class="grid grid-cols-2 gap-2"><div class="rounded-xl border border-sky-100 bg-white p-2 text-center"><div class="text-[11px] font-bold text-slate-600">الرصيد السابق</div><strong id="draftBalanceBefore" class="block mt-1 text-xs font-extrabold text-slate-800">${previous}</strong></div>
+                  <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-2 text-center"><div class="text-[11px] font-bold text-emerald-800">الرصيد النهائي المتوقع</div><strong id="draftBalanceAfter" class="block mt-1 text-xs font-extrabold text-emerald-800">${final}</strong></div></div>
+                  <div id="draftBalanceHint" class="mt-2 text-[10px] text-slate-600">${note}</div></div>`;
+            },
+            refreshDraftBalanceDOM() {
+                const box=document.querySelector('[data-draft-balance]');
+                if(!box)return;
+                const p=this.draftBalancePreview(),c=this.draft.currency;
+                const before=document.getElementById('draftBalanceBefore');
+                const after=document.getElementById('draftBalanceAfter');
+                if(before)before.textContent=p.available?this.draftBalanceLabel(p.before,c):'—';
+                if(after)after.textContent=p.available?this.draftBalanceLabel(p.after,c):'—';
+                const hint=document.getElementById('draftBalanceHint');
+                if(hint)hint.textContent=p.unselected?'اختر حساب العميل أو المورد لعرض الرصيد. لا رصيد لحساب الزبون النقدي المباشر.':
+                    !p.available?'الرصيد غير متاح حتى تصحيح القيم المدخلة.':'يُحدَّث تلقائياً حسب نوع الفاتورة وطريقة الدفع.';
             },
 
             renderForm(main, params = {}) {
@@ -7420,7 +7561,7 @@
                         itemId: item.id,
                         itemName: item.name,
                         bomComponents:item.isBundle?JSON.parse(JSON.stringify(item.bundleComponents||[])):undefined,
-                        baseCostPrice:item.isBundle?Accounting.itemCostPrice(item,unit0):undefined,
+                        baseCostPrice:(Accounting.itemCostPrice?.(item,unit0) ?? Number(unit0.costPrice) ?? 0),
                         baseCurrency: item.currency,
                         basePrice: rawPrice,
                         unitName: unit0.name,
@@ -7450,6 +7591,8 @@
 
                 row.unitName = unitObj.name;
                 row.unitFactor = Number(unitObj.factor) || 1;
+                // Store cost at sale time; later purchases must not restate past sale profits.
+                row.baseCostPrice = (Accounting.itemCostPrice?.(item, unitObj) ?? Number(unitObj.costPrice) ?? 0);
                 const isPurchase = (this.draft.type === 'purchase' || this.draft.type === 'purchase_return');
                 const rawUnitPrice = isPurchase ? Number(unitObj.costPrice) : (Accounting.itemSalePrice?.(item,unitObj,this.draft.accountId) ?? Number(unitObj?.salePrice||0));
                 row.baseCurrency = item.currency;
@@ -7534,6 +7677,7 @@
                 if (paidInput && this.draft.paymentMethod !== 'partial') {
                     paidInput.value = this.draft.paidAmount;
                 }
+                this.refreshDraftBalanceDOM();
             },
 
             paintForm(main) {
@@ -7572,12 +7716,12 @@
                             </select>
                         </div>
                         <div class="grid grid-cols-2 gap-1.5 text-[10px]">
-                            <div class="min-w-0">
+                            <div class="min-w-0 ta-invoice-party-highlight">
                                 <div class="flex items-center justify-between mb-0.5 gap-1">
                                     <label class="font-bold text-slate-700 flex items-center gap-1"><i class="fas fa-user text-emerald-600 text-[9px]"></i>${partyLabelAr}</label>
                                     <button type="button" onclick="AccountController.openAccountModal(null, true, '${targetAccountType}')" class="text-[9px] text-emerald-600 font-bold whitespace-nowrap">+ جديد</button>
                                 </div>
-                                <select onchange="InvoiceController.changeInvoiceAccount(this.value)" class="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-[11px] font-bold bg-slate-50">
+                                <select aria-label="${partyLabelAr}" onchange="InvoiceController.changeInvoiceAccount(this.value)" class="ta-invoice-party-select w-full border border-slate-300 rounded-lg px-2 py-1.5 text-[11px] font-bold bg-slate-50">
                                     <option value="">-- ${isPurchase ? 'مورد نقدي مباشر' : 'عميل نقدي مباشر'} --</option>
                                     ${State.accounts.filter(a => a.type === targetAccountType).map(a => `<option value="${a.id}" ${d.accountId === a.id ? 'selected' : ''}>${a.name}</option>`).join('')}
                                 </select>
@@ -7727,6 +7871,8 @@
                         </div>
                     </div>
 
+                    ${this.draftBalanceHTML()}
+
                     <div class="grid grid-cols-2 gap-2">
                         <!-- DEFAULT ACTION: Save & Print via Bluetooth Thermal Printer -->
                         <button type="button" onclick="InvoiceController.saveInvoice(true)" class="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-3 px-2 rounded-2xl text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-sm">
@@ -7803,6 +7949,14 @@
 
                 const cleanDoc = { ...d };
                 delete cleanDoc.isEditing;
+                if (cleanDoc.type === 'sale' || cleanDoc.type === 'sale_return') {
+                    for (const row of cleanDoc.rows) {
+                        if (Number.isFinite(Number(row.baseCostPrice)) && row.baseCostPrice !== null && row.baseCostPrice !== undefined) continue;
+                        const item = State.items.find(it => it.id === row.itemId);
+                        const unit = item?.units?.find(u => u.name === row.unitName) || item?.units?.[0];
+                        if (item && unit) row.baseCostPrice = (Accounting.itemCostPrice?.(item, unit) ?? Number(unit.costPrice) ?? 0);
+                    }
+                }
 
                 const idx = State.invoices.findIndex(i => i.id === cleanDoc.id);
                 if (idx > -1) {

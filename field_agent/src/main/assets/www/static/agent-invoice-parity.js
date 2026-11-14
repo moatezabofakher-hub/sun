@@ -31,6 +31,37 @@ A.balanceFor=function(accountId){
  }
  return {available:true,syp:round(syp,'SYP'),usd:round(usd,'USD')};
 };
+// Balance at the time of creating the draft; never project across currencies.
+A.draftAccountBalance=function(){
+ const m=this.invoiceMeta||{},id=m.accountId||'',c=this.currency||'USD';
+ if(!id)return {available:false,unselected:true};
+ const current=this.balanceFor(id);
+ if(!current?.available)return {available:false,unsynced:true};
+ let before=c==='SYP'?current.syp:current.usd;
+ // On edits, remove the already-posted invoice impact before projecting its replacement.
+ const original=this.editingId&&(this.state.ops||[]).find(op=>op.id===this.editingId);
+ if(original&&original.accountId===id&&original.currency===c&&['sale','sale_return'].includes(original.kind)){
+   const net=Number(original.netTotal??(original.rows||[]).reduce((sum,r)=>sum+Number(r.total||0),0));
+   before-=DraftInvoiceBalancePreview.sign(original.kind)*(net-Number(original.paidAmount||0));
+ }
+ const calc=this.invoiceCalc();
+ return DraftInvoiceBalancePreview.project(before,{kind:this.draftKind,currency:c,netTotal:calc.netTotal,paidAmount:calc.paidAmount});
+};
+A.draftBalanceHTML=function(){
+ const p=this.draftAccountBalance(),c=this.currency||'USD';
+ const label=x=>this.balanceLabel(x,c);
+ const msg=p.unselected?'اختر زبوناً لعرض الرصيد. البيع النقدي دون حساب لا يغيّر ذمم العملاء.':p.unsynced?
+   'الرصيد السابق غير متاح قبل استلام كشف الحسابات من الرئيسي بالمزامنة.':!p.available?
+   'تحقق من قيم الفاتورة والمبلغ المدفوع.':'يتحدّث الرصيد النهائي فور تعديل الكمية أو طريقة الدفع.';
+ return `<div class="mt-3 rounded-2xl border border-sky-200 bg-sky-50 p-3 text-xs" data-agent-draft-balance="${c}">
+  <div class="font-extrabold text-sky-900 mb-2">رصيد العميل (${c})</div>
+  <div class="grid grid-cols-2 gap-2"><div class="rounded-lg border border-sky-200 bg-white p-2"><div class="text-[11px] text-slate-600 font-bold">الرصيد السابق</div><strong id="agentDraftBalanceBefore" class="block text-slate-800 mt-1">${p.available?esc(label(p.before)):'—'}</strong></div>
+  <div class="rounded-lg border border-emerald-200 bg-emerald-50 p-2"><div class="text-[11px] text-emerald-800 font-bold">الرصيد النهائي المتوقع</div><strong id="agentDraftBalanceAfter" class="block text-emerald-800 mt-1">${p.available?esc(label(p.after)):'—'}</strong></div></div>
+  <p id="agentDraftBalanceHint" class="mt-2 text-[10px] text-slate-600">${msg}</p></div>`;
+};
+A.paintDraftBalance=function(){
+ const box=document.querySelector('[data-agent-draft-balance]');if(box)box.outerHTML=this.draftBalanceHTML();
+};
 A.balanceLabel=function(n,c){const v=Number(n||0);return (v>0.001?'عليه':v<-.001?'له':'مسدد')+' · '+money(Math.abs(v),c)+' '+c;};
 A.accountBalanceHTML=function(id){
  if(!id)return '<span class="text-xs text-slate-500">اختر زبونًا لعرض رصيده الحالي.</span>';
@@ -93,6 +124,7 @@ A.refreshInvoiceTotals=function(){
  for(const [id,num] of [['invSubTotalTxt',x.subTotal],['invNetTotalTxt',x.netTotal],['invRemainingTxt',x.remainingAmount],['invPaidInput',x.paidAmount]]){
   const el=document.getElementById(id);if(el){if(id==='invPaidInput' && this.invoiceMeta.paymentMode==='partial')continue;if('value'in el)el.value=String(num);else el.textContent=money(num,c)+' '+c;}
  }
+ this.paintDraftBalance();
 };
 A.changeRowUnit=function(i,unitName){
  this.captureInvoiceMeta();const r=this.draft[i],it=this.state.items.find(x=>x.id===r?.itemId),u=it?.units.find(x=>x.name===unitName);
@@ -194,7 +226,7 @@ A.renderInvoice=function(){
    <select class="bg-slate-100 border border-slate-200 rounded-lg px-2 py-1 text-[10px] font-bold" onchange="Agent.captureInvoiceMeta();Agent.switchInvoiceKind(this.value)"><option value="sale" ${kind==='sale'?'selected':''}>فاتورة مبيعات</option><option value="sale_return" ${kind==='sale_return'?'selected':''}>مردود مبيعات</option></select></div>
    <button type="button" onclick="Agent.changeInvoiceCurrency()" class="bg-amber-50 border border-amber-300 text-amber-900 px-2 py-1 rounded-lg text-[10px] font-extrabold flex items-center gap-1"><i class="fas fa-coins text-amber-600"></i><span>${c==='SYP'?'ليرة سورية':'دولار'}</span><span class="text-[9px] bg-white px-1 py-0.5 rounded border">تبديل</span></button></div>
   <div class="mb-1.5 rounded-lg bg-sky-50 border border-sky-200 px-2 py-1.5"><label class="block text-[10px] font-extrabold text-sky-900 mb-1">المستودع الذي تتأثر به هذه الفاتورة</label><div class="bg-white rounded-lg p-2 border border-sky-300 text-xs font-bold">${esc(this.state.vehicleName||'مستودع المندوب')} — محدد من الإدارة</div></div>
-  <div class="grid grid-cols-2 gap-1.5 text-[10px]"><div class="min-w-0"><label class="font-bold text-slate-700 flex items-center gap-1 mb-0.5"><i class="fas fa-user text-emerald-600"></i>العميل</label><select id="fAccount" class="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-[11px] font-bold bg-slate-50" onchange="Agent.accountPricingChanged(this.value)"><option value="">-- عميل نقدي مباشر --</option>${this.state.accounts.map(a=>`<option value="${esc(a.id)}" ${meta.accountId===a.id?'selected':''}>${esc(a.name)}</option>`).join('')}</select><button type="button" class="mt-1 w-full bg-emerald-50 border border-emerald-300 text-emerald-800 font-extrabold text-[10px] p-1.5 rounded-lg" onclick="Agent.openCustomerForm('invoice')">+ إضافة زبون جديد</button></div>
+  <div class="grid grid-cols-2 gap-1.5 text-[10px]"><div class="min-w-0 ta-invoice-party-highlight"><label class="font-bold text-slate-700 flex items-center gap-1 mb-0.5"><i class="fas fa-user text-emerald-600"></i>العميل</label><select id="fAccount" aria-label="العميل" class="ta-invoice-party-select w-full border border-slate-300 rounded-lg px-2 py-1.5 text-[11px] font-bold bg-slate-50" onchange="Agent.accountPricingChanged(this.value)"><option value="">-- عميل نقدي مباشر --</option>${this.state.accounts.map(a=>`<option value="${esc(a.id)}" ${meta.accountId===a.id?'selected':''}>${esc(a.name)}</option>`).join('')}</select><button type="button" class="mt-1 w-full bg-emerald-50 border border-emerald-300 text-emerald-800 font-extrabold text-[10px] p-1.5 rounded-lg" onclick="Agent.openCustomerForm('invoice')">+ إضافة زبون جديد</button></div>
   <div><label class="flex items-center gap-1 font-bold text-slate-700 mb-0.5"><i class="fas fa-calendar-days text-blue-600"></i>التاريخ</label><input id="fDate" class="w-full min-w-0 border border-slate-300 rounded-lg px-1.5 py-1.5 text-[10px]" type="datetime-local" value="${esc(meta.date||this.defaultDate())}" onchange="Agent.captureInvoiceMeta()"></div></div>
   <div id="invoiceAccountBalance" class="bg-sky-50 border border-sky-200 rounded-lg p-2 text-xs">${this.accountBalanceHTML(meta.accountId)}</div>
   <div class="grid grid-cols-3 gap-1.5 bg-slate-100 p-1 rounded-xl text-xs font-bold">
@@ -219,6 +251,7 @@ A.renderInvoice=function(){
   <div><label class="block text-[11px] font-bold text-slate-600 mb-1">الضريبة / الإضافات</label><div class="flex"><input type="number" id="invoiceTax" min="0" step="any" value="${esc(meta.taxValue||0)}" oninput="Agent.changeInvoiceAdjustment()" class="w-full border border-slate-300 rounded-r-xl px-2.5 py-1.5 font-bold text-center"><select id="invoiceTaxType" onchange="Agent.changeInvoiceAdjustment()" class="bg-slate-100 border border-r-0 border-slate-300 rounded-l-xl px-2 font-bold"><option value="percent" ${meta.taxType!=='amount'?'selected':''}>%</option><option value="amount" ${meta.taxType==='amount'?'selected':''}>${c}</option></select></div></div>
  </div><div class="bg-slate-900 text-white p-3 rounded-xl flex items-center justify-between"><span class="font-bold text-xs">الصافي النهائي المطلوب:</span><span id="invNetTotalTxt" class="font-extrabold text-base text-emerald-400">${money(calc.netTotal,c)} ${c}</span></div>
  <div class="grid grid-cols-2 gap-2 pt-1"><div><label class="block text-[11px] font-bold text-emerald-700 mb-1">المبلغ المدفوع (دفعة الفاتورة)</label><input id="invPaidInput" type="number" step="any" min="0" value="${mode==='partial'?esc(meta.paid):calc.paidAmount}" ${mode==='partial'?'':'readonly'} oninput="Agent.invoiceMeta.paid=this.value;Agent.refreshInvoiceTotals()" class="w-full border ${mode==='partial'?'border-emerald-500 bg-white':'border-slate-200 bg-slate-100'} rounded-xl px-3 py-2 font-extrabold text-center text-sm"></div><div><label class="block text-[11px] font-bold text-rose-700 mb-1">المبلغ المتبقي (ذمم على الحساب)</label><div id="invRemainingTxt" class="w-full border border-slate-200 bg-rose-50 text-rose-700 rounded-xl px-3 py-2 font-extrabold text-center text-sm">${money(calc.remainingAmount,c)} ${c}</div></div></div>
+ ${this.draftBalanceHTML()}
  <input type="hidden" id="fPaid" value="${esc(meta.paid||'')}"><label class="block text-[11px] text-slate-500">البيان / ملاحظة</label><textarea id="fNote" class="w-full border border-slate-300 rounded-xl p-2" rows="2" oninput="Agent.invoiceMeta.note=this.value">${esc(meta.note||'')}</textarea></div>
  <div class="grid grid-cols-2 gap-2"><button type="button" onclick="Agent.saveInvoiceAndPrint()" class="bg-emerald-600 text-white font-extrabold py-3 px-2 rounded-2xl text-xs flex items-center justify-center gap-1.5 shadow-sm"><i class="fab fa-bluetooth-b text-base"></i>حفظ وطباعة بلوتوث</button><button type="button" onclick="Agent.saveInvoice()" class="bg-slate-900 text-white font-extrabold py-3 px-2 rounded-2xl text-xs flex items-center justify-center gap-1.5 shadow-sm"><i class="fas fa-floppy-disk text-emerald-400"></i>حفظ الفاتورة</button></div>
  <p class="form-help">البيع يخص مخزون السيارة فقط. الفواتير المحفوظة تُرحّل دون تكرار ولا يمكن تعديلها بصمت بعد المزامنة.</p>

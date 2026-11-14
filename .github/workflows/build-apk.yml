@@ -1,164 +1,93 @@
-name: Build SAN SHINE Android APK
+name: Tiqany Acc - Main Signed Release
 
 on:
   workflow_dispatch:
   push:
-    branches:
-      - main
+    branches: [main]
 
 permissions:
   contents: read
 
 jobs:
-  build:
-    name: Build Android APK
+  release:
+    name: Audit, test, and create signed release
     runs-on: ubuntu-latest
     timeout-minutes: 45
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Repair Android project structure
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          copy_if_missing() {
-            dest="$1"
-            shift
-            if [[ -s "$dest" ]]; then
-              return 0
-            fi
-            for source in "$@"; do
-              if [[ -s "$source" ]]; then
-                mkdir -p "$(dirname "$dest")"
-                cp "$source" "$dest"
-                echo "Restored $dest"
-                return 0
-              fi
-            done
-            echo "::error::Missing file: $dest"
-            exit 1
-          }
-
-          copy_if_missing app/build.gradle \
-            "build (1).gradle" \
-            app/src/main/build.gradle
-
-          copy_if_missing app/src/main/AndroidManifest.xml \
-            AndroidManifest.xml
-
-          copy_if_missing app/src/main/java/com/sunshine/accounting/MainActivity.java \
-            MainActivity.java
-
-          copy_if_missing app/src/main/assets/www/index.html \
-            index.html
-
-          copy_if_missing app/src/main/assets/www/static/icons.js \
-            icons.js
-
-          copy_if_missing app/src/main/assets/www/static/tailwind.css \
-            tailwind.css
-
-          copy_if_missing app/src/main/res/drawable/ic_launcher.xml \
-            ic_launcher.xml
-
-          copy_if_missing tests/check_project.py \
-            check_project.py
-
-          copy_if_missing tests/test_accounting.js \
-            test_accounting.js
-
-          copy_if_missing tests/test_signed_licenses.js \
-            test_signed_licenses.js
-
-          test -s build.gradle
-          test -s settings.gradle
-          test -s gradle.properties
-
-          echo "Project files verified"
-
-      - name: Setup Java 17
+      - name: Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-
-      - name: Setup Android SDK
+      - name: Android SDK
         uses: android-actions/setup-android@v4
-        with:
-          packages: 'platform-tools'
-
       - name: Install Android API 35
-        run: |
-          sdkmanager --install \
-            'platforms;android-35' \
-            'build-tools;35.0.0'
-
-      - name: Setup Gradle 8.9
+        run: sdkmanager --install 'platforms;android-35' 'build-tools;35.0.0'
+      - name: Gradle 8.9
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
-
-      - name: Check Android project
-        run: python3 tests/check_project.py
-
-      - name: Check JavaScript
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
-
-          html = Path(
-              'app/src/main/assets/www/index.html'
-          ).read_text(encoding='utf-8')
-
-          scripts = re.findall(
-              r'<script(?:\s[^>]*)?>([\s\S]*?)</script>',
-              html,
-              re.I
-          )
-
-          Path('/tmp/app.js').write_text(
-              '\n'.join(scripts),
-              encoding='utf-8'
-          )
-          PY
-
-          node --check /tmp/app.js
-          node --check app/src/main/assets/www/static/icons.js
-
-      - name: Test accounting system
-        run: node tests/test_accounting.js
-
-      - name: Test license security
-        run: node tests/test_signed_licenses.js
-
-      - name: Build Android APK
+      - name: Static release audit
+        run: python3 scripts/release_audit.py main
+      - name: Run project tests
         shell: bash
         run: |
-          set -o pipefail
-          gradle --no-daemon --stacktrace \
-            :app:assembleDebug 2>&1 | tee build-log.txt
-
-      - name: Check APK
+          set -euo pipefail
+          python3 tests/check_project.py
+          node tests/test_accounting.js
+          node tests/test_draft_invoice_balance_3555.js
+          node tests/test_signed_licenses.js
+          node tests/test_security_355.js
+          node tests/test_lan_sync_3528.js
+          node tests/test_agent_parity_3527.js
+          node tests/test_assembly_tiers_scope_3551.js
+          node tests/test_bundle_grid_default_3553.js
+          node tests/test_accounts_summary_3554.js
+          node tests/test_live_items_3554.js
+          node tests/test_transfer_destination_history_3554.js
+      - name: Build, sign, and verify app release APK
+        shell: bash
+        env:
+          SIGNING_KEYSTORE_BASE64: ${{ secrets.TA_KEYSTORE_BASE64 }}
+          TA_SIGNING_STORE_PASSWORD: ${{ secrets.TA_STORE_PASSWORD }}
+          TA_SIGNING_KEY_ALIAS: ${{ secrets.TA_KEY_ALIAS }}
+          TA_SIGNING_KEY_PASSWORD: ${{ secrets.TA_KEY_PASSWORD }}
+          EXPECTED_CERT_SHA256: ${{ vars.TA_EXPECTED_CERT_SHA256 }}
         run: |
-          test -s app/build/outputs/apk/debug/app-debug.apk
+          set -euo pipefail
+          if [[ -z "$SIGNING_KEYSTORE_BASE64" || -z "$TA_SIGNING_STORE_PASSWORD" ||
+                -z "$TA_SIGNING_KEY_ALIAS" || -z "$TA_SIGNING_KEY_PASSWORD" ]]; then
+            echo "::error::Missing one or more TA signing secrets. Refusing to produce a Debug or unsigned release APK."
+            exit 1
+          fi
+          umask 077
+          export TA_SIGNING_KEYSTORE_PATH="$RUNNER_TEMP/app-release.jks"
+          trap 'rm -f "$TA_SIGNING_KEYSTORE_PATH"' EXIT
+          printf '%s' "$SIGNING_KEYSTORE_BASE64" | base64 --decode > "$TA_SIGNING_KEYSTORE_PATH"
+          test -s "$TA_SIGNING_KEYSTORE_PATH"
 
-      - name: Upload APK
+          gradle --no-daemon --console=plain :app:assembleRelease
+          apk="app/build/outputs/apk/release/app-release.apk"
+          test -s "$apk"
+          verifier="$ANDROID_HOME/build-tools/35.0.0/apksigner"
+          "$verifier" verify --verbose --print-certs "$apk"
+          cert_digest=$("$verifier" verify --print-certs "$apk" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -n 1)
+          [[ "$cert_digest" =~ ^[0-9a-fA-F]{64}$ ]] || { echo '::error::Could not read signing certificate SHA-256'; exit 1; }
+          if [[ -n "$EXPECTED_CERT_SHA256" && "${cert_digest,,}" != "${EXPECTED_CERT_SHA256,,}" ]]; then
+            echo '::error::Signing certificate does not match pinned certificate. Update aborted to protect install continuity.'
+            exit 1
+          fi
+          mkdir -p output
+          cp "$apk" "output/Tiqany-Acc-Main-3.5.54-RELEASE.apk"
+          (cd output && sha256sum "Tiqany-Acc-Main-3.5.54-RELEASE.apk" > "Tiqany-Acc-Main-3.5.54-RELEASE.apk.sha256")
+      - name: Upload signed app APK and checksum
         uses: actions/upload-artifact@v4
         with:
-          name: SAN-SHINE-Android-APK
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: Tiqany-Acc-Main-3.5.54-RELEASE
+          path: |
+            output/Tiqany-Acc-Main-3.5.54-RELEASE.apk
+            output/Tiqany-Acc-Main-3.5.54-RELEASE.apk.sha256
           if-no-files-found: error
           retention-days: 30
-
-      - name: Upload error report
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: SAN-SHINE-Error-Log
-          path: build-log.txt
-          if-no-files-found: ignore
-          retention-days: 7
