@@ -257,7 +257,7 @@ A.renderInvoice=function(){
  <p class="form-help">البيع يخص مخزون السيارة فقط. الفواتير المحفوظة تُرحّل دون تكرار ولا يمكن تعديلها بصمت بعد المزامنة.</p>
  </div>`;
 };
-A.scanInvoiceBarcode=function(){if(window.NativeBarcode?.scan)window.NativeBarcode.scan('invoice');else this.toast('مسح الباركود متاح داخل Android APK');};
+A.scanInvoiceBarcode=function(){if(window.NativeBarcode?.scan){window.NativeBarcode.setKnownBarcodes?.(JSON.stringify((this.state.items||[]).map(x=>String(x.barcode||'').trim()).filter(Boolean)));window.NativeBarcode.scan('invoice');}else this.toast('مسح الباركود متاح داخل Android APK');};
 A.quickAddIndex=function(i){const it=this.state.items[i];if(it)this.addGridItem(it.id);};
 A.addRow=function(){this.addGridItem(value('fItem'));};
 A.saveInvoiceAndPrint=function(){return this.saveInvoice(true);};

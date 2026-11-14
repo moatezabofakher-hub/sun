@@ -30,7 +30,7 @@ document.addEventListener('keydown',e=>{
   if(e.key==='Enter'||e.key==='Tab'){
     const code=buffer,rapid=code.length>=5&&code.length<=128&&(now-started)/Math.max(1,code.length-1)<=70&&now-last<=300;
     const previousEditor=editor,previousValue=originalValue;clear();
-    if(rapid&&known(code)){
+    if(rapid&&/^[a-z0-9_.-]{5,128}$/i.test(code)){
       e.preventDefault();e.stopPropagation();
       // Restore any characters injected into a focused search or price editor.
       if(previousEditor?.isConnected && previousEditor.value!==undefined && previousEditor.value!==previousValue){
@@ -38,6 +38,12 @@ document.addEventListener('keydown',e=>{
         previousEditor.dispatchEvent(new Event('input',{bubbles:true}));
       }
       window.BarcodeFeedback?.read(); // HID scan finished, independent of item addition
+      if(!known(code)){
+        const msg='الباركود غير معرّف: '+code.slice(0,32);
+        if(typeof Agent!=='undefined')Agent.toast(msg);
+        else if(typeof UI!=='undefined')UI.toast(msg,'warn');
+        return;
+      }
       handle(code);
     }
     return;

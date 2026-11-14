@@ -142,13 +142,13 @@ Agent.renderItemGrid=function(){const query=(this.gridSearch||'').trim().toLocal
   const balance=Number(this.stock[it.id]||0);return `<button type="button" class="item-pick" data-item-index="${i}" onclick="Agent.quickAddIndex(${i})"><b>${this.escape(it.name)}</b><small>المتاح: ${balance.toFixed(2)} من الوحدة الأساسية</small><span class="qty">+ إضافة</span>${chosen>0?`<span class="grid-count">${chosen.toFixed(2)} في الفاتورة</span>`:''}</button>`;}).join('');};
 Agent.filterGrid=function(){const q=document.getElementById('itemGridQuery'),c=document.getElementById('itemGridCategory');this.gridSearch=q?.value||'';this.gridCategory=c?.value||'all';const target=document.getElementById('agentItemGrid');if(target)target.innerHTML=this.renderItemGrid();};
 Agent.scanInvoiceBarcode=function(){
- if(window.NativeBarcode?.scan){window.NativeBarcode.scan('invoice');return;}
+ if(window.NativeBarcode?.scan){window.NativeBarcode.setKnownBarcodes?.(JSON.stringify((this.state.items||[]).map(x=>String(x.barcode||'').trim()).filter(Boolean)));window.NativeBarcode.scan('invoice');return;}
  this.toast('مسح الباركود بالكاميرا متاح عند تشغيل التطبيق على أندرويد');
 };
 Agent.addScannedBarcode=function(value){
  const barcode=String(value||'').trim();if(!barcode)return false;
  const index=this.state.items.findIndex(it=>String(it.barcode||'').trim()===barcode);
- if(index<0){this.toast('الباركود غير موجود في المواد المعتمدة: '+barcode.slice(0,18));return false;}
+ if(index<0){this.toast('الباركود غير معرّف: '+barcode.slice(0,32));return false;}
  const item=this.state.items[index];
  const before=(this.draft||[]).filter(r=>r.itemId===item.id).reduce((n,r)=>n+Number(r.qty||0),0);
  this.quickAddIndex(index);

@@ -19,6 +19,7 @@ A.renderSettings=function(){
    <label class="label">تسعير نقطة البيع</label><select class="field" id="agentPosTier" onchange="Agent.savePosSettings()">
      ${[['account','حسب الحساب / الإعدادات'],['wholesale','الجملة'],['center','المركز'],['consumer','المستهلك']].map(([id,title])=>`<option value="${id}" ${String(this.state.posPriceTier||'account')===id?'selected':''}>${title}</option>`).join('')}</select>
    <label class="label"><input id="agentPosHomeScan" type="checkbox" ${this.state.posScanFromHome===true?'checked':''} onchange="Agent.savePosSettings()"> فتح نقطة بيع جديدة عند قراءة باركود من الرئيسية (قارئ خارجي)</label>
+   <label class="label agent-pos-next-setting"><input id="agentPosAutoNext" type="checkbox" ${this.state.posAutoNextOnFinish!==false?'checked':''} onchange="Agent.savePosSettings()"> فتح نقطة بيع جديدة بعد الحفظ أو تأكيد الخروج من عملية غير مكتملة</label>
    <p class="tiny">الإعدادات خاصة بنقطة البيع، وتُحفظ على جهاز موظف البيع. تسجَّل المبيعات في صندوق موظف البيع وتُرسل مع مزامنته المعتادة.</p>
   </section>`;
   return html+settings;
@@ -28,10 +29,11 @@ A.savePosSettings=async function(){
   const tier=document.getElementById('agentPosTier')?.value||'account';
   if(account && !(this.state.accounts||[]).some(a=>String(a.id)===account))return this.toast('حساب غير متاح للموظف بيع');
   if(!['account','wholesale','center','consumer'].includes(tier))return;
-  const oldA=this.state.posAccountId,oldT=this.state.posPriceTier,oldH=this.state.posScanFromHome;
+  const oldA=this.state.posAccountId,oldT=this.state.posPriceTier,oldH=this.state.posScanFromHome,oldN=this.state.posAutoNextOnFinish;
   this.state.posAccountId=account;this.state.posPriceTier=tier;this.state.posScanFromHome=document.getElementById('agentPosHomeScan')?.checked===true;
+  this.state.posAutoNextOnFinish=document.getElementById('agentPosAutoNext')?.checked!==false;
   try{await this.save();this.toast('تم حفظ ضبط نقطة البيع');}
-  catch(e){this.state.posAccountId=oldA;this.state.posPriceTier=oldT;this.state.posScanFromHome=oldH;this.toast('تعذّر حفظ إعدادات نقطة البيع');}
+  catch(e){this.state.posAccountId=oldA;this.state.posPriceTier=oldT;this.state.posScanFromHome=oldH;this.state.posAutoNextOnFinish=oldN;this.toast('تعذّر حفظ إعدادات نقطة البيع');}
 };
 A.startPOS=async function(){
   if(this.draft?.length && this.screen==='invoice'){
@@ -154,6 +156,13 @@ A.openPosFromBarcode=async function(value){
 const originalGoBack=A.goBack.bind(A);
 A.goBack=function(){
   if(document.getElementById('agentPosNameList')){this.closePosNameList();return;}
+  if(this.posMode && this.screen==='invoice' && this.draft?.length){
+    this.confirmAction('الرجوع من نقطة البيع','هل تريد تجاهل الأصناف غير المحفوظة؟',()=>{
+      this.draft=[];
+      if(this.state.posAutoNextOnFinish!==false)this.startPOS();
+      else {this.posMode=false;this.stack=['home'];this.show('home');}
+    });return;
+  }
   if(this.posMode && this.screen==='invoice' && !this.draft?.length){
     this.posMode=false;this.stack=['home'];this.show('home');return;
   }
@@ -175,6 +184,7 @@ A.saveInvoice=async function(andPrint=false){
     // Existing posting logic enforces stock, licence and transaction validation.
     await normalSave(andPrint);
     if(this.state.ops.length>oldCount){
+      if(this.state.posAutoNextOnFinish===false){this.posMode=false;this.stack=['home'];await previousShow('home');return;}
       this.posMode=true;this.draft=[];this.invoiceMeta.accountId=this.state.accounts.some(a=>a.id===this.state.posAccountId)?this.state.posAccountId:'';
       this.invoiceMeta.paymentMode='cash';this.invoiceMeta.paid='';
       this.stack=['home','invoice'];await previousShow('invoice');

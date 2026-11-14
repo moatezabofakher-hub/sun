@@ -35,6 +35,7 @@ import java.util.List;
 
 /** Multi-item invoice barcode scanner. No network, keeps the same invoice draft. */
 public final class ContinuousBarcodeActivity extends ComponentActivity {
+    public static final String EXTRA_KNOWN_CODES = "com.sunshine.accounting.KNOWN_BARCODES";
     public static final String EXTRA_CODES = "com.sunshine.accounting.SCANNED_CODES";
     public static final String EXTRA_ERROR = "com.sunshine.accounting.SCANNER_ERROR";
     private static final int REQUEST_CAMERA = 8402;
@@ -46,6 +47,7 @@ public final class ContinuousBarcodeActivity extends ComponentActivity {
     private TextView countText;
     private TextView lastText;
     private final ArrayList<String> scanned = new ArrayList<>();
+    private java.util.Set<String> knownBarcodes = null;
     private String lastCode = "";
     private long lastTime = 0;
     private boolean requestedPermission = false;
@@ -64,6 +66,11 @@ public final class ContinuousBarcodeActivity extends ComponentActivity {
                 android.media.AudioManager.STREAM_MUSIC, 65); }
         catch (RuntimeException ignored) { readTone = null; }
 
+        if(getIntent()!=null && getIntent().hasExtra(EXTRA_KNOWN_CODES)) {
+            ArrayList<String> entries=getIntent().getStringArrayListExtra(EXTRA_KNOWN_CODES);
+            knownBarcodes=new java.util.HashSet<>();
+            if(entries!=null) for(String entry:entries) if(entry!=null) knownBarcodes.add(entry.trim().toLowerCase(java.util.Locale.ROOT));
+        }
         // Keep overlay actions away from the status/navigation bars.
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
         getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
@@ -155,6 +162,15 @@ public final class ContinuousBarcodeActivity extends ComponentActivity {
         long cooldown = code.equals(lastCode) ? REPEATED_CODE_COOLDOWN_MS
                 : DIFFERENT_CODE_COOLDOWN_MS;
         if (now - lastTime < cooldown) return;
+        if (knownBarcodes != null && !knownBarcodes.contains(code.toLowerCase(java.util.Locale.ROOT))) {
+            lastCode=code;lastTime=now;
+            if(readTone!=null)try{readTone.startTone(android.media.ToneGenerator.TONE_PROP_BEEP,90);}catch(RuntimeException ignored){}
+            lastText.setText("الباركود غير معرّف: " + code);
+            lastText.setTextColor(Color.rgb(255, 152, 152));
+            Toast.makeText(this, "الباركود غير معرّف: " + code, Toast.LENGTH_SHORT).show();
+            return;
+        }
+        lastText.setTextColor(Color.WHITE);
         if (scanned.size() >= MAX_CODES) {
             lastText.setText("وصلت للحد الأعلى، اضغط × لإضافة الأصناف");
             return;

@@ -111,6 +111,7 @@ public final class MainActivity extends FragmentActivity {
     private static final int REQUEST_WEB_CAMERA = 2403;
     private PermissionRequest pendingWebCameraPermission;
     private String pendingNativeBarcodeTarget;
+    private volatile ArrayList<String> pendingKnownBarcodes = null;
 
     // Offline barcode reader (ZXing). Its own camera Activity requests CAMERA on first use.
     private final ActivityResultLauncher<ScanOptions> barcodeLauncher =
@@ -421,6 +422,21 @@ public final class MainActivity extends FragmentActivity {
         }
 
         @JavascriptInterface
+        public void setKnownBarcodes(String json) {
+            ArrayList<String> list = new ArrayList<>();
+            if (json != null && json.length() <= 600000) {
+                try {
+                    org.json.JSONArray array = new org.json.JSONArray(json);
+                    for (int i=0; i<array.length() && i<12000; i++) {
+                        String code=array.optString(i, "").trim().toLowerCase(java.util.Locale.ROOT);
+                        if (!code.isEmpty() && code.length()<=128) list.add(code);
+                    }
+                } catch (org.json.JSONException ignored) { return; }
+            }
+            pendingKnownBarcodes=list;
+        }
+
+        @JavascriptInterface
         public void scan(String target) {
             if (!"invoice".equals(target) && !"item".equals(target) && !"pairing".equals(target)) return;
             runOnUiThread(() -> {
@@ -442,8 +458,12 @@ public final class MainActivity extends FragmentActivity {
                 options.setBarcodeImageEnabled(false);
                 try {
                     if ("invoice".equals(target)) {
-                        invoiceBarcodeLauncher.launch(new Intent(MainActivity.this,
-                                ContinuousBarcodeActivity.class));
+                        Intent scannerIntent = new Intent(MainActivity.this, ContinuousBarcodeActivity.class);
+                        ArrayList<String> codesForScanner = pendingKnownBarcodes;
+                        if (codesForScanner != null) scannerIntent.putStringArrayListExtra(
+                                ContinuousBarcodeActivity.EXTRA_KNOWN_CODES, codesForScanner);
+                        pendingKnownBarcodes = null;
+                        invoiceBarcodeLauncher.launch(scannerIntent);
                     } else {
                         // Creating an item still scans only one barcode for its field.
                         barcodeLauncher.launch(options);

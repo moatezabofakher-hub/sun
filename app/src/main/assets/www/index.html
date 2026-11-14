@@ -1002,6 +1002,12 @@
 #topAppBar.dashboard-header #salesStaffCounterButton .ta-staff-counter-label{display:inline!important;font-size:9px!important}
 @media(max-width:380px){#topAppBar.dashboard-header #headerTitleWrap{width:calc(100% - 100px)!important}#topAppBar.dashboard-header #screenTitle{font-size:12px!important}}
 </style>
+<style id="ta-dark-report-icons-20261115">
+.ta-dashboard [data-report-print],.ta-dashboard .invoice-report-action{background:linear-gradient(155deg,#12425f,#08283d)!important;border:2px solid #176b8a!important;color:#fff!important;box-shadow:0 5px 0 #031827,0 10px 18px rgba(0,23,44,.3)!important;text-shadow:0 1px 2px #001b2b!important;}
+.ta-dashboard .invoice-report-action i{color:#c8f6ff!important;filter:drop-shadow(0 3px 2px #001522)!important;}
+.ta-pos-next-toggle{display:flex;align-items:center;gap:9px;padding:10px;border-radius:12px;background:#cbe8f1;border:1px solid #2e8195;color:#123d50;font-size:12px;font-weight:800;}
+.ta-pos-next-toggle input{accent-color:#086a86;width:18px;height:18px;flex-shrink:0;}
+</style>
 </head>
 <body class="ta-premium-ui ta-3d-v3524 bg-slate-100 text-slate-800 min-h-screen flex flex-col w-full max-w-full overflow-x-hidden">
 
@@ -1146,6 +1152,7 @@
                 addedCurrencies: [], // Other ISO codes are catalogued, not silently posted to a two-currency ledger
                 defaultInvoiceListType: 'sale',
                 defaultPriceTier: 'wholesale', // Default sale tier only for accounts set to follow invoice settings
+                posAutoNextOnFinish: true, // After saving or confirming discard of a nonempty POS draft
                 defaultViewPeriod: 'today', // Shared initial filter for invoices, vouchers and period-based reports
                 defaultViewStart: '',
                 defaultViewEnd: '',
@@ -2502,8 +2509,13 @@
                             }
                         },
                         () => {
+                            const repeatPOS=this.current()?.screen==='pos' &&
+                              InvoiceController.draft?.rows?.length>0 &&
+                              !InvoiceController.draft.isEditing &&
+                              State.settings.posAutoNextOnFinish!==false;
                             this.clearDirty();
-                            this.popScreen();
+                            if(repeatPOS)this.navigate('pos',{},true);
+                            else this.popScreen();
                         }
                     );
                     return;
@@ -5238,6 +5250,7 @@
                                 <option value="center" ${State.settings.posPriceTier==='center'?'selected':''}>المركز</option>
                                 <option value="consumer" ${State.settings.posPriceTier==='consumer'?'selected':''}>المستهلك</option>
                             </select>
+                            <label class="ta-pos-next-toggle"><input type="checkbox" id="posAutoNextSetting" ${State.settings.posAutoNextOnFinish!==false?'checked':''} onchange="POSController.saveSettings()"><span>فتح نقطة بيع جديدة تلقائياً بعد الحفظ أو الخروج من عملية غير مكتملة</span></label>
                             <label class="flex items-center gap-2 text-xs font-bold">
                                 <input type="checkbox" id="posScanFromHomeSetting" ${State.settings.posScanFromHome===true?'checked':''} onchange="POSController.saveSettings()"> فتح نقطة بيع عند قراءة باركود من الرئيسية
                             </label>
@@ -7272,7 +7285,7 @@
                 if (!code) return;
                 const item = State.items.find(itm => String(itm.barcode || '').trim().toLowerCase() === code);
                 if (!item) {
-                    UI.toast('لا توجد مادة مسجلة بهذا الباركود', 'error');
+                    UI.toast('الباركود غير معرّف: '+String(rawCode||'').slice(0,32), 'error');
                     return;
                 }
                 const quantityBefore = (this.draft?.rows || []).filter(r => r.itemId === item.id).reduce((n,r) => n + Number(r.qty || 0), 0);
@@ -7316,12 +7329,13 @@
                     UI.toast(`تمت إضافة ${added} قراءة باركود إلى الفاتورة`, 'success');
                 }
                 if (missing.length) {
-                    UI.toast(`لم يتم العثور على ${missing.length} باركود في المواد المسجلة`, 'warn');
+                    UI.toast(`الباركود غير معرّف: ${missing[0]} — ${missing.length} باركود غير مسجل`, 'warn');
                 }
             },
 
             async openBarcodeScanner() {
                 if (window.NativeBarcode && typeof window.NativeBarcode.scan === 'function') {
+                    window.NativeBarcode.setKnownBarcodes?.(JSON.stringify(State.items.map(it=>String(it.barcode||'').trim()).filter(Boolean)));
                     window.NativeBarcode.scan('invoice');
                     return;
                 }

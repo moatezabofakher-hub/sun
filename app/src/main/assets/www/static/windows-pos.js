@@ -21,10 +21,11 @@ const POSController = {
     return t==='wholesale'?'سعر الجملة':t==='center'?'سعر المركز':t==='consumer'?'سعر المستهلك':'حسب إعدادات الحساب';
   },
   async saveSettings() {
-    const previous={posAccountId:State.settings.posAccountId,posPriceTier:State.settings.posPriceTier,posScanFromHome:State.settings.posScanFromHome};
+    const previous={posAccountId:State.settings.posAccountId,posPriceTier:State.settings.posPriceTier,posScanFromHome:State.settings.posScanFromHome,posAutoNextOnFinish:State.settings.posAutoNextOnFinish};
     const proposedAcc=document.getElementById('posAccountSetting')?.value || '';
     const proposedTier=document.getElementById('posTierSetting')?.value || 'account';
     const proposedAutoPOS=document.getElementById('posScanFromHomeSetting')?.checked === true;
+    const proposedNext=document.getElementById('posAutoNextSetting')?.checked !== false;
     if(proposedAcc && !State.accounts.some(a=>a.id===proposedAcc && a.type==='customer')) {
       UI.toast('الحساب المحدد غير موجود أو ليس حساب زبون','warn'); return false;
     }
@@ -32,6 +33,7 @@ const POSController = {
     State.settings.posAccountId=proposedAcc;
     State.settings.posPriceTier=proposedTier;
     State.settings.posScanFromHome=proposedAutoPOS;
+    State.settings.posAutoNextOnFinish=proposedNext;
     try {await StorageEngine.saveState();UI.toast('تم حفظ ضبط نقطة البيع','success');return true;}
     catch(e){Object.assign(State.settings,previous);UI.toast('تعذر حفظ إعدادات نقطة البيع','error');return false;}
   },
@@ -39,7 +41,7 @@ const POSController = {
   openFromBarcode(raw) {
     const code=String(raw||'').trim().toLowerCase();
     const found=State.items.find(item=>String(item.barcode||'').trim().toLowerCase()===code);
-    if(!found){UI.toast('الباركود غير مسجل؛ لم تُفتح نقطة بيع','warn');return false;}
+    if(!found){UI.toast('الباركود غير معرّف: '+String(raw||'').slice(0,32),'warn');return false;}
     if(State.settings.posScanFromHome!==true || AppNav.current()?.screen!=='dashboard')return false;
     // Do not create an invoice while a dialog, modal or operation guard is active.
     if(AppNav.isDirty||AppNav.isModalDirty||AppNav.activeOperationGuard)return false;
@@ -114,7 +116,7 @@ const POSController = {
     if(!this.canChange())return false;
     const code=String(raw||'').trim().toLowerCase();if(!code)return false;
     const item=State.items.find(x=>String(x.barcode||'').trim().toLowerCase()===code);
-    if(!item){UI.toast('هذا الباركود غير مسجل في المواد','warn');return false;}
+    if(!item){UI.toast('الباركود غير معرّف: '+String(raw||'').slice(0,32),'warn');return false;}
     const added=this.add(item.id);
     return added;
   },
@@ -234,7 +236,8 @@ const POSController = {
       // New sale: start next POS; existing invoice: return to sales history.
       AppNav.clearDirty();
       if(d.isEditing) AppNav.navigate('invoices_list',{type:'sale'},true);
-      else AppNav.navigate('pos',{},true);
+      else if(State.settings.posAutoNextOnFinish!==false) AppNav.navigate('pos',{},true);
+      else AppNav.navigate('dashboard',{},true);
       return true;
     } finally {this.saving=false;}
   }
