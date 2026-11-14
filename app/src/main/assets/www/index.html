@@ -987,6 +987,7 @@
 </style>
     <link rel="stylesheet" href="static/glossy-ui-3549.css">
     <link rel="stylesheet" href="static/invoice-customer-highlight-3556.css">
+<link rel="stylesheet" href="static/windows-pos.css">
 </head>
 <body class="ta-premium-ui ta-3d-v3524 bg-slate-100 text-slate-800 min-h-screen flex flex-col w-full max-w-full overflow-x-hidden">
 
@@ -2405,6 +2406,12 @@
                 }
 
                 if (this.isDirty || this.activeOperationGuard) {
+                    if (['invoice_form','pos'].includes(this.current()?.screen) &&
+                        !InvoiceController.draft?.rows?.length) {
+                        this.clearDirty();
+                        executeNavigation();
+                        return;
+                    }
                     UI.showUnsavedDialog(
                         async () => {
                             if (this.dirtySaveHandler) {
@@ -2447,6 +2454,15 @@
                 const modal = document.getElementById('modalContainer');
                 if (!modal.classList.contains('hidden')) {
                     UI.requestCloseModal();
+                    return;
+                }
+
+                // Empty invoice/POS: Back closes it immediately, with no unsaved-data dialog.
+                // Do not change the guarded behavior when at least one item exists.
+                if (['invoice_form','pos'].includes(this.current()?.screen) &&
+                    !InvoiceController.draft?.rows?.length) {
+                    this.clearDirty();
+                    this.popScreen();
                     return;
                 }
 
@@ -3879,6 +3895,7 @@
                     case 'warehouses': return this.renderWarehouses(main, params);
                     case 'expenses': return this.renderExpenses(main, params);
                     case 'invoices_list': return this.renderInvoicesList(main, params);
+                    case 'pos': return POSController.render(main, params);
                     case 'invoice_form': return InvoiceController.renderForm(main, params);
                     case 'invoice_print': return this.renderInvoicePrint(main, params);
                     case 'accounts': return this.renderAccounts(main, params);
@@ -3931,6 +3948,10 @@
                                 <button type="button" onclick="AppNav.navigate('invoice_form', { type: 'sale' })" class="ta-action-card">
                                     <span class="ta-icon-box ta-tone-teal"><i class="fas fa-cart-plus" aria-hidden="true"></i></span>
                                     <span class="ta-card-footer"><span><strong>فاتورة مبيعات</strong><span class="ta-card-description block">تسجيل عملية بيع</span></span><i class="fas fa-arrow-right ta-card-chevron" aria-hidden="true"></i></span>
+                                </button>
+                                <button type="button" onclick="AppNav.navigate('pos')" class="ta-action-card" aria-label="فتح نقطة البيع السريعة">
+                                    <span class="ta-icon-box ta-tone-teal"><i class="fas fa-cash-register"></i></span>
+                                    <span class="ta-card-footer"><span><strong>نقطة بيع</strong><span class="ta-card-description block">بيع سريع وإضافة بالشبكة</span></span><i class="fas fa-arrow-right ta-card-chevron"></i></span>
                                 </button>
                                 <button type="button" onclick="AppNav.navigate('invoice_form', { type: 'purchase' })" class="ta-action-card">
                                     <span class="ta-icon-box ta-tone-blue"><i class="fas fa-truck-ramp-box" aria-hidden="true"></i></span>
@@ -5186,6 +5207,25 @@
                                 <option value="consumer" ${State.settings.defaultPriceTier === 'consumer' ? 'selected' : ''}>سعر المستهلك</option>
                             </select>
                             <p class="text-[11px] text-teal-900 mt-1">يُطبق على الحسابات المحددة «حسب الإعدادات» فقط، ولا يغيّر أسعار الفواتير المحفوظة أو الحسابات ذات التسعير الخاص.</p>
+                        </div>
+                        <div class="rounded-xl border border-cyan-200 bg-cyan-50 p-3 space-y-2" id="posInvoiceSettings">
+                            <h3 class="font-black text-sm text-cyan-950"><i class="fas fa-cash-register ml-1"></i> ضبط نقطة البيع</h3>
+                            <label class="block text-xs font-extrabold">الحساب الافتراضي</label>
+                            <select id="posAccountSetting" onchange="POSController.saveSettings()" class="w-full bg-white border rounded-xl p-2.5 text-xs font-bold">
+                                <option value="" ${!State.settings.posAccountId?'selected':''}>الزبون النقدي</option>
+                                ${State.accounts.filter(a=>a.type==='customer').map(a=>`<option value="${AppEscape.text(a.id)}" ${State.settings.posAccountId===a.id?'selected':''}>${AppEscape.text(a.name)}</option>`).join('')}
+                            </select>
+                            <label class="block text-xs font-extrabold">طريقة التسعير</label>
+                            <select id="posTierSetting" onchange="POSController.saveSettings()" class="w-full bg-white border rounded-xl p-2.5 text-xs font-bold">
+                                <option value="account" ${!['wholesale','center','consumer'].includes(State.settings.posPriceTier)?'selected':''}>حسب الحساب والإعدادات</option>
+                                <option value="wholesale" ${State.settings.posPriceTier==='wholesale'?'selected':''}>الجملة</option>
+                                <option value="center" ${State.settings.posPriceTier==='center'?'selected':''}>المركز</option>
+                                <option value="consumer" ${State.settings.posPriceTier==='consumer'?'selected':''}>المستهلك</option>
+                            </select>
+                            <label class="flex items-center gap-2 text-xs font-bold">
+                                <input type="checkbox" id="posScanFromHomeSetting" ${State.settings.posScanFromHome===true?'checked':''} onchange="POSController.saveSettings()"> فتح نقطة بيع عند قراءة باركود من الرئيسية
+                            </label>
+                            <p class="text-[11px]">يحفظ البيع النقدي في محرك الفواتير نفسه. إعدادات نقطة البيع مستقلة عن إعدادات الفواتير العادية.</p>
                         </div>
                         <div>
                             <label for="setDefaultInvoiceListType" class="block text-xs font-extrabold text-slate-800 mb-1">النوع الافتراضي في سجل الفواتير</label>
@@ -9456,5 +9496,28 @@
 <script src="static/tiqany-qr.js"></script>
 <script src="static/tiqany-manager-link.js"></script>
 <script src="static/tiqany-cloud-manager.js"></script>
+<script src="static/windows-pos.js"></script>
+<script>
+// Native Camera scan is routed to POS if it is currently open.
+(function(){
+  const oldSingle=window.__nativeBarcodeResult;
+  window.__nativeBarcodeResult=function(target,code,message){
+    if(target==='invoice' && AppNav.current()?.screen==='pos'){
+      if(message)UI.toast(message,'error'); else if(code)POSController.addBarcode(code);
+      return;
+    }
+    if(typeof oldSingle==='function')return oldSingle(target,code,message);
+  };
+  const oldBatch=window.__nativeBarcodeBatchResult;
+  window.__nativeBarcodeBatchResult=function(codes){
+    if(AppNav.current()?.screen==='pos'){
+      for(const code of Array.isArray(codes)?codes:[])POSController.addBarcode(code);
+      return;
+    }
+    if(typeof oldBatch==='function')return oldBatch(codes);
+  };
+})();
+</script>
+<script src="static/mobile-barcode-hid.js"></script>
 </body>
 </html>

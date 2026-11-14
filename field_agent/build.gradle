@@ -10,8 +10,8 @@ android {
         applicationId 'com.sunshine.technicalaccountant.agent'
         minSdk 26
         targetSdk 35
-        versionCode 25
-        versionName '3.5.59-field-qr-ui-merged'
+        versionCode 26
+        versionName '3.5.60-field-pos'
     }
 
     // A permanent signing key is required for in-place updates. The keystore is

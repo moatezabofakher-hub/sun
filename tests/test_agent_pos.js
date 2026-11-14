@@ -1,0 +1,11 @@
+'use strict';
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const path=require('node:path');
+const file=fs.readFileSync(path.resolve(__dirname,'../field_agent/src/main/assets/www/static/agent-pos.js'),'utf8');
+for(const fn of ['startPOS','savePosSettings','openPosNameList','openPosFromBarcode'])assert.match(file,new RegExp(fn));
+assert.match(file,/const oldCount=this\.state\.ops\.length/);
+assert.match(file,/if\(this\.state\.ops\.length>oldCount\)/);
+assert.match(file,/this\.posMode && this\.screen==='invoice' && !this\.draft\?\.length/);
+assert.match(file,/await normalSave\(andPrint\)/);
+console.log('Agent POS integration OK');

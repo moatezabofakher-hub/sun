@@ -1,0 +1,15 @@
+'use strict';
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const path=require('node:path');
+const html=fs.readFileSync(path.resolve(__dirname,'../app/src/main/assets/www/index.html'),'utf8');
+const pos=fs.readFileSync(path.resolve(__dirname,'../app/src/main/assets/www/static/windows-pos.js'),'utf8');
+const section=html.slice(html.indexOf('handleBackButton() {'),html.indexOf('// On the home screen',html.indexOf('handleBackButton() {')));
+assert.match(section,/\['invoice_form','pos'\]\.includes\(this\.current\(\)\?\.screen\)/);
+assert.ok(section.indexOf('this.popScreen();')<section.indexOf('UI.showUnsavedDialog('));
+assert.match(html,/case 'pos': return POSController.render/);
+assert.match(html,/posAccountSetting/);
+assert.match(html,/posTierSetting/);
+assert.match(html,/posScanFromHomeSetting/);
+assert.match(pos,/AppNav\.navigate\('pos',\{\},true\)/);
+console.log('POS and empty-back integration OK');

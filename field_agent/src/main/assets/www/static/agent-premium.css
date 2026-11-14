@@ -30,3 +30,6 @@ html,body{font-family:system-ui,'Noto Sans Arabic',sans-serif;background:#eef5fa
 
 /* 3.5.45: keep the five dock targets accessible with a slimmer bar. */
 @media(max-width:340px){.wrap{padding-bottom:84px}}
+
+/* POS is cash-only. Regular invoice retains credit/partial controls. */
+[data-point-of-sale="true"] button[onclick*='credit'], [data-point-of-sale="true"] button[onclick*='partial'] {display:none !important}
