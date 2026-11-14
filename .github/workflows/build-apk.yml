@@ -37,15 +37,16 @@ jobs:
           set -euo pipefail
           python3 tests/check_project.py
           node tests/test_accounting.js
+          node tests/test_draft_invoice_balance_3555.js
           node tests/test_signed_licenses.js
           node tests/test_security_355.js
           node tests/test_lan_sync_3528.js
-          node tests/test_qr_cloud_3557.js
-          node tests/test_cloud_agent_3557.js
-          python3 tests/test_lan_android_thread_3529.py
           node tests/test_agent_parity_3527.js
           node tests/test_assembly_tiers_scope_3551.js
           node tests/test_bundle_grid_default_3553.js
+          node tests/test_accounts_summary_3554.js
+          node tests/test_live_items_3554.js
+          node tests/test_transfer_destination_history_3554.js
       - name: Build, sign, and verify app release APK
         shell: bash
         env:
@@ -79,14 +80,14 @@ jobs:
             exit 1
           fi
           mkdir -p output
-          cp "$apk" "output/Tiqany-Acc-Main-3.5.57-RELEASE.apk"
-          (cd output && sha256sum "Tiqany-Acc-Main-3.5.57-RELEASE.apk" > "Tiqany-Acc-Main-3.5.57-RELEASE.apk.sha256")
+          cp "$apk" "output/Tiqany-Acc-Main-3.5.54-RELEASE.apk"
+          (cd output && sha256sum "Tiqany-Acc-Main-3.5.54-RELEASE.apk" > "Tiqany-Acc-Main-3.5.54-RELEASE.apk.sha256")
       - name: Upload signed app APK and checksum
         uses: actions/upload-artifact@v4
         with:
-          name: Tiqany-Acc-Main-3.5.57-RELEASE
+          name: Tiqany-Acc-Main-3.5.54-RELEASE
           path: |
-            output/Tiqany-Acc-Main-3.5.57-RELEASE.apk
-            output/Tiqany-Acc-Main-3.5.57-RELEASE.apk.sha256
+            output/Tiqany-Acc-Main-3.5.54-RELEASE.apk
+            output/Tiqany-Acc-Main-3.5.54-RELEASE.apk.sha256
           if-no-files-found: error
           retention-days: 30

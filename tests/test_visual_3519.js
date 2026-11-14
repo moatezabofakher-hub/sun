@@ -28,7 +28,7 @@ const State={categories:['جلي','شامبو'],items:[
 {id:'id3',name:'شامبو',category:'شامبو',units:[{name:'علبة'}],minStockBase:1}],invoices:[],settings:{selectedWarehouseId:'wh_main'}};
 const Accounting={getItemBaseStock:id=>({id1:6,id2:4,id3:9}[id]),formatItemQuantity:v=>String(v)};
 const AppEscape={text:v=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')};
-const ItemController={viewMode:'list',photoThumb:(item,kind)=>`<div>${item.id} ${kind}</div>`};
+const ItemController={viewMode:'list',photoThumb:(item,kind)=>`<div>${item.id} ${kind}</div>`,filterItems(){}};
 const sandbox={State,Accounting,AppEscape,ItemController,WarehouseController:{options:()=>'<option value="wh_main">الرئيسي</option>'},UI:{setHeader:()=>{}},console};
 vm.runInNewContext('globalThis.Views = {'+src+'};',sandbox);
 const main={innerHTML:''};

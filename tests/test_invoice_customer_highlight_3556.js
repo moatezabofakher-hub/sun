@@ -28,5 +28,5 @@ assert(legacy.includes('id="fAccount" aria-label="الزبون" class="field ta-
 const mainVersion=fs.readFileSync('app/build.gradle','utf8');
 const agentVersion=fs.readFileSync('field_agent/build.gradle','utf8');
 assert.match(mainVersion,/versionName '3\.5\.\d+[^']*'/);
-assert.match(agentVersion,/versionName '3\.5\.56-field-customer-highlight'/);
+assert.match(agentVersion,/versionName '3\.5\.\d+-field-[^']*'/);
 console.log('PASS: customer/supplier selector visually highlighted in manager, agent and fallback invoice forms');

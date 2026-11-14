@@ -14,6 +14,6 @@ assert.match(css, /color:\s*#fff\s*!important;/);
 assert.match(css, /\.ta-item-photo-camera \.fa-camera\s*\{/);
 assert.match(html, /<label class="ta-item-photo-camera"[^>]*>[\s\S]{0,130}<i class="fas fa-camera"><\/i> التقاط صورة\s*<input type="file" accept="image\/\*" capture="environment" onchange="ItemController\.onItemPhotoSelected\(event\)" class="hidden">/);
 assert.equal((html.match(/class="ta-item-photo-camera"/g)||[]).length, 1);
-assert.match(gradle,/versionCode 60/);
-assert.match(gradle,/versionName '3\.5\.53-fullwidth-consumer-tier'/);
+assert.ok(Number(gradle.match(/versionCode (\d+)/)?.[1]) >= 60);
+assert.match(gradle,/versionName '3\.5\.\d+[^']*'/);
 console.log('PASS: camera button remains functional and high contrast; Android version updated');

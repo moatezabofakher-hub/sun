@@ -163,6 +163,7 @@ F.open=function(){
   <button type="button" class="bg-amber-600 text-white rounded-2xl p-4 font-black" onclick="FieldSync.showSyncTools()"><i class="fas fa-arrows-rotate block text-xl mb-2"></i>المزامنة والملفات</button>
  </div>
  <div class="rounded-xl border bg-teal-50 p-3 text-xs"><b>الاتصال المحلي التلقائي</b><div id="fieldLanStatus" class="mt-1">جارٍ التحقق من الاستقبال…</div><button type="button" class="rounded-lg border bg-white p-2 mt-2 w-full font-bold" onclick="FieldSync.startLanReceiver()">إعادة تشغيل الاستقبال</button></div>
+ <button type="button" id="taQrOpen" class="ta-primary-3d w-full p-3 rounded-xl font-black" onclick="TiqanyManagerLink.open()">▦ ربط مندوب عبر رمز QR</button>
  <div class="rounded-xl border p-3"><b class="text-sm">طلبات ربط الأجهزة الجديدة</b><div id="fieldPairingRequests">${this.pairingCards?.()||'بانتظار الطلبات…'}</div></div>
  <button class="w-full p-3 bg-slate-100 rounded-xl font-bold" onclick="UI.forceCloseModal()">إغلاق</button></div>`);
  if(window.AndroidLocalSync)this.startLanReceiver(true);
@@ -210,6 +211,7 @@ F.showSyncTools=function(){
  UI.openModal(`<div dir="rtl" class="ta-field-panel text-right space-y-3"><h3 class="font-black text-lg">المزامنة والملفات الاحتياطية</h3>
  <p class="text-xs text-slate-600">المزامنة المحلية تلقائية عند اتصال الجهازين عبر الشبكة نفسها. الملفات بديل يدوي عند الحاجة.</p>
  <div class="bg-teal-50 border rounded-xl p-3"><b class="text-xs">عدد عمليات المندوبين المستلمة: ${c.imported.length}</b><div id="fieldLanStatus" class="text-xs p-2">جاهز للاستقبال</div><button class="w-full bg-teal-700 text-white p-2 rounded-xl" onclick="FieldSync.startLanReceiver()">إعادة تشغيل الاتصال</button></div>
+ <button type="button" id="taQrOpen" class="ta-primary-3d w-full p-3 rounded-xl font-black" onclick="TiqanyManagerLink.open()">▦ عرض QR وربط هاتف المندوب</button>
  <label class="text-xs font-bold">استلام ملف العمليات</label><input id="fieldImportFile" type="file" class="w-full text-xs" accept="application/json,.json" onchange="FieldSync.previewFile(this)"/>
  <button class="w-full p-3 bg-slate-100 rounded-xl" onclick="FieldSync.open()">رجوع</button></div>`);
 };

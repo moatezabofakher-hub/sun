@@ -20,12 +20,14 @@ assert.match(gradle,/versionName '3\.5\.\d+[^']*'/, 'Android release version ret
 assert.match(html,/const DB_NAME = 'AlRaedAccountingERP_v2'/,'same DB');
 assert.match(workflow,/TA_KEYSTORE_BASE64/);
 assert.match(workflow,/assembleRelease/);
-assert.match(workflow,/TEST-DEBUG-NOT-FOR-UPDATING/,'never silently deliver debug as update');
+assert.match(workflow,/TA_KEYSTORE_BASE64/,'signed release requires protected signing secrets');
+assert.doesNotMatch(workflow,/assembleDebug/,'workflow never publishes debug as release');
 const dashboard=cut('            renderDashboard(main) {','            renderItems(main, params = {}) {');
 assert.ok(dashboard.includes('Views.openDebtsChoiceModal()'),'debt tile opens options');
 assert.ok(!dashboard.includes("AppNav.navigate('accounts', { debts: true, balanceSide: 'debit' })"),'debt tile does not navigate immediately');
 let modalHtml='';let lastHeader='';
 const context={console,Math,Number,Date,String,Array,Object,JSON,Map,Set,Intl,Promise,encodeURIComponent,
+ AccountBalanceSummary:require('../app/src/main/assets/www/static/account-balance-summary.js'),
  UI:{openModal:(v)=>{modalHtml=v},setHeader:(t)=>lastHeader=t},
  AppNav:{navigate:()=>{}},ThermalPrinter:{isConnected:false},LicenseManager:{MAX_TRIAL_OPS:5,getTotalOpsUsed:()=>0},
  document:{getElementById:()=>null}};

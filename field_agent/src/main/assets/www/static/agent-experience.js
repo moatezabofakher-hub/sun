@@ -113,7 +113,7 @@ Agent.renderInvoice=function(){
  <div class="agent-invoice-header">
   <div><label>التاريخ والوقت</label><input id="fDate" type="datetime-local" class="field" value="${this.escape(meta.date||this.defaultDate())}" onchange="Agent.captureInvoiceMeta()"></div>
   <div><label>العملة</label><select id="fCurrency" class="field" onchange="Agent.captureInvoiceMeta();Agent.reprice(this.value)"><option ${cur==='USD'?'selected':''}>USD</option><option ${cur==='SYP'?'selected':''}>SYP</option></select></div>
-  <div class="wide"><label>الزبون</label><select id="fAccount" class="field" onchange="Agent.captureInvoiceMeta()"><option value="">نقدي دون حساب</option>${accounts.map(a=>`<option value="${this.escape(a.id)}" ${meta.accountId===a.id?'selected':''}>${this.escape(a.name)}</option>`).join('')}</select></div>
+  <div class="wide ta-invoice-party-highlight"><label>الزبون</label><select id="fAccount" aria-label="الزبون" class="field ta-invoice-party-select" onchange="Agent.captureInvoiceMeta()"><option value="">نقدي دون حساب</option>${accounts.map(a=>`<option value="${this.escape(a.id)}" ${meta.accountId===a.id?'selected':''}>${this.escape(a.name)}</option>`).join('')}</select></div>
  </div></section>
  <section class="panel"><div class="agent-grid-header"><h3>إضافة مواد من الشبكة</h3><span class="pill">${items.length} مادة</span></div>
   <div class="row"><div><label class="label">بحث باسم المادة</label><input id="itemGridQuery" class="field" placeholder="اكتب اسم المادة..." value="${this.escape(this.gridSearch)}" oninput="Agent.filterGrid()"></div>

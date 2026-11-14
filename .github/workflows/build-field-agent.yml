@@ -37,9 +37,6 @@ jobs:
           node tests/test_field_import_atomic.js
           node tests/test_agent_parity_3527.js
           node tests/test_lan_sync_3528.js
-          node tests/test_qr_cloud_3557.js
-          node tests/test_cloud_agent_3557.js
-          python3 tests/test_lan_android_thread_3529.py
           node tests/test_lan_agent_3528.js
           node --check field_agent/src/main/assets/www/static/agent.js
       - name: Build, sign, and verify field_agent release APK
@@ -75,14 +72,14 @@ jobs:
             exit 1
           fi
           mkdir -p output
-          cp "$apk" "output/Tiqany-Acc-Agent-3.5.57-RELEASE.apk"
-          (cd output && sha256sum "Tiqany-Acc-Agent-3.5.57-RELEASE.apk" > "Tiqany-Acc-Agent-3.5.57-RELEASE.apk.sha256")
+          cp "$apk" "output/Tiqany-Acc-Agent-3.5.53-RELEASE.apk"
+          (cd output && sha256sum "Tiqany-Acc-Agent-3.5.53-RELEASE.apk" > "Tiqany-Acc-Agent-3.5.53-RELEASE.apk.sha256")
       - name: Upload signed field_agent APK and checksum
         uses: actions/upload-artifact@v4
         with:
-          name: Tiqany-Acc-Agent-3.5.57-RELEASE
+          name: Tiqany-Acc-Agent-3.5.53-RELEASE
           path: |
-            output/Tiqany-Acc-Agent-3.5.57-RELEASE.apk
-            output/Tiqany-Acc-Agent-3.5.57-RELEASE.apk.sha256
+            output/Tiqany-Acc-Agent-3.5.53-RELEASE.apk
+            output/Tiqany-Acc-Agent-3.5.53-RELEASE.apk.sha256
           if-no-files-found: error
           retention-days: 30

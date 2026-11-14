@@ -39,7 +39,7 @@ assert(h.includes('لا يمكن لتطبيق واتساب العادي إرسا
  A.shareBackupWhatsApp();assert.equal(shared,1);await A.backupNow();assert.equal(now,1);
  // Validate payload passed from invoice action to Android native PDF bridge.
  const jsSections=main.match(/<script(?:[^>]*)>([\s\S]*?)<\/script>/g)||[];
- const last=jsSections[jsSections.length-1].replace(/^<script(?:[^>]*)>/,'').replace(/<\/script>$/,'');
+ const last=jsSections.find(x=>x.includes('const InvoicePdfShare'))?.replace(/^<script(?:[^>]*)>/,'').replace(/<\/script>$/,'')||'';
  let invoicePayload;
  const inv={id:'INV-1',number:'37',type:'sale',date:'2026-11-13',currency:'USD',accountId:'C1',rows:[{itemName:'شامبو',unitName:'عبوة',qty:2,price:3,total:6}],subTotal:6,netTotal:6,paidAmount:2,remainingAmount:4};
  const fake={State:{invoices:[inv],accounts:[{id:'C1',name:'محمد',phone:'0930',address:'السويداء'}],settings:{companyName:'SAN SHINE',companyPhone:'09',companyLogo:'data:image/png;base64,AAA'}},Accounting:{getInvoiceTypeAr:()=> 'مبيعات',getAccountStatement:()=>({usdBalance:12,sypBalance:0})},UI:{toast:()=>{}},window:{AndroidInvoicePdf:{shareInvoice:(raw,filename)=>{invoicePayload=JSON.parse(raw);assert(filename.endsWith('.pdf'));}}}};
