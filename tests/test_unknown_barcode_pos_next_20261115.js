@@ -13,7 +13,7 @@ for(const p of ['app','field_agent']){
 for(const p of ['app','field_agent']){
  const hid=read(`${p}/src/main/assets/www/static/mobile-barcode-hid.js`);
  assert.match(hid,/الباركود غير معرّف/);
- assert.match(hid,/BarcodeFeedback\?\.read\(\)/);
+ assert.match(hid,/BarcodeFeedback\?\.read\(/);
 }
 const main=read('app/src/main/assets/www/index.html');
 const pos=read('app/src/main/assets/www/static/windows-pos.js');

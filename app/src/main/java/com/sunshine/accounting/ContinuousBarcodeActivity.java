@@ -164,7 +164,7 @@ public final class ContinuousBarcodeActivity extends ComponentActivity {
         if (now - lastTime < cooldown) return;
         if (knownBarcodes != null && !knownBarcodes.contains(code.toLowerCase(java.util.Locale.ROOT))) {
             lastCode=code;lastTime=now;
-            if(readTone!=null)try{readTone.startTone(android.media.ToneGenerator.TONE_PROP_BEEP,90);}catch(RuntimeException ignored){}
+            if(readTone!=null)try{readTone.startTone(android.media.ToneGenerator.TONE_PROP_NACK,230);}catch(RuntimeException ignored){}
             lastText.setText("الباركود غير معرّف: " + code);
             lastText.setTextColor(Color.rgb(255, 152, 152));
             Toast.makeText(this, "الباركود غير معرّف: " + code, Toast.LENGTH_SHORT).show();

@@ -36,7 +36,7 @@ Agent.confirmAction=function(title,message,action){this.dialogAction=action;
  const accept=document.getElementById('dialogAccept');if(accept)accept.textContent=leaving?'نعم، خروج':'تأكيد';
  const cancel=document.getElementById('agentDialogCancel');if(cancel)cancel.textContent=leaving?'البقاء في التطبيق':'إلغاء';};
 Agent.acceptDialog=function(){const fn=this.dialogAction;this.dismissDialog();if(fn)fn();};
-Agent.bottomRoutes=['home','invoices','ops','sync','settings'];
+Agent.bottomRoutes=['home','invoices','ops','reports','sync','settings'];
 Agent.navigate=async function(route){
  if(this.screen!==route){document.getElementById('screen')?.scrollTo({top:0,behavior:'instant'});window.scrollTo(0,0);}
  if(this.screen===route){await this.show(route);return;}

@@ -1,6 +1,12 @@
 /* Technical Accountant language pack — UI only. Database values/IDs are never translated. */
 const I18n = {
     en: {
+        "طباعة تقرير": "Print a report",
+        "تقرير المواد": "Items report",
+        "تقرير الديون": "Debts report",
+        "اختر التقرير": "Choose a report",
+        "العودة إلى التقارير": "Back to reports",
+        "اختر التقرير لعرضه قبل الطباعة أو إنشاء PDF": "Choose a report to preview, print, or export as PDF",
         "لنا": "Receivable",
         "الحسابات المستقلة للشركات": "Independent company ledgers",
         "التبديل والنسخ الاحتياطي لكل شركة": "Switch businesses and back up each separately",
@@ -639,6 +645,7 @@ const I18n = {
         [/^الرصيد النهائي:\s*(.+)$/, 'Final balance: $1']
     ],
     originalText: new WeakMap(),
+    translatedText: new WeakMap(),
     originalAttrs: new WeakMap(),
     get language() { return typeof State !== 'undefined' && State.settings && State.settings.language === 'en' ? 'en' : 'ar'; },
     translate(value) {
@@ -651,6 +658,12 @@ const I18n = {
         return null;
     },
     apply(root = document) {
+        const wasWatching = !!this.observing;
+        if (wasWatching) this.pauseObservation();
+        try { return this.applyWithoutObserving(root); }
+        finally { if (wasWatching) this.observe(); }
+    },
+    applyWithoutObserving(root = document) {
         const lang = this.language;
         document.documentElement.lang = lang;
         document.documentElement.dir = lang === 'en' ? 'ltr' : 'rtl';
@@ -667,13 +680,20 @@ const I18n = {
                 if (original !== undefined && node.nodeValue !== original) node.nodeValue = original;
                 return;
             }
-            const original = this.originalText.has(node) ? this.originalText.get(node) : node.nodeValue;
+            const savedOriginal = this.originalText.get(node);
+            const savedTranslated = this.translatedText.get(node);
+            // Existing DOM nodes are sometimes reused for new invoice/material
+            // labels. Translate their ACTUAL new text rather than a stale cache.
+            const original = savedOriginal !== undefined &&
+                (node.nodeValue === savedOriginal || node.nodeValue === savedTranslated)
+                ? savedOriginal : node.nodeValue;
             const translated = this.translate(original);
             if (translated === null) return;
             this.originalText.set(node, original);
             const lead = (original.match(/^\s*/) || [''])[0];
             const trail = (original.match(/\s*$/) || [''])[0];
             const value = lead + translated + trail;
+            this.translatedText.set(node, value);
             if (node.nodeValue !== value) node.nodeValue = value;
         };
         if (root.nodeType === Node.TEXT_NODE) translateNode(root);
@@ -702,25 +722,85 @@ const I18n = {
             }
         }
     },
+    // The previous language watcher observed its OWN text replacements. Switching
+    // to English produced thousands of characterData events and could saturate
+    // Android WebView/Electron. Pause observation while translating and batch
+    // externally inserted content, keeping the UI and invoice draft intact.
+    observe() {
+        if (!this.observer || this.observing || !document.body) return;
+        this.observer.observe(document.body, {childList:true, subtree:true, characterData:true});
+        this.observing = true;
+    },
+    pauseObservation() {
+        if (this.observer && this.observing) {
+            this.observer.disconnect();
+            this.observing = false;
+        }
+    },
     install() {
         if (this.observer) return;
         this.observer = new MutationObserver(records => {
-            for (const record of records) {
-                if (record.type === 'characterData') this.apply(record.target);
-                if (record.type === 'childList') for (const child of record.addedNodes) {
-                    if (child.nodeType === Node.ELEMENT_NODE || child.nodeType === Node.TEXT_NODE) this.apply(child);
+            // Ignore all mutations made by I18n itself. Translation never runs
+            // while the watcher is active, preventing recursive notifications.
+            this.pauseObservation();
+            try {
+                const roots = new Set();
+                let count = 0;
+                for (const record of records) {
+                    if (record.type === 'characterData') {
+                        if (record.target?.parentElement) roots.add(record.target);
+                    } else if (record.type === 'childList') {
+                        for (const child of record.addedNodes) {
+                            if (child.nodeType === Node.ELEMENT_NODE || child.nodeType === Node.TEXT_NODE) {
+                                roots.add(child);
+                                count++;
+                            }
+                        }
+                    }
+                    // Large rerenders only need a single traversal, never
+                    // a separate traversal for every inserted descendant.
+                    if (count > 48 || roots.size > 80) break;
                 }
+                if (count > 48 || roots.size > 80) this.apply(document.body);
+                else for (const node of roots) {
+                    if (node.isConnected !== false) this.apply(node);
+                }
+            } catch (err) {
+                console.warn('Language rendering skipped a DOM change:', err);
+            } finally {
+                this.observe();
             }
         });
-        this.observer.observe(document.body, {childList:true, subtree:true, characterData:true});
+        // Translate existing screen BEFORE subscribing to DOM mutations.
         this.apply(document);
+        this.observe();
     },
     async setLanguage(value) {
-        if (value !== 'ar' && value !== 'en') return;
-        State.settings.language = value;
-        await StorageEngine.saveState();
-        // Re-render only the visible screen, keeping the database, stack and invoice IDs unchanged.
-        AppNav.renderCurrent();
-        this.apply(document);
+        if (value !== 'ar' && value !== 'en' || typeof State === 'undefined' || !State.settings) return false;
+        const before = this.language;
+        if (before === value && document.documentElement.lang === value) return true;
+        this.pauseObservation();
+        try {
+            State.settings.language = value;
+            // Never recreate the active screen or reset invoice fields/scroll.
+            // Changes to following screens are translated by the DOM watcher.
+            this.apply(document);
+        } catch (err) {
+            console.error('Could not change application language:', err);
+            State.settings.language = before;
+            try { this.apply(document); } catch (_) {}
+            if (typeof UI !== 'undefined' && typeof UI.toast === 'function') UI.toast('تعذر تغيير لغة التطبيق', 'error');
+            return false;
+        } finally {
+            this.observe();
+        }
+        try {
+            await StorageEngine.saveState();
+        } catch (err) {
+            console.warn('Could not persist application language:', err);
+            if (typeof UI !== 'undefined' && typeof UI.toast === 'function') UI.toast('تعذر حفظ إعداد اللغة. تحقق من مساحة التخزين.', 'error');
+            return false;
+        }
+        return true;
     }
 };

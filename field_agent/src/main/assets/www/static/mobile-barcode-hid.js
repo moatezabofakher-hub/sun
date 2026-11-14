@@ -6,7 +6,7 @@ let buffer='',started=0,last=0,editor=null,originalValue='';
 const clear=()=>{buffer='';started=0;last=0;editor=null;originalValue='';};
 const known=code=>{
   const items=(typeof Agent!=='undefined'&&Agent.state?.items)||((typeof State!=='undefined'&&State.items)||[]);
-  return items.some(i=>String(i.barcode||'').trim()===code);
+  return items.some(i=>String(i.barcode||'').trim().toLowerCase()===String(code).trim().toLowerCase());
 };
 function handle(code){
   if(typeof Agent!=='undefined'){
@@ -37,7 +37,7 @@ document.addEventListener('keydown',e=>{
         previousEditor.value=previousValue;
         previousEditor.dispatchEvent(new Event('input',{bubbles:true}));
       }
-      window.BarcodeFeedback?.read(); // HID scan finished, independent of item addition
+      window.BarcodeFeedback?.read(known(code)); // audible known/unknown on decode
       if(!known(code)){
         const msg='الباركود غير معرّف: '+code.slice(0,32);
         if(typeof Agent!=='undefined')Agent.toast(msg);

@@ -67,6 +67,7 @@ public final class MainActivity extends FragmentActivity {
     private static final int REQUEST_ITEM_CAMERA = 2404;
     private WebView webView;
     private volatile boolean trustedLocalMainFrame;
+    private volatile boolean reportPdfBusy;
     private NativeBluetoothPrinter bluetoothPrinter;
     private NativeLocalSync nativeLocalSync;
     private BiometricPrompt biometricPrompt;
@@ -294,6 +295,7 @@ public final class MainActivity extends FragmentActivity {
         webView.addJavascriptInterface(new AgentWhatsAppBackupBridge(this), "AndroidAgentBackup");
         bluetoothPrinter = new NativeBluetoothPrinter(this, webView);
         webView.addJavascriptInterface(bluetoothPrinter, "AndroidPrinter");
+        webView.addJavascriptInterface(new ReportPdfBridge(), "AndroidReports");
         nativeLocalSync = new NativeLocalSync(this, webView, false);
         webView.addJavascriptInterface(nativeLocalSync, "AndroidLocalSync");
 
@@ -418,6 +420,14 @@ public final class MainActivity extends FragmentActivity {
             runOnUiThread(() -> {
                 try { successTone.startTone(android.media.ToneGenerator.TONE_PROP_BEEP, 85); }
                 catch (Exception ignored) { /* audio may be unavailable on silent/locked devices */ }
+            });
+        }
+
+        @JavascriptInterface
+        public void warningBeep() {
+            runOnUiThread(() -> {
+                try { successTone.startTone(android.media.ToneGenerator.TONE_PROP_NACK, 230); }
+                catch (Exception ignored) { /* unavailable */ }
             });
         }
 
@@ -767,6 +777,41 @@ public final class MainActivity extends FragmentActivity {
         if (webView != null) webView.onResume();
     }
 
+    /** Export reports from the verified local employee journal to a shareable PDF. */
+    private final class ReportPdfBridge {
+        @JavascriptInterface public void shareReport(String json, String filename) {
+            if (!trustedLocalMainFrame || json == null || json.length() > 4_000_000) return;
+            synchronized (MainActivity.this) { if (reportPdfBusy) return; reportPdfBusy = true; }
+            new Thread(() -> {
+                try {
+                    byte[] bytes = ReportPdfRenderer.render(new JSONObject(json));
+                    if (bytes.length == 0 || bytes.length > 15_000_000) throw new IOException("ملف PDF غير صالح");
+                    File dir = new File(getCacheDir(), "shared_reports");
+                    if (!dir.exists() && !dir.mkdirs()) throw new IOException("تعذر إنشاء مجلد التقرير");
+                    File[] old = dir.listFiles();
+                    if (old != null) for (File f : old) if (f.isFile() && f.lastModified() < System.currentTimeMillis() - 86_400_000L) f.delete();
+                    String safe = (filename == null ? "Report.pdf" : filename).replaceAll("[^\\p{L}\\p{N}_.-]", "_");
+                    if (!safe.toLowerCase(java.util.Locale.ROOT).endsWith(".pdf")) safe += ".pdf";
+                    File file = new File(dir, java.util.UUID.randomUUID().toString().substring(0,8) + "_" + safe);
+                    try (java.io.FileOutputStream out = new java.io.FileOutputStream(file)) {out.write(bytes);out.flush();}
+                    Uri uri = FileProvider.getUriForFile(MainActivity.this, getPackageName() + ".fileprovider", file);
+                    runOnUiThread(() -> {
+                        if (!isLocalPage()) return;
+                        Intent intent = new Intent(Intent.ACTION_SEND);
+                        intent.setType("application/pdf");
+                        intent.putExtra(Intent.EXTRA_STREAM, uri);
+                        intent.setClipData(ClipData.newUri(getContentResolver(), "تقرير PDF", uri));
+                        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                        try {startActivity(Intent.createChooser(intent, "مشاركة تقرير PDF"));}
+                        catch (Exception e) {Toast.makeText(MainActivity.this, "تعذر فتح مشاركة التقرير", Toast.LENGTH_LONG).show();}
+                    });
+                } catch (Exception e) {
+                    runOnUiThread(() -> Toast.makeText(MainActivity.this, "تعذر إنشاء التقرير: " + e.getMessage(), Toast.LENGTH_LONG).show());
+                } finally {reportPdfBusy = false;}
+            }, "ta-agent-report-pdf").start();
+        }
+    }
+
     @Override
     protected void onDestroy() {
         if (pendingWebCameraPermission != null) {
@@ -783,6 +828,7 @@ public final class MainActivity extends FragmentActivity {
             webView.removeJavascriptInterface("Android");
             webView.removeJavascriptInterface("AndroidFiles");
             webView.removeJavascriptInterface("AndroidPrinter");
+            webView.removeJavascriptInterface("AndroidReports");
             webView.removeJavascriptInterface("AndroidLocalSync");
             webView.destroy();
             webView = null;

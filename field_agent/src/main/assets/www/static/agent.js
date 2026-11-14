@@ -42,6 +42,8 @@ const Agent={
     if(!active){e.innerHTML=this.renderActivation();return;}
     if(where==='invoice')e.innerHTML=this.renderInvoice();
     else if(where==='ops')e.innerHTML=this.renderOps();
+    else if(where==='reports')e.innerHTML=this.renderReports();
+    else if(where==='report_preview')e.innerHTML=this.renderReportPreview();
     else if(where==='sync')e.innerHTML=this.renderSync();
     else if(where==='stock')e.innerHTML=this.renderStock();
     else if(where==='voucher')e.innerHTML=this.renderVoucher();

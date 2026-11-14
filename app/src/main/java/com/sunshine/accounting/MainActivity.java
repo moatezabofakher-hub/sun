@@ -432,6 +432,14 @@ public final class MainActivity extends FragmentActivity {
         }
 
         @JavascriptInterface
+        public void warningBeep() {
+            runOnUiThread(() -> {
+                try { successTone.startTone(android.media.ToneGenerator.TONE_PROP_NACK, 230); }
+                catch (Exception ignored) { /* no compatible audio output */ }
+            });
+        }
+
+        @JavascriptInterface
         public void setKnownBarcodes(String json) {
             ArrayList<String> list = new ArrayList<>();
             if (json != null && json.length() <= 600000) {

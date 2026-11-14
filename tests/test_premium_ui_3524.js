@@ -18,7 +18,7 @@ assert(Number(gradle.match(/versionCode\s+(\d+)/)?.[1]) >= 47);
 assert.match(gradle,/versionName '3\.5\.\d+[^']*'/);
 assert.match(gradle,/applicationId 'com\.sunshine\.technicalaccountant'/);
 assert.match(html,/const DB_NAME = 'AlRaedAccountingERP_v2'/);
-assert(html.includes('LedgerReports.openHomePrint(\'sales_summary\')') && html.includes('LedgerReports.openHomePrint(\'debts_summary\')'));
+assert(html.includes('LedgerReports.openPrintChooser()') && html.includes('LedgerReports.openPreview(\'sales_summary\')') && html.includes('LedgerReports.openPreview(\'debts_summary\')')); 
 assert(html.includes('invoice-print-item-row'));
 assert(!html.includes('مركز إدارة الأعمال'));
 console.log('PASS 3.5.24: 3D dashboard, all panels/icons, dialogs, receipt, version, same app ID/DB, no extra data.');
