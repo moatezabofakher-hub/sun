@@ -22,6 +22,8 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.NetworkInterface;
+import java.util.Enumeration;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
@@ -47,6 +49,9 @@ public final class NativeLocalSync {
     private final Activity activity;
     private final WebView webView;
     private final boolean manager;
+    private volatile InetSocketAddress directEndpoint;
+    private volatile String directCompany = "";
+
     private final NsdManager nsd;
     private final ConnectivityManager connectivity;
     private ConnectivityManager.NetworkCallback wifiCallback;
@@ -93,6 +98,59 @@ public final class NativeLocalSync {
 
     private boolean isTrustedPage() {
         return trustedMainFrame && !closing;
+    }
+
+    /** QR contains a private-network address only, never keys, passwords or activation tokens. */
+    private static boolean safeLocalAddress(String host) {
+        if (host == null || !host.matches("[0-9]{1,3}(\\.[0-9]{1,3}){3}")) return false;
+        try {
+            InetAddress address = InetAddress.getByName(host);
+            return address.getAddress().length == 4 && address.isSiteLocalAddress()
+                && !address.isLoopbackAddress() && !isOwnAddress(address);
+        } catch (Exception ignored) { return false; }
+    }
+
+    private static boolean isOwnAddress(InetAddress ip) {
+        try {
+            Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
+            while (interfaces != null && interfaces.hasMoreElements()) {
+                for (InetAddress candidate : java.util.Collections.list(interfaces.nextElement().getInetAddresses())) {
+                    if (candidate.equals(ip)) return true;
+                }
+            }
+        } catch (Exception ignored) { }
+        return false;
+    }
+
+    /** Called by manager UI to draw an offline QR code from the real listening TCP port. */
+    @JavascriptInterface
+    public String receiverEndpoint() {
+        if (!manager || !isTrustedPage() || server == null || server.isClosed()) return "{}";
+        try {
+            StringBuilder ips = new StringBuilder();
+            Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
+            while (interfaces != null && interfaces.hasMoreElements()) {
+                NetworkInterface iface = interfaces.nextElement();
+                if (!iface.isUp() || iface.isLoopback()) continue;
+                for (InetAddress ip : java.util.Collections.list(iface.getInetAddresses())) {
+                    if (ip.getAddress().length == 4 && ip.isSiteLocalAddress() && !ip.isLoopbackAddress()) {
+                        if (ips.length() > 0) ips.append(',');
+                        ips.append(JSONObject.quote(ip.getHostAddress()));
+                    }
+                }
+            }
+            return "{\"companyId\":" + JSONObject.quote(activeCompany == null ? "" : activeCompany) +
+                   ",\"port\":" + server.getLocalPort() + ",\"ips\":[" + ips + "]}";
+        } catch (Exception ignored) { return "{}"; }
+    }
+
+    @JavascriptInterface
+    public String setDirectEndpoint(String company, String host, int port) {
+        if (manager || !isTrustedPage() || !isCompany(company) || !safeLocalAddress(host)
+                || port < 1024 || port > 65535) return "invalid";
+        directCompany = company;
+        directEndpoint = new InetSocketAddress(host, port);
+        return "saved";
     }
 
     private static boolean isCompany(String id) {

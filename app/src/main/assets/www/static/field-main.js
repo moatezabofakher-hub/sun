@@ -329,7 +329,9 @@ const FieldSync = {
       const st=document.getElementById('fieldLanStatus');if(st)st.textContent=answer.error;
     }finally{
       this.lanBusy=false;
-      window.AndroidLocalSync?.reply(String(requestId),JSON.stringify(answer));
+      if(String(requestId).startsWith('cloud:') && window.TiqanyCloudManager)
+        await window.TiqanyCloudManager.reply(String(requestId).slice(6),JSON.stringify(answer));
+      else window.AndroidLocalSync?.reply(String(requestId),JSON.stringify(answer));
     }
   },
   checkNewCustomers(customers,existing){

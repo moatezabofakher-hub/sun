@@ -15,7 +15,8 @@
    <p class="tiny">شغّل التطبيق الرئيسي على شبكة Wi-Fi نفسها؛ سيظهر طلب جهازك للإدارة تلقائياً. بعد مطابقة رمز الأمان وموافقة المسؤول تُستلم بيانات المندوب وتُفعّل تلقائياً، دون ملفات أو رموز طويلة.</p>
    <div id="agentPairStatus" class="field" aria-live="polite">جارٍ البحث عن الإدارة على الشبكة المحلية…</div>
    <div id="agentPairCode" class="hide" style="text-align:center;border:1px solid #99d6cd;border-radius:14px;padding:12px;margin-top:10px;background:#eefefa"><p class="tiny" style="margin:0">طابق هذا الرقم مع الرقم لدى الإدارة قبل الموافقة</p><strong id="agentPairCodeDigits" style="display:block;direction:ltr;letter-spacing:.2em;font-size:28px;color:#056e68"></strong></div>
-   <button class="primary" onclick="AgentPairing.restart()">🔍 البحث عن التطبيق الرئيسي والربط</button>
+   <button class="primary" onclick="AgentPairing.scanQr()">▦ مسح رمز QR من تطبيق الإدارة</button>
+   <button onclick="AgentPairing.restart()">🔍 البحث التلقائي (بديل)</button>
  </div>`;
  A.renderSetup=function(){return controls()+`<details class="panel"><summary style="font-weight:800;cursor:pointer">طريقة التجهيز بالملف (احتياطية)</summary>${oldSetup()}</details>`;};
  A.renderActivation=function(){return controls()+`<details class="panel"><summary style="font-weight:800;cursor:pointer">التفعيل اليدوي برمز قديم (احتياطي)</summary>${oldActivation()}</details>`;};
@@ -27,6 +28,28 @@
      const code=document.getElementById('agentPairCodeDigits');if(code)code.textContent=this.code;
    },
    schedule(delay){clearTimeout(this.timer);this.timer=setTimeout(()=>this.next(),delay);},
+   scanQr(){
+     if(!window.NativeBarcode?.scan){this.status='قارئ QR غير متاح في هذه النسخة';this.paint();return;}
+     window.NativeBarcode.scan('pairing');
+   },
+   async onQrScanned(text){
+     try {
+       const url=new URL(String(text||''));
+       if(url.protocol!=='tiqany-pair:'||url.hostname!=='local'||url.searchParams.get('v')!=='1')throw Error('الرمز لا يخص المحاسب التقني');
+       const company=url.searchParams.get('company')||'',host=url.searchParams.get('host')||'',port=Number(url.searchParams.get('port'));
+       const octets=host.split('.').map(Number);
+       const isPrivate=octets.length===4 && octets.every((n,i)=>Number.isInteger(n)&&n>=0&&n<=255&&String(n)===host.split('.')[i]) &&
+         (octets[0]===10 || (octets[0]===192&&octets[1]===168) || (octets[0]===172&&octets[1]>=16&&octets[1]<=31));
+       if(!/^company_[A-Za-z0-9_-]{8,128}$/.test(company)||!isPrivate||!Number.isInteger(port)||port<1024||port>65535)throw Error('عنوان الربط غير صحيح');
+       if(A.ready() && A.state.companyId!==company)throw Error('هذا الهاتف مرتبط بشركة أخرى؛ لا تُحذف البيانات الحالية');
+       const result=window.AndroidLocalSync?.setDirectEndpoint(company,host,port);
+       if(result!=='saved')throw Error('تعذر حفظ عنوان الإدارة؛ تحقق من الشبكة');
+       A.state.localQrTarget={company,host,port};
+       await A.save();
+       this.status='تم تحديد الإدارة '+host+':'+port+'؛ سيُستخدم العنوان في المزامنة المحلية.';this.paint();
+       if(!(A.ready() && await A.active()))await this.restart();
+     }catch(e){this.status='رمز QR: '+e.message;this.paint();}
+   },
    async start(){
      if(this.inFlight||this.done||document.hidden||!A.state)return;
      if(A.ready() && await A.active())return;
@@ -98,7 +121,7 @@
        ops:mergeHistory(c.historyPage,{...old,companyId:c.companyId,agentId:c.agentId,warehouseId:c.warehouseId}).ops,historyCursor:mergeHistory(c.historyPage,{...old,companyId:c.companyId,agentId:c.agentId,warehouseId:c.warehouseId}).cursor,
        knownIds:Array.from(new Set([...(old.knownIds||[]),...c.knownIds,...mergeHistory(c.historyPage,{...old,companyId:c.companyId,agentId:c.agentId,warehouseId:c.warehouseId}).restoredIds])),snapshotIds:c.knownIds,exchangeRate:c.exchangeRate,
        defaultPriceTier:['wholesale','center','consumer'].includes(c.defaultPriceTier)?c.defaultPriceTier:'wholesale',
-       issuedAt:c.issuedAt,pairedAuthorityKey:message.authorityKey,enrollmentGrant:message.grant};
+       issuedAt:c.issuedAt,cloud:Object.prototype.hasOwnProperty.call(c,'cloud')?c.cloud:(old.cloud||null),pairedAuthorityKey:message.authorityKey,enrollmentGrant:message.grant};
      A.state=updated;
      try{await A.save();}catch(e){A.state=old;throw e;}
      this.done=true;clearTimeout(this.timer);
@@ -114,7 +137,13 @@
  window.AgentPairing=Pair;
  document.addEventListener('visibilitychange',()=>{if(!document.hidden && !Pair.done && A.state)A.active().then(active=>{if(!active)Pair.schedule(1000);}).catch(()=>{});});
  const init=A.init.bind(A);
- A.init=async function(){await init();if(this.state && !await this.active())Pair.schedule(800);};
+ A.init=async function(){await init();
+   const qr=this.state?.localQrTarget;
+   if(qr && (!this.state.companyId || qr.company===this.state.companyId)){
+     try{window.AndroidLocalSync?.setDirectEndpoint(qr.company,qr.host,Number(qr.port));}catch(_){}
+   }
+   if(this.state && !await this.active())Pair.schedule(800);
+ };
  const show=A.show.bind(A);
  A.show=async function(...args){await show(...args);Pair.paint();};
 })();

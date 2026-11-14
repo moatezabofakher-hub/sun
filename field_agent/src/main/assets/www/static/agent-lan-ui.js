@@ -14,7 +14,9 @@
    <p class="tiny">عند تشغيل التطبيقين على شبكة Wi-Fi نفسها يبدأ الربط تلقائيًا. تُرسل الفواتير والسندات الجديدة وتُستقبل <b>المواد والأسعار والعملاء ورصيد السيارة</b> كل 12 ثانية أثناء الاتصال. يمكنك أيضًا طلب المزامنة فورًا بالزر.</p>
    <p class="tiny" id="agentAutoSyncStatus" role="status">جارٍ تهيئة المزامنة التلقائية…</p>
    <button type="button" id="agentLanSyncButton" class="primary" onclick="Agent.syncOneTap()" ${this.lanSyncBusy?'disabled':''}>${this.lanSyncBusy?'جارٍ تبادل البيانات…':'⇄ مزامنة فورية'}</button>
-   <p class="tiny" role="status" id="agentLanStatus">${this.escape(this.lanSyncMessage||'جاهز للمزامنة التلقائية في الاتجاهين')}</p></section>`;
+   <p class="tiny" role="status" id="agentLanStatus">${this.escape(this.lanSyncMessage||'جاهز للمزامنة التلقائية في الاتجاهين')}</p>
+   <p class="tiny">${window.TiqanyCloudAgent?.ready()?'☁️ اتصال سحابي مشفر مهيأ — يتم تأكيد كل فاتورة من الرئيسي':'🌐 الربط المحلي يعمل دون إنترنت؛ المزامنة السحابية تحتاج إلى إعدادها على الرئيسي أولاً'}</p>
+   <button type="button" onclick="AgentPairing.scanQr()">▦ تحديث اتصال الإدارة بمسح QR (عند تغيير الكمبيوتر أو الراوتر)</button></section>`;
   return main+report+`<details class="panel" style="padding:12px 16px"><summary style="cursor:pointer;font-weight:800">الطريقة الاحتياطية: مزامنة عبر الملفات</summary>${original()}</details>`;
  };
 })();

@@ -168,7 +168,7 @@ const Agent={
           historyCursor:this.mergeHistoryPage(payload.historyPage,{...this.state,companyId:payload.companyId,agentId:payload.agentId,warehouseId:payload.warehouseId}).cursor,
           snapshotIds:payload.knownIds||[],knownIds:Array.from(new Set([...(this.state.knownIds||[]),...(payload.knownIds||[]),...this.mergeHistoryPage(payload.historyPage,{...this.state,companyId:payload.companyId,agentId:payload.agentId,warehouseId:payload.warehouseId}).restoredIds])),exchangeRate:payload.exchangeRate,
           defaultPriceTier:['wholesale','center','consumer'].includes(payload.defaultPriceTier)?payload.defaultPriceTier:'wholesale',
-          issuedAt:payload.issuedAt};
+          issuedAt:payload.issuedAt,cloud:Object.prototype.hasOwnProperty.call(payload,'cloud')?payload.cloud:(this.state.cloud||null)};
         this.draft=[];this.currency='USD';await this.save();this.toast('استُلم كشف المواد والعملاء دون حذف العمليات القديمة');await this.show('home');
       }else if(raw?.kind==='ack'){
         if(!this.ready())throw Error('يجب ربط الجهاز أولًا');
@@ -195,7 +195,16 @@ const Agent={
       const msg={kind:'operations',nonce,companyId:this.state.companyId,agentId:this.state.agentId,
         warehouseId:this.state.warehouseId,issuedAt:new Date().toISOString(),operations:ops,historyCursor:Number(this.state.historyCursor||0),warehouseHistoryCursor:Number(this.state.warehouseHistoryCursor||0)};
       const packet=await FieldLanCrypto.pack(msg,this.state.key,this.state.companyId,this.state.agentId);
-      window.AndroidLocalSync.send(this.state.companyId,JSON.stringify(packet));
+      const raw=JSON.stringify(packet);
+      if(window.TiqanyCloudAgent?.ready()){
+        // Cloud first (no inbound firewall rule). Fail closed to LAN; never declare success without ACK.
+        window.TiqanyCloudAgent.send(raw).then(answer=>this.onLocalSyncResult(JSON.stringify({data:answer})))
+          .catch(e=>{
+            this.lanSyncMessage='السحابة غير متاحة؛ جارٍ محاولة Wi-Fi المحلي: '+e.message;
+            this.syncPaint();
+            window.AndroidLocalSync.send(this.state.companyId,raw);
+          });
+      } else window.AndroidLocalSync.send(this.state.companyId,raw);
     }catch(e){this.lanSyncBusy=false;this.lanRequestNonce=null;this.lanSyncMessage=e.message;if(!this.lanSyncQuiet)this.toast(e.message);this.syncPaint();this.finishAutoSync?.(false);}
   },
   syncPaint(){const el=document.getElementById('agentLanStatus');if(el)el.textContent=this.lanSyncMessage;
@@ -259,7 +268,7 @@ const Agent={
         confirmed:newlyConfirmed,itemsChanged,accountsChanged,stockChanged,
         materials:catalog.items.length,customers:catalog.accounts.length,serverAt:ack.serverAt||''};
       if(mustSave){
-        this.state={...old,companyName:catalog.companyName,agentName:catalog.agentName,
+        this.state={...old,cloud:Object.prototype.hasOwnProperty.call(catalog,'cloud')?catalog.cloud:(old.cloud||null),companyName:catalog.companyName,agentName:catalog.agentName,
           vehicleName:catalog.vehicleName,warehouseId:catalog.warehouseId,issuedAt:catalog.issuedAt,
           companyPhone:catalog.companyPhone||'',companyAddress:catalog.companyAddress||'',
           companyLogo:catalog.companyLogo||'',footerNote:catalog.footerNote||'',

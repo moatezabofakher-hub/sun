@@ -121,7 +121,12 @@ public final class MainActivity extends FragmentActivity {
                 final String code = result.getContents();
                 // Cancellation is not an error: keep existing invoice or item open.
                 if (code != null && !code.isEmpty()) {
-                    replyBarcode(target, code, "");
+                    if ("pairing".equals(target)) {
+                        runOnUiThread(() -> {
+                            if (isLocalPage()) webView.evaluateJavascript(
+                                "window.AgentPairing && AgentPairing.onQrScanned(" + org.json.JSONObject.quote(code) + ")", null);
+                        });
+                    } else replyBarcode(target, code, "");
                 } else if (result.getOriginalIntent() != null &&
                         result.getOriginalIntent().getBooleanExtra(
                                 "com.google.zxing.client.android.SCAN_MISSING_CAMERA_PERMISSION", false)) {
@@ -407,7 +412,7 @@ public final class MainActivity extends FragmentActivity {
     private final class NativeBarcodeBridge {
         @JavascriptInterface
         public void scan(String target) {
-            if (!"invoice".equals(target) && !"item".equals(target)) return;
+            if (!"invoice".equals(target) && !"item".equals(target) && !"pairing".equals(target)) return;
             runOnUiThread(() -> {
                 if (!isLocalPage()) return;
                 if (pendingNativeBarcodeTarget != null) {
@@ -416,7 +421,7 @@ public final class MainActivity extends FragmentActivity {
                 }
                 pendingNativeBarcodeTarget = target;
                 ScanOptions options = new ScanOptions();
-                options.setDesiredBarcodeFormats(ScanOptions.ALL_CODE_TYPES);
+                options.setDesiredBarcodeFormats("pairing".equals(target) ? ScanOptions.QR_CODE : ScanOptions.ALL_CODE_TYPES);
                 options.setPrompt("وجّه الكاميرا نحو الباركود أو رمز QR");
                 options.setOrientationLocked(false);
                 options.setBeepEnabled(true);

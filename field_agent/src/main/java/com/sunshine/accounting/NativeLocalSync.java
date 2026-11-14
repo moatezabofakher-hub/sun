@@ -22,6 +22,8 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.NetworkInterface;
+import java.util.Enumeration;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
@@ -47,6 +49,9 @@ public final class NativeLocalSync {
     private final Activity activity;
     private final WebView webView;
     private final boolean manager;
+    private volatile InetSocketAddress directEndpoint;
+    private volatile String directCompany = "";
+
     private final NsdManager nsd;
     private final ConnectivityManager connectivity;
     private ConnectivityManager.NetworkCallback wifiCallback;
@@ -95,6 +100,61 @@ public final class NativeLocalSync {
 
     private boolean isTrustedPage() {
         return trustedMainFrame && !closing;
+    }
+
+    /** QR contains a private-network address only, never keys, passwords or activation tokens. */
+    private static boolean safeLocalAddress(String host) {
+        if (host == null || !host.matches("[0-9]{1,3}(\\.[0-9]{1,3}){3}")) return false;
+        try {
+            InetAddress address = InetAddress.getByName(host);
+            return address.getAddress().length == 4 && address.isSiteLocalAddress()
+                && !address.isLoopbackAddress() && !isOwnAddress(address);
+        } catch (Exception ignored) { return false; }
+    }
+
+    private static boolean isOwnAddress(InetAddress ip) {
+        try {
+            Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
+            while (interfaces != null && interfaces.hasMoreElements()) {
+                for (InetAddress candidate : java.util.Collections.list(interfaces.nextElement().getInetAddresses())) {
+                    if (candidate.equals(ip)) return true;
+                }
+            }
+        } catch (Exception ignored) { }
+        return false;
+    }
+
+    /** Called by manager UI to draw an offline QR code from the real listening TCP port. */
+    @JavascriptInterface
+    public String receiverEndpoint() {
+        if (!manager || !isTrustedPage() || server == null || server.isClosed()) return "{}";
+        try {
+            StringBuilder ips = new StringBuilder();
+            Enumeration<NetworkInterface> interfaces = NetworkInterface.getNetworkInterfaces();
+            while (interfaces != null && interfaces.hasMoreElements()) {
+                NetworkInterface iface = interfaces.nextElement();
+                if (!iface.isUp() || iface.isLoopback()) continue;
+                for (InetAddress ip : java.util.Collections.list(iface.getInetAddresses())) {
+                    if (ip.getAddress().length == 4 && ip.isSiteLocalAddress() && !ip.isLoopbackAddress()) {
+                        if (ips.length() > 0) ips.append(',');
+                        ips.append(JSONObject.quote(ip.getHostAddress()));
+                    }
+                }
+            }
+            return "{\"companyId\":" + JSONObject.quote(activeCompany == null ? "" : activeCompany) +
+                   ",\"port\":" + server.getLocalPort() + ",\"ips\":[" + ips + "]}";
+        } catch (Exception ignored) { return "{}"; }
+    }
+
+    @JavascriptInterface
+    public String setDirectEndpoint(String company, String host, int port) {
+        if (manager || !isTrustedPage() || !isCompany(company) || !safeLocalAddress(host)
+                || port < 1024 || port > 65535) return "invalid";
+        directCompany = company;
+        directEndpoint = new InetSocketAddress(host, port);
+        lastConfirmedDestination = null;
+        lastConfirmedAt = 0;
+        return "saved";
     }
 
     private static boolean isCompany(String id) {
@@ -243,7 +303,8 @@ public final class NativeLocalSync {
                 IOException lastError = null;
                 boolean completed = false;
                 for (int attempt = 0; attempt < 2 && !completed; attempt++) {
-                    InetSocketAddress destination = (attempt == 0 && lastConfirmedDestination != null &&
+                    InetSocketAddress destination = (attempt == 0 && directEndpoint != null && companyId.equals(directCompany))
+                        ? directEndpoint : (attempt == 0 && lastConfirmedDestination != null &&
                         System.currentTimeMillis() - lastConfirmedAt < 60_000L)
                         ? lastConfirmedDestination : findServer(companyId);
                     if (destination == null) { lastError = new IOException("لم يظهر التطبيق الرئيسي على شبكة Wi-Fi المحلية"); break; }
@@ -266,7 +327,7 @@ public final class NativeLocalSync {
                         lastError = ioError;
                         lastConfirmedDestination = null;
                         // Rediscover only when a previously working address has gone stale.
-                        if (attempt > 0 || lastConfirmedAt == 0) break;
+                        if (attempt > 0 || (lastConfirmedAt == 0 && directEndpoint == null)) break;
                     }
                 }
                 if (!completed) throw lastError == null ? new IOException("فشل الاتصال بالمحاسبة الرئيسية") : lastError;
@@ -311,7 +372,8 @@ public final class NativeLocalSync {
         if (!pairingSending.compareAndSet(false, true)) return;
         io.execute(() -> {
             try {
-                InetSocketAddress target = findServer(companyId.isEmpty() ? null : companyId);
+                InetSocketAddress target = directEndpoint != null && (companyId.isEmpty() || companyId.equals(directCompany))
+                    ? directEndpoint : findServer(companyId.isEmpty() ? null : companyId);
                 if (target == null) throw new IOException("لم يُعثر على التطبيق الرئيسي على شبكة Wi-Fi المحلية");
                 try (Socket socket = new Socket()) {
                     bindToWifiIfAvailable(socket);
@@ -345,7 +407,7 @@ public final class NativeLocalSync {
                     @Override public void onResolveFailed(NsdServiceInfo service, int errorCode) { resolving.set(false); }
                     @Override public void onServiceResolved(NsdServiceInfo service) {
                         InetAddress host = service.getHost();
-                        if (host != null && service.getPort() > 0) {
+                        if (host != null && service.getPort() > 0 && !isOwnAddress(host)) {
                             address.set(new InetSocketAddress(host, service.getPort()));
                             completed.countDown();
                         } else resolving.set(false);
