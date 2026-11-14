@@ -421,7 +421,11 @@ public final class MainActivity extends FragmentActivity {
                 }
                 pendingNativeBarcodeTarget = target;
                 ScanOptions options = new ScanOptions();
-                options.setDesiredBarcodeFormats("pairing".equals(target) ? ScanOptions.QR_CODE : ScanOptions.ALL_CODE_TYPES);
+                if ("pairing".equals(target)) {
+                    options.setDesiredBarcodeFormats(ScanOptions.QR_CODE);
+                } else {
+                    options.setDesiredBarcodeFormats(ScanOptions.ALL_CODE_TYPES);
+                }
                 options.setPrompt("وجّه الكاميرا نحو الباركود أو رمز QR");
                 options.setOrientationLocked(false);
                 options.setBeepEnabled(true);
