@@ -37,6 +37,7 @@ document.addEventListener('keydown',e=>{
         previousEditor.value=previousValue;
         previousEditor.dispatchEvent(new Event('input',{bubbles:true}));
       }
+      window.BarcodeFeedback?.read(); // HID scan finished, independent of item addition
       handle(code);
     }
     return;

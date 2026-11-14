@@ -991,6 +991,17 @@
 <script defer src="static/arabic-currency-display.js"></script>
 <link rel="stylesheet" href="static/tiqany-3d-ui.css">
 <link rel="stylesheet" href="static/tiqany-currency-choice.css">
+<style id="ta-staff-title-fix-3564">
+#topAppBar.dashboard-header #headerTitleWrap{top:45%!important;transform:translate(-50%,-50%)!important;display:flex!important;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;width:calc(100% - 116px)!important;max-width:270px!important}
+#topAppBar.dashboard-header #headerTitleWrap #screenTitle{display:flex!important;justify-content:center;align-items:center;line-height:1.2;margin-bottom:2px;max-width:100%;font-size:clamp(13px,3.8vw,17px)!important;overflow:visible}
+#topAppBar.dashboard-header #headerTitleWrap #brandCompanyName{max-width:100%;overflow:hidden;text-overflow:ellipsis}
+#topAppBar.dashboard-header #headerTitleWrap #screenSubtitle{display:none!important}
+#headerTitleWrap #salesStaffCounterButton{display:none!important}
+#topAppBar.dashboard-header #salesStaffCounterButton{display:flex!important;position:relative;pointer-events:auto;min-height:24px!important;height:24px!important;margin:0 auto;padding:1px 8px!important;border-radius:9px!important;gap:5px!important;font-size:10px!important}
+#topAppBar.dashboard-header #salesStaffCounterButton strong{font-size:11px!important;min-width:18px!important;padding:0 4px!important}
+#topAppBar.dashboard-header #salesStaffCounterButton .ta-staff-counter-label{display:inline!important;font-size:9px!important}
+@media(max-width:380px){#topAppBar.dashboard-header #headerTitleWrap{width:calc(100% - 100px)!important}#topAppBar.dashboard-header #screenTitle{font-size:12px!important}}
+</style>
 </head>
 <body class="ta-premium-ui ta-3d-v3524 bg-slate-100 text-slate-800 min-h-screen flex flex-col w-full max-w-full overflow-x-hidden">
 
@@ -1013,13 +1024,12 @@
                         <span class="truncate" id="brandCompanyName">المحاسب التقني</span>
                     </h1>
                     <p id="screenSubtitle" class="text-[10px] sm:text-[11px] text-slate-400 truncate">نظام محاسبة ومستودعات (Offline-First)</p>
+                    <button id="salesStaffCounterButton" type="button" class="ta-staff-counter" onclick="AppNav.navigate('agent_hub')" title="موظفو البيع المتصلون" aria-label="عدد موظفي البيع المتصلين"><i class="fas fa-users" aria-hidden="true"></i><span class="ta-staff-counter-label">متصل</span><strong id="salesStaffConnectedCount" aria-live="polite">0</strong></button>
                 </div>
             </div>
 
             <div id="headerActionGroup" class="flex items-center gap-1.5 shrink-0">
-                <button type="button" class="ta-staff-counter" onclick="AppNav.navigate('agent_hub')" title="موظفو البيع المتصلون الآن بمزامنة موثّقة" aria-label="عدد موظفي البيع المتصلين">
-                    <i class="fas fa-users" aria-hidden="true"></i><span class="ta-staff-counter-label">متصل</span><strong id="salesStaffConnectedCount" aria-live="polite">0</strong>
-                </button>
+
                 <!-- Active Operation Protection Status Badge -->
                 <div id="unsavedGuardBadge" class="hidden bg-amber-500/20 border border-amber-400/50 text-amber-300 px-2 py-1 rounded-xl text-[10px] font-extrabold items-center gap-1 animate-pulse shrink-0" title="حماية العمليات مفعّلة لمنع الخروج العرضي">
                     <i class="fas fa-shield-halved"></i>
@@ -6286,6 +6296,7 @@
                         try {
                             const codes = await detector.detect(video);
                             if (codes.length && codes[0].rawValue) {
+                                window.BarcodeFeedback?.read(); // item barcode decoded
                                 const field = document.getElementById('itmBarcode');
                                 if (field) {
                                     field.value = codes[0].rawValue;
@@ -6986,6 +6997,48 @@
          ********************************************************************/
         const InvoiceController = {
             draft: null,
+            // ISO date text stays legible independently of Chromium's Arabic date placeholders.
+            visibleInvoiceDate(raw) {
+                const match = String(raw || '').match(/^(\d{4}-\d{2}-\d{2})(?:[T\s](\d{2}:\d{2}))?/);
+                const now = new Date(Date.now() - new Date().getTimezoneOffset()*60000).toISOString();
+                const day = match?.[1] || now.slice(0,10);
+                return { day, time: match?.[2] || '00:00' };
+            },
+            changeInvoiceDatePart(part, input) {
+                if (!this.draft || !['day','time'].includes(part)) return;
+                const value = String(input || '').trim();
+                const old = this.visibleInvoiceDate(this.draft.date);
+                if (part === 'day' && (!/^\d{4}-\d{2}-\d{2}$/.test(value) || Number.isNaN(Date.parse(value+'T12:00:00Z')) || new Date(value+'T12:00:00Z').toISOString().slice(0,10)!==value)) {
+                    UI.toast('أدخل التاريخ بصيغة 2026-11-14', 'warn');
+                    return this.paintForm(document.getElementById('mainContent'));
+                }
+                if (part === 'time' && (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value))) {
+                    UI.toast('أدخل وقتاً صحيحاً مثل 14:30', 'warn');
+                    return this.paintForm(document.getElementById('mainContent'));
+                }
+                this.draft.date = (part==='day'?value:old.day)+'T'+(part==='time'?value:old.time);
+                this.markModified();
+            },
+            changeInvoicePricingTier(tier) {
+                if (!this.draft || !['sale','sale_return'].includes(this.draft.type)) return;
+                const allowed = ['account','wholesale','center','consumer'];
+                if (!allowed.includes(tier)) return;
+                this.draft.priceTierOverride = tier;
+                for (const row of this.draft.rows || []) {
+                    if (row.priceManuallySet) continue; // Respect deliberately overridden line prices.
+                    const item=State.items.find(x=>x.id===row.itemId);
+                    if (!item) continue;
+                    const unit=item.units?.find(u=>u.name===row.unitName)||item.units?.[0];
+                    if (!unit) continue;
+                    const raw=Accounting.itemSalePrice(item,unit,this.draft.accountId,tier==='account'?null:tier);
+                    row.baseCurrency=item.currency;
+                    row.basePrice=raw;
+                    row.price=Accounting.convert(raw,item.currency,this.draft.currency,this.draft.exchangeRate);
+                }
+                this.markModified();this.recalculate();this.paintForm(document.getElementById('mainContent'));
+                UI.toast('تم اعتماد طريقة التسعير داخل هذه الفاتورة', 'success');
+            },
+
             gridCatFilter: 'all',
             gridSearchQuery: '',
 
@@ -7172,6 +7225,7 @@
                         paidAmount: 0,
                         remainingAmount: 0,
                         note: '',
+                        priceTierOverride: 'account',
                         isEditing: false
                     };
                 }
@@ -7224,7 +7278,7 @@
                 const quantityBefore = (this.draft?.rows || []).filter(r => r.itemId === item.id).reduce((n,r) => n + Number(r.qty || 0), 0);
                 this.addItemToInvoice(item.id);
                 const quantityAfter = (this.draft?.rows || []).filter(r => r.itemId === item.id).reduce((n,r) => n + Number(r.qty || 0), 0);
-                if(quantityAfter > quantityBefore) if(typeof window!=='undefined')window.BarcodeFeedback?.success();
+
                 const input = document.getElementById('invBarcodeInput');
                 if (input) { input.value = ''; input.focus(); }
             },
@@ -7252,7 +7306,7 @@
                     const quantityAfter = (this.draft?.rows || []).filter(r => r.itemId === item.id).reduce((n,r) => n + Number(r.qty || 0), 0);
                     if(quantityAfter > quantityBefore) {
                         added += 1;
-                        if(typeof window!=='undefined')window.BarcodeFeedback?.success();
+
                     }
                 }
                 if (added) {
@@ -7311,6 +7365,7 @@
                                 if (now - lastForCode >= delay && now - lastAcceptedAt >= 450) {
                                     lastSeenAt.set(value, now);
                                     lastAcceptedAt = now;
+                                    window.BarcodeFeedback?.read(); // decoded by camera, before invoice change
                                     this.addItemByBarcode(value);
                                     const status = document.getElementById('barcodeScanStatus');
                                     if (status) status.textContent = `تمت قراءة ${value}؛ استمر بالمسح أو اضغط ×`;
@@ -7407,7 +7462,7 @@
 
                 gridContainer.innerHTML = filtered.map(itm => {
                     const u0 = itm.units[0] || { name: 'كرتونة', factor: 1, salePrice: 0, costPrice: 0 };
-                    const rawPrice = isPurchase ? Number(u0.costPrice) : (Accounting.itemSalePrice?.(itm,u0,d.accountId) ?? Number(u0.salePrice));
+                    const rawPrice = isPurchase ? Number(u0.costPrice) : (Accounting.itemSalePrice?.(itm,u0,d.accountId,['wholesale','center','consumer'].includes(d.priceTierOverride)?d.priceTierOverride:null) ?? Number(u0.salePrice));
                     const priceInInvCurr = Accounting.convert(rawPrice, itm.currency, d.currency, d.exchangeRate);
                     const availStock = Math.round((Accounting.getItemBaseStock(itm.id, d.isEditing ? d.id : null, d.warehouseId || 'wh_main') + Number.EPSILON) * 100) / 100;
                     const inCartQty = d.rows.reduce((qty, row) =>
@@ -7490,7 +7545,7 @@
                     if(row.priceManuallySet)continue;
                     const item=State.items.find(it=>it.id===row.itemId);if(!item)continue;
                     const unit=item.units?.find(u=>u.name===row.unitName)||item.units?.[0];
-                    const raw=Accounting.itemSalePrice(item,unit,accountId);
+                    const raw=Accounting.itemSalePrice(item,unit,accountId,['wholesale','center','consumer'].includes(this.draft.priceTierOverride)?this.draft.priceTierOverride:null);
                     row.baseCurrency=item.currency;row.basePrice=raw;
                     row.price=Accounting.convert(raw,item.currency,this.draft.currency,this.draft.exchangeRate);
                 }}
@@ -7544,7 +7599,7 @@
                     if (basePrice === undefined && item) {
                         const unitObj = item.units.find(u => u.name === row.unitName) || item.units[0];
                         const isPurchase = (this.draft.type === 'purchase' || this.draft.type === 'purchase_return');
-                        basePrice = isPurchase ? Number(unitObj?.costPrice || 0) : (Accounting.itemSalePrice?.(item,unitObj,this.draft.accountId) ?? Number(unitObj?.salePrice||0));
+                        basePrice = isPurchase ? Number(unitObj?.costPrice || 0) : (Accounting.itemSalePrice?.(item,unitObj,this.draft.accountId,['wholesale','center','consumer'].includes(this.draft.priceTierOverride)?this.draft.priceTierOverride:null) ?? Number(unitObj?.salePrice||0));
                         row.baseCurrency = baseCurr;
                         row.basePrice = basePrice;
                     }
@@ -7584,7 +7639,7 @@
                     if (!item) continue;
                     const unitObj = item.units.find(u => u.name === row.unitName) || item.units[0];
                     const isPurchase = (this.draft.type === 'purchase' || this.draft.type === 'purchase_return');
-                    const rawPrice = isPurchase ? Number(unitObj?.costPrice || 0) : (Accounting.itemSalePrice?.(item,unitObj,this.draft.accountId) ?? Number(unitObj?.salePrice||0));
+                    const rawPrice = isPurchase ? Number(unitObj?.costPrice || 0) : (Accounting.itemSalePrice?.(item,unitObj,this.draft.accountId,['wholesale','center','consumer'].includes(this.draft.priceTierOverride)?this.draft.priceTierOverride:null) ?? Number(unitObj?.salePrice||0));
                     row.baseCurrency = item.currency;
                     row.basePrice = rawPrice;
                     row.price = Accounting.convert(rawPrice, item.currency, this.draft.currency, rate);
@@ -7614,7 +7669,7 @@
                 const unit0 = item.units[0] || { name: 'قطعة', factor: 1, salePrice: 0, costPrice: 0 };
                 const isPurchase = (this.draft.type === 'purchase' || this.draft.type === 'purchase_return');
                 if(isPurchase && item.isBundle)return UI.toast('التجميعة تُباع من مكوّناتها ولا تُشترى كمخزون مستقل','warn');
-                const rawPrice = isPurchase ? Number(unit0.costPrice) : (Accounting.itemSalePrice?.(item,unit0,this.draft.accountId) ?? Number(unit0.salePrice));
+                const rawPrice = isPurchase ? Number(unit0.costPrice) : (Accounting.itemSalePrice?.(item,unit0,this.draft.accountId,['wholesale','center','consumer'].includes(this.draft.priceTierOverride)?this.draft.priceTierOverride:null) ?? Number(unit0.salePrice));
                 const convertedPrice = Accounting.convert(rawPrice, item.currency, this.draft.currency, this.draft.exchangeRate);
 
                 const existingRow = this.draft.rows.find(r => r.itemId === item.id && r.unitName === unit0.name);
@@ -7659,7 +7714,7 @@
                 // Store cost at sale time; later purchases must not restate past sale profits.
                 row.baseCostPrice = (Accounting.itemCostPrice?.(item, unitObj) ?? Number(unitObj.costPrice) ?? 0);
                 const isPurchase = (this.draft.type === 'purchase' || this.draft.type === 'purchase_return');
-                const rawUnitPrice = isPurchase ? Number(unitObj.costPrice) : (Accounting.itemSalePrice?.(item,unitObj,this.draft.accountId) ?? Number(unitObj?.salePrice||0));
+                const rawUnitPrice = isPurchase ? Number(unitObj.costPrice) : (Accounting.itemSalePrice?.(item,unitObj,this.draft.accountId,['wholesale','center','consumer'].includes(this.draft.priceTierOverride)?this.draft.priceTierOverride:null) ?? Number(unitObj?.salePrice||0));
                 row.baseCurrency = item.currency;
                 row.basePrice = rawUnitPrice;
                 row.price = Accounting.convert(rawUnitPrice, item.currency, this.draft.currency, this.draft.exchangeRate);
@@ -7794,10 +7849,23 @@
 
                             <div>
                                 <label class="flex items-center gap-1 font-bold text-slate-700 mb-0.5"><i class="fas fa-calendar-days text-blue-600 text-[9px]"></i>التاريخ</label>
-                                <input type="datetime-local" value="${d.date}" onchange="InvoiceController.draft.date = this.value; InvoiceController.markModified()" class="w-full min-w-0 border border-slate-300 rounded-lg px-1.5 py-1.5 text-[10px]">
+                                <div class="ta-invoice-date-visible flex items-center gap-1" dir="ltr" lang="en">
+                                    <input aria-label="تاريخ الفاتورة سنة-شهر-يوم" type="text" inputmode="numeric" autocomplete="off" value="${this.visibleInvoiceDate(d.date).day}" placeholder="YYYY-MM-DD" onchange="InvoiceController.changeInvoiceDatePart('day',this.value)" class="w-full min-w-0 bg-white border border-sky-300 rounded-lg px-1.5 py-1.5 text-[11px] font-extrabold text-slate-900 text-center" style="direction:ltr;min-width:0">
+                                    <input aria-label="وقت الفاتورة" type="time" value="${this.visibleInvoiceDate(d.date).time}" onchange="InvoiceController.changeInvoiceDatePart('time',this.value)" class="w-[84px] shrink-0 min-w-0 bg-white border border-sky-300 rounded-lg px-1 py-1.5 text-[10px] font-bold" style="direction:ltr">
+                                </div>
                             </div>
                         </div>
 
+                        ${['sale','sale_return'].includes(d.type) ? `
+                        <div class="ta-invoice-pricing-choice rounded-xl border border-cyan-400 bg-gradient-to-l from-sky-100 via-cyan-50 to-white px-2.5 py-2 shadow-sm">
+                            <label for="invoicePricingTier" class="block text-xs font-black text-cyan-950 mb-1"><i class="fas fa-coins ml-1 text-sky-700"></i> طريقة التسعير لهذه الفاتورة</label>
+                            <select id="invoicePricingTier" aria-label="تغيير طريقة التسعير داخل الفاتورة" onchange="InvoiceController.changeInvoicePricingTier(this.value)" class="w-full rounded-lg border-2 border-sky-400 bg-white text-sky-950 font-black px-2 py-2 text-xs shadow-sm">
+                                <option value="account" ${!['wholesale','center','consumer'].includes(d.priceTierOverride)?'selected':''}>حسب إعدادات الحساب</option>
+                                <option value="wholesale" ${d.priceTierOverride==='wholesale'?'selected':''}>سعر الجملة</option>
+                                <option value="center" ${d.priceTierOverride==='center'?'selected':''}>سعر المركز</option>
+                                <option value="consumer" ${d.priceTierOverride==='consumer'?'selected':''}>سعر المستهلك</option>
+                            </select>
+                        </div>` : ''}
                         <div class="grid grid-cols-3 gap-1.5 bg-slate-100 p-1 rounded-xl text-xs font-bold">
                             <button type="button" onclick="InvoiceController.changePaymentMethod('cash')" class="py-2 rounded-lg transition ${d.paymentMethod === 'cash' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600'}">
                                 <i class="fas fa-money-bill-wave ml-1"></i> نقدي

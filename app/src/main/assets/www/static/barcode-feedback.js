@@ -1,4 +1,4 @@
-/* Tiqany: audible confirmation only after a barcode adds a product successfully.
+/* Tiqany: beep at a completed barcode read, independently of invoice addition.
    Android native ToneGenerator handles scanner callbacks even when WebAudio requires a gesture.
    Windows/other browsers use a short, original electronic confirmation tone. */
 (function(root){
@@ -13,7 +13,7 @@
   }
   try { document.addEventListener('pointerdown',unlock,{passive:true});document.addEventListener('keydown',unlock,{passive:true}); }catch(_){}
   root.BarcodeFeedback=Object.freeze({
-    success(){
+    read(){
       try{
         if(root.NativeBarcode && typeof root.NativeBarcode.successBeep==='function'){
           root.NativeBarcode.successBeep();return true;

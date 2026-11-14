@@ -1,0 +1,11 @@
+'use strict';
+const fs=require('node:fs'); const assert=require('node:assert/strict');
+const s=fs.readFileSync('app/src/main/assets/www/index.html','utf8');
+assert(s.includes('changeInvoiceDatePart('));
+assert(s.includes('visibleInvoiceDate(d.date).day'));
+assert(s.includes('changeInvoicePricingTier(tier)'));
+assert(s.includes('row.priceManuallySet) continue'));
+assert(s.includes('ta-invoice-pricing-choice'));
+assert(s.includes('id="salesStaffCounterButton"'));
+assert(s.indexOf('id="salesStaffCounterButton"') < s.indexOf('id="headerActionGroup"'));
+console.log('PASS main invoice date, per-invoice tier and centered staff badge');

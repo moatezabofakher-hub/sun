@@ -10,8 +10,8 @@ android {
         applicationId 'com.sunshine.technicalaccountant.agent'
         minSdk 26
         targetSdk 35
-        versionCode 29
-        versionName '3.5.63-field-pos-beep'
+        versionCode 31
+        versionName '3.5.65-field-barcode-read'
     }
 
     // A permanent signing key is required for in-place updates. The keystore is

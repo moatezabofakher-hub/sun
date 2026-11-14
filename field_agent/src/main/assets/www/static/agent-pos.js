@@ -147,7 +147,7 @@ A.openPosFromBarcode=async function(value){
     const before=(this.draft||[]).filter(r=>r.itemId===item.id).reduce((n,r)=>n+Number(r.qty||0),0);
     this.quickAddIndex(itemIndex);
     const after=(this.draft||[]).filter(r=>r.itemId===item.id).reduce((n,r)=>n+Number(r.qty||0),0);
-    if(after>before){window.BarcodeFeedback?.success();return true;}
+    if(after>before)return true;
   }
   return false;
 };

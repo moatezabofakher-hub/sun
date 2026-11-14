@@ -50,6 +50,8 @@ public final class ContinuousBarcodeActivity extends ComponentActivity {
     private long lastTime = 0;
     private boolean requestedPermission = false;
     private boolean closed = false;
+    private android.media.ToneGenerator readTone;
+
 
     private int dp(float v) {
         return Math.round(getResources().getDisplayMetrics().density * v);
@@ -58,6 +60,10 @@ public final class ContinuousBarcodeActivity extends ComponentActivity {
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
+        try { readTone = new android.media.ToneGenerator(
+                android.media.AudioManager.STREAM_MUSIC, 65); }
+        catch (RuntimeException ignored) { readTone = null; }
+
         // Keep overlay actions away from the status/navigation bars.
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
         getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
@@ -154,6 +160,11 @@ public final class ContinuousBarcodeActivity extends ComponentActivity {
             return;
         }
         scanned.add(code);
+        // Acknowledge the accepted camera decoding now, not when rows are imported later.
+        if (readTone != null) {
+            try { readTone.startTone(android.media.ToneGenerator.TONE_PROP_BEEP, 90); }
+            catch (RuntimeException ignored) { /* no audio hardware available */ }
+        }
         lastCode = code;
         lastTime = now;
         countText.setText("القراءات: " + scanned.size());
@@ -192,6 +203,11 @@ public final class ContinuousBarcodeActivity extends ComponentActivity {
                 closeAndReturn("يجب السماح باستخدام الكاميرا من إعدادات التطبيق");
             }
         }
+    }
+
+    @Override protected void onDestroy() {
+        if (readTone != null) { readTone.release(); readTone = null; }
+        super.onDestroy();
     }
 
     @Override protected void onPause() {
