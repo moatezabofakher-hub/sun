@@ -115,7 +115,9 @@ const POSController = {
     const code=String(raw||'').trim().toLowerCase();if(!code)return false;
     const item=State.items.find(x=>String(x.barcode||'').trim().toLowerCase()===code);
     if(!item){UI.toast('هذا الباركود غير مسجل في المواد','warn');return false;}
-    return this.add(item.id);
+    const added=this.add(item.id);
+    if(added) if(typeof window!=='undefined')window.BarcodeFeedback?.success();
+    return added;
   },
   setQuery(v){this.query=String(v||'');this.renderGrid();},
   setCategory(v){this.category=v;this.renderGrid();},

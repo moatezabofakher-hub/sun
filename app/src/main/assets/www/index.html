@@ -7221,7 +7221,10 @@
                     UI.toast('لا توجد مادة مسجلة بهذا الباركود', 'error');
                     return;
                 }
+                const quantityBefore = (this.draft?.rows || []).filter(r => r.itemId === item.id).reduce((n,r) => n + Number(r.qty || 0), 0);
                 this.addItemToInvoice(item.id);
+                const quantityAfter = (this.draft?.rows || []).filter(r => r.itemId === item.id).reduce((n,r) => n + Number(r.qty || 0), 0);
+                if(quantityAfter > quantityBefore) if(typeof window!=='undefined')window.BarcodeFeedback?.success();
                 const input = document.getElementById('invBarcodeInput');
                 if (input) { input.value = ''; input.focus(); }
             },
@@ -7244,8 +7247,13 @@
                     const item = byBarcode.get(code);
                     if (!item) { missing.push(code); continue; }
                     // Repeated reads of the same item increment its invoice quantity.
+                    const quantityBefore = (this.draft?.rows || []).filter(r => r.itemId === item.id).reduce((n,r) => n + Number(r.qty || 0), 0);
                     this.addItemToInvoice(item.id, false);
-                    added += 1;
+                    const quantityAfter = (this.draft?.rows || []).filter(r => r.itemId === item.id).reduce((n,r) => n + Number(r.qty || 0), 0);
+                    if(quantityAfter > quantityBefore) {
+                        added += 1;
+                        if(typeof window!=='undefined')window.BarcodeFeedback?.success();
+                    }
                 }
                 if (added) {
                     this.markModified();
@@ -9536,6 +9544,7 @@
   };
 })();
 </script>
+<script src="static/barcode-feedback.js"></script>
 <script src="static/mobile-barcode-hid.js"></script>
 </body>
 </html>

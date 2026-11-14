@@ -149,7 +149,12 @@ Agent.addScannedBarcode=function(value){
  const barcode=String(value||'').trim();if(!barcode)return false;
  const index=this.state.items.findIndex(it=>String(it.barcode||'').trim()===barcode);
  if(index<0){this.toast('الباركود غير موجود في المواد المعتمدة: '+barcode.slice(0,18));return false;}
- this.quickAddIndex(index);return true;
+ const item=this.state.items[index];
+ const before=(this.draft||[]).filter(r=>r.itemId===item.id).reduce((n,r)=>n+Number(r.qty||0),0);
+ this.quickAddIndex(index);
+ const after=(this.draft||[]).filter(r=>r.itemId===item.id).reduce((n,r)=>n+Number(r.qty||0),0);
+ if(after>before){window.BarcodeFeedback?.success();return true;}
+ return false;
 };
 window.__nativeBarcodeResult=(target,code,message)=>{if(message)Agent.toast(message);if(target==='invoice'&&code)Agent.addScannedBarcode(code);};
 window.__nativeBarcodeBatchResult=codes=>{if(!Array.isArray(codes))return;let added=0;

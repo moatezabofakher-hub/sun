@@ -420,6 +420,16 @@ public final class MainActivity extends FragmentActivity {
     }
 
     private final class NativeBarcodeBridge {
+        private final android.media.ToneGenerator successTone =
+                new android.media.ToneGenerator(android.media.AudioManager.STREAM_MUSIC, 65);
+        @JavascriptInterface
+        public void successBeep() {
+            runOnUiThread(() -> {
+                try { successTone.startTone(android.media.ToneGenerator.TONE_PROP_BEEP, 85); }
+                catch (Exception ignored) { /* audio may be unavailable on silent/locked devices */ }
+            });
+        }
+
         @JavascriptInterface
         public void scan(String target) {
             if (!"invoice".equals(target) && !"item".equals(target)) return;

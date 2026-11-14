@@ -65,19 +65,51 @@ A.switchInvoiceKind=function(kind){
   if(this.posMode && kind!=='sale')return this.toast('نقطة البيع تدعم المبيعات النقدية فقط');
   return defaultKindChange(kind);
 };
+// A true point-of-sale screen, not a renamed ordinary sales invoice.
+// It reuses the existing stock checks, authenticated invoice posting, edit
+// operations, and sync outbox without creating a separate accounting ledger.
 const originalRender=A.renderInvoice.bind(A);
 A.renderInvoice=function(){
-  let html=originalRender();
-  if(!this.posMode)return html;
-  html=html.replace('فاتورة مبيعات',this.posViewId?'عرض نقطة بيع نقدية':this.editingId?'تعديل نقطة البيع النقدية':'نقطة البيع السريعة');
-  // Existing invoice screen provides product grid, search, scanning, row editing and save/print.
-  // Add the simplified names-only picker without changing the protected invoice form.
-  const namesBtn='<button type="button" class="secondary" onclick="Agent.openPosNameList()">☷ اختيار مادة من قائمة الأسماء</button>';
-  html=html.replace('إضافة مواد', 'إضافة مواد');
-  html=html.replace('<div class="agent-main-invoice">',`<div class="agent-main-invoice" data-point-of-sale="true"><div class="agent-pos-names-compact">${this.posViewId?'<p class="tiny">عرض فقط — هذه الفاتورة للقراءة دون تعديل.</p>':''}${namesBtn}</div>`);
-  // In alternate render layouts insert next to search field.
-  if(!html.includes(namesBtn))html='<div class="panel">'+namesBtn+'</div>'+html;
-  return html;
+  if(!this.posMode)return originalRender();
+  const m=this.invoiceMeta||{},c=this.currency||'USD',calc=typeof this.invoiceCalc==='function'?this.invoiceCalc():{subTotal:(this.draft||[]).reduce((n,r)=>n+Number(r.total||0),0),netTotal:(this.draft||[]).reduce((n,r)=>n+Number(r.total||0),0)};
+  const curLabel=c==='SYP'?'ل.س':'USD';
+  const heading=this.posViewId?'عرض نقطة البيع النقدية':this.editingId?'تعديل نقطة البيع النقدية':'نقطة البيع النقدية';
+  const accounts=(this.state.accounts||[]).map(account=>`<option value="${esc(account.id)}" ${String(m.accountId||'')===String(account.id)?'selected':''}>${esc(account.name)}</option>`).join('');
+  const products=(this.draft||[]).map((r,i)=>{
+    const item=this.state.items.find(it=>it.id===r.itemId);
+    return `<div class="agent-pos-line"><div class="agent-pos-line-top"><strong>${esc(r.itemName||item?.name||'صنف')}</strong><button type="button" class="agent-pos-remove" onclick="Agent.removeRow(${i})" aria-label="حذف المادة">×</button></div>
+      <div class="agent-pos-line-fields"><label>الوحدة<select onchange="Agent.changeRowUnit(${i},this.value)">${(item?.units||[{name:r.unitName}]).map(u=>`<option ${u.name===r.unitName?'selected':''} value="${esc(u.name)}">${esc(u.name)}</option>`).join('')}</select></label>
+      <label>الكمية<input type="number" step="any" min="0.001" value="${Number(r.qty)||0}" onchange="Agent.changeRowValue(${i},'qty',this.value);Agent.show('invoice')"></label>
+      <label>السعر<input type="number" step="any" min="0" value="${Number(r.price)||0}" onchange="Agent.changeRowValue(${i},'price',this.value);Agent.show('invoice')"></label>
+      <div class="agent-pos-row-total"><small>المجموع</small><b id="rowTotal_${i}">${this.money(r.total,c)} ${curLabel}</b></div></div></div>`;
+  }).join('');
+  return `<div class="agent-pos-screen" data-point-of-sale="true" dir="rtl">
+    <div class="agent-pos-heading"><div><small>${this.posViewId?'عرض فقط — للقراءة دون تعديل':'شاشة البيع السريع'}</small><h2>${heading}</h2></div><span class="agent-pos-ident">${this.editingId?'تعديل':'نقدي'}</span></div>
+    <div class="agent-pos-controls"><div class="agent-pos-control"><label for="fAccount">حساب نقطة البيع</label><select id="fAccount" onchange="Agent.captureInvoiceMeta();Agent.accountPricingChanged(this.value)"><option value="">الزبون النقدي</option>${accounts}</select></div>
+      <div class="agent-pos-control"><label for="fDate">التاريخ</label><input id="fDate" type="datetime-local" value="${esc(m.date||(this.defaultDate?.()||''))}" onchange="Agent.captureInvoiceMeta()"></div>
+      <div class="agent-pos-control"><label>عملة الفاتورة</label><button type="button" class="agent-pos-currency" onclick="Agent.changeInvoiceCurrency()">${curLabel} ⇆ تغيير العملة</button></div></div>
+    <input type="hidden" id="fCurrency" value="${esc(c)}"><input type="hidden" id="fPaymentMethod" value="cash"><input type="hidden" id="fPaid" value="${calc.netTotal}">
+    <div class="agent-pos-actions"><button type="button" onclick="Agent.openInvoiceItemGrid()">▦ شبكة المواد</button>
+      <button type="button" onclick="Agent.openPosNameList()">☷ قائمة الأسماء</button>
+      <button type="button" class="agent-pos-scan" onclick="Agent.scanInvoiceBarcode()">▣ مسح باركود</button></div>
+    <div class="agent-pos-cart"><div class="agent-pos-cart-title"><strong>سلة نقطة البيع</strong><span>${this.draft.length} صنف</span></div>
+      ${products||'<button type="button" class="agent-pos-blank" onclick="Agent.openInvoiceItemGrid()">السلة فارغة — اضغط لإضافة المواد من الشبكة</button>'}</div>
+    <div class="agent-pos-summary"><div class="agent-pos-sub"><span>مجموع الأصناف</span><b id="invSubTotalTxt">${this.money(calc.subTotal,c)} ${curLabel}</b></div>
+      <div class="agent-pos-adjustments"><label>الحسم العام<div class="agent-pos-adjust-row"><input id="invoiceDiscount" type="number" min="0" step="any" value="${Number(m.discountValue||0)}" oninput="Agent.changeInvoiceAdjustment();Agent.posUpdateTotals()"><select id="invoiceDiscountType" onchange="Agent.changeInvoiceAdjustment();Agent.posUpdateTotals()"><option value="amount" ${m.discountType!=='percent'?'selected':''}>${curLabel}</option><option value="percent" ${m.discountType==='percent'?'selected':''}>%</option></select></div></label>
+      <label>الضريبة / الإضافة<div class="agent-pos-adjust-row"><input id="invoiceTax" type="number" min="0" step="any" value="${Number(m.taxValue||0)}" oninput="Agent.changeInvoiceAdjustment();Agent.posUpdateTotals()"><select id="invoiceTaxType" onchange="Agent.changeInvoiceAdjustment();Agent.posUpdateTotals()"><option value="percent" ${m.taxType!=='amount'?'selected':''}>%</option><option value="amount" ${m.taxType==='amount'?'selected':''}>${curLabel}</option></select></div></label></div>
+      <div class="agent-pos-grand"><strong>المبلغ المطلوب</strong><b id="invNetTotalTxt">${this.money(calc.netTotal,c)} ${curLabel}</b></div>
+      <input type="hidden" id="invPaidInput" value="${calc.netTotal}"><input type="hidden" id="invRemainingTxt" value="0">
+      <label class="agent-pos-note-label">ملاحظات<textarea id="fNote" rows="2" placeholder="ملاحظة اختيارية" oninput="Agent.invoiceMeta.note=this.value">${esc(m.note||'')}</textarea></label></div>
+    <div class="agent-pos-save"><button type="button" onclick="Agent.saveInvoice(true)">حفظ وطباعة</button><button type="button" onclick="Agent.saveInvoice()">حفظ البيع</button></div>
+  </div>`;
+};
+A.posUpdateTotals=function(){
+  const calc=this.invoiceCalc(),currency=this.currency==='SYP'?'ل.س':'USD';
+  for(const [id,amount] of [['invSubTotalTxt',calc.subTotal],['invNetTotalTxt',calc.netTotal]]){
+    const node=document.getElementById(id);if(node)node.textContent=this.money(amount,this.currency)+' '+currency;
+  }
+  const paid=document.getElementById('invPaidInput');if(paid)paid.value=String(calc.netTotal);
+  const hidden=document.getElementById('fPaid');if(hidden)hidden.value=String(calc.netTotal);
 };
 A.openPosNameList=function(){
   if(!this.posMode)return;
@@ -110,8 +142,14 @@ A.openPosFromBarcode=async function(value){
   const itemIndex=this.state.items.findIndex(i=>String(i.barcode||'').trim()===String(value||'').trim());
   if(itemIndex<0)return false;
   await this.startPOS();
-  if(this.posMode&&this.screen==='invoice')this.quickAddIndex(itemIndex);
-  return true;
+  if(this.posMode&&this.screen==='invoice'){
+    const item=this.state.items[itemIndex];
+    const before=(this.draft||[]).filter(r=>r.itemId===item.id).reduce((n,r)=>n+Number(r.qty||0),0);
+    this.quickAddIndex(itemIndex);
+    const after=(this.draft||[]).filter(r=>r.itemId===item.id).reduce((n,r)=>n+Number(r.qty||0),0);
+    if(after>before){window.BarcodeFeedback?.success();return true;}
+  }
+  return false;
 };
 const originalGoBack=A.goBack.bind(A);
 A.goBack=function(){
