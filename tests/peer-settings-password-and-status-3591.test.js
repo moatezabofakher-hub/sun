@@ -1,0 +1,6 @@
+const test=require('node:test');const assert=require('node:assert/strict');const fs=require('node:fs');const path=require('node:path');
+const root=path.resolve(__dirname,'..');const web=fs.existsSync(path.join(root,'web'))?path.join(root,'web'):path.join(root,'app/src/main/assets/www');
+const controller=fs.readFileSync(path.join(web,'static/tiqany-peer-controller.js'),'utf8');const html=fs.readFileSync(path.join(web,'index.html'),'utf8');
+test('settings requires existing application password verification',()=>{assert.match(controller,/requestSettingsAccess\(event\)/);assert.match(controller,/ProtectionController\.verifyPin\(pin\)/);assert.match(controller,/event\.preventDefault\(\)/);assert.match(controller,/const opened=''/);});
+test('status is distinct from staff connected count',()=>{assert.match(html,/id="ta-desktop-phone-connection"/);assert.match(html,/id="salesStaffConnectedCount"/);assert.match(controller,/updateHeaderConnection\(active\)/);assert.match(controller,/lastPhoneSeenAt/);assert.match(controller,/lastSuccessfulAt/);});
+test('connection states have contrasting green and pale red backgrounds',()=>{assert.match(html,/ta-link-online.*background:#064e3b/);assert.match(html,/ta-link-offline.*background:#ffe4e6/);});

@@ -1152,7 +1152,7 @@ html.ta-ime-open body.ta-3d-v3524 > main#mainContent.ta-main {padding-bottom:24p
 <style>.ta-origin-badge{display:inline-flex;align-items:center;gap:5px;margin-top:5px;background:#e3f3ff;border:1px solid #93c5d8;border-radius:9px;padding:4px 8px;color:#075985;font-size:11px;font-weight:850;line-height:1.5}</style>
 <link rel="stylesheet" href="static/tiqany-support.css">
 <link rel="stylesheet" href="static/tiqany-ux-3588.css">
-</head>
+<style>.ta-link-status{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;margin-inline:4px;border-radius:13px;font-size:12px;font-weight:800;border:1px solid transparent;white-space:nowrap}.ta-link-dot{height:9px;width:9px;border-radius:50%;display:inline-block}.ta-link-online{background:#064e3b;color:#d1fae5;border-color:#10b981}.ta-link-online .ta-link-dot{background:#22c55e;box-shadow:0 0 8px #4ade80}.ta-link-offline{background:#ffe4e6;color:#9f1239;border-color:#fda4af}.ta-link-offline .ta-link-dot{background:#f87171}</style></head>
 <body class="ta-premium-ui ta-3d-v3524 bg-slate-100 text-slate-800 min-h-screen flex flex-col w-full max-w-full overflow-x-hidden">
 
     <!-- Top App Bar (Android Style) -->
@@ -1175,6 +1175,7 @@ html.ta-ime-open body.ta-3d-v3524 > main#mainContent.ta-main {padding-bottom:24p
                     </h1>
                     <p id="screenSubtitle" class="text-[10px] sm:text-[11px] text-slate-400 truncate">نظام محاسبة ومستودعات (Offline-First)</p>
                     <button id="salesStaffCounterButton" type="button" class="ta-staff-counter" onclick="AppNav.navigate('agent_hub')" title="موظفو البيع المتصلون" aria-label="عدد موظفي البيع المتصلين"><i class="fas fa-users" aria-hidden="true"></i><span class="ta-staff-counter-label">متصل</span><strong id="salesStaffConnectedCount" aria-live="polite">0</strong></button>
+                <span id="ta-desktop-phone-connection" class="ta-link-status ta-link-offline" role="status" aria-live="polite" title="غير متصل: الكمبيوتر والموبايل"><span class="ta-link-dot" aria-hidden="true"></span>متصل</span>
                 </div>
             </div>
 

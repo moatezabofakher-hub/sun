@@ -9,12 +9,40 @@ const clone=x=>JSON.parse(JSON.stringify(x));
 const connectedDevicesIcon='<svg width="48" height="32" viewBox="0 0 74 46" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect x="3" y="6" width="38" height="27" rx="4" fill="#065e81"/><rect x="7" y="10" width="30" height="19" rx="2" fill="#bbf3f1"/><path d="M13 38h19m-10-5v5" fill="none" stroke="#065e81" stroke-width="4" stroke-linecap="round"/><path d="M43 16h8m-4-4 4 4-4 4m4 9h-8m4-4-4 4 4 4" fill="none" stroke="#0f766e" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><rect x="55" y="4" width="16" height="35" rx="4" fill="#076475"/><rect x="58" y="9" width="10" height="23" rx="1.8" fill="#bcf6f0"/><circle cx="63" cy="35" r="1.7" fill="#bcf6f0"/></svg>';
 const escape=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved:false,conflictLog:null,lastSuccessfulAt:0,lastPhoneSeenAt:0,
+  async requestSettingsAccess(event){
+    const section=event.currentTarget.closest('details');
+    if(!section)return;
+    // The browser's native details toggle must be stopped until the password is verified.
+    event.preventDefault();event.stopPropagation();
+    if(section.open){section.open=false;return;}
+    const pin=window.prompt('أدخل كلمة سر التطبيق لفتح مزامنة الموبايل والكمبيوتر');
+    if(pin===null)return;
+    if(!window.ProtectionController||typeof ProtectionController.verifyPin!=='function'){
+      UI.toast('تعذر التحقق من كلمة السر. لن تفتح إعدادات المزامنة.','error');return;
+    }
+    try{
+      if(!pin||!await ProtectionController.verifyPin(pin)){
+        UI.toast('كلمة السر غير صحيحة','error');return;
+      }
+      if(!section.isConnected)return;
+      section.open=true;
+    }catch(_){UI.toast('تعذر التحقق من كلمة السر','error');}
+  },
+  updateHeaderConnection(active){
+    const el=document.getElementById('ta-desktop-phone-connection');if(!el)return;
+    el.classList.toggle('ta-link-online',!!active);
+    el.classList.toggle('ta-link-offline',!active);
+    el.setAttribute('aria-label',active?'متصل: الكمبيوتر والموبايل':'غير متصل: الكمبيوتر والموبايل');
+    el.setAttribute('title',active?'اتصال الموبايل والكمبيوتر نشط':'انقطع الاتصال أو لم تصل مزامنة مؤكدة حديثاً');
+    el.querySelector('.ta-link-dot')?.setAttribute('aria-label',active?'متصل':'غير متصل');
+  },
   updatePresence(){
     const region=document.getElementById('ta-peer-connection');if(!region)return;
     let badge=document.getElementById('ta-peer-presence');
     if(!badge){badge=document.createElement('div');badge.id='ta-peer-presence';region.insertAdjacentElement('beforebegin',badge);}
     const now=Date.now();
     const active=desktop?(this.lastPhoneSeenAt>0&&now-this.lastPhoneSeenAt<20000):(this.lastSuccessfulAt>0&&now-this.lastSuccessfulAt<20000);
+    this.updateHeaderConnection(active);
     const pending=this.busy&&!active;
     badge.className='ta-peer-presence '+(active?'connected':pending?'connecting':'offline');
     badge.textContent=active?'● متصل '+(desktop?'بالموبايل الرئيسي':'بالكمبيوتر'):
@@ -298,8 +326,8 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
     if(!main||document.getElementById('ta-peer-settings'))return;
     
     const title='المزامنة المحلية: الهاتف الرئيسي ↔ الكمبيوتر';
-    const opened=(typeof SettingsController!=='undefined' && SettingsController.expandedSections?.has('mobile-computer-sync')) ? ' open' : '';
-    ((typeof main.querySelector==='function'&&main.querySelector('[data-app-build]')) || main).insertAdjacentHTML((typeof main.querySelector==='function'&&main.querySelector('[data-app-build]'))?'afterend':'afterbegin',`<details class="settings-section" data-settings-section="mobile-computer-sync" ontoggle="SettingsController.onSectionToggle(this)"${opened}><summary class="settings-section-heading" aria-label="مزامنة الموبايل و الكمبيوتر"><span class="settings-section-leading"><span class="ta-connected-devices-icon" aria-hidden="true">${connectedDevicesIcon}</span><span><span class="settings-section-name">مزامنة الموبايل و الكمبيوتر</span><span class="settings-section-note">الربط المحلي بين الرئيسي والكمبيوتر ومسح رمز QR</span></span></span><i class="fas fa-chevron-down settings-section-arrow" aria-hidden="true"></i></summary><div class="settings-section-body"><section id="ta-peer-settings" class="rounded-2xl border border-teal-300 bg-white p-4 mb-4 space-y-2 text-right" dir="rtl"><h3 class="font-black text-base text-teal-900"><span class="ta-connected-devices-inline" aria-hidden="true">${connectedDevicesIcon}</span> ${title}</h3><p class="text-xs text-slate-600">${desktop?t('أبقِ الكمبيوتر والهاتف على شبكة Wi-Fi واحدة. أدخل بيانات الربط المعروضة هنا في إعدادات الهاتف الرئيسي.','Keep computer and phone on the same Wi-Fi network. Enter the details shown here in the main phone app.'):t('الربط محلي دون إنترنت. احصل على العنوان ورمز الربط من الضبط في الكمبيوتر.','Local sync without internet. Get address and pairing key from Windows settings.')}</p><div id="ta-peer-connection" class="text-sm space-y-2"></div><button type="button" class="ta-peer-btn" onclick="TiqanyPeerSync.${desktop?'config':'sync'}()">${desktop?t('تحديث عنوان الاتصال','Refresh connection details'):t('مزامنة الآن','Sync now')}</button> <button type="button" id="ta-peer-conflict-button" class="ta-peer-btn ta-peer-conflict-button" onclick="TiqanyPeerSync.openConflictLog()"><i class="fas fa-exclamation-triangle"></i> سجل التعارض (0)</button><div id="ta-peer-conflict-panel" class="ta-peer-conflict-panel" hidden></div><p id="ta-peer-status" class="text-xs text-teal-800 font-bold">${escape(this.last)}</p></section></div></details>`);
+    const opened='';
+    ((typeof main.querySelector==='function'&&main.querySelector('[data-app-build]')) || main).insertAdjacentHTML((typeof main.querySelector==='function'&&main.querySelector('[data-app-build]'))?'afterend':'afterbegin',`<details class="settings-section" data-settings-section="mobile-computer-sync" ontoggle="SettingsController.onSectionToggle(this)"${opened}><summary class="settings-section-heading" onclick="TiqanyPeerSync.requestSettingsAccess(event)" aria-label="مزامنة الموبايل و الكمبيوتر - يتطلب كلمة السر"><span class="settings-section-leading"><span class="ta-connected-devices-icon" aria-hidden="true">${connectedDevicesIcon}</span><span><span class="settings-section-name">مزامنة الموبايل و الكمبيوتر</span><span class="settings-section-note">الربط المحلي بين الرئيسي والكمبيوتر ومسح رمز QR</span></span></span><i class="fas fa-chevron-down settings-section-arrow" aria-hidden="true"></i></summary><div class="settings-section-body"><section id="ta-peer-settings" class="rounded-2xl border border-teal-300 bg-white p-4 mb-4 space-y-2 text-right" dir="rtl"><h3 class="font-black text-base text-teal-900"><span class="ta-connected-devices-inline" aria-hidden="true">${connectedDevicesIcon}</span> ${title}</h3><p class="text-xs text-slate-600">${desktop?t('أبقِ الكمبيوتر والهاتف على شبكة Wi-Fi واحدة. أدخل بيانات الربط المعروضة هنا في إعدادات الهاتف الرئيسي.','Keep computer and phone on the same Wi-Fi network. Enter the details shown here in the main phone app.'):t('الربط محلي دون إنترنت. احصل على العنوان ورمز الربط من الضبط في الكمبيوتر.','Local sync without internet. Get address and pairing key from Windows settings.')}</p><div id="ta-peer-connection" class="text-sm space-y-2"></div><button type="button" class="ta-peer-btn" onclick="TiqanyPeerSync.${desktop?'config':'sync'}()">${desktop?t('تحديث عنوان الاتصال','Refresh connection details'):t('مزامنة الآن','Sync now')}</button> <button type="button" id="ta-peer-conflict-button" class="ta-peer-btn ta-peer-conflict-button" onclick="TiqanyPeerSync.openConflictLog()"><i class="fas fa-exclamation-triangle"></i> سجل التعارض (0)</button><div id="ta-peer-conflict-panel" class="ta-peer-conflict-panel" hidden></div><p id="ta-peer-status" class="text-xs text-teal-800 font-bold">${escape(this.last)}</p></section></div></details>`);
     this.renderConnection();this.loadConflicts().catch(err=>console.warn('Could not read conflict log',err));
   },
   onNetworkChanged(){
