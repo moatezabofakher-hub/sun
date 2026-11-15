@@ -9,24 +9,19 @@ const clone=x=>JSON.parse(JSON.stringify(x));
 const connectedDevicesIcon='<svg width="48" height="32" viewBox="0 0 74 46" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect x="3" y="6" width="38" height="27" rx="4" fill="#065e81"/><rect x="7" y="10" width="30" height="19" rx="2" fill="#bbf3f1"/><path d="M13 38h19m-10-5v5" fill="none" stroke="#065e81" stroke-width="4" stroke-linecap="round"/><path d="M43 16h8m-4-4 4 4-4 4m4 9h-8m4-4-4 4 4 4" fill="none" stroke="#0f766e" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><rect x="55" y="4" width="16" height="35" rx="4" fill="#076475"/><rect x="58" y="9" width="10" height="23" rx="1.8" fill="#bcf6f0"/><circle cx="63" cy="35" r="1.7" fill="#bcf6f0"/></svg>';
 const escape=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved:false,conflictLog:null,lastSuccessfulAt:0,lastPhoneSeenAt:0,
-  async requestSettingsAccess(event){
+  requestSettingsAccess(event){
     const section=event.currentTarget.closest('details');
     if(!section)return;
-    // The browser's native details toggle must be stopped until the password is verified.
+    // Authenticate using the existing in-app PIN / native biometric dialog.
     event.preventDefault();event.stopPropagation();
     if(section.open){section.open=false;return;}
-    const pin=window.prompt('أدخل كلمة سر التطبيق لفتح مزامنة الموبايل والكمبيوتر');
-    if(pin===null)return;
-    if(!window.ProtectionController||typeof ProtectionController.verifyPin!=='function'){
-      UI.toast('تعذر التحقق من كلمة السر. لن تفتح إعدادات المزامنة.','error');return;
+    if(!window.ProtectionController || typeof ProtectionController.requestPin!=='function'){
+      UI.toast('تعذر فتح التحقق من حماية التطبيق','error');return;
     }
-    try{
-      if(!pin||!await ProtectionController.verifyPin(pin)){
-        UI.toast('كلمة السر غير صحيحة','error');return;
-      }
-      if(!section.isConnected)return;
-      section.open=true;
-    }catch(_){UI.toast('تعذر التحقق من كلمة السر','error');}
+    ProtectionController.requestPin(
+      'أدخل كلمة سر التطبيق أو استخدم البصمة المفعلة لفتح ربط الموبايل والكمبيوتر',
+      () => { if(section.isConnected)section.open=true; }
+    );
   },
   updateHeaderConnection(active){
     const el=document.getElementById('ta-desktop-phone-connection');if(!el)return;
