@@ -514,8 +514,14 @@ public final class MainActivity extends FragmentActivity {
                 }
                 pendingNativeBarcodeTarget = target;
                 ScanOptions options = new ScanOptions();
-                options.setDesiredBarcodeFormats("peer".equals(target)
-                        ? ScanOptions.QR_CODE : ScanOptions.ALL_CODE_TYPES);
+                // These ScanOptions constants have different types (String versus a
+                // collection). A ternary expression here is not valid for the overloaded
+                // setter and breaks the Android release Java compilation.
+                if ("peer".equals(target)) {
+                    options.setDesiredBarcodeFormats(ScanOptions.QR_CODE);
+                } else {
+                    options.setDesiredBarcodeFormats(ScanOptions.ALL_CODE_TYPES);
+                }
                 options.setPrompt("peer".equals(target)
                         ? (isEnglishUi() ? "Scan computer pairing QR code" : "صوّر رمز ربط الكمبيوتر QR")
                         : (isEnglishUi() ? "Point the camera at a barcode or QR code" : "وجّه الكاميرا نحو الباركود أو رمز QR"));
