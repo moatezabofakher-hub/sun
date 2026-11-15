@@ -5,7 +5,6 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const path = require('node:path');
 const html = fs.readFileSync(path.join(__dirname, '../app/src/main/assets/www/index.html'),'utf8');
-const i18n = fs.readFileSync(path.join(__dirname,'../app/src/main/assets/www/static/i18n.js'),'utf8');
 const cut=(a,b)=>{const i=html.indexOf(a);const j=html.indexOf(b,i+a.length);assert.ok(i!==-1&&j>i,`${a} -> ${b}`);return html.slice(i,j)};
 const dashboard = cut('            renderDashboard(main) {','            renderItems(main, params = {}) {');
 assert.ok(!dashboard.includes('رصيد الصندوق (SYP / USD)'));
@@ -27,9 +26,9 @@ const ctx={console,Math,Number,String,Array,Object,Date,Map,Set,JSON,Promise,Int
     ThermalPrinter:{isConnected:false},
     document:{getElementById:()=>null},
 };ctx.globalThis=ctx;
-const js=cut('const State =','const StorageEngine =')+'\n'+cut('const Accounting =','const AppNav =')+'\n'+cut('const ReportAgentFilter =','const Views =')+'\n'+cut('const Views =','const ItemController =')+'\n'+cut('const AppEscape =','const InvoiceController =')+'\n'+i18n+'\nglobalThis.TEST={State,Accounting,InventoryValuation,Views,I18n};';
+const js=cut('const State =','const StorageEngine =')+'\n'+cut('const Accounting =','const AppNav =')+'\n'+cut('const ReportAgentFilter =','const Views =')+'\n'+cut('const Views =','const ItemController =')+'\n'+cut('const AppEscape =','const InvoiceController =')+'\nglobalThis.TEST={State,Accounting,InventoryValuation,Views};';
 vm.runInNewContext(js,ctx,{timeout:7000});
-const {State,InventoryValuation,Views,I18n}=ctx.TEST;
+const {State,InventoryValuation,Views}=ctx.TEST;
 const nearly=(a,b)=>assert.ok(Math.abs(a-b)<1e-7,`${a} !== ${b}`);
 State.settings.exchangeRate=15000;
 State.items=[
@@ -64,7 +63,6 @@ State.items=[];
 assert.equal(InventoryValuation.calculate('all','SYP').total,0,'empty stock');
 State.items=[{id:'3',name:'Decimals',currency:'USD',openingStockBase:3,units:[{name:'box',costPrice:0.333333}],minStockBase:0}];
 nearly(InventoryValuation.calculate('all','USD').total,0.999999);
-assert.equal(I18n.translate('القيمة الإجمالية للمواد بسعر التكلفة'),'Total inventory value at cost');
 (async()=>{
   await InventoryValuation.setCurrency('USD');
   assert.equal(State.settings.inventoryValuationCurrency,'USD');

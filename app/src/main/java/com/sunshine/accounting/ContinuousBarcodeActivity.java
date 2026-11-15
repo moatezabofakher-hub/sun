@@ -52,8 +52,7 @@ public final class ContinuousBarcodeActivity extends ComponentActivity {
     private long lastTime = 0;
     private boolean requestedPermission = false;
     private boolean closed = false;
-    private boolean englishUi = false;
-    private String tr(String arabic, String english) { return englishUi ? english : arabic; }
+
     private android.media.ToneGenerator readTone;
 
 
@@ -64,7 +63,6 @@ public final class ContinuousBarcodeActivity extends ComponentActivity {
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
-        englishUi = "en".equals(getSharedPreferences("tiqany_ui_locale", MODE_PRIVATE).getString("language", "ar"));
         try { readTone = new android.media.ToneGenerator(
                 android.media.AudioManager.STREAM_MUSIC, 65); }
         catch (RuntimeException ignored) { readTone = null; }
@@ -88,14 +86,14 @@ public final class ContinuousBarcodeActivity extends ComponentActivity {
         top.setPadding(dp(14), dp(8), dp(14), dp(8));
         top.setBackgroundColor(Color.argb(235, 12, 35, 57));
         TextView heading = new TextView(this);
-        heading.setText(tr("مسح أصناف الفاتورة", "Scan invoice items"));
+        heading.setText("مسح أصناف الفاتورة");
         heading.setTextSize(17);
         heading.setTextColor(Color.WHITE);
         heading.setGravity(Gravity.CENTER_VERTICAL | Gravity.RIGHT);
         top.addView(heading, new LinearLayout.LayoutParams(0, dp(55), 1));
         Button close = new Button(this);
         close.setText("×");
-        close.setContentDescription(tr("إغلاق الكاميرا وإضافة الأصناف إلى الفاتورة", "Close scanner and add selected items"));
+        close.setContentDescription("إغلاق الكاميرا وإضافة الأصناف إلى الفاتورة");
         close.setTextSize(28);
         close.setTextColor(Color.WHITE);
         close.setBackgroundTintList(android.content.res.ColorStateList.valueOf(Color.rgb(182, 42, 62)));
@@ -111,13 +109,13 @@ public final class ContinuousBarcodeActivity extends ComponentActivity {
         bottom.setPadding(dp(12), dp(13), dp(12), dp(14));
         bottom.setBackgroundColor(Color.argb(238, 11, 44, 65));
         countText = new TextView(this);
-        countText.setText(tr("القراءات: 0", "Scans: 0"));
+        countText.setText("القراءات: 0");
         countText.setTextSize(19);
         countText.setTextColor(Color.rgb(155, 235, 255));
         countText.setGravity(Gravity.CENTER);
         bottom.addView(countText);
         lastText = new TextView(this);
-        lastText.setText(tr("امسح الأصناف واحداً تلو الآخر، ثم اضغط × لإضافتها إلى الفاتورة", "Scan items one by one, then tap × to add them to the invoice"));
+        lastText.setText("امسح الأصناف واحداً تلو الآخر، ثم اضغط × لإضافتها إلى الفاتورة");
         lastText.setTextSize(13);
         lastText.setTextColor(Color.WHITE);
         lastText.setGravity(Gravity.CENTER);
@@ -152,7 +150,7 @@ public final class ContinuousBarcodeActivity extends ComponentActivity {
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override public void handleOnBackPressed() {
                 Toast.makeText(ContinuousBarcodeActivity.this,
-                        tr("اضغط × لإغلاق الكاميرا وإضافة الأصناف", "Tap × to close scanner and add items"), Toast.LENGTH_SHORT).show();
+                        "اضغط × لإغلاق الكاميرا وإضافة الأصناف", Toast.LENGTH_SHORT).show();
             }
         });
     }
@@ -168,14 +166,14 @@ public final class ContinuousBarcodeActivity extends ComponentActivity {
         if (knownBarcodes != null && !knownBarcodes.contains(code.toLowerCase(java.util.Locale.ROOT))) {
             lastCode=code;lastTime=now;
             if(readTone!=null)try{readTone.startTone(android.media.ToneGenerator.TONE_PROP_NACK,230);}catch(RuntimeException ignored){}
-            lastText.setText(tr("الباركود غير معرّف: ", "Unknown barcode: ") + code);
+            lastText.setText("الباركود غير معرّف: " + code);
             lastText.setTextColor(Color.rgb(255, 152, 152));
-            Toast.makeText(this, tr("الباركود غير معرّف: ", "Unknown barcode: ") + code, Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "الباركود غير معرّف: " + code, Toast.LENGTH_SHORT).show();
             return;
         }
         lastText.setTextColor(Color.WHITE);
         if (scanned.size() >= MAX_CODES) {
-            lastText.setText(tr("وصلت للحد الأعلى، اضغط × لإضافة الأصناف", "Maximum items reached, tap × to add them"));
+            lastText.setText("وصلت للحد الأعلى، اضغط × لإضافة الأصناف");
             return;
         }
         scanned.add(code);
@@ -186,8 +184,8 @@ public final class ContinuousBarcodeActivity extends ComponentActivity {
         }
         lastCode = code;
         lastTime = now;
-        countText.setText(tr("القراءات: ", "Scans: ") + scanned.size());
-        lastText.setText(tr("تمت قراءة ", "Scanned ") + code + tr(" — استمر في المسح، أو اضغط × للإنهاء", " — Keep scanning or tap × to finish"));
+        countText.setText("القراءات: " + scanned.size());
+        lastText.setText("تمت قراءة " + code + " — استمر في المسح، أو اضغط × للإنهاء");
     }
 
     private void closeAndReturn(String error) {
@@ -219,7 +217,7 @@ public final class ContinuousBarcodeActivity extends ComponentActivity {
             if (results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED) {
                 camera.resume();
             } else {
-                closeAndReturn(tr("يجب السماح باستخدام الكاميرا من إعدادات التطبيق", "Enable camera permission in app settings"));
+                closeAndReturn("يجب السماح باستخدام الكاميرا من إعدادات التطبيق");
             }
         }
     }

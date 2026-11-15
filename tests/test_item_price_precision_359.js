@@ -4,7 +4,6 @@ const vm=require('node:vm');
 const path=require('node:path');
 const root=path.resolve(__dirname,'..');
 const html=fs.readFileSync(path.join(root,'app/src/main/assets/www/index.html'),'utf8');
-const i18n=fs.readFileSync(path.join(root,'app/src/main/assets/www/static/i18n.js'),'utf8');
 const cut=(a,b)=>{
   const i=html.indexOf(a),j=html.indexOf(b,i+a.length);
   assert.ok(i>=0&&j>i,`missing ${a} → ${b}`);
@@ -25,8 +24,8 @@ const ctx={console,Map,Set,Math,Number,Date,JSON,String,Array,Promise,Intl,
   document:{getElementById:id=>els[id]||null}
 };ctx.globalThis=ctx;
 const saveCode=cut('            async saveItem(existingId) {','\n            deleteItem(itemId) {');
-vm.runInNewContext(cut('const State =','const StorageEngine =')+'\n'+cut('const Accounting =','const AppNav =')+'\n'+`const ItemController={tempUnits:[{name:'Pack',factor:1,costPrice:1.23456,salePrice:12.3456}],selectedCurrency:'USD',safePhotoData:()=>'',${saveCode}};`+ '\n'+i18n+'\nglobalThis.Test={State,Accounting,ItemController,I18n}',ctx,{timeout:7000});
-const {State,Accounting,ItemController,I18n}=ctx.Test;
+vm.runInNewContext(cut('const State =','const StorageEngine =')+'\n'+cut('const Accounting =','const AppNav =')+'\n'+`const ItemController={tempUnits:[{name:'Pack',factor:1,costPrice:1.23456,salePrice:12.3456}],selectedCurrency:'USD',safePhotoData:()=>'',${saveCode}};`+ '\n'+'\nglobalThis.Test={State,Accounting,ItemController}',ctx,{timeout:7000});
+const {State,Accounting,ItemController}=ctx.Test;
 assert.equal(Accounting.formatItemQuantity(12.3456),'12.35');
 assert.equal(Accounting.formatItemPriceNumber(12.3456),'12.35');
 assert.equal(Accounting.formatItemPrice(12.3456,'USD'),'12.35 $');
@@ -34,7 +33,6 @@ assert.equal(Accounting.formatItemPrice(12.3456,'SYP'),'12.35 ل.س');
 assert.equal(Accounting.formatEditableItemPrice(12.3456),'12.35');
 assert.equal(Accounting.formatNumberOnly(12.3456,'USD'),'12.35');
 assert.equal(Accounting.formatNumberOnly(12.3456,'SYP'),'12');
-assert.equal(I18n.translate('عدد الخانات بعد الفاصلة العشرية للكميات والأسعار'),'Decimal places for quantities and prices');
 for(const digits of [0,1,2,3,4]){
   State.settings.itemQuantityDecimals=digits;
   const target=['12','12.3','12.35','12.346','12.3456'][digits];
@@ -56,5 +54,5 @@ assert.ok(html.includes('salePrice: Accounting.parseNum(u.salePrice)'), 'item sa
   assert.equal(State.items.length,1);
   assert.equal(State.items[0].units[0].salePrice,12.3456,'must not replace raw unit sale price with displayed 12.35');
   assert.equal(State.items[0].units[0].costPrice,1.23456,'must not replace raw cost with displayed 1.23');
-  console.log('PASS: quantity + unit prices obey 0–4 decimals, original prices survive item save, PDF/thermal print and EN translation');
+  console.log('PASS: quantity + unit prices obey 0–4 decimals, original prices survive item save, PDF/thermal print Arabic-only UI');
 })().catch(e=>{console.error(e);process.exit(1)});

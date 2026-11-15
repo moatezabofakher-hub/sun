@@ -5,7 +5,7 @@
 'use strict';
 if(typeof State==='undefined'||typeof StorageEngine==='undefined'||typeof SettingsController==='undefined'||typeof Views==='undefined')return;
 const clone = value=>JSON.parse(JSON.stringify(value));
-const stagedKeys = new Set(['language','invoices','default_period','items','printing','company','currency']);
+const stagedKeys = new Set(['invoices','default_period','items','printing','company','currency']);
 let draft=null, committing=false, reloading=false;
 const realSave=StorageEngine.saveState.bind(StorageEngine);
 const oldToast=UI.toast.bind(UI);
@@ -20,7 +20,6 @@ function rollback(){
  if(!draft)return;
  State.settings=clone(draft.settings);
  if(typeof UiFontScale!=='undefined')UiFontScale.sync();
- if(typeof I18n!=='undefined')I18n.apply(document);
  draft=null;
  AppNav.clearDirty();
 }
@@ -57,7 +56,6 @@ function install(main){
   btnCancel.addEventListener('click',()=>cancelSection(detail.dataset.settingsSection));
   footer.append(btnSave,btnCancel);body.append(footer);
  });
- if(typeof I18n!=='undefined')I18n.apply(main);
 }
 Views.renderSettings=function(main,...args){const result=oldRender.call(this,main,...args);install(main);return result;};
 SettingsController.onSectionToggle=function(details){

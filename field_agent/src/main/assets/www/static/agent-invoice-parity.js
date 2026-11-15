@@ -201,7 +201,7 @@ A.updateGridCounter=function(){
  btn.textContent=`إضافة (${count} ${count===1?'صنف':'أصناف'})`;
  btn.disabled=count===0;
  btn.setAttribute('aria-label',`إضافة ${count} ${count===1?'صنف':'أصناف'} إلى الفاتورة`);
- if(typeof I18n!=='undefined'&&I18n.language==='en')I18n.apply(btn);
+
 };
 A.applyInvoiceItemGrid=function(){
  const chosen=Object.entries(this.gridPending||{}).filter(([,qty])=>Number(qty)>0);

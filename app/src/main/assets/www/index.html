@@ -293,10 +293,6 @@
         }
         /* Thermal & PDF Receipt Preview Styling */
         /* English layout follows the selected application direction; currency values keep their own notation. */
-        html[lang="en"] #mainContent .text-right,
-        html[lang="en"] #modalBox .text-right { text-align: left !important; }
-        html[lang="en"] #screenSubtitle { direction: ltr; }
-        html[lang="en"] .nav-btn span { line-height: 1.2; }
                 .receipt-paper {
             background: #fff;
             font-family: 'Cairo', monospace;
@@ -1134,6 +1130,25 @@ html.ta-ime-open #modalContainer,html.ta-ime-open #dialogContainer {padding-bott
   });
 })();
 </script>
+
+<style id="ta-scroll-reach-3578">
+/* v3.5.78: scrollport must reach the last warehouse / expense shortcut on every phone size. */
+html { height:100%!important; overflow:hidden!important; }
+html body.ta-3d-v3524 {
+  height:100dvh!important; min-height:0!important; max-height:100dvh!important;
+  overflow:hidden!important; display:flex!important; flex-direction:column!important;
+}
+html body.ta-3d-v3524 > header.ta-app-header { flex:0 0 auto!important; }
+html body.ta-3d-v3524 > main#mainContent.ta-main {
+  flex:1 1 0!important; height:auto!important; min-height:0!important;
+  overflow-y:auto!important; overflow-x:hidden!important;
+  -webkit-overflow-scrolling:touch; overscroll-behavior-y:contain;
+  padding-bottom:calc(var(--ta-dock-height, 110px) + 56px)!important;
+  scroll-padding-bottom:calc(var(--ta-dock-height, 110px) + 56px);
+}
+/* When keyboard is open the dock disappears; keep the input and final action visible. */
+html.ta-ime-open body.ta-3d-v3524 > main#mainContent.ta-main {padding-bottom:24px!important;}
+</style>
 </head>
 <body class="ta-premium-ui ta-3d-v3524 bg-slate-100 text-slate-800 min-h-screen flex flex-col w-full max-w-full overflow-x-hidden">
 
@@ -1247,7 +1262,7 @@ html.ta-ime-open #modalContainer,html.ta-ime-open #dialogContainer {padding-bott
     <!-- Hidden Canvas for ESC/POS Arabic Raster Thermal Printing (GS v 0) -->
     <canvas id="thermalCanvas" class="hidden"></canvas>
 
-    <script src="static/i18n.js"></script>
+    
     <script>
         /********************************************************************
          * 1. CORE DATABASE & STATE (100% CLEAN - ZERO DEMO ITEMS/INVOICES)
@@ -1268,7 +1283,7 @@ html.ta-ime-open #modalContainer,html.ta-ime-open #dialogContainer {padding-bott
                 btPrintMode: 'auto', // 'auto' | 'native' | 'web' | 'rawbt' | 'system'
                 btMacAddress: '',    // Optional MAC address for direct Cordova/Capacitor connection
                 printFontScale: 0.75, // 0.75 = أصغر (الافتراضي)، 0.85 = صغير، 1.0 = متوسط، 1.2 = كبير، 1.4 = عريض
-                language: 'ar',          // Persisted UI language: 'ar' or 'en'
+
                 allowNegativeStockSales: false, // Safety default: no sale beyond available inventory
                 defaultCurrency: 'USD',
                 defaultItemCurrency: 'USD', // New items only
@@ -1829,7 +1844,7 @@ html.ta-ime-open #modalContainer,html.ta-ime-open #dialogContainer {padding-bott
                 const used = this.getTotalOpsUsed();
                 const limit = this.MAX_TRIAL_OPS;
                 const remaining = Math.max(0, limit - used);
-                const english = document.documentElement?.lang === 'en';
+                
 
                 // Read the same durable counter already used for licensing. Never create
                 // a separate counter that can disagree with the trial enforcement.
@@ -1844,11 +1859,9 @@ html.ta-ime-open #modalContainer,html.ta-ime-open #dialogContainer {padding-bott
                         const left = document.getElementById('trialRemainingCounter');
                         const progress = document.getElementById('trialProgressFill');
                         const bar = ribbon.querySelector('.ta-trial-progress');
-                        if (title) title.textContent = english ? 'Trial version' : 'نسخة تجريبية';
-                        if (counter) counter.textContent = english
-                            ? `${used} / ${limit} operations` : `${used} / ${limit} عملية`;
-                        if (left) left.textContent = english
-                            ? `${remaining} left · Activate` : `${remaining} متبقية · تفعيل`;
+                        if (title) title.textContent = 'نسخة تجريبية';
+                        if (counter) counter.textContent = `${used} / ${limit} عملية`;
+                        if (left) left.textContent = `${remaining} متبقية · تفعيل`;
                         if (progress) progress.style.width = `${Math.min(100, used / limit * 100)}%`;
                         if (bar) {
                             bar.setAttribute('aria-valuenow', String(Math.min(used, limit)));
@@ -5356,25 +5369,6 @@ html.ta-ime-open #modalContainer,html.ta-ime-open #dialogContainer {padding-bott
                       <summary class="settings-section-heading"><span class="settings-section-leading"><i class="fas fa-building text-emerald-600"></i><span><span class="settings-section-name">الحسابات المستقلة للشركات</span><span class="settings-section-note">التبديل والنسخ الاحتياطي لكل شركة</span></span></span><i class="fas fa-chevron-down settings-section-arrow"></i></summary>
                       <div class="settings-section-body">${typeof ProfileManager === 'undefined' ? '' : ProfileManager.renderSettings()}</div>
                     </details>
-                    <details class="settings-section" data-settings-section="language" ontoggle="SettingsController.onSectionToggle(this)" ${SettingsController.expandedSections.has('language') ? 'open' : ''}>
-                        <summary class="settings-section-heading" aria-label="اللغة">
-                            <span class="settings-section-leading"><i class="fas fa-globe text-emerald-600" aria-hidden="true"></i><span><span class="settings-section-name">اللغة</span><span class="settings-section-note">العربية / English</span></span></span>
-                            <i class="fas fa-chevron-down settings-section-arrow text-slate-400" aria-hidden="true"></i>
-                        </summary>
-                        <div class="settings-section-body">
-                    <!-- Persisted interface language and sales stock policy. -->
-                    <div class="bg-white rounded-2xl border border-slate-200 p-4 mb-4 shadow-xs space-y-3">
-                        <h3 class="font-bold text-sm text-slate-900 flex items-center gap-2">
-                            <i class="fas fa-globe text-indigo-600"></i><span>اللغة</span>
-                        </h3>
-                        <label for="appLanguage" class="block text-xs font-semibold text-slate-600">لغة التطبيق</label>
-                        <select id="appLanguage" aria-label="لغة التطبيق" onchange="I18n.setLanguage(this.value)" class="w-full border border-slate-300 bg-white text-slate-900 rounded-xl py-3 px-3 text-sm font-bold">
-                            <option value="ar" ${State.settings.language !== 'en' ? 'selected' : ''}>العربية</option>
-                            <option value="en" ${State.settings.language === 'en' ? 'selected' : ''}>English</option>
-                        </select>
-                    </div>
-                        </div>
-                    </details>
                     <details class="settings-section" data-settings-section="invoices" ontoggle="SettingsController.onSectionToggle(this)" ${SettingsController.expandedSections.has('invoices') ? 'open' : ''}>
                         <summary class="settings-section-heading" aria-label="الفواتير">
                             <span class="settings-section-leading"><i class="fas fa-file-invoice text-emerald-600" aria-hidden="true"></i><span><span class="settings-section-name">الفواتير</span><span class="settings-section-note">العملة والفواتير المعروضة</span></span></span>
@@ -7694,7 +7688,6 @@ html.ta-ime-open #modalContainer,html.ta-ime-open #dialogContainer {padding-bott
                 button.textContent = `إضافة (${count} ${count === 1 ? 'صنف' : 'أصناف'})`;
                 button.disabled = count === 0;
                 button.setAttribute('aria-label', `إضافة ${count} ${count === 1 ? 'صنف' : 'أصناف'} إلى الفاتورة`);
-                if (typeof I18n !== 'undefined' && I18n.language === 'en') I18n.apply(button);
             },
 
             selectItemFromGrid(itemId) {
@@ -8852,7 +8845,7 @@ html.ta-ime-open #modalContainer,html.ta-ime-open #dialogContainer {padding-bott
             },
             prettyDate(timestamp) {
                 if (!timestamp) return 'لم تُنشأ نسخة بعد';
-                try { return new Date(timestamp).toLocaleString(State.settings.language === 'en' ? 'en-US' : 'ar-SY'); }
+                try { return new Date(timestamp).toLocaleString('ar-SY'); }
                 catch(_) { return 'لم تُنشأ نسخة بعد'; }
             },
             refresh() {
@@ -8860,7 +8853,6 @@ html.ta-ime-open #modalContainer,html.ta-ime-open #dialogContainer {padding-bott
                 const scroll = document.getElementById('mainContent')?.scrollTop;
                 AppNav.renderCurrent();
                 if (typeof scroll === 'number') document.getElementById('mainContent').scrollTop = scroll;
-                I18n.apply(document);
             },
             card(kind, heading, iconClass, status, description) {
                 const enabled = status[kind+'Enabled'] === true;
@@ -9477,7 +9469,7 @@ html.ta-ime-open #modalContainer,html.ta-ime-open #dialogContainer {padding-bott
                     this.promptPinSetup('هذه العملية');
                     return;
                 }
-                const english = State.settings.language === 'en';
+                
                 const bioReady = !!(State.settings.appProtection.fingerprintEnabled &&
                     typeof window !== 'undefined' && window.NativeSecurity && typeof window.NativeSecurity.authenticate === 'function');
                 const serial = ++this.approvalCounter;
@@ -9486,22 +9478,22 @@ html.ta-ime-open #modalContainer,html.ta-ime-open #dialogContainer {padding-bott
                 UI.openModal(`
                     <div class="text-right" id="protectionApprovalPrompt" data-approval-id="${serial}">
                         <div class="flex items-center justify-between mb-3">
-                          <h3 class="font-extrabold text-base"><i class="fas fa-shield-halved text-emerald-600 ml-1"></i>${english ? 'Authorization required' : 'التحقق من الحماية'}</h3>
-                          <button type="button" onclick="UI.forceCloseModal()" class="ta-glossy-icon-button" aria-label="${english ? 'Close' : 'إغلاق'}"><i class="fas fa-times text-rose-600"></i></button>
+                          <h3 class="font-extrabold text-base"><i class="fas fa-shield-halved text-emerald-600 ml-1"></i>التحقق من الحماية</h3>
+                          <button type="button" onclick="UI.forceCloseModal()" class="ta-glossy-icon-button" aria-label="إغلاق"><i class="fas fa-times text-rose-600"></i></button>
                         </div>
                         <p class="text-xs text-slate-600 mb-3">${escapedMessage}</p>
                         ${bioReady ? `<div id="protectionBiometricPanel">
                           <p id="protectionBiometricError" role="alert" class="text-xs text-rose-700 mb-2"></p>
-                          <button type="button" onclick="ProtectionController.verifyApprovalBiometric(${serial})" class="ta-modal-action-primary w-full bg-emerald-600 text-white rounded-xl py-3 font-extrabold"><i class="fas fa-fingerprint ml-1"></i>${english ? 'Confirm with fingerprint' : 'الموافقة بالبصمة'}</button>
-                          <button type="button" onclick="ProtectionController.showApprovalPassword()" class="ta-modal-action-secondary w-full mt-2 bg-slate-100 text-slate-800 rounded-xl py-3 font-extrabold">${english ? 'Use password instead' : 'استخدام كلمة السر'}</button>
+                          <button type="button" onclick="ProtectionController.verifyApprovalBiometric(${serial})" class="ta-modal-action-primary w-full bg-emerald-600 text-white rounded-xl py-3 font-extrabold"><i class="fas fa-fingerprint ml-1"></i>الموافقة بالبصمة</button>
+                          <button type="button" onclick="ProtectionController.showApprovalPassword()" class="ta-modal-action-secondary w-full mt-2 bg-slate-100 text-slate-800 rounded-xl py-3 font-extrabold">استخدام كلمة السر</button>
                         </div>` : ''}
                         <div id="protectionPasswordPanel" class="${bioReady ? 'hidden' : ''}">
-                          <input id="protectionVerifyPin" type="password" inputmode="numeric" autocomplete="current-password" placeholder="${english ? 'Enter password' : 'أدخل رمز الحماية'}" onkeydown="if(event.key==='Enter'){event.preventDefault();ProtectionController.verifyPromptPin();}" class="w-full border border-slate-300 rounded-xl p-3 text-center text-lg tracking-widest mb-3">
+                          <input id="protectionVerifyPin" type="password" inputmode="numeric" autocomplete="current-password" placeholder="أدخل رمز الحماية" onkeydown="if(event.key==='Enter'){event.preventDefault();ProtectionController.verifyPromptPin();}" class="w-full border border-slate-300 rounded-xl p-3 text-center text-lg tracking-widest mb-3">
                           <button type="button" onclick="ProtectionController.verifyPromptPin()" id="protectionVerifyPinBtn" class="ta-modal-action-primary w-full bg-emerald-600 text-white rounded-xl py-3 font-extrabold">تحقق</button>
-                          <button type="button" onclick="ProtectionController.openRecovery()" class="w-full text-center text-xs font-bold text-indigo-700 underline mt-3">${english ? 'Forgot password?' : 'نسيت رمز الحماية؟'}</button>
+                          <button type="button" onclick="ProtectionController.openRecovery()" class="w-full text-center text-xs font-bold text-indigo-700 underline mt-3">نسيت رمز الحماية؟</button>
                         </div>
                     </div>`);
-                if (english) { const verifyBtn = document.getElementById('protectionVerifyPinBtn'); if (verifyBtn) verifyBtn.textContent = 'Verify password'; }
+                
                 if (bioReady) requestAnimationFrame(() => this.verifyApprovalBiometric(serial));
                 else requestAnimationFrame(() => document.getElementById('protectionVerifyPin')?.focus({preventScroll:true}));
             },
@@ -9526,7 +9518,7 @@ html.ta-ime-open #modalContainer,html.ta-ime-open #dialogContainer {padding-bott
                 } catch (e) {
                     if (this.approvalDialogIsActive(serial)) {
                         const error = document.getElementById('protectionBiometricError');
-                        if (error) error.textContent = e.message || (State.settings.language === 'en' ? 'Biometric verification failed' : 'فشل التحقق بالبصمة');
+                        if (error) error.textContent = e.message || ('فشل التحقق بالبصمة');
                     }
                 } finally { this.biometricApprovalBusy = false; }
             },
@@ -9543,7 +9535,7 @@ html.ta-ime-open #modalContainer,html.ta-ime-open #dialogContainer {padding-bott
                         this.pendingSuccess = null;
                         UI.forceCloseModal();
                         if (callback) await callback(pin);
-                    } else UI.toast(State.settings.language === 'en' ? 'Incorrect password' : 'رمز الحماية غير صحيح', 'error');
+                    } else UI.toast('رمز الحماية غير صحيح', 'error');
                 } catch (e) { UI.toast(e.message || 'تعذر التحقق من الرمز', 'error'); }
             },
             recoveryMarkup(isLocked) {
@@ -9633,7 +9625,7 @@ html.ta-ime-open #modalContainer,html.ta-ime-open #dialogContainer {padding-bott
                         if (success) resolve(true);
                         else reject(new Error(reason || 'فشل أو أُلغي التحقق بالبصمة'));
                     });
-                    try { window.NativeSecurity.authenticate(requestId, State.settings.language === 'en' ? 'en' : 'ar'); }
+                    try { window.NativeSecurity.authenticate(requestId, 'ar'); }
                     catch (e) {
                         clearTimeout(timeout);
                         this.nativeBiometricPending.delete(requestId);
@@ -9803,9 +9795,7 @@ html.ta-ime-open #modalContainer,html.ta-ime-open #dialogContainer {padding-bott
             // Automatic, persistent LAN receiver: does not require opening the agents screen.
             await FieldSync.bootAutoReceiver();
             BackupController.stageLatest(); // Stage existing IndexedDB data after first launch.
-            I18n.install();
             AppNav.renderCurrent();
-            I18n.apply(document);
             ProtectionController.showAppLock();
             ProtectionController.lockOnReturn();
         };

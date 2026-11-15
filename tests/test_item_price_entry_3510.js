@@ -5,7 +5,6 @@ const vm = require('node:vm');
 const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const html = fs.readFileSync(path.join(root, 'app/src/main/assets/www/index.html'), 'utf8');
-const i18nSrc = fs.readFileSync(path.join(root, 'app/src/main/assets/www/static/i18n.js'), 'utf8');
 function cut(start, end) {
  const i = html.indexOf(start), j = html.indexOf(end, i + start.length);
  assert.ok(i >= 0 && j > i, `${start}→${end}`);
@@ -21,8 +20,8 @@ const ctx = {console,Map,Set,Math,Number,Date,JSON,String,Array,Promise,Intl,
  UI: {toast:()=>{},openModal:html=>{modal=html;},forceCloseModal:()=>{}},
  AppNav: {renderCurrent:()=>{},markModalDirty:()=>{}}
 };ctx.globalThis=ctx;
-vm.runInNewContext(cut('const State =','const StorageEngine =') + '\n' + cut('const Accounting =','const AppNav =') + '\n' + cut('const ItemController =','        /********************************************************************\n         * MULTI-WAREHOUSE') + '\n' + i18nSrc + '\n' + 'globalThis.Test={State,Accounting,ItemController,I18n}', ctx, {timeout:7000});
-const {State,Accounting,ItemController,I18n}=ctx.Test;
+vm.runInNewContext(cut('const State =','const StorageEngine =') + '\n' + cut('const Accounting =','const AppNav =') + '\n' + cut('const ItemController =','        /********************************************************************\n         * MULTI-WAREHOUSE') + '\n' + 'globalThis.Test={State,Accounting,ItemController}', ctx, {timeout:7000});
+const {State,Accounting,ItemController}=ctx.Test;
 const input=(value)=>({value});
 for (let decimals=0;decimals<=4;decimals++) {
   State.settings.itemQuantityDecimals=decimals;
@@ -84,6 +83,5 @@ for (const [key,value] of Object.entries({itmName:'Item A',itmCat:'',itmOpenStoc
   assert.equal(State.items[1].units[0].costPrice,1.2345);
   assert.equal(State.items[1].units[0].salePrice,12.3456);
   assert.equal(Accounting.round(12.3456,'SYP'),12,'accounting total rounding stays unchanged');
-  assert.equal(I18n.translate('عدد الخانات العشرية المسموح بها عند إدخال أسعار المواد:'),'Decimal places allowed when entering item prices:');
   console.log('PASS: new item price input accepts configured 0–4 decimals, both currencies, unit conversions, save preserves old prices');
 })().catch(e=>{console.error(e);process.exit(1)});

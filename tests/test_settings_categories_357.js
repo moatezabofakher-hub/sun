@@ -4,7 +4,6 @@ const vm=require('node:vm');
 const path=require('node:path');
 const root=path.resolve(__dirname,'..');
 const html=fs.readFileSync(path.join(root,'app/src/main/assets/www/index.html'),'utf8');
-const i18n=fs.readFileSync(path.join(root,'app/src/main/assets/www/static/i18n.js'),'utf8');
 const cut=(a,b)=>{
  const i=html.indexOf(a),j=html.indexOf(b,i+a.length);
  assert.ok(i>=0&&j>i,`${a} -> ${b}`);
@@ -24,16 +23,16 @@ const ctx={console,Map,Set,Math,Number,Date,JSON,String,Array,Promise,Intl,
 ctx.globalThis=ctx;
 // Render settings as a stand-alone method while preserving the exact shipped source.
 const render=cut('            renderSettings(main) {','\n            }\n        };\n\n        /********************************************************************\n         * 7. ITEM')+'\n            }';
-const code=cut('const State =','const StorageEngine =')+'\n'+cut('const Accounting =','const AppNav =')+'\n'+cut('const SettingsController =','const ProtectionController =')+'\n'+`const Renderer={${render}};`+'\n'+i18n+'\nglobalThis.Test={State,Accounting,SettingsController,Renderer,I18n};';
+const code=cut('const State =','const StorageEngine =')+'\n'+cut('const Accounting =','const AppNav =')+'\n'+cut('const SettingsController =','const ProtectionController =')+'\n'+`const Renderer={${render}};`+'\nglobalThis.Test={State,Accounting,SettingsController,Renderer};';
 vm.runInNewContext(code,ctx,{timeout:7000});
-const {State,Accounting,SettingsController,Renderer,I18n}=ctx.Test;
+const {State,Accounting,SettingsController,Renderer}=ctx.Test;
 let main={innerHTML:''};
 Renderer.renderSettings(main);
 const tags=[...main.innerHTML.matchAll(/<details class="settings-section" data-settings-section="([^"]+)"/g)].map(x=>x[1]);
-assert.deepEqual(tags,['business-profiles','language','invoices','default_period','items','printing','company','security','backup','currency','activation','data']);
-for(const id of ['setCompanyName','setCompanyPhone','setCompanyAddress','setFooterNote','appProtectionSettings','appLanguage','setPrinterWidth','setPrinterFontScale','allowOutOfStockSales','setItemQuantityDecimals','setDefaultInvoiceCurrency','setDefaultInvoiceListType','settingsLicenseStatus'])
+assert.deepEqual(tags,['business-profiles','invoices','default_period','items','printing','company','security','backup','currency','activation','data']);
+for(const id of ['setCompanyName','setCompanyPhone','setCompanyAddress','setFooterNote','appProtectionSettings','setPrinterWidth','setPrinterFontScale','allowOutOfStockSales','setItemQuantityDecimals','setDefaultInvoiceCurrency','setDefaultInvoiceListType','settingsLicenseStatus'])
  assert.ok(main.innerHTML.includes(`id="${id}"`),`missing setting id ${id}`);
-assert.equal((main.innerHTML.match(/<\/details>/g)||[]).length,12);
+assert.equal((main.innerHTML.match(/<\/details>/g)||[]).length,11);
 assert.ok(!main.innerHTML.includes('open>'),'all sections should start closed');
 assert.ok(main.innerHTML.includes('Backup controls'));
 assert.ok(main.innerHTML.includes('تصفير شامل لقاعدة البيانات'));
@@ -42,8 +41,6 @@ assert.ok(html.includes("? params.type : (['sale','purchase','all'].includes(Sta
 assert.equal(Accounting.formatItemQuantity(8), '8');
 assert.equal(Accounting.formatItemQuantity(12.3456),'12.35');
 assert.equal(Accounting.formatItemQuantity(-0.005),'-0.01');
-assert.equal(I18n.translate('إعدادات الشركة'),'Company settings');
-assert.equal(I18n.translate('عدد الخانات بعد الفاصلة العشرية للكميات والأسعار'),'Decimal places for quantities and prices');
 (async()=>{
  await SettingsController.setItemQuantityDecimals('4');
  assert.equal(State.settings.itemQuantityDecimals,4);
@@ -65,5 +62,5 @@ assert.equal(I18n.translate('عدد الخانات بعد الفاصلة الع�
  assert.ok(!SettingsController.expandedSections.has('items'));
  assert.ok(saveCount>=4);
  assert.ok(rerenders>=2);
- console.log('PASS: 12 collapsible grouped settings, precision and invoice defaults persist, license/security/backup remain, translations');
+ console.log('PASS: 11 Arabic-only collapsible grouped settings, precision and invoice defaults persist, license/security/backup remain');
 })().catch(err=>{console.error(err);process.exit(1)});

@@ -19,6 +19,14 @@ function recordKey(name,r){
 }
 function keyed(name,records){const m=new Map();for(const r of records){const id=recordKey(name,r);if(m.has(id))throw Error('سجل مكرر داخلياً: '+name+' '+id);m.set(id,r);}return m;}
 const same=(a,b)=>canonical(a)===canonical(b);
+// A digest ties a human approval to the exact three versions reviewed. A changed
+// record must be reviewed again; this is a staleness token, not an auth token.
+function digest(value){const raw=canonical(value);let a=2166136261,b=0x811c9dc7;for(let i=0;i<raw.length;i++){const ch=raw.charCodeAt(i);a=Math.imul(a^ch,16777619);b=Math.imul(b^(ch+i),2246822519);}return raw.length.toString(36)+'-'+(a>>>0).toString(16)+'-'+(b>>>0).toString(16);}
+function makeConflict(kind,collection,key,base,phone,computer){
+ const id=collection+'|'+key;
+ return {id,kind,collection,recordId:key,signature:digest([base===undefined?{missing:true}:base,phone===undefined?{missing:true}:phone,computer===undefined?{missing:true}:computer]),hasBase:base!==undefined,hasPhone:phone!==undefined,hasComputer:computer!==undefined,base:clone(base),phone:clone(phone),computer:clone(computer)};
+}
+function approvedChoice(details,resolutions){const d=resolutions&&resolutions[details.id];return d&&d.signature===details.signature&&(d.side==='phone'||d.side==='computer')?d.side:null;}
 // Reconstruct stock from the ledger, not editable displayed inventory fields.
 function itemStock(s,id,warehouse){
  const items=new Map(s.items.map(i=>[i.id,i]));const item=items.get(id);if(!item)return 0;
@@ -56,9 +64,9 @@ function negativeNewStock(local,remote,merged){
  }
  return issues;
 }
-function merge(base,local,remote){
+function merge(base,local,remote,resolutions={}){
  ensureSnapshot(local);ensureSnapshot(remote);if(base)ensureSnapshot(base);
- const out={},conflicts=[],stats={added:0,updated:0,deleted:0,renumbered:0,settingsFromDesktop:0};
+ const out={},conflicts=[],details=[],stats={added:0,updated:0,deleted:0,renumbered:0,settingsFromDesktop:0};
  for(const type of COLLECTIONS){
   const b=keyed(type,base?.[type]||[]),a=keyed(type,local[type]),r=keyed(type,remote[type]);
   const order=[...r.keys(),...a.keys().filter(k=>!r.has(k)),...b.keys().filter(k=>!r.has(k)&&!a.has(k))];
@@ -69,7 +77,14 @@ function merge(base,local,remote){
    if(same(A,R))choice=A;
    else if(same(A,B))choice=R;
    else if(same(R,B))choice=A;
-   else {conflicts.push(`${type}: ${id.slice(0,75)}`);continue;}
+   else {
+    const detail=makeConflict('record',type,id,B,A,R);
+    details.push(detail);
+    const side=approvedChoice(detail,resolutions);
+    if(side==='phone')choice=A;
+    else if(side==='computer')choice=R;
+    else {conflicts.push(`${type}: ${id.slice(0,75)}`);continue;}
+   }
    if(choice!==undefined)merged.push(clone(choice));
    if(B===undefined&&choice!==undefined)stats.added++;
    else if(B!==undefined&&choice===undefined)stats.deleted++;
@@ -84,10 +99,10 @@ function merge(base,local,remote){
   else if(same(A,R))settings[key]=clone(A);
   else if(same(A,B))settings[key]=clone(R);
   else if(same(R,B))settings[key]=clone(A);
-  else conflicts.push('settings: '+key);
+  else {const detail=makeConflict('settings','settings',key,B,A,R);details.push(detail);const side=approvedChoice(detail,resolutions);if(side)settings[key]=clone(side==='phone'?A:R);else{conflicts.push('settings: '+key);}}
  }
  out.sharedSettings=settings;
- if(conflicts.length)return {ok:false,conflicts,stats};
+ if(conflicts.length)return {ok:false,conflicts,details,stats};
  // Preserve the desktop's pre-existing visible document number on a first sync.
  // Adjust only number labels, not immutable IDs or accounting amounts.
  for(const type of ['invoices','vouchers']){
@@ -110,9 +125,9 @@ function merge(base,local,remote){
   }
  }
  const stockIssues=negativeNewStock(local,remote,out);
- if(stockIssues.length)return {ok:false,conflicts:stockIssues,stats};
- return {ok:true,snapshot:out,stats,conflicts:[]};
+ if(stockIssues.length)return {ok:false,conflicts:stockIssues,details:stockIssues.map((issue,i)=>({id:'inventory|'+i+'|'+issue,kind:'inventory',collection:'inventory',recordId:issue,signature:digest(issue),label:issue})),stats};
+ return {ok:true,snapshot:out,stats,conflicts:[],details:[]};
 }
 function apply(state,data){ensureSnapshot(data);for(const k of COLLECTIONS)state[k]=clone(data[k]);for(const k of SETTINGS)if(Object.hasOwn(data.sharedSettings,k))state.settings[k]=clone(data.sharedSettings[k]);}
-return {COLLECTIONS,SETTINGS,snapshot,canonical,merge,apply,ensureSnapshot,itemStock};
+return {COLLECTIONS,SETTINGS,snapshot,canonical,merge,apply,ensureSnapshot,itemStock,digest};
 });
