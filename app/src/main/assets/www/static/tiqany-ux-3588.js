@@ -53,11 +53,10 @@
    output.innerHTML='<h3><i class="fas fa-scale-balanced" aria-hidden="true"></i> أرصدة العميل بعملة الفاتورة ('+c+')</h3><div class="ta-ux-balance-pair"><div><span>الرصيد السابق</span><strong dir="ltr">'+before+'</strong></div><div class="ta-ux-final"><span>الرصيد النهائي المتوقع</span><strong dir="ltr">'+after+'</strong></div></div>';
   }catch(e){console.warn('Invoice draft balance display:',e);output.textContent='تعذّر حساب الرصيد المتوقع؛ لم تتغيّر بيانات الفاتورة.';}
  }
- function addPageExit(){
-  const main=q('#mainContent');if(!main||q(':scope > .ta-page-exit-line',main))return;
-  const strip=document.createElement('div');strip.className='ta-page-exit-line';
-  const btn=document.createElement('button');btn.type='button';btn.className='ta-close3d';btn.setAttribute('aria-label','إغلاق الصفحة الحالية أو الخروج');btn.title='إغلاق أو رجوع';btn.textContent='×';
-  btn.onclick=()=>AppNav.handleBackButton();strip.appendChild(btn);main.insertBefore(strip,main.firstChild);
+ // v3.5.90: all full pages rely on normal Back/navigation, never an extra red X.
+ function removeLegacyPageExit(){
+  const main=q('#mainContent');
+  main?.querySelectorAll(':scope > .ta-page-exit-line').forEach(node=>node.remove());
  }
  function popupExit(){
   const dlg=q('#dialogContainer');if(dlg&&!dlg.classList.contains('hidden')){
@@ -77,14 +76,29 @@
  }
  function mountExit(box,callback){
   box.classList.add('ta-ux-popup-frame');
+  // Reuse existing popup close controls (including scanner close), retaining their
+  // original cleanup handlers. Never mistake an item-delete X for a popup close.
+  const existing=Array.from(box.querySelectorAll('button')).find(btn=>{
+   const action=btn.getAttribute('onclick')||'';
+   const label=(btn.getAttribute('aria-label')||'')+' '+(btn.getAttribute('title')||'');
+   const icon=!!btn.querySelector('.fa-times,.fa-xmark,.fa-close')||/^[×✕✖]$/.test((btn.textContent||'').trim());
+   return icon&&(/(?:CloseModal|stopBarcodeScanner|closeExitDialog)/.test(action)||/إغلاق|اغلاق|close/i.test(label));
+  });
+  if(existing){
+   existing.classList.add('ta-close3d');
+   existing.setAttribute('aria-label','إغلاق النافذة');
+   existing.type='button';
+   box.prepend(existing);
+   return;
+  }
   const btn=document.createElement('button');btn.type='button';btn.className='ta-close3d';btn.setAttribute('aria-label','إغلاق النافذة');btn.textContent='×';btn.onclick=callback;box.prepend(btn);
  }
  const oldPaint=InvoiceController.paintForm;
- InvoiceController.paintForm=function(...args){const out=oldPaint.apply(this,args);enhanceInvoice();addPageExit();return out;};
+ InvoiceController.paintForm=function(...args){const out=oldPaint.apply(this,args);enhanceInvoice();removeLegacyPageExit();return out;};
  const oldTotals=InvoiceController.updateTotalsDOM;
  InvoiceController.updateTotalsDOM=function(...args){const out=oldTotals.apply(this,args);updateBalances();return out;};
  const oldRender=Views.render;
- Views.render=function(...args){const out=oldRender.apply(this,args);addPageExit();enhanceInvoice();popupExit();return out;};
+ Views.render=function(...args){const out=oldRender.apply(this,args);removeLegacyPageExit();enhanceInvoice();popupExit();return out;};
  const oldBack=AppNav.handleBackButton;
  AppNav.handleBackButton=function(...args){
   const modal=q('#modalContainer');
@@ -103,7 +117,7 @@
  };
  const oldRequest=UI.requestCloseModal;
  UI.requestCloseModal=function(...args){if(InvoiceController.barcodeScanActive){InvoiceController.stopBarcodeScanner();UI.forceCloseModal();return;}return oldRequest.apply(this,args);};
- function ensure(){addPageExit();popupExit();enhanceInvoice();}
+ function ensure(){removeLegacyPageExit();popupExit();enhanceInvoice();}
  document.addEventListener('DOMContentLoaded',()=>{ensure();const main=q('#mainContent'),mod=q('#modalContainer'),dlg=q('#dialogContainer');
   const cb=()=>queueMicrotask(ensure);
   for(const el of [main,mod,dlg])if(el)new MutationObserver(cb).observe(el,{childList:true,subtree:false,attributes:false});

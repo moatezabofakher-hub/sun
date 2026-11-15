@@ -117,6 +117,7 @@ A.saveNewItem=async function(){if(!this.requireRight('createItems')||this.busy)r
 // Delete only unsynchronized locally generated operations. Posted ledger records are immutable
 // from the phone and must be reversed or corrected by the manager to preserve double entry.
 A.deleteLocalOperation=async function(id){if(!this.requireRight('deleteOperations'))return;
+ if(this.lanSyncBusy)return this.toast('انتظر انتهاء المزامنة قبل حذف العمليات');
  const target=(this.state.ops||[]).find(x=>x.id===id);if(!target)return;
  if(this.state.knownIds.includes(id)||this.state.snapshotIds?.includes(id))return this.toast('العملية مرحّلة إلى الرئيسي؛ احذفها أو صححها من الإدارة للحفاظ على القيود المحاسبية');
  if(this.state.ops.some(o=>o.id!==id&&(o.targetOperationId===id||o.linkedInvoiceOpId===id||o.accountId===target.account?.id||o.rows?.some(r=>r.itemId===target.item?.id))))return this.toast('لا يمكن حذف هذه العملية لأنها مرتبطة بعملية أخرى');

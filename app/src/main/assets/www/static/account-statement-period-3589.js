@@ -2,7 +2,15 @@
 (function(root){'use strict';
  const SCALE=100000000n;
  function parse(v){
+   // Binary floating-point residue (0.1+0.2) is not a ninth decimal place.
+   // But any meaningful fractional amount beyond eight digits is rejected, not silently rounded.
    let s=String(v??0).trim().replaceAll(',','');
+   if(typeof v==='number'){
+     if(!Number.isFinite(v)||Math.abs(v)>Number.MAX_SAFE_INTEGER)throw Error('مبلغ غير آمن حسابياً');
+     const fixed=v.toFixed(8);
+     if(Math.abs(v-Number(fixed))>1e-12)throw Error('عدد المنازل العشرية أكبر من دقة التقرير المدعومة (8)');
+     s=fixed;
+   }
    if(!/^[+-]?\d+(?:\.\d+)?$/.test(s)){
      const n=Number(s); if(!Number.isFinite(n))throw Error('مبلغ غير صالح');
      s=n.toFixed(8);if(Math.abs(n-Number(s))>1e-12)throw Error('عدد المنازل العشرية أكبر من دقة التقرير المدعومة (8)');

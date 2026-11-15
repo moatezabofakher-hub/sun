@@ -15,8 +15,19 @@ function enhanceInvoice(){
   group.outerHTML='<details class="ta-payment-selector ta-payment-'+mode+'" aria-label="طريقة الدفع"><summary><span><i class="fas '+chosen[1]+' ta-payment-icon" aria-hidden="true"></i> طريقة الدفع: '+chosen[0]+'</span><i class="fas fa-chevron-down"></i></summary><div class="ta-payment-options">'+Object.entries(modeInfo).map(([v,[label,icon]])=>'<button type="button" class="ta-pay-'+v+'" aria-current="'+(v===mode)+'" onclick="Agent.changeInvoicePayment(\''+v+'\')"><i class="fas '+icon+'"></i><span>'+label+'</span></button>').join('')+'</div></details>';
  }
 }
-function pageX(){const root=one('#screen');if(!root||one(':scope > .ta-page-exit-line',root))return;const row=document.createElement('div');row.className='ta-page-exit-line';row.innerHTML='<button type="button" class="ta-close3d" aria-label="إغلاق الصفحة أو الرجوع" title="إغلاق أو رجوع">×</button>';row.firstChild.onclick=()=>A.goBack();root.prepend(row);}
-function addX(card,close){if(!card||one('.ta-close3d',card))return;card.classList.add('ta-ux-popup-frame');const b=document.createElement('button');b.type='button';b.className='ta-close3d';b.textContent='×';b.setAttribute('aria-label','إغلاق النافذة');b.onclick=close;card.prepend(b);}
+function removeLegacyPageExit(){one('#screen')?.querySelectorAll(':scope > .ta-page-exit-line').forEach(node=>node.remove());} // No X on regular employee screens.
+function addX(card,close){
+ if(!card||one('.ta-close3d',card))return;
+ card.classList.add('ta-ux-popup-frame');
+ const existing=Array.from(card.querySelectorAll('button')).find(b=>{
+  const action=b.getAttribute('onclick')||'';
+  const label=(b.getAttribute('aria-label')||'')+' '+(b.getAttribute('title')||'');
+  const icon=/^[×✕✖]$/.test((b.textContent||'').trim())||!!b.querySelector('.fa-times,.fa-xmark,.fa-close');
+  return icon&&(/(?:closeInvoiceItemGrid|dismissDialog|closeCustomerForm|closePicker|forceCloseModal|requestCloseModal)/.test(action)||/إغلاق|اغلاق|close/i.test(label));
+ });
+ if(existing){existing.classList.add('ta-close3d');existing.type='button';existing.setAttribute('aria-label','إغلاق النافذة');card.prepend(existing);return;}
+ const b=document.createElement('button');b.type='button';b.className='ta-close3d';b.textContent='×';b.setAttribute('aria-label','إغلاق النافذة');b.onclick=close;card.prepend(b);
+}
 function popX(){const dlg=one('#agentDialog');if(dlg&&!dlg.classList.contains('hide'))addX(one('.dialog-card',dlg),()=>A.dismissDialog());
  const customer=one('#agentNewCustomerModal');if(customer&&!customer.classList.contains('hide'))addX(one('.dialog-card',customer),()=>A.closeCustomerForm?.());
  const picker=one('#agentItemPicker');if(picker)addX(one('.agent-picker-content',picker),()=>closePicker());
@@ -36,7 +47,7 @@ const originalBack=A.goBack;A.goBack=async function(...args){
  return originalBack.apply(this,args);
 };
 const originalShow=A.show;
-A.show=async function(...args){const val=await originalShow.apply(this,args);enhanceInvoice();pageX();popX();return val;};
+A.show=async function(...args){const val=await originalShow.apply(this,args);enhanceInvoice();removeLegacyPageExit();popX();return val;};
 const originalOpenGrid=A.openInvoiceItemGrid;
 if(typeof originalOpenGrid==='function')A.openInvoiceItemGrid=function(...args){const val=originalOpenGrid.apply(this,args);popX();return val;};
 const pair=window.AgentPairing;
@@ -57,7 +68,7 @@ function connectionStatus(){const sync=one('#agentAutoSyncStatus'),page=one('#sc
 }
 const origMark=A.markSyncState;
 if(typeof origMark==='function')A.markSyncState=function(...args){const val=origMark.apply(this,args);connectionStatus();return val;};
-document.addEventListener('DOMContentLoaded',()=>{pageX();const screen=one('#screen');if(screen)new MutationObserver(()=>queueMicrotask(()=>{pageX();enhanceInvoice();popX();connectionStatus();})).observe(screen,{childList:true,subtree:false});
+document.addEventListener('DOMContentLoaded',()=>{removeLegacyPageExit();const screen=one('#screen');if(screen)new MutationObserver(()=>queueMicrotask(()=>{removeLegacyPageExit();enhanceInvoice();popX();connectionStatus();})).observe(screen,{childList:true,subtree:false});
  const dialog=one('#agentDialog');if(dialog)new MutationObserver(popX).observe(dialog,{attributes:true,attributeFilter:['class']});
  const cust=one('#agentNewCustomerModal');if(cust)new MutationObserver(popX).observe(cust,{attributes:true,attributeFilter:['class']});
 });
