@@ -1150,6 +1150,7 @@ html body.ta-3d-v3524 > main#mainContent.ta-main {
 html.ta-ime-open body.ta-3d-v3524 > main#mainContent.ta-main {padding-bottom:24px!important;}
 </style>
 <style>.ta-origin-badge{display:inline-flex;align-items:center;gap:5px;margin-top:5px;background:#e3f3ff;border:1px solid #93c5d8;border-radius:9px;padding:4px 8px;color:#075985;font-size:11px;font-weight:850;line-height:1.5}</style>
+<link rel="stylesheet" href="static/tiqany-support.css">
 </head>
 <body class="ta-premium-ui ta-3d-v3524 bg-slate-100 text-slate-800 min-h-screen flex flex-col w-full max-w-full overflow-x-hidden">
 
@@ -5377,6 +5378,7 @@ html.ta-ime-open body.ta-3d-v3524 > main#mainContent.ta-main {padding-bottom:24p
                         <span class="font-black text-xs text-emerald-800"><i class="fas fa-check-circle ml-1"></i> إصدار التطبيق: ${InstalledAppVersion.number()}</span>
                         <span class="text-[10px] font-bold text-emerald-700">مظهر ثلاثي الأبعاد موحّد</span>
                     </div>
+                    ${TiqanySupport.launch()}
                     <div class="mb-3 text-[11px] text-slate-500 font-semibold px-1">جميع خيارات التطبيق مرتبة ضمن فئات. اضغط على اسم أي فئة لفتحها أو إغلاقها.</div>
                     <div class="mb-3"><button type="button" onclick="FieldSync.open()" class="ta-primary-3d w-full py-3 px-3 rounded-xl font-black text-sm"><i class="fas fa-truck ml-2"></i> موظفو البيع والمزامنة المحلية</button></div>
                     <details class="settings-section" data-settings-section="business-profiles" ontoggle="SettingsController.onSectionToggle(this)" ${SettingsController.expandedSections.has('business-profiles') ? 'open' : ''}>
@@ -9901,5 +9903,6 @@ html.ta-ime-open body.ta-3d-v3524 > main#mainContent.ta-main {padding-bottom:24p
 <script src="static/tiqany-peer-merge.js"></script>
 <script src="static/tiqany-peer-controller.js"></script>
 <script src="static/tiqany-recovery.js"></script>
+<script src="static/tiqany-support.js"></script>
 </body>
 </html>

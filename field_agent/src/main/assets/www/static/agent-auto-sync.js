@@ -12,13 +12,15 @@
  A.autoSyncState='waiting';
  A.markSyncState=function(state){
    this.autoSyncState=state;
-   const text={connected:'● متصل بالمركز',connecting:'◌ جارٍ الاتصال',offline:'○ بانتظار الرئيسي',waiting:'◌ بانتظار التفعيل'}[state]||state;
+   const managerAddress=state==='connected' ? (window.AndroidLocalSync?.connectedManagerAddress?.(this.state?.companyId)||'') : '';
+   const suffix=managerAddress ? ' · '+managerAddress : '';
+   const text={connected:'● متصل بالمسؤول'+suffix,connecting:'◌ جارٍ الاتصال',offline:'○ بانتظار المسؤول المتاح',waiting:'◌ بانتظار التفعيل'}[state]||state;
    const badge=document.getElementById('agentSyncConnection');
    if(badge){badge.textContent=text;badge.style.background=state==='connected'?'#0c7b66':state==='offline'?'#6b637a':'#235c6c';}
    const status=document.getElementById('agentAutoSyncStatus');
-   if(status)status.textContent=state==='connected'?'✅ متصل — إرسال واستقبال تلقائي كل 12 ثانية':
-      state==='connecting'?'جارٍ البحث عن الرئيسي في الشبكة المحلية…':
-      state==='offline'?'بانتظار اتصال الرئيسي؛ سنعيد المحاولة تلقائيًا':
+   if(status)status.textContent=state==='connected'?'✅ متصل بالمسؤول الحالي'+suffix+' — مزامنة كل 12 ثانية، والبديل عند الانقطاع':
+      state==='connecting'?'جارٍ التحقق من المسؤول الحالي أو البحث عن بديل…':
+      state==='offline'?'المسؤول غير متاح؛ سنبحث عن البديل تلقائيًا':
       'بانتظار ربط موظف البيع وتفعيل جهازه';
  };
  A.scheduleAutoSync=function(delay=0){

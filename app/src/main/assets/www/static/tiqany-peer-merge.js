@@ -28,6 +28,82 @@ function recordKey(name,r){
 }
 function keyed(name,records){const m=new Map();for(const r of records){const id=recordKey(name,r);if(m.has(id))throw Error('سجل مكرر داخلياً: '+name+' '+id);m.set(id,r);}return m;}
 const same=(a,b)=>canonical(a)===canonical(b);
+// The field employee creates immutable operation IDs offline. Importing the same
+// operation into two masters changes only the LOCAL bookkeeping number and
+// reception timestamp. These fields must not cause a double posting.
+const DOCUMENT_COLLECTIONS=new Set(['accounts','invoices','vouchers','expenses']);
+function fieldIdentity(collection,record){
+ if(!DOCUMENT_COLLECTIONS.has(collection)||!record||typeof record!=='object')return null;
+ const o=record.fieldOrigin;
+ if(!o||typeof o.agentId!=='string'||!o.agentId||typeof o.operationId!=='string'||!o.operationId)return null;
+ return JSON.stringify([collection,o.agentId,o.operationId]);
+}
+function fieldBusinessVersion(collection,record){
+ const out=clone(record);
+ // Never omit financial fields, even if they are new or unfamiliar.
+ for(const key of ['id','number','originalNumber','numberAdjustedAt'])delete out[key];
+ if(collection==='expenses')delete out.updatedAt; // reception time, not expense date
+ if(out.fieldOrigin){
+   delete out.fieldOrigin.receivedAt;
+   delete out.fieldOrigin.agentName; // display-only name may be updated independently
+   delete out.fieldOrigin.vehicleName;
+ }
+ if(Array.isArray(out.rows))for(const row of out.rows)delete row.rowId;
+ return out;
+}
+function equivalentImported(collection,a,b){
+ if(!a||!b)return false;
+ if(collection==='fieldImported'){
+   // Only the local time of reception differs. Do not conflate two employees.
+   const x=clone(a),y=clone(b);delete x.receivedAt;delete y.receivedAt;
+   return same(x,y);
+ }
+ const key=fieldIdentity(collection,a);
+ return !!key&&key===fieldIdentity(collection,b)&&
+   same(fieldBusinessVersion(collection,a),fieldBusinessVersion(collection,b));
+}
+function reconcileFieldDuplicates(out,local,remote,resolutions,conflicts,details,stats){
+ const alias=new Map();
+ for(const collection of DOCUMENT_COLLECTIONS){
+   const groups=new Map();
+   for(const doc of out[collection]){
+     const source=fieldIdentity(collection,doc);if(!source)continue;
+     if(!groups.has(source))groups.set(source,[]);
+     groups.get(source).push(doc);
+   }
+   const removed=new Set();
+   for(const [origin,group] of groups){
+     if(group.length<2)continue;
+     // In particular, do not auto-delete two postings from the SAME device:
+     // they may indicate corrupt historical data that require a manual audit.
+     const onPhone=(local[collection]||[]).filter(v=>fieldIdentity(collection,v)===origin);
+     const onComputer=(remote[collection]||[]).filter(v=>fieldIdentity(collection,v)===origin);
+     const phone=onPhone[0],computer=onComputer[0];
+     const validPair=group.length===2&&onPhone.length===1&&onComputer.length===1;
+     const equal=validPair&&equivalentImported(collection,phone,computer);
+     const detail=makeConflict('duplicate',collection,'field-origin:'+origin,null,phone||group[0],computer||group[group.length-1]);
+     let chosen;
+     if(equal)chosen=computer; // Prefer the already printed Windows document number
+     else{
+       details.push(detail);
+       const approval=validPair?approvedChoice(detail,resolutions):null;
+       if(approval)chosen=approval==='phone'?phone:computer;
+       else{conflicts.push(collection+': تطابق هوية عملية موظف مع اختلاف بياناتها '+origin);continue;}
+     }
+     for(const doc of group){
+       if(doc===chosen||doc.id===chosen.id)continue;
+       removed.add(doc.id);alias.set(doc.id,chosen.id);stats.deduplicated++;
+       if(stats.added)stats.added--;
+     }
+   }
+   if(removed.size)out[collection]=out[collection].filter(x=>!removed.has(x.id));
+ }
+ // Preserve explicit receipt-to-invoice references after choosing one copy.
+ if(alias.size)for(const voucher of out.vouchers){
+   if(alias.has(voucher.linkedInvoiceId))voucher.linkedInvoiceId=alias.get(voucher.linkedInvoiceId);
+ }
+}
+
 // A digest ties a human approval to the exact three versions reviewed. A changed
 // record must be reviewed again; this is a staleness token, not an auth token.
 function digest(value){const raw=canonical(value);let a=2166136261,b=0x811c9dc7;for(let i=0;i<raw.length;i++){const ch=raw.charCodeAt(i);a=Math.imul(a^ch,16777619);b=Math.imul(b^(ch+i),2246822519);}return raw.length.toString(36)+'-'+(a>>>0).toString(16)+'-'+(b>>>0).toString(16);}
@@ -75,7 +151,7 @@ function negativeNewStock(local,remote,merged){
 }
 function merge(base,local,remote,resolutions={}){
  ensureSnapshot(local);ensureSnapshot(remote);if(base)ensureSnapshot(base);
- const out={},conflicts=[],details=[],stats={added:0,updated:0,deleted:0,renumbered:0,settingsFromDesktop:0};
+ const out={},conflicts=[],details=[],stats={added:0,updated:0,deleted:0,renumbered:0,deduplicated:0,settingsFromDesktop:0};
  for(const type of COLLECTIONS){
   const b=keyed(type,base?.[type]||[]),a=keyed(type,local[type]||[]),r=keyed(type,remote[type]||[]);
   const order=[...r.keys(),...a.keys().filter(k=>!r.has(k)),...b.keys().filter(k=>!r.has(k)&&!a.has(k))];
@@ -84,6 +160,7 @@ function merge(base,local,remote,resolutions={}){
    const B=b.get(id),A=a.get(id),R=r.get(id);
    let choice;
    if(same(A,R))choice=A;
+   else if(equivalentImported(type,A,R))choice=R;
    else if(same(A,B))choice=R;
    else if(same(R,B))choice=A;
    else {
@@ -111,6 +188,9 @@ function merge(base,local,remote,resolutions={}){
   else {const detail=makeConflict('settings','settings',key,B,A,R);details.push(detail);const side=approvedChoice(detail,resolutions);if(side)settings[key]=clone(side==='phone'?A:R);else{conflicts.push('settings: '+key);}}
  }
  out.sharedSettings=settings;
+ // Reconcile only authenticated field-origin identities, never coincidental
+ // matches of time, customer and amount (two real transactions can be identical).
+ reconcileFieldDuplicates(out,local,remote,resolutions,conflicts,details,stats);
  if(conflicts.length)return {ok:false,conflicts,details,stats};
  // Preserve the desktop's pre-existing visible document number on a first sync.
  // Adjust only number labels, not immutable IDs or accounting amounts.
@@ -148,5 +228,5 @@ function apply(state,data){
  if(company&&typeof company.companyId==='string'&&company.companyId)field.companyId=company.companyId;
  state.fieldSync=field;
 }
-return {COLLECTIONS,SETTINGS,snapshot,canonical,merge,apply,ensureSnapshot,itemStock,digest};
+return {COLLECTIONS,SETTINGS,snapshot,canonical,merge,apply,ensureSnapshot,itemStock,digest,fieldIdentity,fieldBusinessVersion,equivalentImported};
 });

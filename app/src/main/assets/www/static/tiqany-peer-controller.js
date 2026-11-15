@@ -38,6 +38,7 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
     const yes=window.confirm(t('هل توافق على ربط هذا الهاتف مع الكمبيوتر على العنوان ','Pair this phone with the computer at ')+data.host+':'+data.port+'?\n'+t('ستحتاج إلى تأكيد دمج البيانات في أول مزامنة.','You will confirm data merging during the first sync.'));
     if(!yes)return this.message(t('تم إلغاء الاقتران.','Pairing cancelled.'));
     if(!window.AndroidPeerSync||AndroidPeerSync.configure(data.host,data.port,data.key)!=='saved')return this.message(t('تعذر اعتماد الاتصال؛ تأكد من شبكة Wi-Fi','Could not save connection; check Wi-Fi'),true);
+    if(!AndroidPeerSync.bindServerId(data.serverId))return this.message('تعذر تأكيد هوية الكمبيوتر المقترن',true);
     await ProfileManager.putBatch([{id:this.key(),data:null}]);await this.clearConflicts();this.approved=false;this.renderConnection();
     this.message(t('تم الاقتران. اضغط «مزامنة الآن» لبدء تأكيد الدمج.','Paired. Tap Sync now to approve the first merge.'));
   },
@@ -50,6 +51,28 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
   async saveConflicts(){
     await ProfileManager.putBatch([{id:this.conflictsKey(),data:this.conflictLog}]);
     this.renderConflictButton();
+  },
+  /** Accepted side replaces the rejected version in the unified ledger.
+   * Store an immutable, minimal audit receipt before clearing the UI conflict list.
+   * Never physically delete an independent invoice with another immutable ID.
+   */
+  async archiveResolvedConflicts(){
+    const log=this.conflictLog;
+    if(!log?.details?.length)return;
+    const chosen=log.details.filter(d=>d.kind!=='inventory' &&
+      ['phone','computer'].includes(log.decisions?.[d.id]?.side) &&
+      log.decisions[d.id].signature===d.signature);
+    if(!chosen.length)return;
+    const key='peer_conflict_audit:'+ProfileManager.activeId;
+    const old=(await ProfileManager.getRecord(key))?.data;
+    const history=Array.isArray(old?.entries)?old.entries:[];
+    const at=new Date().toISOString();
+    const entries=chosen.map(d=>({id:d.id,kind:d.kind,collection:d.collection,recordId:d.recordId,
+      signature:d.signature,chosen:log.decisions[d.id].side,
+      acceptedDigest:core.digest(log.decisions[d.id].side==='phone' ? (d.hasPhone?d.phone:{missing:true}) : (d.hasComputer?d.computer:{missing:true})),
+      rejectedDigest:core.digest(log.decisions[d.id].side==='phone' ? (d.hasComputer?d.computer:{missing:true}) : (d.hasPhone?d.phone:{missing:true})),at}));
+    const unique=new Map(history.concat(entries).map(e=>[e.id+'|'+e.signature,e]));
+    await ProfileManager.putBatch([{id:key,data:{entries:[...unique.values()].slice(-500)}}]);
   },
   async clearConflicts(){this.conflictLog=null;await this.saveConflicts();},
   async recordConflicts(details,meta={}){
@@ -95,14 +118,14 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
     };
     const rows=entries.map((e,i)=>{
       const inventory=e.kind==='inventory';const decision=this.conflictLog?.decisions?.[e.id];
-      return `<article class="ta-conflict-row"><header><b>${i+1}. ${escape(labels[e.collection]||e.collection)} — ${escape(e.recordId)}</b><small>${inventory?'تعارض مخزون يحتاج تصحيح الكمية':'يُحتمل أن تكون النسختان مختلفتين؛ راجع البيانات قبل الاختيار'}</small></header>
+      return `<article class="ta-conflict-row"><header><b>${i+1}. ${escape(labels[e.collection]||e.collection)} — ${escape(e.recordId)}</b><small>${inventory?'تعارض مخزون يحتاج تصحيح الكمية':e.kind==='duplicate'?'نفس معرّف عملية الموظف ولكن التفاصيل مختلفة؛ اختر النسخة الصحيحة':'يُحتمل أن تكون النسختان مختلفتين؛ راجع البيانات قبل الاختيار'}</small></header>
         ${inventory?`<p class="ta-conflict-stock">${escape(e.label||e.recordId)}. افتح المواد والمستودعات وصحّح الرصيد أو الفواتير أولاً، ثم أعد المزامنة.</p>`:
         `<div class="ta-conflict-versions"><div><h5>نسخة الموبايل الرئيسي</h5>${visible(e,'phone')}</div><div><h5>نسخة الكمبيوتر</h5>${visible(e,'computer')}</div></div>
         <div class="ta-conflict-choose"><button type="button" class="${decision?.side==='phone'?'selected':''}" onclick="TiqanyPeerSync.chooseConflict(${i},'phone')">${decision?.side==='phone'?'✓ ':''}اعتماد الموبايل</button><button type="button" class="${decision?.side==='computer'?'selected':''}" onclick="TiqanyPeerSync.chooseConflict(${i},'computer')">${decision?.side==='computer'?'✓ ':''}اعتماد الكمبيوتر</button></div>`}</article>`;
     }).join('');
     const pending=entries.filter(e=>e.kind!=='inventory'&&!['phone','computer'].includes(this.conflictLog?.decisions?.[e.id]?.side)).length;
     const stock=entries.some(e=>e.kind==='inventory');
-    panel.innerHTML=`<div class="ta-conflict-alert"><strong>سجل التعارض — ${entries.length} سجل</strong><p>لا تُطبَّق الاختيارات على قاعدة البيانات حتى تأكيد الحل ثم إتمام المزامنة. أي تعديل جديد على السجل سيطلب مراجعة جديدة.</p></div>${rows}<p class="ta-conflict-fields">${stock?'يوجد تعارض مخزون يحتاج إلى معالجة يدوية. ':''}${pending?`باقٍ ${pending} سجل دون اختيار.`:'تم اختيار جميع السجلات القابلة للحل.'}</p><button type="button" class="ta-peer-btn" ${stock||pending?'disabled':''} onclick="TiqanyPeerSync.confirmConflicts()">${desktop?'اعتماد الحلول على الكمبيوتر':'اعتماد الحلول وإعادة المزامنة'}</button>${this.conflictLog?.confirmed?'<span class="ta-conflict-approved">✓ تم تأكيد الاختيارات، بانتظار المزامنة.</span>':''}`;
+    panel.innerHTML=`<div class="ta-conflict-alert"><strong>سجل التعارض — ${entries.length} سجل</strong><p>عند تأكيد المزامنة تُعتمد النسخة التي اخترتها ويُستبعد تعديل النسخة الأخرى من الدفتر الموحّد، مع حفظ أثر للقرار. لن تُحذف فاتورة مستقلة بهوية مختلفة. أي تعديل جديد على السجل سيطلب مراجعة جديدة.</p></div>${rows}<p class="ta-conflict-fields">${stock?'يوجد تعارض مخزون يحتاج إلى معالجة يدوية. ':''}${pending?`باقٍ ${pending} سجل دون اختيار.`:'تم اختيار جميع السجلات القابلة للحل.'}</p><button type="button" class="ta-peer-btn" ${stock||pending?'disabled':''} onclick="TiqanyPeerSync.confirmConflicts()">${desktop?'اعتماد الحلول على الكمبيوتر':'اعتماد الحلول وإعادة المزامنة'}</button>${this.conflictLog?.confirmed?'<span class="ta-conflict-approved">✓ تم تأكيد الاختيارات، بانتظار المزامنة.</span>':''}`;
   },
   async chooseConflict(index,side){
     if(this.busy||!['phone','computer'].includes(side))return;
@@ -129,7 +152,7 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
   },
   call(message){return new Promise((resolve,reject)=>{
       if(this.pending)return reject(Error(t("هناك اتصال قيد التنفيذ","A connection is already active")));
-      const timer=setTimeout(()=>{this.pending=null;reject(Error(t("انتهت مهلة الاتصال بالكمبيوتر","Connection to the computer timed out")));},26000);
+      const timer=setTimeout(()=>{this.pending=null;reject(Error(t("انتهت مهلة الاتصال بالكمبيوتر","Connection to the computer timed out")));},43000);
       this.pending={resolve,reject,timer};
       try{AndroidPeerSync.request(JSON.stringify({protocol:'TIQANY-PEER-1',...message}));}
       catch(e){clearTimeout(timer);this.pending=null;reject(e);}
@@ -148,6 +171,8 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
       if(!fetched.ok)throw Error(fetched.error||t("فشل قراءة بيانات الكمبيوتر","Could not read data from the computer"));
       if(!fetched.snapshot||!fetched.ticket||!fetched.serverId)throw Error(t("رد غير مكتمل من الكمبيوتر","Incomplete response from computer"));
       const saved=await this.base();
+      if(!desktop&&window.AndroidPeerSync?.bindServerId&&!(AndroidPeerSync.bindServerId(fetched.serverId)))
+        throw Error('هوية الكمبيوتر لا تطابق الكمبيوتر المقترن. افحص رمز الربط.');
       if(saved?.snapshot&&saved.serverId!==fetched.serverId)throw Error(t("الربط يخص كمبيوتراً مختلفاً. ألغ الربط القديم أولاً.","This pairing belongs to another computer. Disconnect first."));
       if(saved?.snapshot&&saved.profileId!==ProfileManager.activeId)throw Error(t("تغيرت الشركة الحالية، تحقق من الربط","The selected business changed. Check the pairing."));
       if(saved?.snapshot&&saved.serverProfileId!==fetched.profileId)throw Error(t("تم تبديل الشركة المفتوحة على الكمبيوتر. افتح الشركة المرتبطة أولاً.","A different business is open on Windows. Switch back to the paired business."));
@@ -186,9 +211,10 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
         try{await StorageEngine.saveState();}catch(err){core.apply(State,stateBefore);throw err;}
       }
       await this.saveBase(fetched.serverId,fetched.profileId,merged.snapshot);
+      try{await this.archiveResolvedConflicts();}catch(auditError){console.warn('Could not save conflict audit',auditError);}
       await this.clearConflicts();
       AndroidPeerSync.approve();this.approved=true;
-      this.message(`اكتملت المزامنة: ${merged.stats.added} سجلات جديدة و${merged.stats.renumbered} رقم مستند مُعدّل.`);
+      this.message(`اكتملت المزامنة: ${merged.stats.added} سجلات جديدة و${merged.stats.deduplicated||0} نسخ متكررة لعمليات موظفين دُمجت دون احتسابها مجدداً، و${merged.stats.renumbered} رقم مستند مُعدّل.`);
       if(AppNav.current()?.screen!=='settings')AppNav.renderCurrent();
     }catch(e){this.message(t("فشلت المزامنة دون حذف البيانات: ","Sync failed without deleting data: ")+String(e.message||e),!silent);}
     finally{this.busy=false;this.renderConnection();}
@@ -248,7 +274,8 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
           catch(err){core.apply(State,original);throw err;}
           finally{this.busy=false;}
         }
-        try{await this.clearConflicts();}catch(err){console.warn('Could not clear old conflict log',err);}
+        try{await this.archiveResolvedConflicts();await this.clearConflicts();}
+        catch(err){console.warn('Could not archive old conflict resolution',err);}
         reply({ok:true});this.message(t("وصلت آخر بيانات الهاتف وتم دمجها في دفتر الكمبيوتر.","Latest phone data merged into the Windows ledger."));
         if(AppNav.current()?.screen!=='settings'){AppNav.renderCurrent();}
       }
@@ -261,6 +288,11 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
     const opened=(typeof SettingsController!=='undefined' && SettingsController.expandedSections?.has('mobile-computer-sync')) ? ' open' : '';
     ((typeof main.querySelector==='function'&&main.querySelector('[data-app-build]')) || main).insertAdjacentHTML((typeof main.querySelector==='function'&&main.querySelector('[data-app-build]'))?'afterend':'afterbegin',`<details class="settings-section" data-settings-section="mobile-computer-sync" ontoggle="SettingsController.onSectionToggle(this)"${opened}><summary class="settings-section-heading" aria-label="مزامنة الموبايل و الكمبيوتر"><span class="settings-section-leading"><span class="ta-connected-devices-icon" aria-hidden="true">${connectedDevicesIcon}</span><span><span class="settings-section-name">مزامنة الموبايل و الكمبيوتر</span><span class="settings-section-note">الربط المحلي بين الرئيسي والكمبيوتر ومسح رمز QR</span></span></span><i class="fas fa-chevron-down settings-section-arrow" aria-hidden="true"></i></summary><div class="settings-section-body"><section id="ta-peer-settings" class="rounded-2xl border border-teal-300 bg-white p-4 mb-4 space-y-2 text-right" dir="rtl"><h3 class="font-black text-base text-teal-900"><span class="ta-connected-devices-inline" aria-hidden="true">${connectedDevicesIcon}</span> ${title}</h3><p class="text-xs text-slate-600">${desktop?t('أبقِ الكمبيوتر والهاتف على شبكة Wi-Fi واحدة. أدخل بيانات الربط المعروضة هنا في إعدادات الهاتف الرئيسي.','Keep computer and phone on the same Wi-Fi network. Enter the details shown here in the main phone app.'):t('الربط محلي دون إنترنت. احصل على العنوان ورمز الربط من الضبط في الكمبيوتر.','Local sync without internet. Get address and pairing key from Windows settings.')}</p><div id="ta-peer-connection" class="text-sm space-y-2"></div><button type="button" class="ta-peer-btn" onclick="TiqanyPeerSync.${desktop?'config':'sync'}()">${desktop?t('تحديث عنوان الاتصال','Refresh connection details'):t('مزامنة الآن','Sync now')}</button> <button type="button" id="ta-peer-conflict-button" class="ta-peer-btn ta-peer-conflict-button" onclick="TiqanyPeerSync.openConflictLog()"><i class="fas fa-exclamation-triangle"></i> سجل التعارض (0)</button><div id="ta-peer-conflict-panel" class="ta-peer-conflict-panel" hidden></div><p id="ta-peer-status" class="text-xs text-teal-800 font-bold">${escape(this.last)}</p></section></div></details>`);
     this.renderConnection();this.loadConflicts().catch(err=>console.warn('Could not read conflict log',err));
+  },
+  onNetworkChanged(){
+    if(desktop)return;
+    const status=window.AndroidPeerSync?JSON.parse(AndroidPeerSync.status()||'{}'):{};
+    if(status.approved&&document.visibilityState==='visible')this.sync(true);
   },
   async boot(){await this.loadConflicts();if(desktop){window.WindowsDesktop?.onPeerRequest(req=>this.handleRequest(req));await this.config();}
     else {setInterval(()=>{if(document.visibilityState==='visible')this.sync(true);},60000);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')this.sync(true);});}

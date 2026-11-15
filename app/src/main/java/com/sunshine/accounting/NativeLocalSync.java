@@ -72,17 +72,19 @@ public final class NativeLocalSync {
         this.manager = manager;
         this.nsd = (NsdManager) activity.getSystemService(Context.NSD_SERVICE);
         this.connectivity = (ConnectivityManager) activity.getSystemService(Context.CONNECTIVITY_SERVICE);
-        if (manager && connectivity != null) {
+        if (connectivity != null) {
             try {
                 wifiCallback = new ConnectivityManager.NetworkCallback() {
-                    @Override public void onAvailable(Network network) { managerStatus("network-changed"); }
-                    @Override public void onLost(Network network) { managerStatus("network-down"); }
+                    @Override public void onAvailable(Network network) { notifyWifiChange(); }
+                    @Override public void onLost(Network network) { notifyWifiChange(); }
                 };
                 connectivity.registerNetworkCallback(
                     new NetworkRequest.Builder().addTransportType(NetworkCapabilities.TRANSPORT_WIFI).build(), wifiCallback);
             } catch (Exception ignored) { wifiCallback = null; }
         }
     }
+
+    private void notifyWifiChange(){if(manager)managerStatus("network-changed");}
 
     // JavascriptInterface methods execute on WebView's private JavaBridge thread,
     // NOT on the UI thread. Never call WebView.getUrl() from those methods:

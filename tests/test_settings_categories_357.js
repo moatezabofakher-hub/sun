@@ -18,6 +18,7 @@ const ctx={console,Map,Set,Math,Number,Date,JSON,String,Array,Promise,Intl,
  ThermalPrinter:{isConnected:false},
  ProtectionController:{securityQuestionOptions:()=>'<option>Question</option>'},
  BackupController:{card:()=>'<span>Backup controls</span>',status:()=>({supported:true,localEnabled:false,driveEnabled:false})},
+ TiqanySupport:{launch:()=>'<button data-ta-support-launch>التواصل مع الدعم</button>'},
  document:{getElementById:()=>null},
 };
 ctx.globalThis=ctx;

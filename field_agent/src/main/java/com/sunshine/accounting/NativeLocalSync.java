@@ -63,8 +63,15 @@ public final class NativeLocalSync {
     private volatile WifiManager.MulticastLock multicastLock;
     private volatile String activeCompany;
     private volatile boolean closing = false;
+    private volatile boolean networkChanged=false;
     private volatile InetSocketAddress lastConfirmedDestination;
     private volatile long lastConfirmedAt = 0;
+    // An authenticated logical connection to one manager is sticky across sync ticks.
+    // Only a real transport failure permits searching for a different manager.
+    private volatile InetSocketAddress activeManagerEndpoint;
+    private volatile String activeManagerCompany = "";
+    private volatile InetSocketAddress pendingVerifiedEndpoint;
+    private volatile String pendingVerifiedCompany = "";
     private final AtomicBoolean sending = new AtomicBoolean(false);
     private final AtomicBoolean pairingSending = new AtomicBoolean(false);
 
@@ -74,16 +81,25 @@ public final class NativeLocalSync {
         this.manager = manager;
         this.nsd = (NsdManager) activity.getSystemService(Context.NSD_SERVICE);
         this.connectivity = (ConnectivityManager) activity.getSystemService(Context.CONNECTIVITY_SERVICE);
-        if (manager && connectivity != null) {
+        if (connectivity != null) {
             try {
                 wifiCallback = new ConnectivityManager.NetworkCallback() {
-                    @Override public void onAvailable(Network network) { managerStatus("network-changed"); }
-                    @Override public void onLost(Network network) { managerStatus("network-down"); }
+                    @Override public void onAvailable(Network network) { notifyWifiChange(); }
+                    @Override public void onLost(Network network) { notifyWifiChange(); }
                 };
                 connectivity.registerNetworkCallback(
                     new NetworkRequest.Builder().addTransportType(NetworkCapabilities.TRANSPORT_WIFI).build(), wifiCallback);
             } catch (Exception ignored) { wifiCallback = null; }
         }
+    }
+
+    private void notifyWifiChange(){
+        if(manager){managerStatus("network-changed");return;}
+        networkChanged=true;
+        // Keep the current authenticated manager pinned. A Wi-Fi change is not proof
+        // that the manager disconnected; the next sync probes it before failover.
+        lastConfirmedDestination=null;lastConfirmedAt=0;
+        js("window.Agent&&Agent.scheduleAutoSync&&Agent.scheduleAutoSync(300);");
     }
 
     // JavascriptInterface methods execute on WebView's private JavaBridge thread,
@@ -155,6 +171,33 @@ public final class NativeLocalSync {
         lastConfirmedDestination = null;
         lastConfirmedAt = 0;
         return "saved";
+    }
+
+    /** The WebView calls this ONLY after authenticating the response and committing
+     * the manager catalog. Receiving bytes from a TCP socket does not establish trust. */
+    @JavascriptInterface
+    public void confirmVerifiedSync(String companyId) {
+        if (manager || !isTrustedPage() || !isCompany(companyId)) return;
+        synchronized (this) {
+            if (pendingVerifiedEndpoint == null || !companyId.equals(pendingVerifiedCompany)) return;
+            activeManagerEndpoint = pendingVerifiedEndpoint;
+            activeManagerCompany = companyId;
+            lastConfirmedDestination = pendingVerifiedEndpoint;
+            lastConfirmedAt = System.currentTimeMillis();
+            directEndpoint = pendingVerifiedEndpoint;
+            directCompany = companyId;
+            networkChanged = false;
+            pendingVerifiedEndpoint = null;
+            pendingVerifiedCompany = "";
+        }
+    }
+
+    /** Diagnostic indicator; it does not expose credentials or manager authority. */
+    @JavascriptInterface
+    public String connectedManagerAddress(String companyId) {
+        if (manager || !isTrustedPage() || !isCompany(companyId) || !companyId.equals(activeManagerCompany)) return "";
+        InetSocketAddress address = activeManagerEndpoint;
+        return address == null ? "" : address.getHostString() + ":" + address.getPort();
     }
 
     private static boolean isCompany(String id) {
@@ -297,17 +340,34 @@ public final class NativeLocalSync {
         if (!isCompany(companyId) || encryptedRequest == null || encryptedRequest.length() > MAX_FRAME) {
             agentResult("طلب مزامنة غير صالح", null); return;
         }
+        // One in-flight request per employee device, including failover attempts.
         if (!sending.compareAndSet(false, true)) { agentResult("المزامنة قيد التشغيل بالفعل", null); return; }
         io.execute(() -> {
             try {
                 IOException lastError = null;
                 boolean completed = false;
+                InetSocketAddress failedDestination = null;
+                synchronized (this) {
+                    pendingVerifiedEndpoint = null;
+                    pendingVerifiedCompany = "";
+                }
                 for (int attempt = 0; attempt < 2 && !completed; attempt++) {
-                    InetSocketAddress destination = (attempt == 0 && directEndpoint != null && companyId.equals(directCompany))
-                        ? directEndpoint : (attempt == 0 && lastConfirmedDestination != null &&
-                        System.currentTimeMillis() - lastConfirmedAt < 60_000L)
-                        ? lastConfirmedDestination : findServer(companyId);
-                    if (destination == null) { lastError = new IOException("لم يظهر التطبيق الرئيسي على شبكة Wi-Fi المحلية"); break; }
+                    // Never discover or contact a standby manager while the active
+                    // manager is reachable. Discovery is allowed only after its
+                    // connection attempt fails (or when no manager is active yet).
+                    InetSocketAddress destination;
+                    InetSocketAddress pinned = companyId.equals(activeManagerCompany) ? activeManagerEndpoint : null;
+                    if (attempt == 0 && pinned != null) destination = pinned;
+                    else if (attempt == 0 && !networkChanged && directEndpoint != null && companyId.equals(directCompany)) destination = directEndpoint;
+                    else if (attempt == 0 && !networkChanged && lastConfirmedDestination != null &&
+                        System.currentTimeMillis() - lastConfirmedAt < 60_000L) destination = lastConfirmedDestination;
+                    else destination = findServer(companyId, failedDestination);
+                    if (destination == null && attempt == 0 && directEndpoint != null && companyId.equals(directCompany))
+                        destination = directEndpoint;
+                    if (destination == null || destination.equals(failedDestination)) {
+                        lastError = new IOException("لم يظهر مسؤول متاح على شبكة Wi-Fi المحلية");
+                        break;
+                    }
                     try (Socket socket = new Socket()) {
                         bindToWifiIfAvailable(socket);
                         socket.connect(destination, 6000);
@@ -319,15 +379,26 @@ public final class NativeLocalSync {
                         int size = input.readInt();
                         if (size <= 0 || size > MAX_FRAME) throw new IOException("رد الإدارة غير صالح");
                         byte[] received = new byte[size]; input.readFully(received);
-                        lastConfirmedDestination = destination;
-                        lastConfirmedAt = System.currentTimeMillis();
+                        synchronized (this) {
+                            // An endpoint becomes active only if JavaScript checks the
+                            // encrypted ACK and saves the accepted account snapshot.
+                            pendingVerifiedEndpoint = destination;
+                            pendingVerifiedCompany = companyId;
+                        }
                         agentResult(null, new String(received, StandardCharsets.UTF_8));
                         completed = true;
                     } catch (IOException ioError) {
                         lastError = ioError;
+                        failedDestination = destination;
+                        synchronized (this) {
+                            if (destination.equals(activeManagerEndpoint) && companyId.equals(activeManagerCompany)) {
+                                activeManagerEndpoint = null;
+                                activeManagerCompany = "";
+                            }
+                        }
                         lastConfirmedDestination = null;
-                        // Rediscover only when a previously working address has gone stale.
-                        if (attempt > 0 || (lastConfirmedAt == 0 && directEndpoint == null)) break;
+                        // Only now can the agent seek its paired standby manager.
+                        networkChanged = true;
                     }
                 }
                 if (!completed) throw lastError == null ? new IOException("فشل الاتصال بالمحاسبة الرئيسية") : lastError;
@@ -372,7 +443,8 @@ public final class NativeLocalSync {
         if (!pairingSending.compareAndSet(false, true)) return;
         io.execute(() -> {
             try {
-                InetSocketAddress target = directEndpoint != null && (companyId.isEmpty() || companyId.equals(directCompany))
+                InetSocketAddress target = networkChanged ? findServer(companyId.isEmpty() ? null : companyId) :
+                    directEndpoint != null && (companyId.isEmpty() || companyId.equals(directCompany))
                     ? directEndpoint : findServer(companyId.isEmpty() ? null : companyId);
                 if (target == null) throw new IOException("لم يُعثر على التطبيق الرئيسي على شبكة Wi-Fi المحلية");
                 try (Socket socket = new Socket()) {
@@ -394,6 +466,11 @@ public final class NativeLocalSync {
     }
 
     private InetSocketAddress findServer(String companyId) throws InterruptedException {
+        return findServer(companyId, null);
+    }
+
+    /** Ignore the manager that just failed when seeking its standby replacement. */
+    private InetSocketAddress findServer(String companyId, InetSocketAddress excluded) throws InterruptedException {
         final CountDownLatch completed = new CountDownLatch(1);
         final AtomicBoolean resolving = new AtomicBoolean(false);
         final AtomicReference<InetSocketAddress> address = new AtomicReference<>();
@@ -408,7 +485,9 @@ public final class NativeLocalSync {
                     @Override public void onServiceResolved(NsdServiceInfo service) {
                         InetAddress host = service.getHost();
                         if (host != null && service.getPort() > 0 && !isOwnAddress(host)) {
-                            address.set(new InetSocketAddress(host, service.getPort()));
+                            InetSocketAddress candidate = new InetSocketAddress(host, service.getPort());
+                            if (excluded != null && excluded.equals(candidate)) { resolving.set(false); return; }
+                            address.set(candidate);
                             completed.countDown();
                         } else resolving.set(false);
                     }
@@ -450,6 +529,8 @@ public final class NativeLocalSync {
 
     public void destroy() {
         closing = true;
+        activeManagerEndpoint = null;
+        pendingVerifiedEndpoint = null;
         if (connectivity != null && wifiCallback != null) {
             try { connectivity.unregisterNetworkCallback(wifiCallback); } catch (Exception ignored) { }
             wifiCallback = null;

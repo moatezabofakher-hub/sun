@@ -303,6 +303,8 @@ const Agent={
         // Show current heartbeat outcome without writing an unchanged catalog to flash.
         this.state={...old,lastSyncSummary:summary};
       }
+      // Pin this authenticated manager only after its catalog has been saved.
+      window.AndroidLocalSync?.confirmVerifiedSync?.(this.state.companyId);
       const newCount=newlyConfirmed;
       this.lanSyncMessage='✅ تمت المزامنة بالاتجاهين: '+newCount+' عملية مؤكدة، وتحديث '+itemsChanged+' مادة و'+accountsChanged+' عميل و'+stockChanged+' رصيد. المتبقي '+this.pending.length+'.';
       if(!this.lanSyncQuiet)this.toast(this.lanSyncMessage);

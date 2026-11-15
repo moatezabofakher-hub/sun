@@ -4,6 +4,16 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.webkit.JavascriptInterface;
+import android.net.ConnectivityManager;
+import android.net.Network;
+import android.net.NetworkCapabilities;
+import android.net.NetworkRequest;
+import android.net.nsd.NsdManager;
+import android.net.nsd.NsdServiceInfo;
+import android.net.wifi.WifiManager;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import android.webkit.WebView;
 import org.json.JSONObject;
 import java.io.DataInputStream;
@@ -26,6 +36,8 @@ import javax.crypto.spec.SecretKeySpec;
 public final class MainPhonePeerSync {
     private static final String ORIGIN = "https://appassets.androidplatform.net/assets/www/";
     private static final int MAX_FRAME = 12000000;
+    private static final String SERVICE_TYPE = "_tiqanymain._tcp.";
+    private static final int DISCOVERY_SECONDS = 7;
     private final Activity activity;
     private final WebView webView;
     private final SharedPreferences prefs;
@@ -33,9 +45,25 @@ public final class MainPhonePeerSync {
     private final AtomicBoolean busy=new AtomicBoolean(false);
     private volatile boolean trusted=false;
     private volatile boolean closed=false;
+    private volatile boolean networkChanged=false;
+    private final NsdManager nsd;
+    private final ConnectivityManager connectivity;
+    private ConnectivityManager.NetworkCallback wifiCallback;
     public MainPhonePeerSync(Activity activity,WebView webView){
         this.activity=activity;this.webView=webView;
         this.prefs=activity.getSharedPreferences("tiqany_main_peer_link",Context.MODE_PRIVATE);
+        this.nsd=(NsdManager)activity.getSystemService(Context.NSD_SERVICE);
+        this.connectivity=(ConnectivityManager)activity.getSystemService(Context.CONNECTIVITY_SERVICE);
+        if(connectivity!=null){
+            try {
+                wifiCallback=new ConnectivityManager.NetworkCallback(){
+                    @Override public void onAvailable(Network network){wifiChanged();}
+                    @Override public void onLost(Network network){wifiChanged();}
+                };
+                connectivity.registerNetworkCallback(new NetworkRequest.Builder()
+                    .addTransportType(NetworkCapabilities.TRANSPORT_WIFI).build(),wifiCallback);
+            } catch(Exception ignored){wifiCallback=null;}
+        }
     }
     public void onMainFrameUrlChanged(String url){trusted=url!=null&&url.startsWith(ORIGIN);}
     private boolean allowed(){return trusted&&!closed;}
@@ -48,13 +76,75 @@ public final class MainPhonePeerSync {
         if(!allowed()||!safeAddress(host)||port<1024||port>65535||key==null||!key.matches("[A-Za-z0-9_-]{43}"))return "invalid";
         try {byte[] bytes=Base64.getUrlDecoder().decode(key);if(bytes.length!=32)return "invalid";}
         catch(Exception ex){return "invalid";}
-        prefs.edit().putString("host",host).putInt("port",port).putString("key",key).putBoolean("approved",false).apply();
+        prefs.edit().putString("host",host).putInt("port",port).putString("key",key).remove("serverId").putBoolean("approved",false).apply();
+        networkChanged=true;
         return "saved";
     }
     @JavascriptInterface public String status(){
         if(!allowed())return "{}";
-        try {JSONObject v=new JSONObject();v.put("host",prefs.getString("host",""));v.put("port",prefs.getInt("port",0));v.put("approved",prefs.getBoolean("approved",false));return v.toString();}
+        try {JSONObject v=new JSONObject();v.put("host",prefs.getString("host",""));v.put("port",prefs.getInt("port",0));v.put("approved",prefs.getBoolean("approved",false));v.put("serverId",prefs.getString("serverId",""));return v.toString();}
         catch(Exception ignored){return "{}";}
+    }
+    /** Store the verified identity from the QR or a successful encrypted sync. */
+    @JavascriptInterface public boolean bindServerId(String serverId){
+        if(!allowed()||serverId==null||!serverId.matches("[a-f0-9]{32}"))return false;
+        String previous=prefs.getString("serverId","");
+        if(!previous.isEmpty()&&!previous.equals(serverId))return false;
+        prefs.edit().putString("serverId",serverId).apply();return true;
+    }
+    private void wifiChanged(){
+        networkChanged=true;
+        activity.runOnUiThread(()->{if(allowed())webView.evaluateJavascript(
+            "window.TiqanyPeerSync&&window.TiqanyPeerSync.onNetworkChanged&&window.TiqanyPeerSync.onNetworkChanged();",null);});
+    }
+    /** Find only the advertised identity paired via QR or verified by encrypted sync. */
+    private InetSocketAddress discover(String id){
+        if(nsd==null||id==null||!id.matches("[a-f0-9]{32}"))return null;
+        final String expected="TA-MAIN-"+id.substring(0,16);
+        final CountDownLatch done=new CountDownLatch(1);
+        final AtomicReference<InetSocketAddress> found=new AtomicReference<>();
+        final AtomicBoolean resolving=new AtomicBoolean(false);
+        WifiManager.MulticastLock lock=null;
+        try {
+            WifiManager wifi=(WifiManager)activity.getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+            if(wifi!=null){lock=wifi.createMulticastLock("tiqany-peer-discovery");lock.setReferenceCounted(false);lock.acquire();}
+        }catch(Exception ignored){}
+        final WifiManager.MulticastLock held=lock;
+        NsdManager.DiscoveryListener listener=new NsdManager.DiscoveryListener(){
+            @Override public void onDiscoveryStarted(String type){}
+            @Override public void onServiceFound(NsdServiceInfo info){
+                if(!expected.equals(info.getServiceName())||!resolving.compareAndSet(false,true))return;
+                try{nsd.resolveService(info,new NsdManager.ResolveListener(){
+                    @Override public void onResolveFailed(NsdServiceInfo service,int error){resolving.set(false);}
+                    @Override public void onServiceResolved(NsdServiceInfo service){
+                        InetAddress host=service.getHost();
+                        if(host!=null&&safeAddress(host.getHostAddress())&&service.getPort()>=1024&&service.getPort()<=65535){
+                            found.set(new InetSocketAddress(host,service.getPort()));done.countDown();
+                        }else resolving.set(false);
+                    }
+                });}catch(Exception ignored){resolving.set(false);}
+            }
+            @Override public void onServiceLost(NsdServiceInfo service){}
+            @Override public void onDiscoveryStopped(String type){}
+            @Override public void onStartDiscoveryFailed(String type,int error){done.countDown();}
+            @Override public void onStopDiscoveryFailed(String type,int error){}
+        };
+        try{nsd.discoverServices(SERVICE_TYPE,NsdManager.PROTOCOL_DNS_SD,listener);
+            done.await(DISCOVERY_SECONDS,TimeUnit.SECONDS);
+        }catch(Exception ignored){}
+        finally{try{nsd.stopServiceDiscovery(listener);}catch(Exception ignored){}
+            try{if(held!=null&&held.isHeld())held.release();}catch(Exception ignored){}
+        }
+        return found.get();
+    }
+    private void bindToWifi(Socket socket){
+        if(connectivity==null)return;
+        try{for(Network network:connectivity.getAllNetworks()){
+            NetworkCapabilities caps=connectivity.getNetworkCapabilities(network);
+            if(caps!=null&&caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)){
+                network.bindSocket(socket);break;
+            }
+        }}catch(Exception ignored){}
     }
     @JavascriptInterface public void approve(){if(allowed())prefs.edit().putBoolean("approved",true).apply();}
     @JavascriptInterface public void reset(){if(allowed())prefs.edit().clear().apply();}
@@ -67,14 +157,31 @@ public final class MainPhonePeerSync {
             byte[] key=Base64.getUrlDecoder().decode(keyText);
             if(key.length!=32)throw new Exception("مفتاح الاقتران غير صحيح");
             byte[] request=encrypt(key,raw);
-            try(Socket sock=new Socket()){
-                sock.connect(new InetSocketAddress(host,port),5500);sock.setSoTimeout(22000);
-                DataOutputStream out=new DataOutputStream(sock.getOutputStream());out.writeInt(request.length);out.write(request);out.flush();
-                DataInputStream in=new DataInputStream(sock.getInputStream());int size=in.readInt();
-                if(size<1||size>MAX_FRAME)throw new Exception("حجم الاستجابة غير صالح");
-                byte[] reply=new byte[size];in.readFully(reply);
-                sendReply(decrypt(key,reply));
+            String serverId=prefs.getString("serverId","");
+            // After Wi-Fi changes, discover the previously paired computer before trying old IP.
+            InetSocketAddress discovered=networkChanged?discover(serverId):null;
+            InetSocketAddress remembered=new InetSocketAddress(host,port);
+            InetSocketAddress[] candidates=discovered==null
+                ? new InetSocketAddress[]{remembered,discover(serverId)}
+                : new InetSocketAddress[]{discovered,remembered};
+            Exception failure=null;boolean succeeded=false;
+            for(InetSocketAddress target:candidates){
+                if(target==null||succeeded)continue;
+                try(Socket sock=new Socket()){
+                    bindToWifi(sock);
+                    sock.connect(target,4500);sock.setSoTimeout(18500);
+                    DataOutputStream out=new DataOutputStream(sock.getOutputStream());out.writeInt(request.length);out.write(request);out.flush();
+                    DataInputStream in=new DataInputStream(sock.getInputStream());int size=in.readInt();
+                    if(size<1||size>MAX_FRAME)throw new Exception("حجم الاستجابة غير صالح");
+                    byte[] reply=new byte[size];in.readFully(reply);
+                    String decoded=decrypt(key,reply);
+                    // Only an authenticated reply may update the cached address.
+                    if(!target.equals(remembered))prefs.edit().putString("host",target.getAddress().getHostAddress())
+                        .putInt("port",target.getPort()).apply();
+                    networkChanged=false;sendReply(decoded);succeeded=true;
+                }catch(Exception ex){failure=ex;}
             }
+            if(!succeeded)throw failure==null?new Exception("لم يُعثر على الكمبيوتر المقترن"):failure;
         }catch(Exception ex){
             JSONObject obj=new JSONObject();try{obj.put("ok",false);obj.put("error",ex.getMessage()==null?"تعذر الاتصال":ex.getMessage());}catch(Exception ignored){}
             sendReply(obj.toString());
@@ -100,5 +207,7 @@ public final class MainPhonePeerSync {
             webView.evaluateJavascript("window.__tiqanyPeerReply&&window.__tiqanyPeerReply("+quoted+");",null);
         });
     }
-    public void close(){closed=true;io.shutdownNow();}
+    public void close(){closed=true;
+        try{if(wifiCallback!=null&&connectivity!=null)connectivity.unregisterNetworkCallback(wifiCallback);}catch(Exception ignored){}
+        io.shutdownNow();}
 }
