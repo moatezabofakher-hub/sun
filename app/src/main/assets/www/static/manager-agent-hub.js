@@ -6,12 +6,14 @@ const AgentHub = {
   esc(value){return AppEscape.text(String(value??''));},
   agents(){return Array.isArray(State.fieldSync?.agents)?State.fieldSync.agents:[];},
   agent(id){return this.agents().find(a=>a.id===id)||null;},
-  choose(){
-    const agents=this.agents();
-    UI.openModal(`<div dir="rtl" class="text-right space-y-3"><h3 class="text-lg font-black">اختيار موظف البيع</h3>
-      <p class="text-xs text-slate-500">اختر موظف البيع لعرض صندوقه ومستودعه وعملياته ومعلوماته.</p>
-      ${agents.length?agents.map(a=>`<button type="button" class="w-full rounded-xl border p-3 flex items-center justify-between text-right ${a.archived?'bg-slate-100':'bg-white'}" onclick="AgentHub.select('${this.esc(a.id)}')"><span><strong class="text-sm">${this.esc(a.name)}</strong><small class="block text-xs text-slate-500">${this.esc(a.vehicleName||WarehouseController.name(a.warehouseId))}${a.archived?' · مؤرشف':''}</small></span><i class="fas fa-chevron-left"></i></button>`).join(''):'<p class="text-xs">لا يوجد موظفو بيع. أضف موظف بيعاً من الضبط أولاً.</p>'}
-      <button type="button" class="w-full rounded-xl p-3 bg-slate-100 font-bold" onclick="UI.forceCloseModal()">إغلاق</button></div>`);
+  choose(archived=false){
+    const agents=this.agents().filter(a=>!!a.archived===!!archived);
+    UI.openModal(`<div dir="rtl" class="text-right space-y-3">
+      <h3 class="text-lg font-black">${archived?'الموظف المؤرشف':'اختيار موظف البيع'}</h3>
+      <p class="text-xs text-slate-500">${archived?'اختر موظفاً مؤرشفاً لفتح صفحته وعرض سجلاته السابقة.':'اختر موظف البيع لعرض صندوقه ومستودعه وعملياته ومعلوماته.'}</p>
+      ${agents.length?agents.map(a=>`<button type="button" class="w-full rounded-xl border p-3 flex items-center justify-between text-right ${a.archived?'bg-slate-100':'bg-white'}" onclick="AgentHub.select('${this.esc(a.id)}')"><span><strong class="text-sm">${this.esc(a.name)}</strong><small class="block text-xs text-slate-500">${this.esc(a.vehicleName||WarehouseController.name(a.warehouseId))}${a.archived?' · مؤرشف':''}</small></span><i class="fas fa-chevron-left"></i></button>`).join(''):`<p class="text-xs text-slate-500">${archived?'لا يوجد موظفون مؤرشفون':'لا يوجد موظفون نشطون'}</p>`}
+      <button type="button" class="ta-report-deep-action w-full rounded-xl p-3 font-black" onclick="AgentHub.choose(${archived?'false':'true'})"><i class="fas ${archived?'fa-users':'fa-box-archive'} ml-2"></i>${archived?'العودة إلى الموظفين النشطين':'الموظف المؤرشف'}</button>
+      <button type="button" class="w-full rounded-xl p-3 bg-slate-200 text-slate-900 font-bold" onclick="UI.forceCloseModal()">إغلاق</button></div>`);
   },
   select(id){if(!this.agent(id))return UI.toast('موظف البيع غير موجود','warn');UI.forceCloseModal();AppNav.navigate('agent_detail',{agentId:id});},
   openActivity(view,agentId){if(!this.agent(agentId))return UI.toast('موظف البيع غير موجود','warn');AppNav.navigate('agent_activity',{agentId,view,period:'all'});},
@@ -73,6 +75,54 @@ const AgentHub = {
       <p class="text-[11px] text-slate-500">الحركات المعروضة هي البيانات التي وصلت إلى التطبيق الرئيسي بالمزامنة. لا تظهر العمليات غير المرسلة بعد من هاتف موظف البيع.</p>
     </div>`;
   },
+  // A manager action operates on the synchronized invoice record, never on a detached copy.
+  editInvoice(id){
+    const inv=(State.invoices||[]).find(row=>row.id===id);
+    if(!inv || !inv.fieldOrigin?.agentId)return UI.toast('الفاتورة غير موجودة','warn');
+    const member=this.agent(inv.fieldOrigin.agentId);
+    if(member?.archived)return UI.toast('فواتير الموظف المؤرشف للعرض والطباعة فقط','warn');
+    AppNav.navigate('invoice_form',{id:inv.id});
+  },
+  printInvoice(id){
+    const inv=(State.invoices||[]).find(row=>row.id===id);
+    if(!inv || !inv.fieldOrigin?.agentId)return UI.toast('الفاتورة غير موجودة','warn');
+    return ThermalPrinter.printInvoiceDirect(inv);
+  },
+  previewInvoice(id){
+    const inv=(State.invoices||[]).find(row=>row.id===id);
+    if(!inv || !inv.fieldOrigin?.agentId)return UI.toast('الفاتورة غير موجودة','warn');
+    return AppNav.navigate('invoice_print',{id:inv.id});
+  },
+  invoiceCards(a,mode,start,end){
+    const docs=(State.invoices||[]).filter(inv=>inv.fieldOrigin?.agentId===a.id && TimeFilter.matches(inv.date||'',mode,start,end)).sort((x,y)=>String(y.date||'').localeCompare(String(x.date||'')));
+    const actionId=(id)=>this.esc(JSON.stringify(String(id)));
+    const cards=docs.slice(0,400).map(inv=>{
+      const account=(State.accounts||[]).find(acc=>acc.id===inv.accountId);
+      const customerName=account?.name||inv.partyName||inv.customerName||inv.accountName||'عميل نقدي مباشر';
+      const phone=account?.phone||inv.customerPhone||'';
+      const address=account?.address||inv.customerAddress||'';
+      const count=(inv.rows||[]).length;
+      const iid=actionId(inv.id);
+      const edit=a.archived?`<span class="rounded-xl bg-slate-100 text-slate-500 px-3 py-2.5 font-bold" title="فواتير الموظف المؤرشف للعرض فقط">تعديل غير متاح</span>`:`<button type="button" onclick="AgentHub.editInvoice(${iid})" class="rounded-xl bg-blue-700 hover:bg-blue-800 text-white px-3 py-2.5 font-black" style="background:linear-gradient(135deg,#1d4ed8,#1e40af)!important;color:white!important;border:1px solid #1d4ed8"><i class="fas fa-pen ml-1"></i>تعديل</button>`;
+      return `<article class="bg-white rounded-2xl border border-slate-200 p-3.5 shadow-sm space-y-2.5 text-xs">
+        <div class="flex justify-between gap-2 flex-wrap"><strong class="text-slate-900"><span>فاتورة</span> #${this.esc(inv.fieldOrigin?.localNumber||inv.number||inv.id)}</strong><span class="text-slate-500">${this.esc(String(inv.date||'').slice(0,16).replace('T',' '))}</span></div>
+        <div class="rounded-xl bg-sky-50 border border-sky-100 p-3 space-y-1.5">
+           <div class="font-extrabold text-sky-950"><i class="fas fa-user ml-1"></i><span>العميل:</span> <b>${this.esc(customerName)}</b></div>
+           ${phone?`<div><i class="fas fa-phone ml-1"></i><span>الهاتف:</span> <b dir="ltr">${this.esc(phone)}</b></div>`:''}
+           ${address?`<div><i class="fas fa-location-dot ml-1"></i><span>العنوان:</span> <b>${this.esc(address)}</b></div>`:''}
+           <div class="text-slate-600"><span>الأصناف:</span> <b>${count}</b> · <span>${this.esc(inv.paymentMethod==='cash'?'نقدي':inv.paymentMethod==='credit'?'آجل':'دفع جزئي')}</span></div>
+        </div>
+        <div class="flex items-center justify-between gap-2 font-extrabold"><span><span>الصافي:</span> <b>${this.esc(Accounting.format(Number(inv.netTotal||0),inv.currency||'SYP'))}</b></span><span class="text-slate-500"><span>${this.esc(inv.type==='sale_return'?'مردود مبيعات':'مبيعات')}</span></span></div>
+        <div class="flex gap-2 flex-wrap pt-1 border-t border-slate-100">
+           <button type="button" onclick="AgentHub.previewInvoice(${iid})" class="rounded-xl bg-slate-100 text-slate-800 px-3 py-2.5 font-bold"><i class="fas fa-eye ml-1"></i>عرض</button>
+           ${edit}
+           <button type="button" onclick="AgentHub.printInvoice(${iid})" class="rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white px-3 py-2.5 font-black"><i class="fas fa-print ml-1"></i>طباعة</button>
+        </div>
+      </article>`;
+    }).join('');
+    const extra=docs.length>400?`<div class="rounded-xl bg-amber-50 text-amber-900 p-3 text-xs">تُعرض أول 400 فاتورة فقط. استخدم مرشح التاريخ لتضييق النتائج.</div>`:'';
+    return `<div class="text-xs text-slate-600 font-bold px-1"><span>عدد الفواتير:</span> <b>${docs.length}</b></div>${cards||'<div class="p-5 bg-white border rounded-xl text-center text-slate-500 text-xs">لا توجد فواتير في الفترة المحددة.</div>'}${extra}`;
+  },
   changePeriod(agentId,view,period,start,end){
     AppNav.navigate('agent_activity',{agentId,view,period,date:start,end},true);
   },
@@ -91,6 +141,8 @@ const AgentHub = {
     } else if(view==='stock'){
       const items=(State.items||[]).map(item=>({name:item.name,units:item.units||[],base:Number(Accounting.getItemBaseStock(item.id,null,a.warehouseId))||0})).filter(x=>x.base!==0);
       content=`<p class="text-[11px] text-slate-500">أرصدة المخزون الحالية وليست حركة خلال فترة زمنية؛ تعتمد على آخر بيانات وصلت إلى الرئيسي.</p>${items.length?items.map(x=>`<div class="p-3 rounded-xl bg-white border flex justify-between gap-2 text-xs"><b>${this.esc(x.name)}</b><strong>${Accounting.formatItemQuantity(x.base)} ${this.esc(x.units[0]?.name||'وحدة')}</strong></div>`).join(''):'<div class="p-5 text-center text-xs text-slate-500 bg-white border rounded-xl">المستودع فارغ حالياً.</div>'}`;
+    } else if(view==='invoices'){
+      content=this.invoiceCards(a,mode,start,end);
     } else {const records=this.activityRecords(a,view).filter(x=>TimeFilter.matches(x.date,mode,start,end));content=`<div class="text-xs text-slate-500 px-1">${records.length} عملية ضمن ${TimeFilter.label(mode)}</div>${recordMarkup(records)}`;}
     main.innerHTML=`<div dir="rtl" class="space-y-3"><div class="flex justify-between items-center"><h2 class="font-black text-base">${titles[view]} · ${this.esc(a.name)}</h2><button type="button" onclick="AppNav.handleBackButton()" class="rounded-xl bg-slate-100 p-2 text-xs font-bold">رجوع</button></div>${view==='stock'?'':control}${content}</div>`;
   }
