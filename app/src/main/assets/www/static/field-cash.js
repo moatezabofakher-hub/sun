@@ -85,7 +85,7 @@ const FieldCash={
     const fromBox=this.summary(direction==='fromAgent'?agentId:'office');
     const available=currency==='SYP'?fromBox.sypCash:fromBox.usdCash;
     if(fixed>available+0.001)return UI.toast('رصيد الصندوق المرسل غير كافٍ لهذه الدفعة','error');
-    const transfer={id:'cash_'+FieldProtocol.uuid(),agentId,direction,amount:fixed,currency,note:note.slice(0,200),date:new Date().toISOString()};
+    const transfer={id:'cash_'+FieldProtocol.uuid(),agentId,direction,amount:fixed,currency,note:note.slice(0,200),date:new Date().toISOString(),createdOnDevice:'main_phone'};
     this.busy=true;cfg().cashTransfers.push(transfer);
     try{await StorageEngine.saveState();UI.forceCloseModal();AppNav.navigate('reports',{tab:'cashbox',cashAgentId:agentId},true);UI.toast('تم إثبات الدفعة في الصندوقين وستصل للموظف بيع عبر المزامنة','success');}
     catch(e){cfg().cashTransfers=cfg().cashTransfers.filter(t=>t.id!==transfer.id);UI.toast('لم تُحفظ الدفعة: '+e.message,'error');}

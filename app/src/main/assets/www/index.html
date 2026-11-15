@@ -1149,6 +1149,7 @@ html body.ta-3d-v3524 > main#mainContent.ta-main {
 /* When keyboard is open the dock disappears; keep the input and final action visible. */
 html.ta-ime-open body.ta-3d-v3524 > main#mainContent.ta-main {padding-bottom:24px!important;}
 </style>
+<style>.ta-origin-badge{display:inline-flex;align-items:center;gap:5px;margin-top:5px;background:#e3f3ff;border:1px solid #93c5d8;border-radius:9px;padding:4px 8px;color:#075985;font-size:11px;font-weight:850;line-height:1.5}</style>
 </head>
 <body class="ta-premium-ui ta-3d-v3524 bg-slate-100 text-slate-800 min-h-screen flex flex-col w-full max-w-full overflow-x-hidden">
 
@@ -2417,6 +2418,16 @@ html.ta-ime-open body.ta-3d-v3524 > main#mainContent.ta-main {padding-bottom:24p
                 } catch (_) { return '—'; }
             }
         };
+
+
+        const OriginBadge = { html(record){
+          const origin=record?.createdOnDevice;
+          if(!origin)return '';
+          const label=origin==='computer'?'الكمبيوتر':origin==='main_phone'?'الموبايل الرئيسي':origin==='sales_staff'?'موظف البيع':null;
+          if(!label)return '';
+          const icon=origin==='computer'?'🖥️':origin==='main_phone'?'📱':'🚚';
+          return `<div class="ta-origin-badge"><span aria-hidden="true">${icon}</span> أُنشئت على: ${label}</div>`;
+        }};
 
         const AppNav = {
             stack: [{ screen: 'dashboard', params: {} }],
@@ -4453,6 +4464,7 @@ html.ta-ime-open body.ta-3d-v3524 > main#mainContent.ta-main {padding-bottom:24p
                             <div class="border-b py-2.5 text-xs flex items-center justify-between gap-2">
                                 <div class="min-w-0">
                                     <b>${AppEscape.text(e.category)}</b>
+                                    ${OriginBadge.html(e)}
                                     ${e.fieldOrigin?.agentId ? `<span class="inline-block bg-teal-100 text-teal-800 rounded px-2 py-0.5 mr-1 text-[10px] font-extrabold">مصروف من موظف البيع: ${AppEscape.text(e.fieldOrigin.agentName||e.fieldOrigin.agentId)}</span>` : ''}
                                     <div class="text-slate-500">${AppEscape.text(e.note||'')} · ${AppEscape.text(e.date||'')}</div>
                                     <div class="text-[10px] text-slate-400">سعر صرف العملية: ${Number(e.exchangeRate||1).toLocaleString('en-US')}</div>
@@ -4544,6 +4556,7 @@ html.ta-ime-open body.ta-3d-v3524 > main#mainContent.ta-main {padding-bottom:24p
                                         <div>
                                             <div class="text-slate-500">الحساب: <strong class="text-slate-800">${acc ? acc.name : 'عميل نقدي مباشر'}</strong></div>
                                             <div class="text-[11px] text-slate-400 mt-0.5">الأصناف: ${inv.rows.length} | العملة: ${inv.currency} (صرف: ${inv.exchangeRate})</div>
+                                            ${OriginBadge.html(inv)}
                                             ${inv.fieldOrigin ? `<div class="text-[11px] text-teal-700 mt-1 font-bold"><i class="fas fa-truck ml-1"></i> تمت المزامنة من: ${AppEscape.text(inv.fieldOrigin.agentName)} · ${AppEscape.text(inv.fieldOrigin.vehicleName)}</div>` : ''}
                                             ${inv.fieldOrigin?.editedByAgent ? `<div class="text-[11px] text-amber-800 font-black mt-1">✎ تم تعديل الفاتورة بواسطة موظف البيع · مراجعة ${Number(inv.fieldRevision||1)}</div>` : ''}
                                         </div>
@@ -5119,6 +5132,7 @@ html.ta-ime-open body.ta-3d-v3524 > main#mainContent.ta-main {padding-bottom:24p
                                         <div>
                                             <div class="font-bold text-sm text-slate-800">${acc ? acc.name : 'حساب عام'}</div>
                                             <div class="text-xs text-slate-500">${v.note || 'بدون ملاحظات'}</div>
+                                            ${OriginBadge.html(v)}
                                             ${v.fieldOrigin ? `<div class="text-[11px] text-teal-700 font-bold mt-1">مزامنة من: ${AppEscape.text(v.fieldOrigin.agentName)}</div>` : ''}
                                             ${v.fieldOrigin?.editedByAgent ? `<div class="text-[11px] text-amber-800 font-black mt-1">✎ تم تعديل السند بواسطة موظف البيع · مراجعة ${Number(v.fieldRevision||1)}</div>` : ''}
                                         </div>
@@ -5359,7 +5373,7 @@ html.ta-ime-open body.ta-3d-v3524 > main#mainContent.ta-main {padding-bottom:24p
                 UI.setHeader('<i class="fas fa-sliders text-emerald-400"></i> <span>الضبط</span>', 'اضغط على القسم المطلوب لعرض خياراته');
                 const mode = State.settings.btPrintMode || 'auto';
                 main.innerHTML = `
-                    <div class="mb-3 flex items-center justify-between gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2" data-app-build="${InstalledAppVersion.number()}">
+                    <div class="mb-3 flex items-center justify-between gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2" data-app-build="${InstalledAppVersion.number()}" role="status" aria-label="إصدار التطبيق">
                         <span class="font-black text-xs text-emerald-800"><i class="fas fa-check-circle ml-1"></i> إصدار التطبيق: ${InstalledAppVersion.number()}</span>
                         <span class="text-[10px] font-bold text-emerald-700">مظهر ثلاثي الأبعاد موحّد</span>
                     </div>
@@ -6977,7 +6991,7 @@ html.ta-ime-open body.ta-3d-v3524 > main#mainContent.ta-main {padding-bottom:24p
                         const previous=previousByItem.get(row.itemId);
                         return {...previous,id:previous?.id||('tr_'+Date.now()+'_'+index+'_'+Math.random().toString(36).slice(2,7)),
                             batchId,...row,fromWarehouseId:from,toWarehouseId:to,date,note,
-                            createdAt:originalDoc?.createdAt||now,updatedAt:now};
+                            createdAt:originalDoc?.createdAt||now,updatedAt:now,createdOnDevice:previous?previous.createdOnDevice:'main_phone'};
                     });
                     const original=State.transfers;
                     const oldCount=State.license.opsUsedCount;
@@ -7038,7 +7052,7 @@ html.ta-ime-open body.ta-3d-v3524 > main#mainContent.ta-main {padding-bottom:24p
                          <div class="ta-transfer-invoice-sub">من ${AppEscape.text(this.name(doc.fromWarehouseId))} إلى ${AppEscape.text(this.name(doc.toWarehouseId))} · التاريخ: ${AppEscape.text(doc.date)} · ${doc.lines.length} صنف</div>
                        </div><span class="text-teal-800 text-xs font-bold shrink-0">فتح الفاتورة <i class="fas fa-chevron-down mr-1" aria-hidden="true"></i></span></div>
                       </summary>
-                      <div class="p-3 text-xs border-t border-slate-200"><div class="font-extrabold text-slate-700 mb-1">${AppEscape.text(State.settings.companyName||'المحاسب التقني')}</div><div class="text-[11px] text-slate-500">رقم الفاتورة: ${shortNo} | التاريخ: ${AppEscape.text(doc.date)}</div><div class="mt-1 text-[11px]">من: <b>${AppEscape.text(this.name(doc.fromWarehouseId))}</b> — إلى: <b>${AppEscape.text(this.name(doc.toWarehouseId))}</b></div></div>
+                      <div class="p-3 text-xs border-t border-slate-200"><div class="font-extrabold text-slate-700 mb-1">${AppEscape.text(State.settings.companyName||'المحاسب التقني')}</div><div class="text-[11px] text-slate-500">رقم الفاتورة: ${shortNo} | التاريخ: ${AppEscape.text(doc.date)}</div>${OriginBadge.html(doc.lines?.[0])}<div class="mt-1 text-[11px]">من: <b>${AppEscape.text(this.name(doc.fromWarehouseId))}</b> — إلى: <b>${AppEscape.text(this.name(doc.toWarehouseId))}</b></div></div>
                       <table class="ta-transfer-invoice-table"><thead><tr><th>#</th><th>الصنف</th><th>الكمية</th><th>الوحدة</th></tr></thead><tbody>${doc.lines.map((t,n)=>`<tr><td>${n+1}</td><td>${AppEscape.text(State.items.find(i=>i.id===t.itemId)?.name||'مادة محذوفة')}</td><td>${Accounting.formatItemQuantity(t.quantity&&t.unitName?t.quantity:t.quantityBase)}</td><td>${AppEscape.text(t.unitName||'وحدة كبرى')}</td></tr>`).join('')}</tbody></table>
                       ${doc.note?`<p class="p-3 text-[11px] text-slate-600">ملاحظة: ${AppEscape.text(doc.note)}</p>`:''}
                       <div class="ta-transfer-invoice-actions"><button type="button" onclick="WarehouseController.editTransferBatch(${safeId})" class="ta-transfer-invoice-edit"><i class="fas fa-pen ml-1" aria-hidden="true"></i>تعديل الفاتورة</button><button type="button" onclick="WarehouseController.deleteTransferBatch(${safeId})" class="ta-transfer-invoice-cancel">إلغاء الفاتورة</button></div>
@@ -7118,6 +7132,7 @@ html.ta-ime-open body.ta-3d-v3524 > main#mainContent.ta-main {padding-bottom:24p
                     updatedAt:new Date().toISOString() };
                 if (idx>=0) State.expenses[idx] = {...State.expenses[idx], ...expense};
                 else {
+                    expense.createdOnDevice='main_phone';
                     State.expenses.push(expense);
                     await LicenseManager.recordNewOperation();
                 }
@@ -8279,8 +8294,10 @@ html.ta-ime-open body.ta-3d-v3524 > main#mainContent.ta-main {padding-bottom:24p
 
                 const idx = State.invoices.findIndex(i => i.id === cleanDoc.id);
                 if (idx > -1) {
+                    cleanDoc.createdOnDevice=State.invoices[idx].createdOnDevice;
                     State.invoices[idx] = cleanDoc;
                 } else {
+                    cleanDoc.createdOnDevice='main_phone';
                     State.invoices.push(cleanDoc);
                     await LicenseManager.recordNewOperation();
                 }
@@ -8748,8 +8765,9 @@ html.ta-ime-open body.ta-3d-v3524 > main#mainContent.ta-main {padding-bottom:24p
                 delete clean.isEditing;
 
                 const idx = State.vouchers.findIndex(v => v.id === clean.id);
-                if (idx > -1) State.vouchers[idx] = clean;
+                if (idx > -1) {clean.createdOnDevice=State.vouchers[idx].createdOnDevice;State.vouchers[idx] = clean;}
                 else {
+                    clean.createdOnDevice='main_phone';
                     State.vouchers.push(clean);
                     await LicenseManager.recordNewOperation();
                 }

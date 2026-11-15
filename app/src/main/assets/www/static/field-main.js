@@ -88,7 +88,7 @@ const FieldSync = {
       </div>
       <div class="rounded-2xl border p-3 space-y-2 bg-white"><b class="text-sm">موظفو البيع المسجلون</b>
          ${config.agents.filter(a=>!a.archived).length? config.agents.filter(a=>!a.archived).map(a=>`<div class="rounded-xl bg-slate-50 border p-3 space-y-2">
-             <div class="flex justify-between gap-2"><span class="font-bold">${this.escape(a.name)} · ${this.escape(a.vehicleName||'')}</span><span class="text-[10px]">${a.disabled?'موقوف':'معتمد'}</span></div>
+             <div class="flex justify-between gap-2"><span class="font-bold">${this.escape(a.name)} · ${this.escape(a.vehicleName||'')}</span><span class="text-[10px]">${a.disabled?'موقوف':'معتمد'}</span></div>${a.createdOnDevice?`<div class="text-[10px] text-sky-800 font-bold">${a.createdOnDevice==='computer'?'🖥️ أُنشئ على الكمبيوتر':'📱 أُنشئ على الموبايل الرئيسي'}</div>`:''}
              <p class="text-[10px] text-slate-500">${this.escape(WarehouseController.name(a.warehouseId))}</p>
              <p class="text-[10px] ${a.pairedDeviceId?'text-teal-700':'text-amber-700'}">${a.pairedDeviceId?'🔒 مرتبط بجهاز ينتهي معرفه بـ '+this.escape(a.pairedDeviceId.slice(-8)):'بانتظار طلب ربط جهاز جديد'}</p>
              <div class="grid grid-cols-2 gap-2">
@@ -119,7 +119,7 @@ const FieldSync = {
     let allowedAccountIds;try{allowedAccountIds=this.readAccountPicker('fieldNewAccounts');}catch(e){return UI.toast(e.message,'warn');}
     if(this.data().agents.some(a=>a.warehouseId===warehouseId && !a.disabled))return UI.toast('المستودع مربوط بموظف بيع آخر؛ خصص مستودع سيارة مستقلًا','warn');
     const key=new Uint8Array(32);crypto.getRandomValues(key);
-    const a={id:'agent_'+FieldProtocol.uuid(),name,vehicleName:vehicleName||name,warehouseId,key:FieldProtocol.b64u(key),allowedAccountIds,createdAt:new Date().toISOString(),disabled:false};
+    const a={id:'agent_'+FieldProtocol.uuid(),name,vehicleName:vehicleName||name,warehouseId,key:FieldProtocol.b64u(key),allowedAccountIds,createdAt:new Date().toISOString(),createdOnDevice:'main_phone',disabled:false};
     this.data().agents.push(a);
     try { await StorageEngine.saveState();this.open();UI.toast('تم إنشاء موظف البيع. افتح تطبيقه وسيظهر طلب الربط تلقائياً','success'); }
     catch(e){this.data().agents=this.data().agents.filter(x=>x.id!==a.id);UI.toast('فشل حفظ موظف البيع: '+e.message,'error');}
