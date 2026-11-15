@@ -1008,7 +1008,26 @@
 .ta-pos-next-toggle{display:flex;align-items:center;gap:9px;padding:10px;border-radius:12px;background:#cbe8f1;border:1px solid #2e8195;color:#123d50;font-size:12px;font-weight:800;}
 .ta-pos-next-toggle input{accent-color:#086a86;width:18px;height:18px;flex-shrink:0;}
 </style>
-</head>
+    <link rel="stylesheet" href="static/ta-security-dialog-contrast.css">
+
+<style id="ta-report-controls-contrast-20261115">
+.invoice-report-action, [data-report-print-chooser] .invoice-report-action{
+ background:linear-gradient(150deg,#124666,#08283e 80%)!important;
+ border:2px solid #1b6689!important;color:#fff!important;
+ box-shadow:0 5px 0 #031827,0 11px 18px rgba(0,24,45,.30)!important;
+ text-shadow:0 1px 1px #00172b!important;
+}
+.invoice-report-action i,[data-report-print-chooser] .invoice-report-action i{color:#fff!important;}
+.invoice-report-action:focus-visible{outline:3px solid #facc15!important;outline-offset:3px;}
+</style>
+<style id="ta-staff-cash-contrast-20261115">.ta-staff-cash-action{background:linear-gradient(150deg,#144e75,#072a45)!important;border:2px solid #1d6086!important;box-shadow:0 4px 0 #041a30,0 8px 15px #061d3255!important;color:#fff!important}.ta-staff-cash-action i{color:#fff!important}</style><style id="ta-settings-footer-style-20261115">
+#mainContent .ta-settings-section-footer{display:flex;gap:12px;align-items:stretch;border-top:1px solid #c6d9e4;margin-top:18px;padding:15px 3px 3px;position:relative;z-index:1;direction:rtl}
+#mainContent .ta-settings-section-footer button{flex:1;min-height:49px;font-size:14px;font-weight:900;border-radius:13px;transition:filter .15s,transform .15s}
+#mainContent .ta-settings-save{color:#fff!important;background:linear-gradient(155deg,#138875,#07594e)!important;border:1px solid #09675c;box-shadow:0 4px 0 #06473e}
+#mainContent .ta-settings-cancel{color:#17364a!important;background:linear-gradient(155deg,#f7fafc,#d7e4ed)!important;border:1px solid #aac2d0;box-shadow:0 4px 0 #acc3d1}
+#mainContent .ta-settings-section-footer button:focus-visible{outline:3px solid #ffc94d;outline-offset:2px}
+#mainContent .ta-settings-section-footer button:active{transform:translateY(3px)}
+</style></head>
 <body class="ta-premium-ui ta-3d-v3524 bg-slate-100 text-slate-800 min-h-screen flex flex-col w-full max-w-full overflow-x-hidden">
 
     <!-- Top App Bar (Android Style) -->
@@ -1472,7 +1491,7 @@
                 this.pendingTarget=id;
                 const cfg=target.data.settings?.appProtection||{};
                 if(cfg.pinHash&&cfg.pinSalt){
-                    UI.openModal(`<div class="space-y-3 text-right"><h3 class="font-black text-base">تبديل الشركة</h3><p class="text-xs text-slate-600">سيتم حفظ نسخة استرجاع محلية للشركة الحالية، ثم فتح ${AppEscape.text(target.data.settings.companyName)}.</p><label class="block text-xs font-bold">كلمة سر الشركة المستهدفة<input id="profileSwitchPin" type="password" inputmode="numeric" class="w-full mt-2 border rounded-xl p-3" autocomplete="off"></label><button onclick="ProfileManager.confirmSwitch()" class="w-full bg-emerald-700 text-white rounded-xl py-3 font-black">تحقق وتبديل</button></div>`);
+                    UI.openModal(`<div class="space-y-3 text-right"><h3 class="font-black text-base">تبديل الشركة</h3><p class="text-xs text-slate-600">سيتم حفظ نسخة استرجاع محلية للشركة الحالية، ثم فتح ${AppEscape.text(target.data.settings.companyName)}.</p><label class="block text-xs font-bold">كلمة سر الشركة المستهدفة<input id="profileSwitchPin" type="password" inputmode="numeric" class="w-full mt-2 border rounded-xl p-3" autocomplete="off"></label><button onclick="ProfileManager.confirmSwitch()" class="ta-modal-action-primary w-full bg-emerald-700 text-white rounded-xl py-3 font-black">تحقق وتبديل</button></div>`);
                 }else{
                     UI.openModal(`<div class="space-y-3 text-right"><h3 class="font-black text-base">تبديل الشركة</h3><p class="text-xs text-slate-600">سيتم حفظ جميع بيانات ${AppEscape.text(this.currentName())} ونقطة استرجاع محلية قبل التبديل.</p><p class="text-xs text-amber-800 bg-amber-50 p-2 rounded-lg">الشركة المستهدفة ليس لها كلمة سر بعد. يمكنك ضبط كلمة سر منفصلة من قسم الحماية.</p><button onclick="ProfileManager.confirmSwitch()" class="w-full bg-emerald-700 text-white rounded-xl py-3 font-black">حفظ البيانات والتبديل</button></div>`);
                 }
@@ -1538,7 +1557,7 @@
                 if(other){
                     this.pendingImport={parsed,d};
                     const foreign=AppEscape.text(parsed.profileName||parsed.companyName||d.settings?.companyName||'حساب آخر');
-                    UI.openModal(`<div class="space-y-3 text-right"><h3 class="font-black text-base text-rose-800"><i class="fas fa-triangle-exclamation ml-1"></i> نسخة من شركة مختلفة</h3><p class="text-xs leading-relaxed bg-rose-50 p-3 rounded-xl text-rose-800">هذه النسخة تخص ${foreign}، وليست الحساب المفتوح: ${AppEscape.text(this.currentName())}. الاستعادة ستستبدل مواد وفواتير وحسابات وإعدادات الشركة الحالية. سيتم حفظ نقطة استرجاع داخلية أولاً.</p><label class="block text-xs font-bold">كلمة سر الشركة المالكة للنسخة<input id="foreignBackupPin" type="password" inputmode="numeric" autocomplete="off" class="mt-2 w-full p-3 border rounded-xl" placeholder="كلمة السر"></label><button onclick="ProfileManager.confirmForeignRestore()" class="w-full bg-rose-700 text-white py-3 rounded-xl font-black">تحقق واستعد بعد التحذير</button><button onclick="ProfileManager.pendingImport=null;UI.forceCloseModal()" class="w-full bg-slate-100 py-2 rounded-xl font-bold">إلغاء</button></div>`);
+                    UI.openModal(`<div class="space-y-3 text-right"><h3 class="font-black text-base text-rose-800"><i class="fas fa-triangle-exclamation ml-1"></i> نسخة من شركة مختلفة</h3><p class="text-xs leading-relaxed bg-rose-50 p-3 rounded-xl text-rose-800">هذه النسخة تخص ${foreign}، وليست الحساب المفتوح: ${AppEscape.text(this.currentName())}. الاستعادة ستستبدل مواد وفواتير وحسابات وإعدادات الشركة الحالية. سيتم حفظ نقطة استرجاع داخلية أولاً.</p><label class="block text-xs font-bold">كلمة سر الشركة المالكة للنسخة<input id="foreignBackupPin" type="password" inputmode="numeric" autocomplete="off" class="mt-2 w-full p-3 border rounded-xl" placeholder="كلمة السر"></label><button onclick="ProfileManager.confirmForeignRestore()" class="ta-modal-action-danger w-full bg-rose-700 text-white py-3 rounded-xl font-black">تحقق واستعد بعد التحذير</button><button onclick="ProfileManager.pendingImport=null;UI.forceCloseModal()" class="w-full bg-slate-100 py-2 rounded-xl font-bold">إلغاء</button></div>`);
                     return false;
                 }
                 await this.applyRestore(d);return true;
@@ -1556,7 +1575,7 @@
                 // Existing company must approve overwriting its records too, when protected.
                 if(currentCfg.pinHash){
                     this.authorizedImport=info;
-                    UI.openModal(`<div class="space-y-3 text-right"><p class="text-xs bg-amber-50 p-3 rounded-xl text-amber-800">تم التحقق من كلمة سر الشركة المصدر. أكّد الآن بكلمة سر الشركة الحالية قبل استبدال بياناتها.</p><input id="currentBackupPin" type="password" inputmode="numeric" class="w-full p-3 border rounded-xl" placeholder="كلمة سر الشركة الحالية"><button onclick="ProfileManager.confirmCurrentRestore()" class="w-full bg-rose-700 text-white rounded-xl p-3 font-black">تأكيد استعادة النسخة</button></div>`);return;
+                    UI.openModal(`<div class="space-y-3 text-right"><p class="text-xs bg-amber-50 p-3 rounded-xl text-amber-800">تم التحقق من كلمة سر الشركة المصدر. أكّد الآن بكلمة سر الشركة الحالية قبل استبدال بياناتها.</p><input id="currentBackupPin" type="password" inputmode="numeric" class="w-full p-3 border rounded-xl" placeholder="كلمة سر الشركة الحالية"><button onclick="ProfileManager.confirmCurrentRestore()" class="ta-modal-action-danger w-full bg-rose-700 text-white rounded-xl p-3 font-black">تأكيد استعادة النسخة</button></div>`);return;
                 }
                 await this.applyRestore(info.d);
             },
@@ -4260,9 +4279,6 @@
                 const rate = Number(State.settings.exchangeRate) || 1;
                 const sumUsd = list.reduce((acc,e)=>acc + (e.currency === 'USD' ? Number(e.amount)||0 : (Number(e.amount)||0)/(Number(e.exchangeRate)||rate)),0);
                 main.innerHTML = `
-                    <button type="button" onclick="ExpenseController.startNewExpense()" class="ta-solid-action ta-action-expense w-full mb-3 flex items-center justify-center gap-2 rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-extrabold px-3 py-3 text-sm shadow-sm active:scale-95">
-                        <i class="fas fa-plus"></i><span>إضافة مصروف جديد</span>
-                    </button>
                     <div class="grid grid-cols-2 gap-2 mb-3">
                         <div class="rounded-2xl bg-orange-50 border border-orange-200 p-3">
                             <div class="text-xs text-orange-800">المصاريف الإجمالية بالدولار</div>
@@ -4279,7 +4295,7 @@
                         <div class="grid grid-cols-2 gap-2 mb-2">
                             <div><label class="block text-xs font-bold mb-1">قيمة المصروف</label><input id="expenseAmount" type="number" inputmode="decimal" min="0.01" step="any" class="w-full border rounded-xl p-2.5" placeholder="المبلغ"></div>
                             <div><label class="block text-xs font-bold mb-1">العملة</label>
-                                <select id="expenseCurrency" class="w-full border rounded-xl p-2.5">${CurrencyCatalog.active().map(code => `<option value="${code}" ${CurrencyCatalog.primary() === code ? 'selected' : ''}>${CurrencyCatalog.label(code)}</option>`).join('')}</select></div>
+                                <select id="expenseCurrency" class="w-full border rounded-xl p-2.5">${CurrencyCatalog.active().map(code => `<option value="${code}" ${code === (CurrencyCatalog.active().includes('SYP') ? 'SYP' : CurrencyCatalog.primary()) ? 'selected' : ''}>${CurrencyCatalog.label(code)}</option>`).join('')}</select></div>
                             <div><label class="block text-xs font-bold mb-1">فئة المصروف</label>
                                 <select id="expenseCategory" class="w-full border rounded-xl p-2.5">
                                     ${['نقل ومحروقات','رواتب وأجور','إيجار','كهرباء ومياه','صيانة','تسويق','مصاريف إدارية','أخرى'].map(c=>`<option>${c}</option>`).join('')}
@@ -4288,7 +4304,7 @@
                             <div class="col-span-2"><label class="block text-xs font-bold mb-1">سعر الصرف لهذه العملية (1$ = ل.س)</label><input id="expenseRate" type="number" min="0.0001" step="any" value="${rate}" class="w-full border rounded-xl p-2.5"></div>
                         </div>
                         <input id="expenseNote" maxlength="250" class="w-full border rounded-xl p-2.5 text-sm mb-3" placeholder="البيان / الملاحظات">
-                        <button type="button" onclick="ExpenseController.saveExpense()" class="ta-solid-action ta-action-expense w-full bg-orange-600 hover:bg-orange-700 text-white rounded-xl py-3 font-extrabold flex items-center justify-center gap-2"><i class="fas fa-plus"></i><span>حفظ المصروف وخصمه من صافي الربح</span></button>
+                        <button type="button" onclick="ExpenseController.saveExpense()" class="ta-solid-action ta-action-expense w-full bg-orange-600 hover:bg-orange-700 text-white rounded-xl py-3 font-extrabold flex items-center justify-center gap-2"><i class="fas fa-check"></i><span>حفظ المصروف</span></button>
                     </div>
                     <div class="rounded-2xl bg-white border p-3">
                         <div class="font-extrabold text-sm mb-2">سجل المصاريف (${list.length})</div>
@@ -5096,7 +5112,8 @@
                           </select>
                           <div class="grid grid-cols-2 gap-2 text-xs font-extrabold">
                             
-                            <button type="button" class="rounded-xl bg-blue-800 text-white p-3" onclick="FieldCash.openTransfer('toAgent','${AppEscape.text(cashScope)}')">↗ إعطاء دفعة</button>
+                            <button type="button" class="rounded-xl bg-blue-800 text-white p-3 font-extrabold ta-staff-cash-action" onclick="FieldCash.openTransfer('toAgent','${AppEscape.text(cashScope)}')"><i class="fas fa-arrow-up ml-1"></i>إعطاء دفعة للموظف</button>
+                            <button type="button" class="rounded-xl bg-teal-900 text-white p-3 font-extrabold ta-staff-cash-action" onclick="FieldCash.openTransfer('fromAgent','${AppEscape.text(cashScope)}')"><i class="fas fa-arrow-down ml-1"></i>استلام دفعة من الموظف</button>
                           </div>
                         </div>
                         <div class="rounded-xl bg-white border p-3 mb-3 space-y-2 text-xs">
@@ -7006,7 +7023,9 @@
                 put('expenseNote',exp.note || '');
                 put('expenseRate',exp.exchangeRate);
                 const title=document.getElementById('expenseFormTitle');
-                if(title) title.textContent = 'تعديل مصروف مسجل';
+                if(title) title.textContent = 'تعديل مصروف مسجل (مع إمكانية تغيير العملة)';
+                const saveLabel=document.querySelector('#expenseFormPanel button[onclick*="saveExpense"] span');
+                if(saveLabel) saveLabel.textContent='حفظ التعديلات';
                 document.getElementById('expenseAmount')?.focus();
             },
             deleteExpense(id) {
@@ -7422,6 +7441,8 @@
             openItemGridModal() {
                 this.gridCatFilter = 'all';
                 this.gridSearchQuery = '';
+                // Selections are kept separate from invoice rows until Add is confirmed.
+                this.gridPending = Object.create(null);
                 UI.openModal(`
                     <div class="flex items-center justify-between border-b pb-2.5 mb-3">
                         <h3 class="font-bold text-sm flex items-center gap-1.5 text-slate-900">
@@ -7447,8 +7468,8 @@
                         <button type="button" onclick="ItemController.openItemModal()" class="text-xs font-bold text-emerald-600 hover:underline flex items-center gap-1">
                             <i class="fas fa-plus-circle"></i> تعريف مادة جديدة بالمستودع
                         </button>
-                        <button type="button" onclick="UI.forceCloseModal()" class="bg-slate-900 text-white font-bold px-5 py-2 rounded-xl text-xs">
-                            إغلاق الشبكة (${this.draft.rows.length} أصناف بالفاتورة)
+                        <button type="button" id="itemGridApplyButton" onclick="InvoiceController.applyGridSelection()" class="bg-emerald-700 text-white font-bold px-5 py-2 rounded-xl text-xs disabled:opacity-50" disabled>
+                            إضافة (0 أصناف)
                         </button>
                     </div>
                 `);
@@ -7456,6 +7477,7 @@
             },
 
             renderItemGridCards() {
+                this.updateGridSelectionCounter();
                 const pillsContainer = document.getElementById('gridCatPills');
                 const gridContainer = document.getElementById('itemGridCardsContainer');
                 if (!gridContainer) return;
@@ -7495,8 +7517,7 @@
                     const rawPrice = isPurchase ? Number(u0.costPrice) : (Accounting.itemSalePrice?.(itm,u0,d.accountId,['wholesale','center','consumer'].includes(d.priceTierOverride)?d.priceTierOverride:null) ?? Number(u0.salePrice));
                     const priceInInvCurr = Accounting.convert(rawPrice, itm.currency, d.currency, d.exchangeRate);
                     const availStock = Math.round((Accounting.getItemBaseStock(itm.id, d.isEditing ? d.id : null, d.warehouseId || 'wh_main') + Number.EPSILON) * 100) / 100;
-                    const inCartQty = d.rows.reduce((qty, row) =>
-                        row.itemId === itm.id ? qty + Math.max(0, Number(row.qty) || 0) : qty, 0);
+                    const inCartQty = Number(this.gridPending?.[itm.id] || 0);
 
                     return `
                         <div onclick="InvoiceController.selectItemFromGrid('${itm.id}')" class="relative bg-slate-50 hover:bg-emerald-50/70 active:scale-95 border ${inCartQty > 0 ? 'border-emerald-500 ring-1 ring-emerald-500 bg-emerald-50/40' : 'border-slate-200'} rounded-2xl p-2.5 cursor-pointer transition flex flex-col justify-between text-right shadow-2xs">
@@ -7534,38 +7555,52 @@
                 }).join('');
             },
 
+            gridSelectionCount() {
+                return Object.values(this.gridPending || {}).filter(qty => Number(qty) > 0).length;
+            },
+
+            updateGridSelectionCounter() {
+                const button = document.getElementById('itemGridApplyButton');
+                if (!button) return;
+                const count = this.gridSelectionCount();
+                button.textContent = `إضافة (${count} ${count === 1 ? 'صنف' : 'أصناف'})`;
+                button.disabled = count === 0;
+                button.setAttribute('aria-label', `إضافة ${count} ${count === 1 ? 'صنف' : 'أصناف'} إلى الفاتورة`);
+                if (typeof I18n !== 'undefined' && I18n.language === 'en') I18n.apply(button);
+            },
+
             selectItemFromGrid(itemId) {
-                this.addItemToInvoice(itemId);
-                const modalOpen = !document.getElementById('modalContainer').classList.contains('hidden');
-                if (modalOpen && document.getElementById('itemGridCardsContainer')) {
-                    this.renderItemGridCards();
+                const item = State.items.find(i => i.id === itemId);
+                if (!item) return;
+                if (['purchase', 'purchase_return'].includes(this.draft?.type) && item.isBundle) {
+                    UI.toast('التجميعة تُباع من مكوّناتها ولا تُشترى كمخزون مستقل', 'warn');
+                    return;
                 }
+                if (!this.gridPending) this.gridPending = Object.create(null);
+                this.gridPending[itemId] = Number(this.gridPending[itemId] || 0) + 1;
+                this.renderItemGridCards();
             },
 
             removeOneFromGrid(itemId) {
-                if (!this.draft || !Array.isArray(this.draft.rows)) return;
-                const item = State.items.find(i => i.id === itemId);
-                const defaultUnit = item && item.units && item.units[0] ? item.units[0].name : null;
-                // Prefer the same default-unit row that a grid tap increments.
-                let rowIdx = this.draft.rows.findIndex(r => r.itemId === itemId &&
-                    r.unitName === defaultUnit && Number(r.qty) > 0);
-                if (rowIdx < 0) {
-                    rowIdx = this.draft.rows.findIndex(r => r.itemId === itemId && Number(r.qty) > 0);
-                }
-                if (rowIdx < 0) return;
+                if (!this.gridPending || !Number(this.gridPending[itemId])) return;
+                const next = Number(this.gridPending[itemId]) - 1;
+                if (next <= 0) delete this.gridPending[itemId];
+                else this.gridPending[itemId] = next;
+                this.renderItemGridCards();
+            },
 
-                const row = this.draft.rows[rowIdx];
-                const newQty = Math.max(0, Number((Number(row.qty) - 1).toFixed(8)));
-                if (newQty === 0) {
-                    this.draft.rows.splice(rowIdx, 1);
-                } else {
-                    row.qty = newQty;
+            applyGridSelection() {
+                const chosen = Object.entries(this.gridPending || {}).filter(([, qty]) => Number(qty) > 0);
+                if (!chosen.length) return;
+                // Preserve the invoice draft if the grid is closed with X or Back.
+                UI.forceCloseModal();
+                this.gridPending = Object.create(null);
+                for (const [itemId, quantity] of chosen) {
+                    for (let i = 0; i < quantity; i++) this.addItemToInvoice(itemId, false);
                 }
                 this.markModified();
                 this.recalculate();
                 this.paintForm(document.getElementById('mainContent'));
-                // Leave the item picker open and update its badges/buttons.
-                if (document.getElementById('itemGridCardsContainer')) this.renderItemGridCards();
             },
 
             changeInvoiceAccount(accountId){
@@ -9257,8 +9292,8 @@
                         </div>
                         <p class="text-sm text-slate-600">لا يمكن تنفيذ ${AppEscape.text(actionName)} قبل إنشاء رمز حماية. لن تُحذف أي بيانات الآن.</p>
                         <div class="flex flex-col gap-2">
-                            <button type="button" onclick="ProtectionController.goToPinSetup()" class="w-full bg-emerald-600 text-white rounded-xl py-3 font-extrabold"><i class="fas fa-key ml-1"></i> تعيين رمز الحماية</button>
-                            <button type="button" onclick="UI.forceCloseModal()" class="w-full bg-slate-100 text-slate-700 rounded-xl py-2.5 font-bold">إلغاء</button>
+                            <button type="button" onclick="ProtectionController.goToPinSetup()" class="ta-modal-action-primary w-full bg-emerald-600 text-white rounded-xl py-3 font-extrabold"><i class="fas fa-key ml-1"></i> تعيين رمز الحماية</button>
+                            <button type="button" onclick="UI.forceCloseModal()" class="ta-modal-action-secondary w-full bg-slate-100 text-slate-700 rounded-xl py-2.5 font-bold">إلغاء</button>
                         </div>
                     </div>`);
             },
@@ -9287,7 +9322,7 @@
                         <div class="flex items-center justify-between mb-3"><h3 class="font-extrabold text-base"><i class="fas fa-shield-halved text-emerald-600 ml-1"></i> التحقق من الحماية</h3><button onclick="UI.forceCloseModal()" class="ta-glossy-icon-button"><i class="fas fa-times text-slate-400"></i></button></div>
                         <p class="text-xs text-slate-500 mb-3">${message}</p>
                         <input id="protectionVerifyPin" type="password" inputmode="numeric" autocomplete="current-password" placeholder="أدخل رمز الحماية" onkeydown="if(event.key==='Enter'){event.preventDefault();ProtectionController.verifyPromptPin();}" class="w-full border border-slate-300 rounded-xl p-3 text-center text-lg tracking-widest mb-3">
-                        <button onclick="ProtectionController.verifyPromptPin()" class="w-full bg-emerald-600 text-white rounded-xl py-3 font-extrabold">تحقق</button>
+                        <button onclick="ProtectionController.verifyPromptPin()" class="ta-modal-action-primary w-full bg-emerald-600 text-white rounded-xl py-3 font-extrabold">تحقق</button>
                         <button type="button" onclick="ProtectionController.openRecovery()" class="w-full text-center text-xs font-bold text-indigo-700 underline mt-3">نسيت رمز الحماية؟</button>
                     </div>`);
                 this.pendingSuccess = onSuccess;
@@ -9644,5 +9679,6 @@
 </script>
 <script src="static/barcode-feedback.js"></script>
 <script src="static/mobile-barcode-hid.js"></script>
+<script src="static/settings-staging.js"></script>
 </body>
 </html>

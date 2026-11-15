@@ -157,25 +157,69 @@ A.remainingStockForItem=function(itemId){
  if(item.isBundle){const parts=item.bundleComponents||[];return parts.length?Math.max(0,Math.min(...parts.map(x=>Number(available[x.itemId]||0)/Number(x.quantity||1)))):0;}
  return Math.max(0,Number(available[itemId])||0);
 };
+A.checkPendingStock=function(proposed){
+ if(this.draftKind!=='sale')return {ok:true};
+ const usage=new Map();
+ const catalog=new Map((this.state.items||[]).map(item=>[item.id,item]));
+ for(const [id,qty] of Object.entries(proposed||{})){
+  if(!(Number(qty)>0))continue;
+  const item=catalog.get(id),unit=item?.units?.[0];
+  if(!unit)return {ok:false,name:item?.name||id};
+  const factor=Number(unit.factor)||1;
+  const parts=item.isBundle?(item.bundleComponents||[]):[{itemId:id,quantity:1}];
+  if(!parts.length)return {ok:false,name:item.name};
+  for(const part of parts){
+   const componentId=part.itemId;
+   const units=Number(part.quantity||0)*Number(qty)/factor;
+   if(!Number.isFinite(units)||units<0)return {ok:false,name:item.name};
+   usage.set(componentId,(usage.get(componentId)||0)+units);
+  }
+ }
+ for(const [id,qty] of usage){
+  if(qty>this.remainingStockForItem(id)+1e-5)return {ok:false,name:catalog.get(id)?.name||id};
+ }
+ return {ok:true};
+};
 A.addGridItem=function(id){
  const it=this.state.items.find(x=>x.id===id);if(!it)return;
  const u=it.units?.[0];if(!u)return this.toast('لا توجد وحدة معتمدة للصنف');
- const available=this.remainingStockForItem(it.id);
- if(this.draftKind==='sale'&&(1/Number(u.factor))>available+1e-5)return this.toast(available<=1e-5?'نفدت كمية المادة «'+it.name+'» من مستودع موظف البيع':'الكمية المتاحة من «'+it.name+'» غير كافية');
- this.captureInvoiceMeta();let r=this.draft.find(r=>r.itemId===it.id&&r.unitName===u.name);
- if(r){r.qty=round(r.qty+1,'USD');r.total=round(r.qty*r.price,this.currency);}
- else{const p=this.unitPrice(it,u,this.currency);this.draft.push({itemId:it.id,itemName:it.name,unitName:u.name,unitFactor:Number(u.factor),qty:1,price:p,total:round(p,this.currency),bomComponents:it.isBundle?JSON.parse(JSON.stringify(it.bundleComponents||[])):undefined});}
- this.show('invoice');this.renderPickerItems();
+ if(!this.gridPending)this.gridPending=Object.create(null);
+ const next=Number(this.gridPending[id]||0)+1;
+ const proposed={...this.gridPending,[id]:next};
+ if(!this.checkPendingStock(proposed).ok)return this.toast(this.remainingStockForItem(id)<=1e-5?'نفدت كمية المادة «'+it.name+'» من مستودع موظف البيع':'الكمية المتاحة من «'+it.name+'» غير كافية');
+ this.gridPending[id]=next;
+ this.renderPickerItems();
 };
 A.removeGridOne=function(id){
- this.captureInvoiceMeta();const it=this.state.items.find(x=>x.id===id);if(!it)return;
- let i=this.draft.findIndex(r=>r.itemId===id&&r.unitName===it.units?.[0]?.name);
- if(i<0)i=this.draft.findIndex(r=>r.itemId===id);if(i<0)return;
- const r=this.draft[i];if(r.qty<=1)this.draft.splice(i,1);else{r.qty=round(r.qty-1,'USD');r.total=round(r.qty*r.price,this.currency);}
- this.show('invoice');this.renderPickerItems();
+ if(!this.gridPending||!this.gridPending[id])return;
+ if(this.gridPending[id]<=1)delete this.gridPending[id];else this.gridPending[id]--;
+ this.renderPickerItems();
+};
+A.updateGridCounter=function(){
+ const btn=document.getElementById('agentGridApplyButton');if(!btn)return;
+ const count=Object.values(this.gridPending||{}).filter(q=>Number(q)>0).length;
+ btn.textContent=`إضافة (${count} ${count===1?'صنف':'أصناف'})`;
+ btn.disabled=count===0;
+ btn.setAttribute('aria-label',`إضافة ${count} ${count===1?'صنف':'أصناف'} إلى الفاتورة`);
+ if(typeof I18n!=='undefined'&&I18n.language==='en')I18n.apply(btn);
+};
+A.applyInvoiceItemGrid=function(){
+ const chosen=Object.entries(this.gridPending||{}).filter(([,qty])=>Number(qty)>0);
+ if(!chosen.length)return;
+ this.captureInvoiceMeta();
+ // Recheck shared component stock: another item or bundle may consume the same supply.
+ const check=this.checkPendingStock(this.gridPending);
+ if(!check.ok)return this.toast('الكمية المتاحة من «'+check.name+'» غير كافية');
+ for(const [id,qty] of chosen){
+  const it=this.state.items.find(x=>x.id===id);const u=it?.units?.[0];if(!u)continue;
+  let row=this.draft.find(r=>r.itemId===id&&r.unitName===u.name);
+  if(row){row.qty=round(Number(row.qty)+Number(qty),'USD');row.total=round(row.qty*row.price,this.currency);}
+  else{const price=this.unitPrice(it,u,this.currency);this.draft.push({itemId:id,itemName:it.name,unitName:u.name,unitFactor:Number(u.factor),qty:Number(qty),price,total:round(price*qty,this.currency),bomComponents:it.isBundle?JSON.parse(JSON.stringify(it.bundleComponents||[])):undefined});}
+ }
+ this.closeInvoiceItemGrid();this.show('invoice');
 };
 A.openInvoiceItemGrid=function(){
- this.captureInvoiceMeta();this.gridSearch='';this.gridCategory='all';
+ this.captureInvoiceMeta();this.gridSearch='';this.gridCategory='all';this.gridPending=Object.create(null);
  let overlay=document.getElementById('agentItemPicker');
  if(!overlay){overlay=document.createElement('div');overlay.id='agentItemPicker';overlay.className='agent-picker-mask';document.body.appendChild(overlay);}
  overlay.innerHTML=`<div class="agent-picker-content" role="dialog" aria-modal="true" aria-label="شبكة اختيار وإضافة المواد للفاتورة">
@@ -183,13 +227,14 @@ A.openInvoiceItemGrid=function(){
  <input id="agentPickerSearch" type="search" placeholder="ابحث باسم المادة أو الباركود..." class="w-full pr-3 pl-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold" oninput="Agent.gridSearch=this.value;Agent.renderPickerItems()">
  <div id="agentPickerCats" class="flex gap-1.5 overflow-x-auto pb-2 mt-2"></div>
  <div id="agentPickerItems" class="grid grid-cols-2 gap-2 max-h-[55vh] overflow-y-auto p-0.5"></div>
- <div class="flex justify-end pt-3 mt-3 border-t"><button type="button" class="bg-slate-900 text-white font-bold px-5 py-2 rounded-xl text-xs" onclick="Agent.closeInvoiceItemGrid()">إغلاق الشبكة</button></div>
+ <div class="flex justify-end pt-3 mt-3 border-t"><button type="button" id="agentGridApplyButton" class="bg-emerald-700 text-white font-bold px-5 py-2 rounded-xl text-xs disabled:opacity-50" onclick="Agent.applyInvoiceItemGrid()" disabled>إضافة (0 أصناف)</button></div>
  </div>`;
  this.renderPickerItems();
 };
-A.closeInvoiceItemGrid=function(){document.getElementById('agentItemPicker')?.remove();};
+A.closeInvoiceItemGrid=function(){document.getElementById('agentItemPicker')?.remove();this.gridPending=Object.create(null);};
 A.setPickerCategory=function(id){this.gridCategory=id;this.renderPickerItems();};
 A.renderPickerItems=function(){
+ this.updateGridCounter();
  const box=document.getElementById('agentPickerItems');if(!box)return;
  const cats=[{id:'all',name:'كل المجموعات'}];
  for(const raw of (this.state.categories||[])){
@@ -205,7 +250,7 @@ A.renderPickerItems=function(){
  const items=(this.state.items||[]).filter(it=>(this.gridCategory==='all'||String(it.categoryId||it.category||'other')===String(this.gridCategory))&&(!q||String(it.name).toLowerCase().includes(q)||String(it.barcode||'').toLowerCase().includes(q)));
  box.innerHTML=items.length?items.map(it=>{
   const u=it.units?.[0]||{name:'وحدة',salePrice:0,factor:1};
-  const chosen=this.draft.filter(r=>r.itemId===it.id).reduce((n,r)=>n+Number(r.qty),0);
+  const chosen=Number(this.gridPending?.[it.id]||0);
   const stock=Number(this.stock[it.id]||0);
   const unitStock=round(stock*Number(u.factor||1),'USD');
   const outOfStock=this.draftKind==='sale'&&stock<=1e-5;

@@ -615,6 +615,7 @@ const I18n = {
         [/^الكمية المطلوبة للصنف\s*(.+)\s*تتجاوز رصيد المستودع\s*\((.+)\)$/, 'Requested quantity for item $1 exceeds warehouse stock ($2)'],
         [/^لا يمكن تنفيذ (.+) قبل إنشاء رمز حماية\. لن تُحذف أي بيانات الآن\.$/, 'Cannot perform $1 until you create a security PIN. No data will be deleted now.'],
         [/^إغلاق الشبكة\s*\((.+)\)$/, 'Close item grid ($1)'],
+        [/^إضافة\s*\((\d+)\s*(?:صنف|أصناف)\)$/, 'Add ($1 items)'],
         [/^إضافة دفعة للفاتورة\s*#(\d+)$/, 'Add payment to invoice #$1'],
         [/^قيمة الدفعة\s*\((.+)\)$/, 'Payment amount ($1)'],
         [/^مبلغ الدفعة\s*\((.+)\)$/, 'Payment amount ($1)'],

@@ -1,0 +1,61 @@
+/* Tiqany Acc 2026-11-15: high-contrast 3D controls in security/confirmation dialogs.
+   Explicit colors fix missing Tailwind utility classes (e.g. bg-rose-700).
+   UI-only: no effect on PIN verification, archived users, balances, invoices or persistence. */
+#modalBox .ta-modal-action-primary,
+#modalBox .ta-modal-action-danger,
+#modalBox .ta-modal-action-secondary {
+    display:inline-flex!important;align-items:center;justify-content:center;gap:8px;
+    min-height:48px;padding:12px 16px!important;border-radius:14px!important;
+    font-size:clamp(13px,1rem,16px)!important;font-weight:900!important;
+    line-height:1.4;letter-spacing:0;white-space:normal;text-align:center;
+    cursor:pointer;transition:filter .13s ease,transform .13s ease,box-shadow .13s ease;
+}
+/* Danger, including old dynamic modal markup which uses a non-generated Tailwind class. */
+body #modalBox button.ta-modal-action-danger,
+body #modalBox button[class~="bg-rose-700"] {
+    background:linear-gradient(154deg,#de3655 0%,#b91c44 45%,#881337 100%)!important;
+    color:#fff!important;-webkit-text-fill-color:#fff!important;
+    border:1px solid #fb7185!important;
+    box-shadow:0 4px 0 #6e102d,0 10px 18px #500e2e50,inset 0 1px 0 #ffffff75!important;
+    text-shadow:0 1px 1px #560c2f99;
+}
+/* Primary confirmations and password checks. Also repair missing bg-emerald-700. */
+body #modalBox button.ta-modal-action-primary,
+body #modalBox button[class~="bg-emerald-700"],
+body #modalBox button[class~="bg-teal-700"],
+body #modalBox button[class~="bg-blue-700"] {
+    background:linear-gradient(154deg,#17abaf 0%,#08758a 55%,#0d476c 100%)!important;
+    color:#fff!important;-webkit-text-fill-color:#fff!important;
+    border:1px solid #54d8e3!important;
+    box-shadow:0 4px 0 #074058,0 10px 18px #052f5366,inset 0 1px 0 #ffffff80!important;
+    text-shadow:0 1px 1px #03354780;
+}
+/* Cancel / return buttons: visibly raised, never white on white. */
+body #modalBox button.ta-modal-action-secondary,
+body #modalBox button[class~="bg-slate-100"]:not(.ta-glossy-icon-button) {
+    background:linear-gradient(153deg,#ecf6fe 0%,#ccdfea 58%,#afc7d8 100%)!important;
+    color:#143c54!important;-webkit-text-fill-color:#143c54!important;
+    border:1px solid #8dacc3!important;
+    box-shadow:0 4px 0 #8faec1,0 9px 15px #203e5760,inset 0 2px 0 #fff!important;
+    text-shadow:none!important;
+}
+/* Main verification actions using an existing included Tailwind color. */
+body #modalBox button.ta-modal-action-primary:is([class~="bg-emerald-600"],[class~="bg-emerald-700"]) {color:#fff!important;}
+body #modalBox button.ta-modal-action-primary:active,
+body #modalBox button.ta-modal-action-danger:active,
+body #modalBox button.ta-modal-action-secondary:active,
+body #modalBox button[class~="bg-rose-700"]:active,
+body #modalBox button[class~="bg-emerald-700"]:active {
+    transform:translateY(3px)!important;
+    box-shadow:0 1px 0 #295267,inset 0 1px 3px #0003!important;
+}
+body #modalBox button.ta-modal-action-primary:focus-visible,
+body #modalBox button.ta-modal-action-danger:focus-visible,
+body #modalBox button.ta-modal-action-secondary:focus-visible {
+    outline:3px solid #fbbf24!important;outline-offset:3px!important;
+}
+body #modalBox button.ta-modal-action-primary[disabled],
+body #modalBox button.ta-modal-action-danger[disabled] {cursor:not-allowed;opacity:.65;}
+@media(prefers-reduced-motion:reduce){
+    #modalBox .ta-modal-action-primary,#modalBox .ta-modal-action-danger,#modalBox .ta-modal-action-secondary{transition:none!important;}
+}

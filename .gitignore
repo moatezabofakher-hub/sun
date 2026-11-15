@@ -1,0 +1,16 @@
+# Android build outputs and local machine state
+.gradle/
+**/build/
+local.properties
+output/
+build-log.txt
+
+# Private signing keys and credentials - NEVER commit
+*.jks
+*.keystore
+*.p12
+*.pfx
+*.pkcs12
+.env
+.env.*
+!*.example

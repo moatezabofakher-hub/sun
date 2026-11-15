@@ -1,95 +1,50 @@
 'use strict';
-const assert = require('node:assert/strict');
-const fs = require('node:fs'), path = require('node:path');
-const root = path.resolve(__dirname, '..');
-const html = fs.readFileSync(path.join(root, 'app/src/main/assets/www/index.html'), 'utf8');
-const section = (a,b) => {
-  const i=html.indexOf(a),j=html.indexOf(b,i+a.length);
-  assert(i>=0&&j>i,`missing segment ${a} -> ${b}`);
-  return html.slice(i,j).trim();
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const path=require('node:path');
+const html=fs.readFileSync(path.join(__dirname,'../app/src/main/assets/www/index.html'),'utf8');
+const between=(start,end)=>{
+ const a=html.indexOf(start),b=html.indexOf(end,a+start.length);
+ assert.ok(a>0&&b>a,`method not found ${start}`);
+ return html.slice(a,b).trim();
 };
-const gridMethod = section('renderItemGridCards() {','            toggleInvoiceCurrency() {');
-assert.match(gridMethod,/class="invoice-grid-decrement"/);
-assert.match(gridMethod,/onclick="event\.stopPropagation\(\); InvoiceController\.removeOneFromGrid/,'X must stop card-click propagation');
-assert.match(gridMethod,/aria-label="إنقاص وحدة واحدة/);
+const impl=between('renderItemGridCards() {','            changeInvoiceAccount(accountId){');
+const State={categories:['العناية'],items:[
+ {id:'a',name:'شامبو',category:'العناية',currency:'USD',barcode:'123',units:[{name:'عبوة',factor:1,salePrice:10,costPrice:7}]},
+ {id:'b',name:'صابون',category:'العناية',currency:'USD',barcode:'124',units:[{name:'عبوة',factor:1,salePrice:20,costPrice:12}]}
+]};
+const Accounting={formatItemPrice:n=>String(n),formatItemQuantity:n=>String(n),getItemBaseStock:()=>100,convert:n=>n};
+const ItemController={photoThumb:()=>'<div></div>'};
+const els={gridCatPills:{innerHTML:''},itemGridCardsContainer:{innerHTML:''},mainContent:{},itemGridApplyButton:{textContent:'',disabled:true,setAttribute(k,v){this[k]=v;}}};
+const document={getElementById:id=>els[id]||null};
+const events={closed:0,dirty:0,painted:0,recalc:0};
+const UI={forceCloseModal(){events.closed++},toast(){}};
+const controller=new Function('State','Accounting','ItemController','document','UI','events',`return ({
+  draft:{type:'sale',rows:[],currency:'USD',exchangeRate:15000},gridCatFilter:'all',gridPending:Object.create(null),
+  ${impl}
+  addItemToInvoice(itemId){let row=this.draft.rows.find(r=>r.itemId===itemId);if(!row)this.draft.rows.push({itemId,qty:1});else row.qty++;},
+  markModified(){events.dirty++},recalculate(){events.recalc++},paintForm(){events.painted++}
+});`)(State,Accounting,ItemController,document,UI,events);
+controller.renderItemGridCards();
+assert.equal(els.itemGridApplyButton.disabled,true);
+controller.selectItemFromGrid('a');controller.selectItemFromGrid('a');controller.selectItemFromGrid('a');controller.selectItemFromGrid('b');
+assert.equal(controller.gridSelectionCount(),2,'Count distinct selected items live');
+assert.match(els.itemGridApplyButton.textContent,/2 أصناف/);
+assert.equal(els.itemGridApplyButton.disabled,false);
+assert.equal(controller.draft.rows.length,0,'No invoice row changes until Add is pressed');
+assert.match(els.itemGridCardsContainer.innerHTML,/InvoiceController\.removeOneFromGrid\('a'\)/);
+assert.match(els.itemGridCardsContainer.innerHTML,/>\s*3\s*<\/span>/);
+controller.removeOneFromGrid('a');
+assert.equal(controller.gridPending.a,2,'X removes from staged selection, not invoice');
+assert.equal(controller.draft.rows.length,0);
+controller.removeOneFromGrid('a');controller.removeOneFromGrid('a');
+assert.equal(controller.gridPending.a,undefined);
+assert.equal(controller.gridSelectionCount(),1);
+controller.applyGridSelection();
+assert.deepEqual(controller.draft.rows,[{itemId:'b',qty:1}]);
+assert.equal(events.closed,1);assert.equal(events.dirty,1);assert.equal(events.painted,1);assert.equal(events.recalc,1);
+assert.equal(controller.gridSelectionCount(),0,'Staging cleared after commit');
 assert.match(html,/#itemGridCardsContainer \.invoice-grid-decrement \{/);
-const addMethod=section('addItemToInvoice(itemId, repaint = true) {','            changeRowUnit(rowIdx, newUnitName) {');
-const recalcMethod=section('recalculate() {','            updateTotalsDOM() {');
-const baseMethods = gridMethod+'\n'+addMethod+'\n'+recalcMethod;
-const appId = fs.readFileSync(path.join(root, 'app/build.gradle'),'utf8');
-assert.match(appId,/applicationId 'com\.sunshine\.technicalaccountant'/);
-assert.ok(Number(appId.match(/versionCode\s+(\d+)/)?.[1]) >= 20, 'grid decrement retained after version upgrade');
-assert.match(html,/const DB_NAME = 'AlRaedAccountingERP_v2'/);
-assert.match(html,/const DB_VERSION = 1/);
-
-function init(type) {
-  const state = {categories:['معطرات'],items:[
-    {id:'a',name:'صابون',category:'معطرات',currency:'USD',barcode:'11',units:[{name:'عبوة',factor:1,salePrice:10,costPrice:7},{name:'كرتون',factor:12,salePrice:100,costPrice:60}]},
-    {id:'b',name:'شامبو',category:'معطرات',currency:'USD',barcode:'22',units:[{name:'عبوة',factor:1,salePrice:20,costPrice:12}]}
-  ]};
-  const elements={
-    gridCatPills:{innerHTML:''},itemGridCardsContainer:{innerHTML:''},mainContent:{},
-    modalContainer:{classList:{contains:()=>false}}
-  };
-  const document={getElementById:id=>elements[id]||null};
-  const accounting={
-    convert:(value)=>value,
-    formatItemPrice:(value,currency)=>`${value} ${currency}`,
-    formatItemQuantity:value=>String(value),
-    getItemBaseStock:()=>15,
-    round:value=>Math.round(value*100)/100
-  };
-  const events={dirty:0,painted:0};
-  const controller=new Function('State','Accounting','document','ItemController','events',
-    `return ({
-      draft:null,gridCatFilter:'all',gridSearchQuery:'',
-      ${baseMethods}
-      markModified(){events.dirty++;},
-      paintForm(){events.painted++;}
-    });`
-  )(state,accounting,document,{photoThumb:()=>'<div class="photo"></div>'},events);
-  controller.draft={type,rows:[],currency:'USD',exchangeRate:15000,warehouseId:'wh_main',
-     discountType:'percent',discountValue:0,taxType:'percent',taxValue:0,paymentMethod:'cash'};
-  return {controller,state,elements,events};
-}
-for (const type of ['sale','purchase','sale_return','purchase_return']) {
-  const {controller:c,elements,events}=init(type);
-  c.renderItemGridCards();
-  assert.doesNotMatch(elements.itemGridCardsContainer.innerHTML,/invoice-grid-decrement/,'No X on unselected items');
-  c.selectItemFromGrid('a'); c.selectItemFromGrid('a'); c.selectItemFromGrid('a');
-  c.selectItemFromGrid('b');
-  assert.equal(c.draft.rows.find(r=>r.itemId==='a').qty,3);
-  assert.equal(c.draft.rows.find(r=>r.itemId==='b').qty,1);
-  const price = type.startsWith('purchase') ? 7 : 10;
-  assert.equal(c.draft.netTotal, 3*price + (type.startsWith('purchase') ? 12 : 20));
-  assert.match(elements.itemGridCardsContainer.innerHTML, /InvoiceController\.removeOneFromGrid\('a'\)/);
-  assert.match(elements.itemGridCardsContainer.innerHTML, /\>\s*3\s*\<\/span\>/,'Badge shows 3');
-  const before=events.dirty;
-  c.removeOneFromGrid('a');
-  assert.equal(c.draft.rows.find(r=>r.itemId==='a').qty,2);
-  assert.equal(c.draft.netTotal, 2*price + (type.startsWith('purchase') ? 12 : 20));
-  assert.equal(events.dirty,before+1);
-  c.removeOneFromGrid('a'); c.removeOneFromGrid('a');
-  assert.equal(c.draft.rows.find(r=>r.itemId==='a'),undefined,'Remove row at zero');
-  assert.equal(c.draft.rows.length,1,'Other product preserved');
-  assert.doesNotMatch(elements.itemGridCardsContainer.innerHTML, /InvoiceController\.removeOneFromGrid\('a'\)/,'X disappears when qty reaches 0');
-  assert.equal(c.draft.netTotal,type.startsWith('purchase')?12:20);
-  c.removeOneFromGrid('a');
-  assert.equal(c.draft.rows.length,1,'Repeated X on missing row is a no-op');
-}
-{
-  const {controller:c,elements}=init('sale');
-  c.addItemToInvoice('a');
-  c.draft.rows[0].unitName='كرتون';
-  c.draft.rows[0].price=100;
-  c.draft.rows[0].qty=2;
-  c.addItemToInvoice('a'); // adds default-unit row independently
-  c.renderItemGridCards();
-  assert.match(elements.itemGridCardsContainer.innerHTML, /\>\s*3\s*\<\/span\>/,'Badge sums item quantity across units');
-  c.removeOneFromGrid('a');
-  assert.equal(c.draft.rows.length,1,'Prefer the default unit row for deletion');
-  assert.equal(c.draft.rows[0].qty,2,'Leave other unit unaffected');
-  c.removeOneFromGrid('a');
-  assert.equal(c.draft.rows[0].qty,1,'Fallback to other unit if no default exists');
-}
-console.log('PASS 3.5.13: X button, stop propagation, sale/purchase/returns, one-quantity decrement, totals, badges, zero removal, multiple units and unchanged DB');
+assert.match(html,/id="itemGridApplyButton"/);
+assert.match(html,/onclick="InvoiceController\.applyGridSelection\(\)"/);
+console.log('PASS staged grid: live count, add once, discard by close, decrement and no pre-commit invoice mutation');

@@ -35,7 +35,7 @@ assert.equal(Accounting.getItemBaseStock('b'),7);
 assert.equal(Accounting.getItemBaseStock('kit'),7);
 assert(main.includes('item.isBundle ? 0 : stock *'),'Kit must not double-count component value in inventory');
 assert(main.includes("row.priceManuallySet=true"),'Price overrides must remain manual');
-assert(!main.includes("onclick=\"FieldCash.openTransfer('fromAgent','${AppEscape.text(cashScope)}')\""),'Cash transfer icon removed from reports');
+assert(main.includes("onclick=\"FieldCash.openTransfer('fromAgent','${AppEscape.text(cashScope)}')\""),'Receive-payment action must remain available in reports');
 const pending=[{id:'p1',kind:'sale',rows:[{itemId:'kit',qty:2,unitFactor:1,bomComponents:kit.bundleComponents}]}];
 const applied=protocol.applyStock({a:20,b:9,kit:9},pending,[],state.items);
 assert.equal(applied.a,16);assert.equal(applied.b,7);assert.equal(applied.kit,7);

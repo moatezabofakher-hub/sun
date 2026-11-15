@@ -189,9 +189,25 @@ F.showAgents=function(){
  <button class="bg-slate-100 rounded-lg p-2" onclick="FieldSync.exportAck('${a.id}')">تأكيد الاستلام</button>
  <button class="bg-amber-100 rounded-lg p-2" onclick="FieldSync.showActivation('${a.id}')">كود التفعيل</button>
  <button class="bg-slate-100 rounded-lg p-2" onclick="FieldSync.toggleAgent('${a.id}')">${a.disabled?'إعادة تشغيل':'إيقاف'}</button></div></div>`).join(''):'<p class="text-xs text-slate-500">لا يوجد موظفو بيع.</p>'}
- ${c.agents.some(a=>a.archived)?`<details class="bg-rose-50 border rounded-xl p-2"><summary class="font-bold text-xs">أرشيف موظفي البيع</summary>${c.agents.filter(a=>a.archived).map(a=>`<p class="p-2 text-xs">${esc(a.name)} <button class="bg-white p-1 border rounded" onclick="FieldSync.restoreAgent('${a.id}')">استعادة</button></p>`).join('')}</details>`:''}
+ <button type="button" class="w-full rounded-xl bg-slate-800 text-white p-3 font-black" onclick="FieldSync.showArchivedAgents()">الموظف المؤرشف (${c.agents.filter(a=>a.archived).length})</button>
  <button class="w-full p-3 rounded-xl bg-slate-100" onclick="FieldSync.open()">رجوع</button></div>`);
 };
+
+F.showArchivedAgents=function(){
+ const archived=cfg().agents.filter(a=>a.archived);
+ UI.openModal(`<div dir="rtl" class="ta-field-panel text-right space-y-3"><h3 class="font-black text-lg">الموظف المؤرشف</h3>
+ ${archived.length?archived.map(a=>`<button type="button" class="w-full text-right bg-slate-100 border border-slate-300 rounded-xl px-4 py-3 font-bold" onclick="FieldSync.showArchivedAgentDetail('${a.id}')">${esc(a.name)} <span class="text-xs text-slate-500">· ${esc(a.vehicleName||'')} · عرض صفحة الموظف</span></button>`).join(''):'<p class="text-xs text-slate-500">لا يوجد موظفون مؤرشفون.</p>'}
+ <button type="button" class="w-full bg-slate-200 rounded-xl p-3" onclick="FieldSync.showAgents()">رجوع</button></div>`);
+};
+F.showArchivedAgentDetail=function(id){
+ const a=cfg().agents.find(x=>x.id===id && x.archived);if(!a)return UI.toast('الموظف غير موجود في الأرشيف','warn');
+ UI.openModal(`<div dir="rtl" class="ta-field-panel text-right space-y-3"><h3 class="font-black text-lg">${esc(a.name)}</h3>
+ <p class="text-xs text-slate-500">موظف مؤرشف · ${esc(a.vehicleName||'')} · ${esc(WarehouseController.name(a.warehouseId))}</p>
+ <button type="button" class="w-full bg-blue-900 text-white rounded-xl p-3 font-bold" onclick="FieldSync.showOperations('${a.id}')">عرض سجل عمليات الموظف</button>
+ <button type="button" class="w-full bg-emerald-100 text-emerald-900 rounded-xl p-3 font-bold" onclick="FieldSync.restoreAgent('${a.id}')">استعادة الموظف من الأرشيف</button>
+ <button type="button" class="w-full bg-slate-100 rounded-xl p-3" onclick="FieldSync.showArchivedAgents()">رجوع إلى الموظفين المؤرشفين</button></div>`);
+};
+
 F.historyViewLimit=100;
 F.showOperations=function(agentId='all'){
  const c=cfg(),records=[...(State.invoices||[]).filter(i=>i.fieldOrigin?.agentId).map(x=>({kind:'فاتورة',id:x.id,agentId:x.fieldOrigin.agentId,number:x.fieldOrigin.localNumber||x.number,date:x.date,display:`${x.netTotal} ${x.currency}`})),
