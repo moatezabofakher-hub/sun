@@ -53,6 +53,11 @@ public final class NativeBluetoothPrinter {
         this.webView = webView;
     }
 
+    private boolean isEnglishUi() {
+        return "en".equals(activity.getSharedPreferences("tiqany_ui_locale", 0).getString("language", "ar"));
+    }
+    private String tr(String ar, String en) { return isEnglishUi() ? en : ar; }
+
     private BluetoothAdapter adapter() {
         return BluetoothAdapter.getDefaultAdapter();
     }
@@ -84,7 +89,7 @@ public final class NativeBluetoothPrinter {
         if (results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED && next != null) {
             activity.runOnUiThread(next);
         } else {
-            event("error", "يجب السماح للأجهزة المجاورة للطباعة المباشرة", "");
+            event("error", tr("يجب السماح للأجهزة المجاورة للطباعة المباشرة", "Allow Nearby Devices to print directly"), "");
         }
     }
 
@@ -105,8 +110,8 @@ public final class NativeBluetoothPrinter {
     @JavascriptInterface
     public void getStatus() {
         activity.runOnUiThread(() -> {
-            if (isConnected()) event("connected", connectedName == null ? "الطابعة" : connectedName, connectedAddress);
-            else event("disconnected", "اختر طابعة مقترنة من داخل التطبيق", savedAddress());
+            if (isConnected()) event("connected", connectedName == null ? tr("الطابعة", "Printer") : connectedName, connectedAddress);
+            else event("disconnected", tr("اختر طابعة مقترنة من داخل التطبيق", "Select a paired printer in the app"), savedAddress());
         });
     }
 
@@ -114,7 +119,7 @@ public final class NativeBluetoothPrinter {
     public void disconnect() {
         worker.execute(() -> {
             closeSocket();
-            event("disconnected", "تم فصل الطابعة", "");
+            event("disconnected", tr("تم فصل الطابعة", "Printer disconnected"), "");
         });
     }
 
@@ -126,11 +131,11 @@ public final class NativeBluetoothPrinter {
         if (!allowed()) return;
         BluetoothAdapter bt = adapter();
         if (bt == null) {
-            event("error", "هذا الهاتف لا يدعم البلوتوث", "");
+            event("error", tr("هذا الهاتف لا يدعم البلوتوث", "This phone does not support Bluetooth"), "");
             return;
         }
         if (!bt.isEnabled()) {
-            event("error", "شغّل البلوتوث واقترن بالطابعة من إعدادات الهاتف أولاً", "");
+            event("error", tr("شغّل البلوتوث واقترن بالطابعة من إعدادات الهاتف أولاً", "Enable Bluetooth and pair your printer in phone settings"), "");
             return;
         }
         try {
@@ -139,40 +144,40 @@ public final class NativeBluetoothPrinter {
             devices.sort(Comparator.comparing(d -> d.getName() == null ? "" : d.getName(), String.CASE_INSENSITIVE_ORDER));
             if (devices.isEmpty()) {
                 new AlertDialog.Builder(activity)
-                        .setTitle("لا توجد طابعة مقترنة")
-                        .setMessage("اقترن بطابعة Xprinter من إعدادات بلوتوث الهاتف أولاً، ثم ارجع واخترها هنا.")
-                        .setPositiveButton("موافق", null).show();
-                event("error", "لم يتم العثور على أجهزة بلوتوث مقترنة", "");
+                        .setTitle(tr("لا توجد طابعة مقترنة", "No paired printer"))
+                        .setMessage(tr("اقترن بطابعة Xprinter من إعدادات بلوتوث الهاتف أولاً، ثم ارجع واخترها هنا.", "First pair your Xprinter in Bluetooth settings, then return to select it here."))
+                        .setPositiveButton(tr("موافق", "OK"), null).show();
+                event("error", tr("لم يتم العثور على أجهزة بلوتوث مقترنة", "No paired Bluetooth devices found"), "");
                 return;
             }
             String[] labels = new String[devices.size()];
             for (int i = 0; i < devices.size(); i++) {
                 BluetoothDevice device = devices.get(i);
-                labels[i] = (device.getName() == null ? "جهاز بلوتوث" : device.getName()) + "  (" + device.getAddress() + ")";
+                labels[i] = (device.getName() == null ? tr("جهاز بلوتوث", "Bluetooth device") : device.getName()) + "  (" + device.getAddress() + ")";
             }
             new AlertDialog.Builder(activity)
-                    .setTitle("اختر الطابعة المقترنة")
+                    .setTitle(tr("اختر الطابعة المقترنة", "Choose paired printer"))
                     .setItems(labels, (dialog, which) -> {
                         String mac = devices.get(which).getAddress();
                         activity.getSharedPreferences(PREFS, 0).edit().putString(DEVICE_KEY, mac).apply();
                         connectAddress(mac);
                     })
-                    .setNegativeButton("إلغاء", null)
+                    .setNegativeButton(tr("إلغاء", "Cancel"), null)
                     .show();
         } catch (SecurityException e) {
-            event("error", "إذن الاتصال بالبلوتوث غير متاح", "");
+            event("error", tr("إذن الاتصال بالبلوتوث غير متاح", "Bluetooth connection permission not granted"), "");
         }
     }
 
     private void connectAddress(String mac) {
-        event("connecting", "جارٍ الاتصال بالطابعة...", mac);
+        event("connecting", tr("جارٍ الاتصال بالطابعة...", "Connecting to printer..."), mac);
         worker.execute(() -> {
             try {
                 connectInternal(mac);
                 event("connected", connectedName, connectedAddress);
             } catch (Exception e) {
                 closeSocket();
-                event("error", "تعذر الاتصال بالطابعة: " + safeError(e), mac);
+                event("error", tr("تعذر الاتصال بالطابعة: ", "Could not connect to printer: ") + safeError(e), mac);
             }
         });
     }
@@ -183,19 +188,19 @@ public final class NativeBluetoothPrinter {
     }
 
     private void connectInternal(String mac) throws IOException {
-        if (destroyed) throw new IOException("تم إغلاق التطبيق");
+        if (destroyed) throw new IOException(tr("تم إغلاق التطبيق", "Application closed"));
         if (isConnected() && mac.equals(connectedAddress)) return;
         closeSocket();
-        if (!allowed()) throw new IOException("الرجاء السماح بالوصول للأجهزة المجاورة");
+        if (!allowed()) throw new IOException(tr("الرجاء السماح بالوصول للأجهزة المجاورة", "Allow access to nearby devices"));
         BluetoothAdapter bt = adapter();
-        if (bt == null || !bt.isEnabled()) throw new IOException("البلوتوث غير مفعّل");
+        if (bt == null || !bt.isEnabled()) throw new IOException(tr("البلوتوث غير مفعّل", "Bluetooth is disabled"));
         BluetoothDevice device = bt.getRemoteDevice(mac);
         BluetoothSocket candidate = device.createRfcommSocketToServiceRecord(SPP_UUID);
         try {
             candidate.connect();
             socket = candidate;
             connectedAddress = mac;
-            connectedName = device.getName() == null ? "طابعة بلوتوث" : device.getName();
+            connectedName = device.getName() == null ? tr("طابعة بلوتوث", "Bluetooth printer") : device.getName();
         } catch (Exception e) {
             try { candidate.close(); } catch (Exception ignored) {}
             throw e instanceof IOException ? (IOException) e : new IOException(e.getMessage());
@@ -205,26 +210,26 @@ public final class NativeBluetoothPrinter {
     @JavascriptInterface
     public void printBase64(String encoded) {
         if (encoded == null || encoded.length() > MAX_PRINT_BYTES * 2) {
-            event("error", "حجم الفاتورة أكبر من المسموح للطابعة", "");
+            event("error", tr("حجم الفاتورة أكبر من المسموح للطابعة", "Invoice exceeds printer size limit"), "");
             return;
         }
         withPermission(() -> {
             String mac = savedAddress();
             if (mac.isEmpty()) {
                 showPairedDevices();
-                event("error", "اختر طابعتك أولاً ثم اضغط طباعة مرة أخرى", "");
+                event("error", tr("اختر طابعتك أولاً ثم اضغط طباعة مرة أخرى", "Choose your printer, then press Print again"), "");
                 return;
             }
             if (busy) {
-                event("error", "يرجى إكمال عملية الطباعة الحالية أولاً", "");
+                event("error", tr("يرجى إكمال عملية الطباعة الحالية أولاً", "Finish the current print job first"), "");
                 return;
             }
             busy = true;
-            event("printing", "جارٍ إرسال الفاتورة للطابعة...", mac);
+            event("printing", tr("جارٍ إرسال الفاتورة للطابعة...", "Sending invoice to printer..."), mac);
             worker.execute(() -> {
                 try {
                     byte[] bytes = Base64.decode(encoded, Base64.DEFAULT);
-                    if (bytes.length > MAX_PRINT_BYTES) throw new IOException("حجم الفاتورة كبير جداً");
+                    if (bytes.length > MAX_PRINT_BYTES) throw new IOException(tr("حجم الفاتورة كبير جداً", "Invoice is too large"));
                     connectInternal(mac);
                     OutputStream output = socket.getOutputStream();
                     for (int offset = 0; offset < bytes.length; offset += 1024) {
@@ -235,10 +240,10 @@ public final class NativeBluetoothPrinter {
                         }
                     }
                     output.flush();
-                    event("printed", "تم إرسال الفاتورة إلى الطابعة", connectedAddress);
+                    event("printed", tr("تم إرسال الفاتورة إلى الطابعة", "Invoice sent to printer"), connectedAddress);
                 } catch (Exception e) {
                     closeSocket();
-                    event("error", "فشلت الطباعة: " + safeError(e), mac);
+                    event("error", tr("فشلت الطباعة: ", "Printing failed: ") + safeError(e), mac);
                 } finally {
                     busy = false;
                 }

@@ -707,7 +707,49 @@ const I18n = {
         [/^المدفوع سابقاً:\s*(.+)$/, 'Previously paid: $1'],
         [/^عملة الصنف:\s*(.+)$/, 'Item currency: $1'],
         [/^العملة:\s*(.+)$/, 'Currency: $1'],
-        [/^الرصيد النهائي:\s*(.+)$/, 'Final balance: $1']
+        [/^الرصيد النهائي:\s*(.+)$/, 'Final balance: $1'],
+        [/^(\d+)\s+متبقية$/, '$1 remaining'],
+        [/^(\d+)\s*\/\s*(\d+)\s+عملية$/, '$1 / $2 operations'],
+        [/^(\d+)\s+صنف$/, '$1 items'],
+        [/^(\d+)\s+مادة$/, '$1 items'],
+        [/^(\d+)\s+حساب$/, '$1 accounts'],
+        [/^إصدار التطبيق:\s*(.+)$/, 'App version: $1'],
+        [/^مصاريف الفترة\s*\((.+)\)$/, 'Expenses for period ($1)'],
+        [/^مصروف من موظف البيع:\s*(.+)$/, 'Expense by sales representative: $1'],
+        [/^الديون:\s*(.+)$/, 'Debts: $1'],
+        [/^إجمالي المبيعات:\s*(.+)$/, 'Total sales: $1'],
+        [/^مقاصة بالحساب:\s*(.+)$/, 'Offset against account: $1'],
+        [/^تقرير المواد\s*-\s*(.+)$/, 'Items report - $1'],
+        [/^سجل المصاريف\s*\((.+)\)$/, 'Expense history ($1)'],
+        [/^سجل السندات\s*\((.+)\)$/, 'Voucher history ($1)'],
+        [/^فاتورة مناقلة\s*#(.+)$/, 'Stock transfer invoice #$1'],
+        [/^لا توجد مناقلات واردة إلى\s+(.+)\s+بعد\.$/, 'No incoming transfers to $1 yet.'],
+        [/^تمت المزامنة من:\s*(.+)$/, 'Synced from: $1'],
+        [/^مزامنة من:\s*(.+)$/, 'Synced from: $1'],
+        [/^✎ تم تعديل الفاتورة بواسطة موظف البيع · مراجعة\s*(.+)$/, '✎ Invoice edited by representative · Review $1'],
+        [/^✎ تم تعديل السند بواسطة موظف البيع · مراجعة\s*(.+)$/, '✎ Voucher edited by representative · Review $1'],
+        [/^عدد الأصناف:\s*(.+)$/, 'Item count: $1'],
+        [/^عدد المواد:\s*(.+)$/, 'Item count: $1'],
+        [/^رصيد المصدر:\s*(.+)$/, 'Source stock: $1'],
+        [/^رصيد قبل الفاتورة\s*\((.+)\)$/, 'Balance before invoice ($1)'],
+        [/^الرصيد النهائي\s*\((.+)\)$/, 'Final balance ($1)'],
+        [/^أرصدة الحساب\s*\((.+)\)$/, 'Account balances ($1)'],
+        [/^مجموع أرصدة\s+(.+)$/, 'Total balances $1'],
+        [/^السندات\s*\((.+)\)$/, 'Vouchers ($1)'],
+        [/^العملات:\s*(.+)$/, 'Currencies: $1'],
+        [/^رقم الفاتورة:\s*(.+?)\s*\|\s*التاريخ:\s*(.+)$/, 'Invoice: $1 | Date: $2'],
+        [/^الحساب:\s*(.+)$/, 'Account: $1'],
+        [/^اسم:\s*(.+)$/, 'Name: $1'],
+        [/^العنوان:\s*(.+)$/, 'Address: $1'],
+        [/^ملاحظة:\s*(.+)$/, 'Note: $1'],
+        [/^اسم\s+(.+?)\s*\*$/, '$1 name *'],
+        [/^سند\s*#(.+)$/, 'Voucher #$1'],
+        [/^فاتورة\s*#(.+)$/, 'Invoice #$1'],
+        [/^فاتورة\s*-(.+)$/, 'Invoice-$1'],
+        [/^الكمية المباعة:\s*(.+)$/, 'Quantity sold: $1'],
+        [/^سعر المركز\s*\((.+)\)$/, 'Store price ($1)'],
+        [/^سعر المستهلك\s*\((.+)\)$/, 'Consumer price ($1)'],
+        [/^عملة الأصل:\s*(.+)$/, 'Original currency: $1']
     ],
     originalText: new WeakMap(),
     translatedText: new WeakMap(),
@@ -733,6 +775,12 @@ const I18n = {
         document.documentElement.lang = lang;
         document.documentElement.dir = lang === 'en' ? 'ltr' : 'rtl';
         document.title = lang === 'en' ? 'Technical Accountant' : 'المحاسب التقني';
+        // Keep the language selector itself fully readable in the selected UI language.
+        const arabicOption = document.querySelector?.('#appLanguage option[value="ar"]');
+        if (arabicOption) {
+            const nativeLabel = lang === 'en' ? 'Arabic' : 'العربية';
+            if (arabicOption.textContent !== nativeLabel) arabicOption.textContent = nativeLabel;
+        }
         // Do not alter original database contents, user input fields or the language selector's two labels.
         const nodeRoot = root.nodeType === Node.TEXT_NODE ? root.parentElement : root;
         if (!nodeRoot) return;
@@ -742,7 +790,12 @@ const I18n = {
             if (rejectParent(parent)) return;
             if (lang === 'ar') {
                 const original = this.originalText.get(node);
-                if (original !== undefined && node.nodeValue !== original) node.nodeValue = original;
+                const translation = this.translatedText.get(node);
+                // A reused text node may now contain an unrelated customer/item label.
+                // Only restore text that WE actually translated; never overwrite new content.
+                if (original !== undefined && translation !== undefined && node.nodeValue === translation) {
+                    node.nodeValue = original;
+                }
                 return;
             }
             const savedOriginal = this.originalText.get(node);
@@ -773,15 +826,18 @@ const I18n = {
             for (const attr of ['placeholder', 'title', 'aria-label']) {
                 if (!element.hasAttribute(attr)) continue;
                 const saved = this.originalAttrs.get(element) || {};
-                const original = Object.prototype.hasOwnProperty.call(saved, attr) ? saved[attr] : element.getAttribute(attr);
+                const current = element.getAttribute(attr);
+                const cached = Object.prototype.hasOwnProperty.call(saved, attr) ? saved[attr] : undefined;
+                const previousTranslation = cached === undefined ? undefined : this.translate(cached);
+                const original = cached !== undefined && (current === cached || current === previousTranslation) ? cached : current;
                 if (lang === 'ar') {
-                    if (Object.prototype.hasOwnProperty.call(saved, attr)) element.setAttribute(attr, original);
+                    if (cached !== undefined && previousTranslation !== null && current === previousTranslation) element.setAttribute(attr, cached);
                 } else {
                     const localized = this.translate(original);
                     if (localized !== null) {
                         saved[attr] = original;
                         this.originalAttrs.set(element, saved);
-                        if (element.getAttribute(attr) !== localized) element.setAttribute(attr, localized);
+                        if (current !== localized) element.setAttribute(attr, localized);
                     }
                 }
             }
@@ -826,9 +882,15 @@ const I18n = {
                     // a separate traversal for every inserted descendant.
                     if (count > 48 || roots.size > 80) break;
                 }
-                if (count > 48 || roots.size > 80) this.apply(document.body);
-                else for (const node of roots) {
-                    if (node.isConnected !== false) this.apply(node);
+                // For large updates, one walk is cheaper than translating overlapping
+                // subtrees and repeatedly reconnecting the observer.
+                if (count > 16 || roots.size > 24) this.applyWithoutObserving(document.body);
+                else {
+                    const elements = Array.from(roots).filter(node => node.isConnected !== false);
+                    const minimal = elements.filter(node => !elements.some(parent =>
+                        parent !== node && parent.nodeType === Node.ELEMENT_NODE &&
+                        typeof parent.contains === 'function' && parent.contains(node)));
+                    for (const node of minimal) this.applyWithoutObserving(node);
                 }
             } catch (err) {
                 console.warn('Language rendering skipped a DOM change:', err);
@@ -836,6 +898,8 @@ const I18n = {
                 this.observe();
             }
         });
+        // Native camera/scanner screens share the WebView's language.
+        try { window.AndroidLocale?.setLanguage?.(this.language); } catch (_) {}
         // Translate existing screen BEFORE subscribing to DOM mutations.
         this.apply(document);
         this.observe();
@@ -847,6 +911,7 @@ const I18n = {
         this.pauseObservation();
         try {
             State.settings.language = value;
+            try { window.AndroidLocale?.setLanguage?.(value); } catch (_) {}
             // Never recreate the active screen or reset invoice fields/scroll.
             // Changes to following screens are translated by the DOM watcher.
             this.apply(document);
@@ -860,7 +925,9 @@ const I18n = {
             this.observe();
         }
         try {
-            await StorageEngine.saveState();
+            const languageDraft = typeof window !== 'undefined' &&
+                window.TiqanySettingsDraft?.isActive?.();
+            if (!languageDraft) await StorageEngine.saveState();
         } catch (err) {
             console.warn('Could not persist application language:', err);
             if (typeof UI !== 'undefined' && typeof UI.toast === 'function') UI.toast('تعذر حفظ إعداد اللغة. تحقق من مساحة التخزين.', 'error');
@@ -869,3 +936,442 @@ const I18n = {
         return true;
     }
 };
+
+/* 3.5.76 verified UI strings: plain labels, accessibility titles and notifications. */
+Object.assign(I18n.en, {
+    "فتح الضبط": "Open settings",
+    "الإشعارات": "Notifications",
+    "فتح الإشعارات": "Open notifications",
+    "موظفو البيع المتصلون": "Connected sales representatives",
+    "عدد موظفي البيع المتصلين": "Connected sales representative count",
+    "تعديل سعر الصرف اللحظي": "Edit current exchange rate",
+    "حالة النسخة التجريبية": "Trial status",
+    "العمليات المستهلكة": "Operations used",
+    "تفعيل النسخة الكاملة": "Activate full version",
+    "إدارة موظف البيع": "Manage sales representative",
+    "معاينة تقرير المواد": "Preview items report",
+    "معاينة تقرير الديون": "Preview debt report",
+    "طباعة التقرير": "Print report",
+    "إنشاء تقرير PDF": "Create PDF report",
+    "اختيار موظف البيع لتقرير المبيعات": "Choose sales representative for sales report",
+    "لنا - الحسابات التي عليها مبالغ لنا": "Receivable accounts",
+    "علينا - الأرصدة التي ندين بها": "Payable accounts",
+    "فتح نقطة البيع السريعة": "Open quick point of sale",
+    "أقسام التطبيق": "App sections",
+    "رصيد المادة": "Item stock balance",
+    "تعديل المادة": "Edit item",
+    "حذف الصنف": "Remove item",
+    "البحث باسم المادة": "Search by item name",
+    "ابحث عن مادة...": "Search for an item...",
+    "تصفية المواد حسب المجموعة": "Filter items by category",
+    "طريقة عرض المواد": "Item display mode",
+    "عمليات المستودعات": "Warehouse operations",
+    "إغلاق فاتورة المناقلة": "Close stock transfer",
+    "ابحث باسم المادة...": "Search by item name...",
+    "شبكة اختيار المواد للمناقلة": "Item selection grid for transfer",
+    "ملاحظة اختيارية لجميع الأصناف": "Optional note for all items",
+    "مشاركة الفاتورة كملف PDF من دون حفظ دائم على الجهاز": "Share invoice as PDF without saving it permanently",
+    "ابحث بالاسم أو الهاتف أو العنوان...": "Search by name, phone or address...",
+    "طباعة تقرير: اختر المواد أو الديون": "Print report: choose items or debts",
+    "اختر تاريخ التقرير": "Choose report date",
+    "فتح الكاميرا لتصوير المادة": "Open camera to photograph item",
+    "شبكة اختيار مكونات المادة التجميعية": "Bundle component selection grid",
+    "بحث باسم المادة أو الباركود": "Search by item name or barcode",
+    "المواد المتاحة للتجميع": "Items available for bundling",
+    "حذف المكوّن": "Remove component",
+    "الرصيد السابق والرصيد المتوقع بعد الفاتورة": "Previous and expected balances after invoice",
+    "إنقاص كمية واحدة": "Decrease quantity by one",
+    "تاريخ الفاتورة سنة-شهر-يوم": "Invoice date year-month-day",
+    "وقت الفاتورة": "Invoice time",
+    "تغيير طريقة التسعير داخل الفاتورة": "Change pricing method within invoice",
+    "المدينة، الحي، الشارع، أو تفاصيل الوصول": "City, district, street or delivery instructions",
+    "إلغاء الاستعادة": "Cancel restore",
+    "متصل": "Connected",
+    "نسخة تجريبية": "Trial version",
+    "عملية": "operation",
+    "متبقية": "remaining",
+    "هذا الأسبوع": "This week",
+    "هذا الشهر": "This month",
+    "من تاريخ إلى تاريخ": "Date range",
+    "اليورو": "Euro",
+    "الجنيه الإسترليني": "British pound",
+    "الدرهم الإماراتي": "UAE dirham",
+    "الريال السعودي": "Saudi riyal",
+    "الليرة التركية": "Turkish lira",
+    "الدينار الأردني": "Jordanian dinar",
+    "الدينار العراقي": "Iraqi dinar",
+    "الليرة اللبنانية": "Lebanese pound",
+    "الجنيه المصري": "Egyptian pound",
+    "الدينار الكويتي": "Kuwaiti dinar",
+    "الريال القطري": "Qatari riyal",
+    "الدينار البحريني": "Bahraini dinar",
+    "الريال العماني": "Omani rial",
+    "الفرنك السويسري": "Swiss franc",
+    "الدولار الكندي": "Canadian dollar",
+    "الدولار الأسترالي": "Australian dollar",
+    "الين الياباني": "Japanese yen",
+    "اليوان الصيني": "Chinese yuan",
+    "تعذر حفظ بيانات الشركة": "Could not save company data",
+    "تم إلغاء عملية حفظ البيانات": "Data save was cancelled",
+    "شركة جديدة": "New company",
+    "شركة": "Company",
+    "تعذّر قراءة السجل": "Could not read the record",
+    "تعذّر حفظ البيانات قبل التبديل": "Could not save data before switching",
+    "ملف الحسابات المستقلة غير متوافق": "Independent accounts file is incompatible",
+    "قاعدة البيانات غير جاهزة": "Database is not ready",
+    "اسم الشركة يجب أن يكون من 2 إلى 75 حرفاً": "Company name must be 2 to 75 characters",
+    "يوجد حساب بهذا الاسم بالفعل": "An account with that name already exists",
+    "احفظ التغييرات المفتوحة أولاً": "Save your open changes first",
+    "احفظ الفاتورة أو التعديل الجاري قبل تبديل الشركة": "Save the invoice or current changes before switching companies",
+    "تعذر العثور على بيانات الشركة المستهدفة": "Target company data not found",
+    "كلمة سر الشركة المستهدفة": "Target company password",
+    "تحقق وتبديل": "Verify and switch",
+    "حفظ البيانات والتبديل": "Save data and switch",
+    "الشركة المستهدفة ليس لها كلمة سر بعد. يمكنك ضبط كلمة سر منفصلة من قسم الحماية.": "The target company has no password. You can set one in Security.",
+    "كلمة سر الشركة غير صحيحة": "Incorrect company password",
+    "يوجد تعديل غير محفوظ": "Unsaved changes",
+    "لا توجد بيانات محفوظة للشركة": "No saved company data",
+    "لم يتم التبديل؛ بقيت البيانات الحالية دون تغيير": "Switch cancelled; current data was not changed",
+    "نشط": "Active",
+    "فتح": "Open",
+    "تحقق واستعد بعد التحذير": "Verify and restore after warning",
+    "النسخة لا تحتوي على سجلات محاسبية كاملة": "Backup does not contain complete accounting records",
+    "حساب آخر": "Another account",
+    "كلمة سر النسخة الاحتياطية غير صحيحة": "Incorrect backup password",
+    "كلمة سر الشركة الحالية غير صحيحة": "Incorrect current company password",
+    "احفظ أي تعديلات قبل الاستعادة": "Save all changes before restoring",
+    "تمت استعادة البيانات بعد إنشاء نقطة استرجاع محلية": "Data restored after creating a local recovery point",
+    "النسخة مفعّلة بتوقيع رقمي": "Digitally signed activation",
+    "ترخيص تطبيق المحاسبة": "Accounting app license",
+    "الترخيص صالح لهذا الجهاز.": "License is valid for this device.",
+    "انتهى حد التجربة. اطلب رمز تفعيل موقّع من الإدارة.": "Trial limit reached. Request a signed activation code from support.",
+    "تم التحقق من التوقيع وتفعيل النسخة بنجاح": "Signature verified; app activated successfully",
+    "رمز التفعيل غير صحيح أو ليس لهذا الجهاز. الرموز القديمة ACT لم تعد مدعومة.": "Invalid activation code or not intended for this device. Old ACT codes are no longer supported.",
+    "تم النسخ": "Copied",
+    "حدد النص وانسخه يدوياً": "Select the text and copy it manually",
+    "رصيد افتتاحي": "Opening balance",
+    "رصيد افتتاحي ل.س": "Opening balance SYP",
+    "رصيد افتتاحي دولار": "Opening balance USD",
+    "جزئي": "Partial",
+    "قبض": "Receipt",
+    "دفع": "Payment",
+    "عميل نقدي": "Cash customer",
+    "حساب عام": "General account",
+    "مصروف": "Expense",
+    "مصاريف": "Expenses",
+    "مصروف نقدي": "Cash expense",
+    "مشتريات": "Purchases",
+    "فاتورة": "Invoice",
+    "وحدة": "Unit",
+    "تعذر تحديث الصفحة بعد المزامنة": "Unable to refresh the page after synchronization",
+    "وصلت بيانات جديدة، لكن تعذر تحديث العرض": "New data arrived but the display could not be refreshed",
+    "يرجى اختيار (حفظ) أو (تجاهل) أو (البقاء في العملية) من النافذة": "Choose Save, Discard or Stay in the current operation",
+    "تعذر حفظ العملية؛ بقيت في الصفحة الحالية": "Could not save; you remain on the current screen",
+    "طابعة بلوتوث": "Bluetooth printer",
+    "الطابعة": "Printer",
+    "تم إرسال الفاتورة": "Invoice sent",
+    "تعذر الاتصال أو الطباعة": "Connection or printing failed",
+    "جارٍ الاتصال...": "Connecting...",
+    "لديك عمليات غير محفوظة، هل أنت متأكد من المغادرة؟": "You have unsaved changes. Leave anyway?",
+    "غير مقترن بعد": "Not paired yet",
+    "اختر طابعة مقترنة للاتصال المباشر": "Choose a paired printer for direct connection",
+    "الطباعة الحرارية عبر البلوتوث هي الخيار الافتراضي": "Bluetooth thermal printing is the default",
+    "يرجى الاقتران بالطابعة من إعدادات بلوتوث الهاتف أولاً": "Pair the printer in the phone Bluetooth settings first",
+    "تعذر الاتصال بالطابعة": "Could not connect to printer",
+    "تم اختيار RawBT الخارجي كخيار احتياطي": "RawBT selected as fallback",
+    "تم اختيار تطبيق RawBT الخارجي؛ يحتاج إلى تثبيت منفصل": "External RawBT selected; separate installation required",
+    "تم تمرير أمر الطباعة لتطبيق RawBT الخارجي": "Print request sent to external RawBT",
+    "تمت طباعة الفاتورة عبر البلوتوث بنجاح!": "Invoice printed successfully via Bluetooth!",
+    "لم يتم العثور على قناة كتابة في الطابعة": "Could not locate a printer write channel",
+    "خطأ أثناء الإرسال للطابعة": "Error sending data to printer",
+    "تم الاتصال المباشر": "Direct connection established",
+    "تم حفظ الفاتورة لكن تعذر إرسال الطباعة": "Invoice saved but printing failed",
+    "تقرير محاسبي من السجلات المحفوظة": "Accounting report based on saved records",
+    "أُرسل تقرير الطباعة إلى الطابعة": "Report sent to the printer",
+    "تعذرت طباعة التقرير": "Report printing failed",
+    "العمليات السريعة": "Quick actions",
+    "ابدأ عملية جديدة بضغطة واحدة": "Start a new operation with one tap",
+    "تسجيل عملية بيع": "Record a sale",
+    "نقطة بيع": "Point of sale",
+    "بيع سريع وإضافة بالشبكة": "Quick sale with item grid",
+    "إضافة مواد للمخزون": "Add inventory items",
+    "تسجيل مبلغ وارد": "Record incoming payment",
+    "تسجيل مبلغ مدفوع": "Record outgoing payment",
+    "إدارة الأعمال": "Business management",
+    "وصول سريع إلى الأقسام والتقارير": "Quick access to sections and reports",
+    "إضافات سريعة": "Quick additions",
+    "إدارة المصاريف والمستودعات": "Manage expenses and warehouses",
+    "المواد والمستودع": "Items and warehouse",
+    "المخزون": "Inventory",
+    "المواد المسجّلة": "Registered items",
+    "إضافة مادة": "Add item",
+    "قائمة": "List",
+    "شبكة بالمجموعة": "Category grid",
+    "لا توجد مواد مطابقة": "No matching items",
+    "جرّب كلمة أخرى أو غيّر المجموعة المحددة.": "Try another word or change the selected category.",
+    "مناقلة جديدة": "New transfer",
+    "المستودعات": "Warehouses",
+    "المستودع المعتمد": "Default warehouse",
+    "✕ إغلاق": "✕ Close",
+    "جميع المجموعات": "All categories",
+    "اختر المواد من الشبكة": "Choose items from the grid",
+    "رصيد المصدر: —": "Source stock: —",
+    "لا توجد مواد مطابقة. جرّب اسمًا أو مجموعة أخرى.": "No matching items. Try another name or category.",
+    "الأصناف المضافة للمناقلة": "Items selected for transfer",
+    "اختر صنفًا أو أكثر من شبكة المواد أعلاه.": "Select one or more items from the grid above.",
+    "ملاحظة المناقلة": "Transfer note",
+    "المناقلات الواردة إلى المستودع المختار": "Transfers into the selected warehouse",
+    "تظهر عمليات المناقلة الواردة إلى المستودع المحدد في خانة «إلى المستودع» فقط. يمكن فتح فواتير المناقلة وتعديلها لاحقاً.": "Only transfers into the selected destination warehouse are listed; transfer records can be opened and edited later.",
+    "نقل ومحروقات": "Transport and fuel",
+    "رواتب وأجور": "Salaries and wages",
+    "إيجار": "Rent",
+    "كهرباء ومياه": "Electricity and water",
+    "صيانة": "Maintenance",
+    "تسويق": "Marketing",
+    "مصاريف إدارية": "Administrative expenses",
+    "أخرى": "Other",
+    "الكل": "All",
+    "نقطة بيع نقدية": "Cash point of sale",
+    "أرصدة مزدوجة العملة (SYP / USD) وسقف الائتمان": "Dual-currency balances (SYP / USD) and credit limit",
+    "التي لنا": "Owed to us",
+    "التي علينا": "Owed by us",
+    "الحسابات المدينة لنا": "Receivable accounts",
+    "الحسابات الدائنة علينا": "Payable accounts",
+    "العملاء": "Customers",
+    "الموردون": "Suppliers",
+    "الموردين": "Suppliers",
+    "(مدين/لنا)": "(Debit / receivable)",
+    "(دائن/علينا)": "(Credit / payable)",
+    "(لنا)": "(Receivable)",
+    "(علينا)": "(Payable)",
+    "عميل": "Customer",
+    "مفتوح": "Open",
+    "مبدأ القيد المزدوج وتتبع الأرصدة التراكمية": "Double-entry accounting and running balances",
+    "حساب عميل": "Customer account",
+    "حساب مورد": "Supplier account",
+    "بدون ملاحظات": "No notes",
+    "عملية غير مكتملة": "Unfinished operation",
+    "لديك تغييرات لم تُحفظ": "You have unsaved changes",
+    "البقاء": "Stay",
+    "تجاهل التغييرات": "Discard changes",
+    "تأكيد الخروج": "Confirm exit",
+    "خروج": "Exit",
+    "الإجمالي: الإدارة وجميع موظفي البيع": "Total: management and all sales representatives",
+    "الإدارة الرئيسية فقط": "Main management only",
+    "الإجمالي بالدولار": "Total in USD",
+    "لا توجد عمليات مطابقة": "No matching transactions",
+    "اختر تفاصيل التقرير، ثم اطبعه أو شاركه PDF مباشرة دون حفظه على الهاتف.": "Select report details, then print or share as PDF without saving it on your phone.",
+    "من": "From",
+    "إلى": "To",
+    "نوع الديون": "Balance type",
+    "مشاركة PDF": "Share PDF",
+    "السندات": "Vouchers",
+    "رصيد:": "Balance:",
+    "فاتورة حركة مخزون وليست فاتورة بيع. لا أسعار أو دفعات؛ الكميات فقط تنتقل من المصدر إلى المستلم. انقر على أي صنف لزيادة وحداته واستخدم × للحذف.": "This is a stock transfer, not a sales invoice. Only quantities move from source to destination; tap items to increase quantities and × to remove them.",
+    "مصاريف نقدية تُخصم من صافي الأرباح ومن رصيد الصندوق": "Cash expenses are deducted from net profit and cash balance",
+    "القيم صافية بعد الحسم والضرائب والمردود، موزعة على بنود الفواتير، بكل عملة على حدة. تُعرض الوحدة كما وردت في الفاتورة دون جمع وحدات مختلفة.": "Values are net of discounts, tax and returns, by invoice line and currency. Units are not combined across different unit types.",
+    "الأرصدة محسوبة حتى اللحظة من سجلات الفواتير والسندات، بما فيها الأرصدة الافتتاحية.": "Balances are calculated from saved invoices and vouchers, including opening balances.",
+    "رجوع": "Back",
+    "طباعة بلوتوث": "Bluetooth print",
+    "إرسال PDF": "Send PDF",
+    "الرصيد السابق": "Previous balance",
+    "الرصيد النهائي المتوقع": "Expected final balance",
+    "الأرصدة الفعلية لكل عملة دون مقاصة": "Actual balances by currency without offsetting",
+    "المدين (لنا)": "Debit (receivable)",
+    "الدائن (علينا)": "Credit (payable)",
+    "فترة عرض السندات": "Voucher date range",
+    "عرض حركة الصندوق حسب موظف البيع": "Cash movements by representative",
+    "الصندوق الإجمالي — كل الصناديق": "Total cash — all cashboxes",
+    "الصندوق الرئيسي فقط": "Main cashbox only",
+    "الفترة الزمنية للحركات": "Transaction date range",
+    "الرصيد الحالي للصندوق من كل الحركات، أما السجل أدناه فيُفلتر حسب الفترة.": "Current cash balance includes all transactions; the list below is filtered by date.",
+    "الأسبوع": "Week",
+    "الشهر": "Month",
+    "تحديد موظف البيع لتقرير الأرباح والمبيعات": "Select representative for profit and sales report",
+    "مظهر ثلاثي الأبعاد موحّد": "Consistent 3D appearance",
+    "موظفو البيع والمزامنة المحلية": "Sales representatives and local sync",
+    "طريقة التسعير الافتراضية لفواتير المبيع": "Default sales invoice pricing tier",
+    "سعر الجملة": "Wholesale price",
+    "سعر المركز": "Store price",
+    "سعر المستهلك": "Consumer price",
+    "ضبط نقطة البيع": "Point of sale settings",
+    "الحساب الافتراضي": "Default account",
+    "الزبون النقدي": "Cash customer",
+    "طريقة التسعير": "Pricing tier",
+    "حسب الحساب والإعدادات": "By account and settings",
+    "الجملة": "Wholesale",
+    "المركز": "Store",
+    "المستهلك": "Consumer",
+    "فتح نقطة بيع جديدة تلقائياً بعد الحفظ أو الخروج من عملية غير مكتملة": "Open a new POS sale automatically after saving or leaving an unfinished operation",
+    "يحفظ البيع النقدي في محرك الفواتير نفسه. إعدادات نقطة البيع مستقلة عن إعدادات الفواتير العادية.": "Cash sales use the same invoice engine. POS settings are separate from standard invoices.",
+    "المبيعات والمشتريات معاً": "Sales and purchases",
+    "الفترة الافتراضية": "Default period",
+    "الفواتير والسندات والتقارير": "Invoices, vouchers and reports",
+    "الفترة التي تُعرض تلقائياً عند فتح الصفحات": "Default date range when opening pages",
+    "من تاريخ": "Start date",
+    "إلى تاريخ": "End date",
+    "حفظ الفترة الافتراضية": "Save default period",
+    "عملة تسعير الصنف": "Item pricing currency",
+    "أسعار الوحدة الكبرى الأساسية": "Base large-unit prices",
+    "مادة تجميعية (طقم / مجموعة)": "Bundled item (kit / set)",
+    "طريقة تسعير المادة التجميعية": "Bundle pricing method",
+    "تسعير يدوي (جملة ومركز)": "Manual pricing (wholesale and store)",
+    "مجموع أسعار مبيع المكوّنات": "Sum of component selling prices",
+    "تكلفة المكوّنات + نسبة ربح": "Component cost plus margin",
+    "مكوّنات التجميعة والكميات لكل وحدة كبرى": "Bundle components and quantities per large unit",
+    "اختيار المواد من الشبكة": "Select items from grid",
+    "البحث عن مادة": "Search item",
+    "تصفية حسب المجموعة": "Filter by category",
+    "لا توجد مواد مطابقة للبحث.": "No items match your search.",
+    "اختر عملة تسعير الصنف": "Choose item pricing currency",
+    "كل المجموعات": "All categories",
+    "لم تُحدّد مكوّنات بعد. افتح الشبكة لاختيارها.": "No components selected yet. Open the grid to choose them.",
+    "قائمة المستودعات": "Warehouse list",
+    "لا يمكن حذف المستودع الرئيسي أو أي مستودع يحوي أرصدة أو حركات محفوظة، حفاظاً على سلامة الجرد.": "The main warehouse or any warehouse with stock or transactions cannot be deleted.",
+    "إغلاق فاتورة المناقلة؟": "Close stock transfer?",
+    "لن تُحفظ الأصناف غير المسجلة.": "Unsaved items will be lost.",
+    "إغلاق دون حفظ": "Close without saving",
+    "متابعة التعديل": "Continue editing",
+    "اختر المستودع المستلم لعرض مناقلاته.": "Choose the receiving warehouse to view transfers.",
+    "لا توجد مناقلات واردة إلى": "No incoming transfers to",
+    "الصنف": "Item",
+    "ملاحظة": "Note",
+    "تطبيق المدة من / إلى": "Apply date range",
+    "طريقة التسعير لهذه الفاتورة": "Pricing method for this invoice",
+    "حسب إعدادات الحساب": "Use account settings",
+    "مشاركة الفاتورة PDF مباشرة — دون حفظ على الهاتف": "Share invoice PDF directly — without saving on the phone",
+    "طريقة تسعير المبيعات لهذا الزبون": "Sales pricing method for this customer",
+    "حسب الإعدادات (الافتراضي)": "Use settings (default)",
+    "يجب إنشاء كلمة سر أولاً": "You must set a password first",
+    "لا توجد كلمة سر محفوظة لهذا الحساب. قبل حفظ إعدادات الحماية، عيّن كلمة سر وسؤالَي أمان. لن تُحفظ الإعدادات دون ذلك.": "No password is set for this account. Create a password and two security questions before saving security settings."
+});
+
+/* 3.5.76 extended long-form labels, messages and tooltips. */
+Object.assign(I18n.en, {
+    "اسم الشركة الجديدة": "New company name",
+    "كلمة السر": "Password",
+    "مثال: SEK": "Example: SEK",
+    "مادة محذوفة": "Deleted item",
+    "تقرير مبيعات موظف البيع": "Sales representative sales report",
+    "تأكيد استعادة النسخة": "Confirm backup restore",
+    "كل شركة تملك مواد وفواتير وعملاء وسندات ومستودعات وإعدادات مستقلة. يتم حفظ نسخة استرجاع محلية قبل تبديل الشركة؛ وللحماية من فقدان الهاتف صدّر ملف JSON لكل شركة بشكل دوري.": "Each company has separate items, invoices, customers, vouchers, warehouses and settings. A local recovery point is saved before switching. Export a JSON backup for every company regularly.",
+    "النسخ الداخلية لا تحمي عند حذف التطبيق أو تلف الهاتف. احفظ نسخة خارجية قبل الانتقال أو التحديث. لا ترفع النسخ إلى مستودع عام.": "Internal backups do not protect against deleting the app or losing the phone. Keep an external backup before moving or updating. Never upload backups to a public repository.",
+    "تم التحقق من كلمة سر الشركة المصدر. أكّد الآن بكلمة سر الشركة الحالية قبل استبدال بياناتها.": "Source company password verified. Confirm with the current company password before replacing its data.",
+    "مصاريف الشركة العامة غير موزعة على موظفي البيع، ولا تخصم من نتائج كل موظف بيع إلا المصاريف المسندة له صراحة.": "General company expenses are not allocated to representatives. Only expenses explicitly assigned to a representative affect their results.",
+    "يُطبق على الحسابات المحددة «حسب الإعدادات» فقط، ولا يغيّر أسعار الفواتير المحفوظة أو الحسابات ذات التسعير الخاص.": "Applies only to accounts using system settings. Saved invoices and accounts with custom pricing remain unchanged.",
+    "يتبع تاريخ سجل الفواتير الفترة الافتراضية المختارة من الضبط، ويمكن تغييره من داخل السجل في أي وقت.": "The invoice list initially uses the default date range from Settings. You can change it at any time.",
+    "تُطبّق على العرض الأول في سجلات الفواتير والسندات وتقارير الحركة، ويمكن تغيير الفترة مؤقتاً من كل صفحة. تقارير أرصدة الديون والجرد تُظهر الرصيد الحالي دائماً. صفحة موظف البيع تبدأ بكل المدة.": "Applies when opening invoice lists, voucher history and transaction reports. Each page can temporarily change the period. Debt and inventory reports always show current balances. Sales representative history starts with all dates.",
+    "عند الضغط على «حفظ إعدادات الحماية» ستظهر نافذة تطلب كلمة السر الحالية تلقائياً. عند تعيين كلمة سر جديدة، عيّن سؤالَي أمان مختلفين لاستعادتها عند نسيانها. تُحفظ الإجابات كبصمات مشفّرة بدلاً من نصوص واضحة.": "Saving security settings prompts for the current password. When creating a password, configure two different recovery questions. Their answers are stored as cryptographic hashes.",
+    "توقيت النسخ تقريبي وقد يتأخر بسبب توفير البطارية. لا تغني النسخ الآلية عن حفظ نسخة يدوية قبل تحديث التطبيق أو حذفه.": "Automatic backup timing is approximate and may be delayed by battery optimization. Keep a manual backup before updating or deleting the app.",
+    "يتحدّث سعر التكلفة آلياً من صافي آخر فاتورة شراء (بعد حسم السطر وحسم الفاتورة والإضافات)، عند وجود مشتريات محفوظة.": "Cost price is automatically updated from the net value of the last saved purchase invoice, including line discounts, invoice discounts and added charges.",
+    "سعر المبيع القديم محفوظ كسعر الجملة؛ سعر المستهلك مستقل، والمواد القديمة تستخدم المركز كقيمة افتراضية له حتى تغييره.": "The former selling price is kept as wholesale. Consumer pricing is separate; older items initially use the store price until edited.",
+    "حدّد المواد الداخلة في الوحدة الكبرى وكمياتها؛ عند بيع التجميعة تُخصم المكوّنات، ولا يُنشأ لها رصيد مستقل.": "Choose the components and quantities per large unit. Selling the bundle deducts components from stock; the bundle has no separate stock.",
+    "اضغط على صورة المادة أو اسمها لإضافتها، ثم حدّد كميتها في القائمة أعلاه.": "Tap an item image or name to add it, then set its quantity in the list above.",
+    "أسعار الوحدة الكبرى الأساسية (": "Base prices of the large unit (",
+    "تكلفة الوحدة الكبرى (": "Cost of large unit (",
+    "سعر المركز (": "Store price (",
+    "سعر المستهلك (": "Consumer price (",
+    "ل.س": "SYP",
+    "سعر صرف العملية:": "Transaction exchange rate:",
+    "رصيد قبل": "Balance before",
+    "سجل المناقلات": "Transfer history",
+    "مركز": "Store",
+    "جملة": "Wholesale",
+    "السعر": "Price",
+    "رقم": "Number",
+    "اسم": "Name",
+    "تاريخ": "Date",
+    "قيمة": "Amount",
+    "الرصيد": "Balance",
+    "مبلغ": "Amount",
+    "إصدار التطبيق": "App version",
+    "العدد": "Count",
+    "فئة": "Category",
+    "تم حفظ البيانات. لا يدعم هذا الإصدار الإغلاق البرمجي؛ يمكنك إغلاق التطبيق من شاشة التطبيقات الأخيرة في الهاتف.": "Data saved. This version cannot close itself; swipe the app away in Android Recent Apps.",
+    "تم حفظ وتأمين قاعدة البيانات.. جاري الخروج من التطبيق": "Database saved securely; closing application",
+    "تم الإغلاق": "Closed",
+    "تصفير شامل للنظام": "Complete system reset",
+    "حذف السجل": "Delete record",
+    "يرجى إدخال سعر صرف صحيح أكبر من الصفر": "Enter a valid exchange rate greater than zero",
+    "(مؤرشف)": "(Archived)",
+    "(سجل سابق)": "(Previous record)",
+    "التقرير الإجمالي - الإدارة وجميع موظفي البيع": "Combined report — management and representatives",
+    "قطعة": "Piece",
+    "حساب": "Account",
+    "تقرير المواد المباعة": "Sold items report",
+    "تقرير مطابق للسجلات المالية المحفوظة": "Report based on saved financial records",
+    "الصنف · الوحدة": "Item · Unit",
+    "الرصيد المستحق": "Outstanding balance",
+    "أدخل فترة صحيحة لمشاركة التقرير": "Enter a valid date range to share the report",
+    "كافة الفترات": "All periods",
+    "المشاركة المباشرة تتطلب تحديث تطبيق Android.": "Direct sharing requires an updated Android app.",
+    "بدون مجموعة": "Uncategorized",
+    "حذف المادة": "Delete item",
+    "محمي من الحذف": "Protected from deletion",
+    "أرصدة مستقلة لكل مستودع ومناقلة لا تؤثر على المبيعات أو الأرباح": "Separate warehouse stock; transfers do not affect sales or profit",
+    "رصد": "Monitor",
+    "البيانات": "Data",
+    "الاسم": "Name",
+    "العنوان": "Address",
+    "أرصدة": "Balances",
+    "إجمالي": "Total",
+    "صافي": "Net",
+    "سند": "Voucher",
+    "اتصال": "Connection",
+    "استخدم كلمة السر": "Use password",
+    "إضافة بطاقة عميل / مورد جديد": "Add customer / supplier card",
+    "ضبط اللغة": "Language settings",
+    "التفعيل": "Activation",
+    "الترخيص": "License",
+    "جاري تجهيز وإرسال الفاتورة لطابعة البلوتوث الحرارية...": "Preparing and sending invoice to Bluetooth thermal printer...",
+    "تعذر فتح اختيار الطابعة:": "Could not open printer chooser:",
+    "تعذر الاتصال المباشر:": "Direct connection failed:",
+    "الجهاز": "Device",
+    "نشط الآن": "Currently active"
+});
+
+/* 3.5.76: shared reviewed UI translations for all three apps. */
+Object.assign(I18n.en, {
+  "ربط الهاتف الرئيسي بالكمبيوتر": "Connect main phone to computer",
+  "المزامنة المحلية بين الرئيسي والكمبيوتر": "Local sync between main phone and computer",
+  "الاقتران المحلي": "Local pairing",
+  "ربط محلي": "Local pairing",
+  "إظهار رمز الاقتران": "Show pairing QR code",
+  "مسح رمز QR من الكمبيوتر": "Scan Windows QR code",
+  "افتح صفحة المزامنة المحلية على الكمبيوتر، ثم وجّه كاميرا الهاتف إلى الرمز.": "Open local sync settings on Windows, then scan the QR code with your phone.",
+  "إنشاء قاعدة بيانات جديدة": "Create a new database",
+  "اختيار مجلد النسخ القديمة": "Choose previous backup folder",
+  "استعادة بيانات المحاسبة": "Restore accounting data",
+  "آخر نسخة محفوظة": "Latest backup",
+  "تم إلغاء العملية": "Operation cancelled",
+  "لم تُحفظ التغييرات": "Changes not saved",
+  "سند القبض": "Receipt voucher",
+  "سند الدفع": "Payment voucher",
+  "فاتورة المبيعات": "Sales invoice",
+  "فاتورة المشتريات": "Purchase invoice"
+});
+
+/* 3.5.76: remaining static interface labels */
+Object.assign(I18n.en, {
+  "من:": "From:",
+  "— إلى:": "— To:",
+  "صنف)": "items)",
+  "الرصيد الحالي": "Current balance",
+  "الرصيد قبل الفاتورة": "Balance before invoice",
+  "سجل الفواتير": "Invoice history",
+  "إعدادات": "Settings",
+  "إضافة": "Add",
+  "حفظ فاتورة المناقلة (": "Save stock transfer (",
+  "لنا (مدين)": "Receivable (debit)",
+  "عليه": "Owed by customer"
+});
+
+/* 3.5.76: numeric labels generated by dynamic counters. */
+I18n.patterns.unshift(
+  [/^(\d+)\s+متبقية$/, '$1 remaining'],
+  [/^(\d+)\s*\/\s*(\d+)\s+عملية$/, '$1 / $2 operations'],
+  [/^إضافة\s*\((\d+)\s*(?:صنف|أصناف)\)$/, 'Add ($1 items)']
+);
+
+/* v3.5.76 mandatory navigation translations */
+for(const [k,v] of Object.entries({"نقطة البيع": "Point of sale", "موظف البيع": "Sales representative", "سند القبض": "Receipt voucher", "سند الدفع": "Payment voucher", "فاتورة المبيعات": "Sales invoice", "فاتورة المشتريات": "Purchase invoice", "تقرير المواد": "Items report", "تقرير الديون": "Debts report", "إلغاء": "Cancel", "حفظ": "Save", "المستودعات": "Warehouses"})) if (!Object.prototype.hasOwnProperty.call(I18n.en,k)) I18n.en[k]=v;

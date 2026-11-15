@@ -1086,7 +1086,7 @@ html body.ta-3d-v3524 nav.ta-bottom-nav > div {height:auto!important;min-height:
 nav.ta-bottom-nav .nav-btn{min-width:0;max-width:100%;overflow:visible;}
 nav.ta-bottom-nav .nav-btn > span {max-width:100%;overflow-wrap:anywhere;}
 #mainContent.ta-main, body.ta-3d-v3524 #mainContent.ta-main {
-    padding-bottom:calc(var(--ta-dock-height) + 16px)!important;
+    padding-bottom:calc(var(--ta-dock-height) + var(--ta-native-bottom-inset, 0px) + 48px)!important;
 }
 #modalContainer,#dialogContainer {
     padding:12px max(8px,env(safe-area-inset-right,0px)) calc(12px + var(--ta-native-bottom-inset)) max(8px,env(safe-area-inset-left,0px));
@@ -1095,6 +1095,9 @@ nav.ta-bottom-nav .nav-btn > span {max-width:100%;overflow-wrap:anywhere;}
 #modalBox {max-width:min(100%,520px);}
 #dialogBox {max-width:min(100%,384px);}
 #modalBox,#dialogBox { max-height:calc(100dvh - var(--ta-native-bottom-inset) - 30px);overflow-y:auto;overscroll-behavior:contain; }
+/* Stop the last card exactly above the dock, even when the main screen is the scrolling element. */
+#mainContent.ta-main {scroll-padding-bottom:calc(var(--ta-dock-height) + 48px);}
+html,body {overscroll-behavior-y:contain;}
 html.ta-ime-open nav.ta-bottom-nav {display:none!important;}
 html.ta-ime-open #mainContent.ta-main,
 html.ta-ime-open body.ta-3d-v3524 #mainContent.ta-main {padding-bottom:20px!important;}
@@ -9818,7 +9821,9 @@ html.ta-ime-open #modalContainer,html.ta-ime-open #dialogContainer {padding-bott
             }
             const value = String(code || '').trim();
             if (!value) return; // User cancelled scanner; don't change invoice or item.
-            if (target === 'item') {
+            if (target === 'peer') {
+                if (window.TiqanyPeerSync) window.TiqanyPeerSync.acceptPairing(value);
+            } else if (target === 'item') {
                 const field = document.getElementById('itmBarcode');
                 if (!field) {
                     UI.toast('ارجع إلى بطاقة المادة ثم أعد مسح الباركود', 'warn');
@@ -9887,5 +9892,6 @@ html.ta-ime-open #modalContainer,html.ta-ime-open #dialogContainer {padding-bott
 
 <script src="static/tiqany-peer-merge.js"></script>
 <script src="static/tiqany-peer-controller.js"></script>
+<script src="static/tiqany-recovery.js"></script>
 </body>
 </html>

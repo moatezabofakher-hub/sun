@@ -85,18 +85,28 @@ public final class MainActivity extends FragmentActivity {
     private ValueCallback<Uri[]> pendingFileChooser;
     private Uri pendingItemPhotoCameraUri;
     private String pendingBackupJson;
+    // Recovery folder must be explicitly chosen after reinstall: Android revokes SAF
+    // grants and deletes private data when an application is uninstalled.
+    private volatile boolean pendingRecoveryFolder = false;
+    private final java.util.Map<String, Uri> recoveryCandidates = new java.util.concurrent.ConcurrentHashMap<>();
+
     private volatile boolean reportPdfBusy;
 
     // Local Storage Access Framework folder (persisted permission) and Drive authorization.
     private final ActivityResultLauncher<Intent> folderLauncher = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(), result -> {
                 if (result.getResultCode() != Activity.RESULT_OK || result.getData() == null
-                        || result.getData().getData() == null) { pushBackupStatus(); return; }
+                        || result.getData().getData() == null) { pendingRecoveryFolder = false; pushBackupStatus(); return; }
                 Uri uri = result.getData().getData();
                 try {
                     getContentResolver().takePersistableUriPermission(uri,
                             Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
-                    AutoBackupManager.folderSelected(this, uri);
+                    if (pendingRecoveryFolder) {
+                        pendingRecoveryFolder = false;
+                        showBackupRecoveryCandidates(uri);
+                    } else {
+                        AutoBackupManager.folderSelected(this, uri);
+                    }
                 } catch (Exception e) {
                     AutoBackupManager.saveResult(this, "local", "تعذر حفظ صلاحية المجلد؛ اختر مجلداً آخر");
                 }
@@ -330,6 +340,7 @@ public final class MainActivity extends FragmentActivity {
         });
 
         webView.addJavascriptInterface(new NativeBarcodeBridge(), "NativeBarcode");
+        webView.addJavascriptInterface(new UiLocaleBridge(), "AndroidLocale");
         webView.addJavascriptInterface(new SecurityBridge(), "NativeSecurity");
         webView.addJavascriptInterface(new ExitBridge(), "Android");
         webView.addJavascriptInterface(new LedgerNotificationsBridge(), "AndroidAlerts");
@@ -337,6 +348,7 @@ public final class MainActivity extends FragmentActivity {
         webView.addJavascriptInterface(new ReportPdfBridge(), "AndroidReports");
         webView.addJavascriptInterface(new InvoicePdfBridge(), "AndroidInvoicePdf");
         webView.addJavascriptInterface(new AutoBackupBridge(), "AndroidAutoBackup");
+        webView.addJavascriptInterface(new RecoveryBridge(), "AndroidRecovery");
         bluetoothPrinter = new NativeBluetoothPrinter(this, webView);
         webView.addJavascriptInterface(bluetoothPrinter, "AndroidPrinter");
         nativeLocalSync = new NativeLocalSync(this, webView, true);
@@ -493,7 +505,7 @@ public final class MainActivity extends FragmentActivity {
 
         @JavascriptInterface
         public void scan(String target) {
-            if (!"invoice".equals(target) && !"item".equals(target)) return;
+            if (!"invoice".equals(target) && !"item".equals(target) && !"peer".equals(target)) return;
             runOnUiThread(() -> {
                 if (!isLocalPage()) return;
                 if (pendingNativeBarcodeTarget != null) {
@@ -502,8 +514,11 @@ public final class MainActivity extends FragmentActivity {
                 }
                 pendingNativeBarcodeTarget = target;
                 ScanOptions options = new ScanOptions();
-                options.setDesiredBarcodeFormats(ScanOptions.ALL_CODE_TYPES);
-                options.setPrompt("وجّه الكاميرا نحو الباركود أو رمز QR");
+                options.setDesiredBarcodeFormats("peer".equals(target)
+                        ? ScanOptions.QR_CODE : ScanOptions.ALL_CODE_TYPES);
+                options.setPrompt("peer".equals(target)
+                        ? (isEnglishUi() ? "Scan computer pairing QR code" : "صوّر رمز ربط الكمبيوتر QR")
+                        : (isEnglishUi() ? "Point the camera at a barcode or QR code" : "وجّه الكاميرا نحو الباركود أو رمز QR"));
                 options.setOrientationLocked(false);
                 options.setBeepEnabled(true);
                 options.setBarcodeImageEnabled(false);
@@ -859,6 +874,104 @@ public final class MainActivity extends FragmentActivity {
                 }catch(Exception e){runOnUiThread(()->Toast.makeText(MainActivity.this,"تعذر تجهيز PDF: "+e.getMessage(),Toast.LENGTH_LONG).show());}
                 finally{busy=false;}
             },"ta-invoice-pdf-share").start();
+        }
+    }
+
+    /** Lists backups from a user-selected shared folder. No private app file is
+     * assumed to survive uninstall; no backup is ever restored without consent. */
+    private void showBackupRecoveryCandidates(Uri folder) {
+        new Thread(() -> {
+            org.json.JSONArray result = new org.json.JSONArray();
+            try {
+                androidx.documentfile.provider.DocumentFile dir =
+                    androidx.documentfile.provider.DocumentFile.fromTreeUri(this, folder);
+                if (dir == null || !dir.isDirectory()) throw new java.io.IOException("Backup folder unavailable");
+                java.util.List<androidx.documentfile.provider.DocumentFile> found = new java.util.ArrayList<>();
+                for (androidx.documentfile.provider.DocumentFile f : dir.listFiles()) {
+                    String name = f.getName();
+                    if (f.isFile() && name != null && name.startsWith("AlMohaseb_")
+                            && name.toLowerCase(java.util.Locale.ROOT).endsWith(".json")
+                            && f.length() <= 25_000_000) found.add(f);
+                }
+                found.sort((a,b) -> Long.compare(b.lastModified(), a.lastModified()));
+                recoveryCandidates.clear();
+                int index = 0;
+                for (androidx.documentfile.provider.DocumentFile f : found) {
+                    if (index >= 40) break;
+                    String id = String.valueOf(++index);
+                    recoveryCandidates.put(id, f.getUri());
+                    org.json.JSONObject item = new org.json.JSONObject();
+                    item.put("id", id).put("name", f.getName())
+                        .put("date", f.lastModified()).put("size", f.length());
+                    result.put(item);
+                }
+                String payload = result.toString();
+                runOnUiThread(() -> { if (isLocalPage()) webView.evaluateJavascript(
+                    "window.__tiqanyRecoveryList&&window.__tiqanyRecoveryList("+payload+");",null); });
+            } catch (Exception ex) {
+                runOnUiThread(() -> { if (isLocalPage()) webView.evaluateJavascript(
+                    "window.__tiqanyRecoveryError&&window.__tiqanyRecoveryError("
+                        + org.json.JSONObject.quote("تعذّر فتح مجلد النسخ: " + ex.getMessage()) + ");",null); });
+            }
+        }, "tiqany-recovery-list").start();
+    }
+
+    private boolean isEnglishUi() {
+        return "en".equals(getSharedPreferences("tiqany_ui_locale", MODE_PRIVATE).getString("language", "ar"));
+    }
+
+    private final class UiLocaleBridge {
+        @JavascriptInterface public void setLanguage(String language) {
+            if (!"ar".equals(language) && !"en".equals(language)) return;
+            getSharedPreferences("tiqany_ui_locale", MODE_PRIVATE)
+                .edit().putString("language", language).apply();
+        }
+    }
+
+    private final class RecoveryBridge {
+        @JavascriptInterface public void chooseBackupFolder() {
+            runOnUiThread(() -> {
+                if (!isLocalPage()) return;
+                pendingRecoveryFolder = true;
+                Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    | Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                    | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+                try { folderLauncher.launch(intent); }
+                catch (Exception ex) { pendingRecoveryFolder = false; }
+            });
+        }
+        @JavascriptInterface public void restoreChoice(String id) {
+            if (!isLocalPage()) return;
+            Uri selected = recoveryCandidates.get(id);
+            if (selected == null) return;
+            new Thread(() -> {
+                try (java.io.InputStream in = getContentResolver().openInputStream(selected)) {
+                    if (in == null) throw new java.io.IOException("Cannot open backup");
+                    java.io.ByteArrayOutputStream bytes = new java.io.ByteArrayOutputStream();
+                    byte[] block = new byte[8192];int n;
+                    while ((n = in.read(block)) != -1) {
+                        if (bytes.size() + n > 25_000_000) throw new java.io.IOException("Backup exceeds 25 MB");
+                        bytes.write(block,0,n);
+                    }
+                    String json = new String(bytes.toByteArray(),java.nio.charset.StandardCharsets.UTF_8);
+                    org.json.JSONObject envelope = new org.json.JSONObject(json);
+                    org.json.JSONObject data = envelope.optJSONObject("data");
+                    if (data == null) data = envelope;
+                    if (!(data.opt("invoices") instanceof org.json.JSONArray)
+                        || !(data.opt("items") instanceof org.json.JSONArray)
+                        || !(data.opt("accounts") instanceof org.json.JSONArray)
+                        || !(data.opt("vouchers") instanceof org.json.JSONArray))
+                        throw new java.io.IOException("Incomplete accounting backup");
+                    runOnUiThread(() -> {if (isLocalPage()) webView.evaluateJavascript(
+                        "window.__tiqanyRecoveryData&&window.__tiqanyRecoveryData("
+                        + org.json.JSONObject.quote(json) + ");",null); });
+                } catch (Exception ex) {
+                    runOnUiThread(() -> {if (isLocalPage()) webView.evaluateJavascript(
+                        "window.__tiqanyRecoveryError&&window.__tiqanyRecoveryError("
+                            + org.json.JSONObject.quote("تعذرت قراءة النسخة: " + ex.getMessage()) + ");",null); });
+                }
+            }, "tiqany-recovery-read").start();
         }
     }
 
