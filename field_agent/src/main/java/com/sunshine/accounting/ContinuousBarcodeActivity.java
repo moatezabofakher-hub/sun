@@ -148,8 +148,9 @@ public final class ContinuousBarcodeActivity extends ComponentActivity {
 
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override public void handleOnBackPressed() {
-                Toast.makeText(ContinuousBarcodeActivity.this,
-                        "اضغط × لإغلاق الكاميرا وإضافة الأصناف", Toast.LENGTH_SHORT).show();
+                // Android Back is equivalent to the visible red X; return already scanned
+                // codes to the invoice instead of trapping the user in the camera.
+                closeAndReturn(null);
             }
         });
     }

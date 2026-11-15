@@ -8,7 +8,18 @@ const t=(ar)=>ar;
 const clone=x=>JSON.parse(JSON.stringify(x));
 const connectedDevicesIcon='<svg width="48" height="32" viewBox="0 0 74 46" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect x="3" y="6" width="38" height="27" rx="4" fill="#065e81"/><rect x="7" y="10" width="30" height="19" rx="2" fill="#bbf3f1"/><path d="M13 38h19m-10-5v5" fill="none" stroke="#065e81" stroke-width="4" stroke-linecap="round"/><path d="M43 16h8m-4-4 4 4-4 4m4 9h-8m4-4-4 4 4 4" fill="none" stroke="#0f766e" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><rect x="55" y="4" width="16" height="35" rx="4" fill="#076475"/><rect x="58" y="9" width="10" height="23" rx="1.8" fill="#bcf6f0"/><circle cx="63" cy="35" r="1.7" fill="#bcf6f0"/></svg>';
 const escape=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved:false,conflictLog:null,
+const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved:false,conflictLog:null,lastSuccessfulAt:0,lastPhoneSeenAt:0,
+  updatePresence(){
+    const region=document.getElementById('ta-peer-connection');if(!region)return;
+    let badge=document.getElementById('ta-peer-presence');
+    if(!badge){badge=document.createElement('div');badge.id='ta-peer-presence';region.insertAdjacentElement('beforebegin',badge);}
+    const now=Date.now();
+    const active=desktop?(this.lastPhoneSeenAt>0&&now-this.lastPhoneSeenAt<20000):(this.lastSuccessfulAt>0&&now-this.lastSuccessfulAt<20000);
+    const pending=this.busy&&!active;
+    badge.className='ta-peer-presence '+(active?'connected':pending?'connecting':'offline');
+    badge.textContent=active?'● متصل '+(desktop?'بالموبايل الرئيسي':'بالكمبيوتر'):
+       pending?'◌ جارٍ التحقق من الاتصال':'● غير متصل '+(desktop?'بالموبايل الرئيسي':'بالكمبيوتر');
+  },
   key(){return 'peer_mobile_base:'+ProfileManager.activeId;},
   snapshot(){return core.snapshot(State);},
   blocked(){return !!(AppNav.isDirty||AppNav.isModalDirty||AppNav.activeOperationGuard||(typeof SettingsDraftController!=='undefined'&&SettingsDraftController.changed?.()));},
@@ -23,6 +34,7 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
     }else{const info=window.AndroidPeerSync?JSON.parse(AndroidPeerSync.status()||'{}'):{};
       region.innerHTML=`<button type="button" class="ta-peer-btn ta-peer-scan" onclick="TiqanyPeerSync.scanPairing()"><i class="fas fa-qrcode"></i> ${t('مسح رمز QR من الكمبيوتر','Scan Windows QR code')}</button><p class="text-xs">${t('افتح صفحة المزامنة المحلية على الكمبيوتر، ثم وجّه كاميرا الهاتف إلى الرمز.','Open local sync settings on Windows, then point your camera at the code.')}</p><details class="ta-peer-manual"><summary>${t('إدخال عنوان الكمبيوتر يدوياً (اختياري)','Enter computer address manually (optional)')}</summary><label class="block text-xs">${t('عنوان IP للكمبيوتر','Computer IP address')}<input id="ta-peer-ip" class="ta-peer-input" inputmode="decimal" placeholder="192.168.1.10" value="${escape(info.host||'')}"></label><label class="block text-xs">${t('المنفذ','Port')}<input id="ta-peer-port" class="ta-peer-input" type="number" value="${Number(info.port)||39271}"></label><label class="block text-xs">${t('رمز الربط من الكمبيوتر','Pairing key from computer')}<input id="ta-peer-key" class="ta-peer-input" type="password" autocomplete="off" placeholder="${t('ألصق الرمز السري كما يظهر على الكمبيوتر','Paste the key shown on the computer')}"></label><div class="flex gap-2 flex-wrap"><button class="ta-peer-btn" onclick="TiqanyPeerSync.saveLink()">${t('حفظ الربط','Save connection')}</button></div></details><button class="ta-peer-btn secondary" onclick="TiqanyPeerSync.unlink()">${t('إلغاء الربط','Disconnect')}</button><p class="text-xs">${info.approved?t('المزامنة التلقائية مفعلة بعد الاقتران','Automatic sync enabled after pairing'):t('اضبط الربط ثم اضغط مزامنة الآن للموافقة الأولى','Save connection, then select Sync now for initial approval')}</p>`;
     }
+    this.updatePresence();
   },
   scanPairing(){
     if(desktop)return;
@@ -213,10 +225,10 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
       await this.saveBase(fetched.serverId,fetched.profileId,merged.snapshot);
       try{await this.archiveResolvedConflicts();}catch(auditError){console.warn('Could not save conflict audit',auditError);}
       await this.clearConflicts();
-      AndroidPeerSync.approve();this.approved=true;
+      AndroidPeerSync.approve();this.approved=true;this.lastSuccessfulAt=Date.now();this.updatePresence();
       this.message(`اكتملت المزامنة: ${merged.stats.added} سجلات جديدة و${merged.stats.deduplicated||0} نسخ متكررة لعمليات موظفين دُمجت دون احتسابها مجدداً، و${merged.stats.renumbered} رقم مستند مُعدّل.`);
       if(AppNav.current()?.screen!=='settings')AppNav.renderCurrent();
-    }catch(e){this.message(t("فشلت المزامنة دون حذف البيانات: ","Sync failed without deleting data: ")+String(e.message||e),!silent);}
+    }catch(e){this.lastSuccessfulAt=0;this.updatePresence();this.message(t("فشلت المزامنة دون حذف البيانات: ","Sync failed without deleting data: ")+String(e.message||e),!silent);}
     finally{this.busy=false;this.renderConnection();}
   },
   async handleRequest(request){if(!desktop)return;
@@ -225,6 +237,7 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
     try{
       if(this.busy||this.blocked())return reply({ok:false,error:t("يوجد تعديل مفتوح في الكمبيوتر؛ احفظه أولاً","A change is still open on Windows. Save it before syncing.")});
       if(data.action==='fetch'){
+        this.lastPhoneSeenAt=Date.now();this.updatePresence();
         const snapshot=this.snapshot(),ticket=String(Date.now())+'-'+Math.random().toString(36).slice(2);
         const conflictResolutions=this.conflictLog?.confirmed&&this.conflictLog.profileId===ProfileManager.activeId&&this.conflictLog.phoneProfileId===data.phoneProfileId?this.conflictLog.decisions:{};
         this.locks.set(ticket,{snapshot:core.canonical(snapshot),profileId:ProfileManager.activeId,phoneProfileId:data.phoneProfileId,resolutionSnapshot:core.canonical(conflictResolutions),created:Date.now()});
@@ -294,11 +307,36 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
     const status=window.AndroidPeerSync?JSON.parse(AndroidPeerSync.status()||'{}'):{};
     if(status.approved&&document.visibilityState==='visible')this.sync(true);
   },
-  async boot(){await this.loadConflicts();if(desktop){window.WindowsDesktop?.onPeerRequest(req=>this.handleRequest(req));await this.config();}
-    else {setInterval(()=>{if(document.visibilityState==='visible')this.sync(true);},60000);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')this.sync(true);});}
+  async boot(){await this.loadConflicts();setInterval(()=>this.updatePresence(),3000);if(desktop){window.WindowsDesktop?.onPeerRequest(req=>this.handleRequest(req));await this.config();}
+    else {setInterval(()=>{if(document.visibilityState==='visible')this.sync(true);},3000);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')this.sync(true);});}
   }
 };
 window.TiqanyPeerSync=peer;
+// Save-triggered LAN sync: only after successful persistent storage commit.
+// Never start a sync while an unsaved form is open or a remote merge is committing.
+let taSaveSyncTimer=null;
+let taSaveSyncRetry=0;
+const taWakeSync=()=>{
+  if(peer.busy||!window.AndroidPeerSync)return;
+  let state={};try{state=JSON.parse(AndroidPeerSync.status()||'{}');}catch(_){}
+  if(!state.approved||!state.host)return;
+  clearTimeout(taSaveSyncTimer);taSaveSyncRetry=0;
+  const attempt=()=>{
+    if(peer.busy||peer.blocked()){
+      if(++taSaveSyncRetry<80)taSaveSyncTimer=setTimeout(attempt,250);
+      return;
+    }
+    taSaveSyncTimer=null;peer.sync(true);
+  };
+  taSaveSyncTimer=setTimeout(attempt,120);
+};
+const taOldSaveState=StorageEngine.saveState;
+StorageEngine.saveState=async function(...args){
+  const result=await taOldSaveState.apply(this,args);
+  if(!peer.busy)taWakeSync();
+  return result;
+};
+
 window.__tiqanyPeerReply=raw=>{
  const task=peer.pending;if(!task)return;clearTimeout(task.timer);peer.pending=null;
  try{const answer=JSON.parse(raw);task.resolve(answer);}catch(e){task.reject(e);}

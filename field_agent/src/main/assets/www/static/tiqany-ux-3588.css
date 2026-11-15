@@ -1,0 +1,53 @@
+/* Tiqany 3.5.88: compact, legible invoice controls and accessible close buttons. */
+.ta-ux-compact{--ta-ux-ink:#09283d;display:block}
+.ta-ux-compact .ta-invoice-currency-choice{background:linear-gradient(155deg,#fef3c7,#f8bd42)!important;border:2px solid #c88109!important;color:#593205!important;box-shadow:inset 0 2px 1px #fff9,0 4px 0 #b77912,0 6px 12px #854d0e33!important;min-height:43px;font-size:15px!important;font-weight:900!important;gap:7px!important;padding:6px 10px!important}
+.ta-ux-currency-label{background:#56370d;color:white;border-radius:7px;padding:3px 7px;font-size:14px;font-weight:900}
+.ta-ux-compact .ta-invoice-currency-choice .ta-ux-currency-value{font-size:16px;font-weight:900;line-height:1.1}
+.ta-ux-warehouse,.ta-ux-compact .ta-invoice-pricing-choice{display:grid!important;grid-template-columns:minmax(100px,35%) minmax(0,1fr);align-items:center;gap:8px!important;padding:6px 9px!important;margin:0!important;border-radius:13px!important;min-height:43px}
+.ta-ux-warehouse{background:linear-gradient(145deg,#d5f7e9,#8bd9c1)!important;border:2px solid #168167!important;box-shadow:inset 0 2px #fff9,0 3px 0 #227a66!important}
+.ta-ux-warehouse label,.ta-ux-compact .ta-invoice-pricing-choice label{margin:0!important;font-size:14px!important;line-height:1.25!important;font-weight:900!important;color:#064e3b!important;overflow-wrap:anywhere}
+.ta-ux-warehouse select,.ta-ux-compact .ta-invoice-pricing-choice select{font-size:14px!important;min-height:38px!important;padding:5px 7px!important;border:2px solid #0f766e!important;font-weight:900!important;background:#fff!important;color:#123c46!important;width:100%!important}
+.ta-ux-compact .ta-invoice-pricing-choice{background:linear-gradient(145deg,#dbeafe,#85c8f5)!important;border:2px solid #1875b5!important;box-shadow:inset 0 2px #fff9,0 3px 0 #1c7aba!important}
+.ta-ux-compact .ta-invoice-pricing-choice label{color:#09346c!important}
+.ta-ux-date-button{border:2px solid #2364b9;background:linear-gradient(150deg,#dbeafe,#83b5ef);box-shadow:inset 0 2px #fff9,0 3px 0 #245a96;color:#123c70;border-radius:10px;min-height:36px;min-width:36px;font-size:18px;display:inline-flex;align-items:center;justify-content:center}
+.ta-ux-compact .ta-invoice-date-visible input[type=date]{cursor:pointer;min-width:0;width:100%;font-size:13px!important;direction:ltr}
+.ta-ux-compact label{font-weight:900!important}
+.ta-payment-selector{position:relative;min-width:0;border:2px solid #7292aa;border-radius:13px;background:#fff;box-shadow:0 3px 0 #94a3b8;}
+.ta-payment-selector>summary{display:flex!important;align-items:center;justify-content:space-between;gap:9px;cursor:pointer;list-style:none;min-height:42px;padding:6px 11px;font-size:15px;font-weight:900;border-radius:10px;user-select:none;color:white;background:linear-gradient(155deg,#1d9b76,#065f46);text-shadow:0 1px #0005}
+.ta-payment-selector>summary::-webkit-details-marker{display:none}
+.ta-payment-selector.ta-payment-credit>summary{background:linear-gradient(155deg,#f87171,#ad1636)}
+.ta-payment-selector.ta-payment-partial>summary{background:linear-gradient(155deg,#57a9f5,#1658bc)}
+.ta-payment-selector .ta-payment-icon{font-size:20px;filter:drop-shadow(0 2px 1px #0006)}
+.ta-payment-options{position:absolute;z-index:65;top:calc(100% + 7px);right:0;left:0;padding:8px;background:#f6faff;border:2px solid #cbd5e1;border-radius:13px;box-shadow:0 12px 28px #0f172a44;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+.ta-payment-options button{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:0;gap:4px;border-radius:12px;padding:9px 3px;color:#fff;font-size:14px;font-weight:900;text-shadow:0 1px #0004;border:1px solid #fff9;box-shadow:inset 0 2px #fff5,0 4px 0 #0003}
+.ta-payment-options .ta-pay-cash{background:linear-gradient(150deg,#2fc994,#05704d)}
+.ta-payment-options .ta-pay-credit{background:linear-gradient(150deg,#fd7b83,#a81535)}
+.ta-payment-options .ta-pay-partial{background:linear-gradient(150deg,#69c2f9,#1c55b8)}
+.ta-payment-options button i{font-size:22px;filter:drop-shadow(0 2px 1px #0005)}
+.ta-payment-options button[aria-current=true]{outline:3px solid #f59e0b;outline-offset:1px}
+.ta-ux-compact .ta-invoice-party-highlight{background:linear-gradient(155deg,#163b60,#0c6886)!important;border:2px solid #106886!important;border-radius:12px!important;padding:7px!important;color:#fff!important;box-shadow:inset 0 2px #fff3,0 3px 0 #0b4566!important}
+.ta-ux-compact .ta-invoice-party-highlight label{color:#fff!important;font-size:15px!important}
+.ta-ux-compact .ta-invoice-party-highlight select{background:#fff!important;color:#102c42!important;font-size:15px!important;font-weight:900!important;min-height:41px!important;border:2px solid #60d2eb!important}
+.ta-ux-desktop .invoice-entry-top .ta-ux-client-dark{background:linear-gradient(145deg,#182a4e,#064d75)!important;border:3px solid #0ca2c1!important;padding:9px!important;box-shadow:0 4px 0 #042d54,0 8px 15px #0b2c5470!important;border-radius:15px!important}
+.ta-ux-desktop .ta-ux-client-dark label,.ta-ux-desktop .ta-ux-client-dark label i{color:#fff!important;font-size:17px!important}
+.ta-ux-desktop .ta-ux-client-dark select{background:#e9f9ff!important;color:#082e47!important;min-height:46px!important;font-weight:900!important;font-size:17px!important;border:2px solid #70d7ed!important}
+.ta-ux-desktop .ta-ux-usb{background:linear-gradient(145deg,#fef08a,#efa51d)!important;color:#482807!important;border:2px solid #b57904!important;box-shadow:inset 0 2px #fff9,0 4px 0 #9b6204!important;min-height:39px;white-space:nowrap;font-size:13px!important}
+.ta-ux-usb i{font-size:17px;filter:drop-shadow(0 2px 1px #99681e66)}
+.ta-ux-draft-balances{background:#e8f6ff;border:2px solid #66b7df;border-radius:15px;margin:10px 0;padding:10px 12px;box-shadow:0 3px 0 #87b2cc}
+.ta-ux-draft-balances h3{font-size:15px;color:#13446b;font-weight:900;margin-bottom:8px}
+.ta-ux-draft-balances .ta-ux-balance-pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.ta-ux-draft-balances .ta-ux-balance-pair>div{background:#fff;border:1px solid #94c3d9;padding:9px;border-radius:11px;min-width:0}
+.ta-ux-draft-balances strong{display:block;line-height:1.5;font-size:15px;overflow-wrap:anywhere}
+.ta-ux-draft-balances span{font-weight:900;font-size:12px;color:#244e65}
+.ta-ux-draft-balances .ta-ux-final{border-color:#53bfa7;background:#e5fff2}
+.ta-ux-draft-balances .ta-ux-final strong{color:#07624b}
+.ta-close3d,.ta-ux3d-legacy-close,.ta-popup-exit-red{border:2px solid #8b0f29!important;background:linear-gradient(150deg,#ffb5b9 0%,#f53051 50%,#ac0d2f 100%)!important;color:#fff!important;border-radius:12px!important;box-shadow:inset 0 2px #fff7,0 4px 0 #760a24,0 6px 12px #57071e66!important;width:38px!important;height:36px!important;min-width:38px!important;display:flex!important;align-items:center!important;justify-content:center!important;font-weight:900!important;font-size:23px!important;line-height:1!important;text-shadow:0 1px #4b0a1b!important;cursor:pointer!important}
+.ta-page-exit-line{display:flex;justify-content:flex-start;direction:ltr;min-height:39px;padding:2px 6px 3px;flex:0 0 auto;position:relative;z-index:6;margin-bottom:3px}
+.ta-ux-popup-frame{position:relative!important;padding-top:max(47px,2.7rem)!important}
+.ta-ux-popup-frame>.ta-close3d{position:absolute!important;top:6px!important;left:7px!important;z-index:99!important}
+.ta-ux-dialog-legacy{border-radius:13px!important}
+.ta-peer-presence{display:inline-flex;align-items:center;gap:6px;margin:7px 0;padding:7px 12px;border-radius:12px;border:2px solid #94a3b8;background:#f1f5f9;color:#334155;font-size:13px;font-weight:900}
+.ta-peer-presence.connected{background:#d1fae5;color:#065f46;border-color:#34d399}
+.ta-peer-presence.offline{background:#ffe2e2;color:#991b1b;border-color:#fda4af}
+.ta-peer-presence.connecting{background:#fef3c7;color:#78350f;border-color:#fcd34d}
+@media(max-width:420px){.ta-ux-warehouse,.ta-ux-compact .ta-invoice-pricing-choice{grid-template-columns:minmax(95px,38%) minmax(0,1fr);gap:5px!important}.ta-ux-warehouse label,.ta-ux-compact .ta-invoice-pricing-choice label{font-size:13px!important}.ta-payment-options button{font-size:12px}.ta-ux-compact .ta-invoice-currency-choice{font-size:14px!important}}

@@ -71,6 +71,15 @@
    try{await importFile(...args);}finally{this.busy=priorBusy;}
    if(this.ready())this.startAutoSync();
  };
+ // Save-triggered sync: the IndexedDB write has completed before this runs.
+ const originalSave=A.save.bind(A);
+ A.save=async function(...args){
+   const result=await originalSave(...args);
+   if(this.autoSyncStarted&&!this.lanSyncBusy&&this.state?.ops?.some(o=>!this.state.knownIds?.includes(o.id))){
+     this.scheduleAutoSync(0);
+   }
+   return result;
+ };
  // Wake the sync loop right after a successfully persisted field operation.
  for(const name of ['saveInvoice','saveVoucher','saveInvoicePayment']){
    if(typeof A[name]!=='function')continue;
@@ -78,7 +87,7 @@
    A[name]=async function(...args){
      const before=this.state?.ops?.length||0;
      await original(...args);
-     if((this.state?.ops?.length||0)>before)this.scheduleAutoSync(250);
+     if((this.state?.ops?.length||0)>before)this.scheduleAutoSync(0);
    };
  }
 })();

@@ -28,8 +28,19 @@ const FieldSync = {
     return Object.keys(this.connectedAt).length;
   },
   refreshConnectedBadge(){
-    const el=document.getElementById('salesStaffConnectedCount');if(!el)return;
-    const count=this.connectedCount();el.textContent=String(count);
+    const el=document.getElementById('salesStaffConnectedCount');
+    const badges=typeof document.querySelectorAll==='function' ? document.querySelectorAll('[data-agent-online-id]') : [];
+    if(!el&&!badges.length)return; // Do not initialize company identity from a status timer.
+    const count=this.connectedCount();
+    // Presence is based on a recent authenticated employee exchange, not a saved pairing.
+    badges.forEach(badge=>{
+      const id=badge.getAttribute('data-agent-online-id');
+      const live=!!this.connectedAt[id]&&Date.now()-this.connectedAt[id]<this.presenceTTL;
+      badge.className='ta-peer-presence '+(live?'connected':'offline');
+      badge.textContent=live?'● متصل الآن':'● غير متصل';
+    });
+    if(!el)return;
+    el.textContent=String(count);
     el.parentElement?.setAttribute('title',count+' موظفي بيع متصلين خلال آخر 40 ثانية بمزامنة موثّقة');
     el.parentElement?.classList.toggle('has-staff',count>0);
   },
@@ -88,7 +99,7 @@ const FieldSync = {
       </div>
       <div class="rounded-2xl border p-3 space-y-2 bg-white"><b class="text-sm">موظفو البيع المسجلون</b>
          ${config.agents.filter(a=>!a.archived).length? config.agents.filter(a=>!a.archived).map(a=>`<div class="rounded-xl bg-slate-50 border p-3 space-y-2">
-             <div class="flex justify-between gap-2"><span class="font-bold">${this.escape(a.name)} · ${this.escape(a.vehicleName||'')}</span><span class="text-[10px]">${a.disabled?'موقوف':'معتمد'}</span></div>${a.createdOnDevice?`<div class="text-[10px] text-sky-800 font-bold">${a.createdOnDevice==='computer'?'🖥️ أُنشئ على الكمبيوتر':'📱 أُنشئ على الموبايل الرئيسي'}</div>`:''}
+             <div class="flex justify-between gap-2"><span class="font-bold">${this.escape(a.name)} · ${this.escape(a.vehicleName||'')}</span><span class="text-[10px]">${a.disabled?'موقوف':'معتمد'}</span></div><div class="mt-1"><span data-agent-online-id="${this.escape(a.id)}" class="ta-peer-presence offline">● غير متصل</span></div>${a.createdOnDevice?`<div class="text-[10px] text-sky-800 font-bold">${a.createdOnDevice==='computer'?'🖥️ أُنشئ على الكمبيوتر':'📱 أُنشئ على الموبايل الرئيسي'}</div>`:''}
              <p class="text-[10px] text-slate-500">${this.escape(WarehouseController.name(a.warehouseId))}</p>
              <p class="text-[10px] ${a.pairedDeviceId?'text-teal-700':'text-amber-700'}">${a.pairedDeviceId?'🔒 مرتبط بجهاز ينتهي معرفه بـ '+this.escape(a.pairedDeviceId.slice(-8)):'بانتظار طلب ربط جهاز جديد'}</p>
              <div class="grid grid-cols-2 gap-2">
@@ -110,6 +121,7 @@ const FieldSync = {
       </div>
       <button type="button" onclick="UI.forceCloseModal()" class="w-full rounded-xl bg-slate-100 p-3 font-bold">إغلاق</button>
     </div>`);
+    this.refreshConnectedBadge();
     if(window.AndroidLocalSync) this.startLanReceiver(true);
   },
   async addAgent(){
