@@ -1,6 +1,12 @@
 /* Technical Accountant language pack — UI only. Database values/IDs are never translated. */
 const I18n = {
     en: {
+        "الموافقة بالبصمة": "Confirm with fingerprint",
+        "استخدام كلمة السر": "Use password instead",
+        "التحقق من الحماية": "Authorization required",
+        "متابعة إلى الموافقة بالبصمة أو كلمة السر": "Continue to fingerprint or password approval",
+        "التحقق من ملكية الشركة الحالية قبل استبدال بياناتها": "Verify the current company's authorization before replacing its records",
+
         "تبديل عملة السند": "Switch voucher currency",
         "تبديل العملة مباشرة": "Switch currency instantly",
         "ليرة سورية (SYP)": "Syrian pound (SYP)",

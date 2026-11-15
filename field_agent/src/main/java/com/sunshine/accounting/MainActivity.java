@@ -153,18 +153,35 @@ public final class MainActivity extends FragmentActivity {
                 if (error != null && !error.isEmpty()) replyBarcode("invoice", "", error);
             });
 
+    private int nativeBottomInsetDp = 0;
+    private boolean nativeKeyboardVisible = false;
+
+    /** Native pixels are converted to CSS dp, avoiding double system-bar padding. */
+    private void pushSafeInsetsToPage() {
+        if (webView == null) return;
+        final int safe = nativeBottomInsetDp;
+        final boolean keyboard = nativeKeyboardVisible;
+        webView.post(() -> {
+            if (webView == null) return;
+            webView.evaluateJavascript(
+                    "document.documentElement.style.setProperty('--ta-native-bottom-inset','"
+                            + safe + "px');document.documentElement.classList.toggle('ta-ime-open',"
+                            + keyboard + ");", null);
+        });
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         // Stop legacy Google Drive periodic backups when upgrading; local schedules remain intact.
         AutoBackupManager.disableOldDriveBackups(this);
-        // Android 15+ enforces edge-to-edge. Reserve system-bar and cutout space
-        // using WebView LAYOUT MARGINS (not WebView internal padding) so its CSS
-        // viewport and fixed header/footer never extend behind Android bars.
+        // Edge-to-edge: reserve cutouts/status bars and keyboard at native level,
+        // while the CSS dock draws behind the system navigation region. Android's
+        // bottom inset is passed to CSS so interactive buttons stay above the bars.
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
         if (android.os.Build.VERSION.SDK_INT >= 29) {
             getWindow().setStatusBarContrastEnforced(false);
-            getWindow().setNavigationBarContrastEnforced(true);
+            getWindow().setNavigationBarContrastEnforced(false);
         }
         WindowInsetsControllerCompat systemBarIcons =
                 new WindowInsetsControllerCompat(getWindow(), getWindow().getDecorView());
@@ -172,7 +189,8 @@ public final class MainActivity extends FragmentActivity {
         systemBarIcons.setAppearanceLightStatusBars(true);
         systemBarIcons.setAppearanceLightNavigationBars(true);
         FrameLayout root = new FrameLayout(this);
-        root.setBackgroundColor(Color.rgb(241, 245, 249));
+        root.setBackgroundColor(Color.WHITE);
+        getWindow().setNavigationBarColor(Color.WHITE);
         webView = new WebView(this);
         FrameLayout.LayoutParams webParams = new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT);
@@ -181,11 +199,24 @@ public final class MainActivity extends FragmentActivity {
         ViewCompat.setOnApplyWindowInsetsListener(root, (view, insets) -> {
             Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars()
                     | WindowInsetsCompat.Type.displayCutout());
+            final boolean keyboardVisible = insets.isVisible(WindowInsetsCompat.Type.ime());
+            Insets keyboard = insets.getInsets(WindowInsetsCompat.Type.ime());
+            Insets gestures = insets.getInsets(WindowInsetsCompat.Type.systemGestures());
+            // The IME can hide the bottom part of the viewport: resize for it,
+            // but do not reserve a second empty strip for Android navigation.
+            final int bottomMargin = keyboardVisible ? keyboard.bottom : 0;
             FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) webView.getLayoutParams();
             if (params.leftMargin != bars.left || params.topMargin != bars.top
-                    || params.rightMargin != bars.right || params.bottomMargin != bars.bottom) {
-                params.setMargins(bars.left, bars.top, bars.right, bars.bottom);
+                    || params.rightMargin != bars.right || params.bottomMargin != bottomMargin) {
+                params.setMargins(bars.left, bars.top, bars.right, bottomMargin);
                 webView.setLayoutParams(params);
+            }
+            final float density = getResources().getDisplayMetrics().density;
+            final int safeBottomDp = keyboardVisible ? 0 : Math.round(Math.max(bars.bottom, gestures.bottom) / density);
+            if (nativeBottomInsetDp != safeBottomDp || nativeKeyboardVisible != keyboardVisible) {
+                nativeBottomInsetDp = safeBottomDp;
+                nativeKeyboardVisible = keyboardVisible;
+                pushSafeInsetsToPage();
             }
             return insets;
         });
@@ -218,6 +249,7 @@ public final class MainActivity extends FragmentActivity {
             @Override
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
+                pushSafeInsetsToPage();
                 trustedLocalMainFrame = url != null && url.startsWith("https://" + HOST + "/assets/www/");
                 if (nativeLocalSync != null) nativeLocalSync.onMainFrameUrlChanged(url);
             }

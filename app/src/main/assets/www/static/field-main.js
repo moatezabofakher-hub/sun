@@ -194,7 +194,7 @@ const FieldSync = {
       <h3 class="text-lg font-black text-rose-800">حذف موظف البيع: ${this.escape(a.name)}</h3>
       <p class="text-xs text-rose-800">سيُمنع استقبال عمليات جديدة من موظف البيع هذا، ويُخفى من القائمة النشطة. ستبقى سجلاته وسنداته المرحّلة (${imported}) محفوظة في الأرشيف لأغراض التدقيق.</p>
       <p class="text-xs text-amber-800">لا يمكن سحب الترخيص فورًا من هاتف يعمل دون اتصال؛ المنع يُطبق عند محاولة المزامنة.</p>
-      <button type="button" class="ta-modal-action-danger w-full bg-rose-700 text-white p-3 rounded-xl font-black" onclick="FieldSync.removeAgent('${a.id}')">متابعة إلى التحقق من كلمة السر</button>
+      <button type="button" class="ta-modal-action-danger w-full bg-rose-700 text-white p-3 rounded-xl font-black" onclick="FieldSync.removeAgent('${a.id}')">متابعة إلى الموافقة بالبصمة أو كلمة السر</button>
       <button type="button" class="ta-modal-action-secondary w-full bg-slate-100 p-3 rounded-xl" onclick="FieldSync.open()">إلغاء</button>
     </div>`);
   },
@@ -212,7 +212,7 @@ const FieldSync = {
       async(pin)=>this.removeAgentAuthorized(id,pin), 'حذف موظف البيع');
   },
   async removeAgentAuthorized(id,pin){
-    if(!pin || !await ProtectionController.verifyPin(pin))return UI.toast('كلمة السر غير صحيحة، لم يتم حذف موظف البيع','error');
+    if(pin!==ProtectionController.biometricApprovalProof && (!pin || !await ProtectionController.verifyPin(pin)))return UI.toast('الموافقة غير صحيحة، لم يتم حذف موظف البيع','error');
     const a=this.data().agents.find(x=>x.id===id&&!x.archived);if(!a)return;
     const old={archived:a.archived,disabled:a.disabled,deletedAt:a.deletedAt};
     const previousPresence=this.connectedAt[id];

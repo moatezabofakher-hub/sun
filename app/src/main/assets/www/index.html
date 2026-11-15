@@ -104,7 +104,7 @@
       .ta-item-photo-camera:focus-within { outline: 3px solid #93c5fd; outline-offset: 2px; }
     </style>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#0b1d31">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1062,7 +1062,76 @@ nav.ta-bottom-nav .nav-btn > span,body.ta-3d-v3524 nav.ta-bottom-nav .nav-btn > 
 @media(min-width:530px){#mainContent .ta-quick-3573{grid-template-rows:repeat(2,minmax(168px,auto)) minmax(110px,auto);gap:15px}#mainContent .ta-quick-3573 .ta-action-card{padding:18px}#mainContent .ta-quick-3573 .ta-quick-pos .ta-icon-box{font-size:105px}nav.ta-bottom-nav > div{min-height:125px}nav.ta-bottom-nav .nav-btn{min-height:109px}}
 @media(max-width:360px){#mainContent .ta-quick-3573{gap:9px}body.ta-3d-v3524 #mainContent .ta-quick-3573 .ta-action-card{padding:11px 8px}#mainContent .ta-quick-3573 :is(.ta-quick-receipt,.ta-quick-payment){padding:8px 6px}#mainContent .ta-quick-3573 .ta-icon-box{width:48px;height:48px;min-width:48px}nav.ta-bottom-nav .nav-btn > span{font-size:10.5px!important}}
 
-</style></head>
+</style><style id="ta-mobile-adaptive-3574">
+/* 3.5.74 — viewport and system-bar adaptive layout. Android supplies the real
+   navbar inset, and the navbar's background extends underneath system buttons.
+   No extra opaque/empty band is reserved by the WebView host. */
+:root { --ta-native-bottom-inset: 0px; --ta-dock-height: 110px; }
+html, body { max-width:100%; min-width:0; width:100%; overflow-x:hidden; }
+*, *::before, *::after { box-sizing:border-box; }
+#mainContent, #modalBox, #dialogBox { min-width:0; max-width:100%; }
+#mainContent { overflow-wrap:break-word; }
+#mainContent input:not([type=checkbox]):not([type=radio]),
+#mainContent select, #mainContent textarea,
+#modalBox input, #modalBox select, #modalBox textarea {max-width:100%;min-width:0;}
+nav.ta-bottom-nav {bottom:0!important; padding-bottom:var(--ta-native-bottom-inset)!important;
+    padding-left:max(2px,env(safe-area-inset-left,0px));
+    padding-right:max(2px,env(safe-area-inset-right,0px));}
+nav.ta-bottom-nav > div{min-width:0;width:100%;height:auto!important;}
+/* Override legacy fixed-height rows: they can let tall labels project into Android's system navigation area. */
+html body.ta-3d-v3524 nav.ta-bottom-nav > div {height:auto!important;min-height:105px!important;padding-top:7px!important;padding-bottom:10px!important;}
+@media(min-width:530px){html body.ta-3d-v3524 nav.ta-bottom-nav > div{min-height:125px!important;}}
+@media(max-height:600px){html body.ta-3d-v3524 nav.ta-bottom-nav > div{min-height:82px!important;}}
+
+nav.ta-bottom-nav .nav-btn{min-width:0;max-width:100%;overflow:visible;}
+nav.ta-bottom-nav .nav-btn > span {max-width:100%;overflow-wrap:anywhere;}
+#mainContent.ta-main, body.ta-3d-v3524 #mainContent.ta-main {
+    padding-bottom:calc(var(--ta-dock-height) + 16px)!important;
+}
+#modalContainer,#dialogContainer {
+    padding:12px max(8px,env(safe-area-inset-right,0px)) calc(12px + var(--ta-native-bottom-inset)) max(8px,env(safe-area-inset-left,0px));
+    max-width:100vw; max-height:100dvh;
+}
+#modalBox {max-width:min(100%,520px);}
+#dialogBox {max-width:min(100%,384px);}
+#modalBox,#dialogBox { max-height:calc(100dvh - var(--ta-native-bottom-inset) - 30px);overflow-y:auto;overscroll-behavior:contain; }
+html.ta-ime-open nav.ta-bottom-nav {display:none!important;}
+html.ta-ime-open #mainContent.ta-main,
+html.ta-ime-open body.ta-3d-v3524 #mainContent.ta-main {padding-bottom:20px!important;}
+html.ta-ime-open #modalContainer,html.ta-ime-open #dialogContainer {padding-bottom:10px!important;}
+@media(max-width:370px){
+  #mainContent.ta-main {padding-left:8px!important;padding-right:8px!important;}
+  nav.ta-bottom-nav > div{padding-left:0!important;padding-right:0!important;gap:0!important;}
+  nav.ta-bottom-nav .nav-btn,body.ta-3d-v3524 nav.ta-bottom-nav .nav-btn{gap:8px!important;padding-left:0!important;padding-right:0!important;margin-left:0!important;margin-right:0!important;min-width:0;}
+  nav.ta-bottom-nav .nav-btn > i,body.ta-3d-v3524 nav.ta-bottom-nav .nav-btn > i {width:clamp(27px,9.5vw,35px);height:clamp(27px,9.5vw,35px);font-size:clamp(15px,5vw,21px)!important;}
+  nav.ta-bottom-nav .nav-btn > span,body.ta-3d-v3524 nav.ta-bottom-nav .nav-btn > span{font-size:clamp(9px,2.8vw,11px)!important;line-height:1.3!important;word-break:normal;}
+  #mainContent .ta-quick-3573 .ta-action-card{min-width:0;}
+}
+@media(max-height:600px){
+  #modalBox,#dialogBox {max-height:calc(100dvh - var(--ta-native-bottom-inset) - 16px);}
+  nav.ta-bottom-nav > div{min-height:78px;}
+  nav.ta-bottom-nav .nav-btn,body.ta-3d-v3524 nav.ta-bottom-nav .nav-btn{min-height:66px;gap:7px;}
+  nav.ta-bottom-nav .nav-btn > i,body.ta-3d-v3524 nav.ta-bottom-nav .nav-btn > i{height:32px;width:32px;}
+}
+</style>
+<script id="ta-dock-measure-3574">
+(() => {
+  const measure = () => {
+    const dock = document.querySelector('nav.ta-bottom-nav');
+    if (!dock) return;
+    const size = Math.ceil(dock.getBoundingClientRect().height);
+    document.documentElement.style.setProperty('--ta-dock-height', size + 'px');
+  };
+  document.addEventListener('DOMContentLoaded', () => {
+    measure();
+    const dock = document.querySelector('nav.ta-bottom-nav');
+    if (dock && window.ResizeObserver) new ResizeObserver(measure).observe(dock);
+    window.addEventListener('resize', measure, {passive:true});
+    window.addEventListener('orientationchange', measure, {passive:true});
+  });
+})();
+</script>
+</head>
 <body class="ta-premium-ui ta-3d-v3524 bg-slate-100 text-slate-800 min-h-screen flex flex-col w-full max-w-full overflow-x-hidden">
 
     <!-- Top App Bar (Android Style) -->
@@ -1610,6 +1679,15 @@ nav.ta-bottom-nav .nav-btn > span,body.ta-3d-v3524 nav.ta-bottom-nav .nav-btn > 
                 // Existing company must approve overwriting its records too, when protected.
                 if(currentCfg.pinHash){
                     this.authorizedImport=info;
+                    // A fingerprint verifies this device's CURRENT company only.
+                    // The foreign backup owner's PIN has already been checked above.
+                    if (currentCfg.fingerprintEnabled && window.NativeSecurity && typeof window.NativeSecurity.authenticate === 'function') {
+                        ProtectionController.requestPin('التحقق من ملكية الشركة الحالية قبل استبدال بياناتها', async () => {
+                            const approved = this.authorizedImport?.d;
+                            if (approved) await this.applyRestore(approved);
+                        });
+                        return;
+                    }
                     UI.openModal(`<div class="space-y-3 text-right"><p class="text-xs bg-amber-50 p-3 rounded-xl text-amber-800">تم التحقق من كلمة سر الشركة المصدر. أكّد الآن بكلمة سر الشركة الحالية قبل استبدال بياناتها.</p><input id="currentBackupPin" type="password" inputmode="numeric" class="w-full p-3 border rounded-xl" placeholder="كلمة سر الشركة الحالية"><button onclick="ProfileManager.confirmCurrentRestore()" class="ta-modal-action-danger w-full bg-rose-700 text-white rounded-xl p-3 font-black">تأكيد استعادة النسخة</button></div>`);return;
                 }
                 await this.applyRestore(info.d);
@@ -9307,7 +9385,7 @@ nav.ta-bottom-nav .nav-btn > span,body.ta-3d-v3524 nav.ta-bottom-nav .nav-btn > 
                     const changingQuestions = !!(firstAnswer || secondAnswer) || (hasQuestions && (firstQuestionId !== previousQuestions[0].id || secondQuestionId !== previousQuestions[1].id));
                     const mustChangeQuestions = !!(!hasQuestions && (changingPin || firstAnswer || secondAnswer));
                     const sensitiveChange = changingPin || changingToggle || changingQuestions || mustChangeQuestions;
-                    if (old.pinHash && sensitiveChange && !(await this.verifyPin(currentPin))) {
+                    if (old.pinHash && sensitiveChange && verifiedCurrentPin !== this.biometricApprovalProof && !(await this.verifyPin(currentPin))) {
                         return UI.toast('يجب إدخال كلمة السر السابقة الصحيحة قبل تغيير كلمة السر أو إعدادات الحماية', 'error');
                     }
                     if (changingPin) {
@@ -9380,33 +9458,89 @@ nav.ta-bottom-nav .nav-btn > span,body.ta-3d-v3524 nav.ta-bottom-nav .nav-btn > 
                     document.getElementById('protectionPin')?.focus({preventScroll:true});
                 });
             },
+            // A unique capability object is passed only after Android's native
+            // BiometricPrompt succeeds; it cannot be substituted with the PIN UI.
+            biometricApprovalProof: Object.freeze({method:'android-biometric'}),
+            approvalCounter: 0,
+            showApprovalPassword() {
+                const panel = document.getElementById('protectionPasswordPanel');
+                if (panel) panel.classList.remove('hidden');
+                const bioPanel = document.getElementById('protectionBiometricPanel');
+                if (bioPanel) bioPanel.classList.add('hidden');
+                document.getElementById('protectionVerifyPin')?.focus({preventScroll:true});
+            },
             requestPin(message, onSuccess) {
-                // Only display a verification screen if a PIN has actually been configured.
                 if (!State.settings.appProtection?.pinHash || !State.settings.appProtection?.pinSalt) {
                     this.promptPinSetup('هذه العملية');
                     return;
                 }
-                this.pendingSuccess = null;
-                UI.openModal(`
-                    <div class="text-right">
-                        <div class="flex items-center justify-between mb-3"><h3 class="font-extrabold text-base"><i class="fas fa-shield-halved text-emerald-600 ml-1"></i> التحقق من الحماية</h3><button onclick="UI.forceCloseModal()" class="ta-glossy-icon-button"><i class="fas fa-times text-slate-400"></i></button></div>
-                        <p class="text-xs text-slate-500 mb-3">${message}</p>
-                        <input id="protectionVerifyPin" type="password" inputmode="numeric" autocomplete="current-password" placeholder="أدخل رمز الحماية" onkeydown="if(event.key==='Enter'){event.preventDefault();ProtectionController.verifyPromptPin();}" class="w-full border border-slate-300 rounded-xl p-3 text-center text-lg tracking-widest mb-3">
-                        <button onclick="ProtectionController.verifyPromptPin()" class="ta-modal-action-primary w-full bg-emerald-600 text-white rounded-xl py-3 font-extrabold">تحقق</button>
-                        <button type="button" onclick="ProtectionController.openRecovery()" class="w-full text-center text-xs font-bold text-indigo-700 underline mt-3">نسيت رمز الحماية؟</button>
-                    </div>`);
+                const english = State.settings.language === 'en';
+                const bioReady = !!(State.settings.appProtection.fingerprintEnabled &&
+                    typeof window !== 'undefined' && window.NativeSecurity && typeof window.NativeSecurity.authenticate === 'function');
+                const serial = ++this.approvalCounter;
+                const escapedMessage = typeof AppEscape !== 'undefined' ? AppEscape.text(message) : String(message).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');
                 this.pendingSuccess = onSuccess;
-                requestAnimationFrame(() => document.getElementById('protectionVerifyPin')?.focus({ preventScroll: true }));
+                UI.openModal(`
+                    <div class="text-right" id="protectionApprovalPrompt" data-approval-id="${serial}">
+                        <div class="flex items-center justify-between mb-3">
+                          <h3 class="font-extrabold text-base"><i class="fas fa-shield-halved text-emerald-600 ml-1"></i>${english ? 'Authorization required' : 'التحقق من الحماية'}</h3>
+                          <button type="button" onclick="UI.forceCloseModal()" class="ta-glossy-icon-button" aria-label="${english ? 'Close' : 'إغلاق'}"><i class="fas fa-times text-rose-600"></i></button>
+                        </div>
+                        <p class="text-xs text-slate-600 mb-3">${escapedMessage}</p>
+                        ${bioReady ? `<div id="protectionBiometricPanel">
+                          <p id="protectionBiometricError" role="alert" class="text-xs text-rose-700 mb-2"></p>
+                          <button type="button" onclick="ProtectionController.verifyApprovalBiometric(${serial})" class="ta-modal-action-primary w-full bg-emerald-600 text-white rounded-xl py-3 font-extrabold"><i class="fas fa-fingerprint ml-1"></i>${english ? 'Confirm with fingerprint' : 'الموافقة بالبصمة'}</button>
+                          <button type="button" onclick="ProtectionController.showApprovalPassword()" class="ta-modal-action-secondary w-full mt-2 bg-slate-100 text-slate-800 rounded-xl py-3 font-extrabold">${english ? 'Use password instead' : 'استخدام كلمة السر'}</button>
+                        </div>` : ''}
+                        <div id="protectionPasswordPanel" class="${bioReady ? 'hidden' : ''}">
+                          <input id="protectionVerifyPin" type="password" inputmode="numeric" autocomplete="current-password" placeholder="${english ? 'Enter password' : 'أدخل رمز الحماية'}" onkeydown="if(event.key==='Enter'){event.preventDefault();ProtectionController.verifyPromptPin();}" class="w-full border border-slate-300 rounded-xl p-3 text-center text-lg tracking-widest mb-3">
+                          <button type="button" onclick="ProtectionController.verifyPromptPin()" id="protectionVerifyPinBtn" class="ta-modal-action-primary w-full bg-emerald-600 text-white rounded-xl py-3 font-extrabold">تحقق</button>
+                          <button type="button" onclick="ProtectionController.openRecovery()" class="w-full text-center text-xs font-bold text-indigo-700 underline mt-3">${english ? 'Forgot password?' : 'نسيت رمز الحماية؟'}</button>
+                        </div>
+                    </div>`);
+                if (english) { const verifyBtn = document.getElementById('protectionVerifyPinBtn'); if (verifyBtn) verifyBtn.textContent = 'Verify password'; }
+                if (bioReady) requestAnimationFrame(() => this.verifyApprovalBiometric(serial));
+                else requestAnimationFrame(() => document.getElementById('protectionVerifyPin')?.focus({preventScroll:true}));
+            },
+            approvalDialogIsActive(serial) {
+                const el = document.getElementById('protectionApprovalPrompt');
+                const container = document.getElementById('modalContainer');
+                if (!container && !el) return serial === this.approvalCounter && !!this.pendingSuccess; // Non-DOM unit-test harness.
+                return !!(el && el.dataset.approvalId === String(serial) &&
+                    container && !container.classList.contains('hidden'));
+            },
+            biometricApprovalBusy: false,
+            async verifyApprovalBiometric(serial) {
+                if (this.biometricApprovalBusy || !this.approvalDialogIsActive(serial)) return;
+                this.biometricApprovalBusy = true;
+                try {
+                    await this.nativeBiometricAuthenticate();
+                    if (!this.approvalDialogIsActive(serial)) return;
+                    const callback = this.pendingSuccess;
+                    this.pendingSuccess = null;
+                    UI.forceCloseModal();
+                    if (callback) await callback(this.biometricApprovalProof);
+                } catch (e) {
+                    if (this.approvalDialogIsActive(serial)) {
+                        const error = document.getElementById('protectionBiometricError');
+                        if (error) error.textContent = e.message || (State.settings.language === 'en' ? 'Biometric verification failed' : 'فشل التحقق بالبصمة');
+                    }
+                } finally { this.biometricApprovalBusy = false; }
             },
             async verifyPromptPin() {
-                const pin = document.getElementById('protectionVerifyPin')?.value || '';
+                const input = document.getElementById('protectionVerifyPin');
+                if (!input) return;
+                const approvalEl = document.getElementById('protectionApprovalPrompt');
+                const serial = approvalEl ? Number(approvalEl.dataset.approvalId) : this.approvalCounter;
+                const pin = input.value || '';
                 try {
                     if (await this.verifyPin(pin)) {
+                        if (!this.approvalDialogIsActive(serial)) return;
                         const callback = this.pendingSuccess;
                         this.pendingSuccess = null;
                         UI.forceCloseModal();
                         if (callback) await callback(pin);
-                    } else UI.toast('رمز الحماية غير صحيح', 'error');
+                    } else UI.toast(State.settings.language === 'en' ? 'Incorrect password' : 'رمز الحماية غير صحيح', 'error');
                 } catch (e) { UI.toast(e.message || 'تعذر التحقق من الرمز', 'error'); }
             },
             recoveryMarkup(isLocked) {
