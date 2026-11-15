@@ -43,7 +43,6 @@ A.renderVoucher=function(){let s=renderVoucher(),op=this.state.ops.find(o=>o.id=
  s=s.replace('<div class="hero"><h2>', '<div class="hero"><div class="pill wait">✎ تعديل '+esc(op.localNumber||'')+'</div><h2>');
  s=s.replace('value="'+esc(op.accountId)+'">','value="'+esc(op.accountId)+'" selected>');
  s=s.replace('value="'+this.defaultDate()+'"','value="'+date+'"');
- s=s.replace('<option>'+esc(op.currency)+'</option>','<option selected>'+esc(op.currency)+'</option>');
  s=s.replace('id="vAmount" class="field ltr"','id="vAmount" value="'+Number(op.amount||0)+'" class="field ltr"');
  s=s.replace('id="vNote" class="field" rows="2" placeholder="بيان السند (اختياري)"></textarea>',
      'id="vNote" class="field" rows="2" placeholder="بيان السند (اختياري)">'+esc(op.note||'')+'</textarea>');

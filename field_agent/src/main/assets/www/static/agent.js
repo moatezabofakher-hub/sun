@@ -76,7 +76,7 @@ const Agent={
     return `<div class="hero"><h2>${kind==='sale'?'فاتورة مبيعات':'مردود مبيعات'}</h2><p>عملية ميدانية محفوظة محليًا حتى يرحلها المحاسب الرئيسي</p></div>
       <div class="panel"><label class="label">نوع العملية</label><select class="field" id="fKind" onchange="Agent.draftKind=this.value;Agent.draft=[];Agent.show('invoice')"><option value="sale" ${kind==='sale'?'selected':''}>مبيعات</option><option value="sale_return" ${kind==='sale_return'?'selected':''}>مردود مبيعات</option></select>
       <label class="label">العميل</label><select class="field" id="fAccount"><option value="">بيع نقدي دون حساب</option>${this.state.accounts.map(a=>`<option value="${this.escape(a.id)}">${this.escape(a.name)}</option>`).join('')}</select>
-      <label class="label">عملة الفاتورة</label><select class="field" id="fCurrency" onchange="Agent.reprice(this.value)">${currencies.map(c=>`<option ${c===(this.currency||'USD')?'selected':''}>${c}</option>`).join('')}</select>
+      <label class="label">عملة الفاتورة</label><select class="field" id="fCurrency" onchange="Agent.reprice(this.value)">${currencies.map(c=>`<option value="${c}" ${c===(this.currency||'USD')?'selected':''}>${c}</option>`).join('')}</select>
       <label class="label">المادة</label><select class="field" id="fItem" onchange="Agent.paintUnits()">${this.state.items.map(i=>`<option value="${this.escape(i.id)}">${this.escape(i.name)}</option>`).join('')}</select>
       <div class="row"><div><label class="label">الوحدة</label><select class="field" id="fUnit"></select></div><div><label class="label">الكمية</label><input class="field ltr" id="fQty" type="number" min="0.001" step="0.001" value="1"></div></div>
       <button class="secondary" onclick="Agent.addRow()">+ إضافة المادة إلى الفاتورة</button></div>
@@ -120,10 +120,24 @@ const Agent={
       await this.save();this.draft=[];this.toast('حُفظت الفاتورة. لن تُرحّل إلا عند المزامنة');await this.show('ops');
     }catch(e){this.toast('لم تحفظ الفاتورة: '+e.message);}finally{this.busy=false;}
   },
-  renderVoucher(){return `<div class="hero"><h2>سند موظف البيع</h2><p>سند قبض أو دفع مرتبط بحساب أحد العملاء المعتمدين</p></div><div class="panel">
+  // Change between the supported ledger currencies without opening a modal.
+  // Use a hidden ISO code; displayed currency labels are not accounting values.
+  toggleVoucherCurrency(){
+    const field=document.getElementById('vCurrency');
+    const button=document.getElementById('vCurrencyToggle');
+    if(!field||!button)return;
+    const next=field.value==='USD'?'SYP':'USD';
+    field.value=next;
+    const label=button.querySelector('.agent-voucher-currency-label');
+    if(label)label.textContent=next==='SYP'?'ليرة سورية (ل.س)':'دولار (USD)';
+    button.setAttribute('aria-label','تبديل عملة السند؛ الحالية: '+(next==='SYP'?'الليرة السورية':'الدولار'));
+  },
+  renderVoucher(){const editing=this.state.ops.find(o=>o.id===this.editingId&&['receipt','payment'].includes(o.kind));
+    const currency=editing?.currency==='SYP'?'SYP':'USD';
+    return `<div class="hero"><h2>سند موظف البيع</h2><p>سند قبض أو دفع مرتبط بحساب أحد العملاء المعتمدين</p></div><div class="panel">
     <label class="label">نوع السند</label><select id="vKind" class="field"><option value="receipt">سند قبض</option><option value="payment">سند دفع</option></select>
     <label class="label">حساب العميل</label><select id="vAcc" class="field">${this.state.accounts.map(a=>`<option value="${this.escape(a.id)}">${this.escape(a.name)}</option>`).join('')}</select>
-    <label class="label">العملة</label><select id="vCurrency" class="field"><option>USD</option><option>SYP</option></select>
+    <label class="label">عملة السند</label><input id="vCurrency" type="hidden" value="${currency}"><button id="vCurrencyToggle" type="button" class="field" style="cursor:pointer;min-height:44px;font-weight:900;background:#f0fdfa;border:2px solid #99f6e4;color:#115e59" onclick="Agent.toggleVoucherCurrency()" aria-label="تبديل عملة السند دون فتح قائمة"><span aria-hidden="true">🔄</span> <span class="agent-voucher-currency-label">${currency==='SYP'?'ليرة سورية (ل.س)':'دولار (USD)'}</span></button>
     <label class="label">القيمة</label><input id="vAmount" class="field ltr" type="number" step="any" min="0.01">
     <label class="label">ملاحظة</label><input id="vNote" class="field" maxlength="200">
     <button class="primary" onclick="Agent.saveVoucher()">حفظ السند</button></div>`;},
