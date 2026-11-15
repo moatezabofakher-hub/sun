@@ -5009,11 +5009,25 @@ html.ta-ime-open body.ta-3d-v3524 > main#mainContent.ta-main {padding-bottom:24p
                 if (!acc) return AppNav.navigate('accounts');
 
                 const evalMode = params.evalMode || 'DUAL';
-                const st = Accounting.getAccountStatement(acc.id);
+                const dateFrom=params.dateFrom||'',dateTo=params.dateTo||'';
+                const st = AccountStatementPeriod.filter(Accounting.getAccountStatement(acc.id),dateFrom,dateTo);
 
                 UI.setHeader(`<i class="fas fa-file-contract text-emerald-400"></i> <span>كشف حساب: ${acc.name}</span>`, 'مبدأ القيد المزدوج وتتبع الأرصدة التراكمية');
 
                 main.innerHTML = `
+                    <div class="bg-white border border-blue-200 rounded-2xl p-3 mb-3" dir="rtl">
+                       <h3 class="font-black text-slate-900 mb-2">فترة كشف الحساب</h3>
+                       <div class="grid grid-cols-2 gap-2 mb-2">
+                           <label class="text-xs font-extrabold">من تاريخ<input id="statementFrom" type="date" value="${AppEscape.text(dateFrom)}" onchange="AccountStatementPeriod.update('${acc.id}')" class="w-full border p-2 rounded-lg bg-white mt-1"/></label>
+                           <label class="text-xs font-extrabold">إلى تاريخ<input id="statementTo" type="date" value="${AppEscape.text(dateTo)}" onchange="AccountStatementPeriod.update('${acc.id}')" class="w-full border p-2 rounded-lg bg-white mt-1"/></label>
+                       </div>
+                       <p class="text-[11px] text-slate-600 mb-2">اترك التاريخ فارغاً لعرض كامل الفترة. الرصيد المدور هو جميع حركات ما قبل تاريخ البداية.</p>
+                       <div class="grid grid-cols-2 gap-2 text-xs mb-2">
+                         <div class="bg-sky-50 p-2 rounded-xl border border-sky-200"><b>الرصيد المدور ل.س</b><div class="font-bold">${AccountStatementPeriod.fmt(st.opening.SYP,'SYP')}</div></div>
+                         <div class="bg-amber-50 p-2 rounded-xl border border-amber-200"><b>الرصيد المدور USD</b><div class="font-bold">${AccountStatementPeriod.fmt(st.opening.USD,'USD')}</div></div>
+                       </div>
+                       <button type="button" class="w-full bg-rose-700 text-white font-black rounded-xl p-3" onclick="AccountStatementPeriod.sharePdf('${acc.id}')"><i class="fas fa-file-pdf ml-2"></i>إنشاء ومشاركة كشف حساب PDF</button>
+                    </div>
                     <div class="bg-slate-900 text-white p-4 rounded-2xl mb-3 shadow-md">
                         <div class="flex items-center justify-between border-b border-slate-800 pb-2 mb-3">
                             <div>
@@ -5022,20 +5036,20 @@ html.ta-ime-open body.ta-3d-v3524 > main#mainContent.ta-main {padding-bottom:24p
                                 ${acc.address ? `<p class="text-xs text-slate-300 mt-1"><i class="fas fa-location-dot ml-1" aria-hidden="true"></i>${AppEscape.text(acc.address)}</p>` : ''}
                             </div>
                             <div class="flex gap-1 bg-slate-800 p-1 rounded-xl text-[11px]">
-                                <button onclick="AppNav.navigate('account_statement', { id: '${acc.id}', evalMode: 'DUAL' }, true)" class="px-2 py-1 rounded-lg font-bold ${evalMode === 'DUAL' ? 'bg-emerald-500 text-slate-950' : 'text-slate-300'}">بالعملتين</button>
-                                <button onclick="AppNav.navigate('account_statement', { id: '${acc.id}', evalMode: 'SYP' }, true)" class="px-2 py-1 rounded-lg font-bold ${evalMode === 'SYP' ? 'bg-emerald-500 text-slate-950' : 'text-slate-300'}">تقييم ل.س</button>
-                                <button onclick="AppNav.navigate('account_statement', { id: '${acc.id}', evalMode: 'USD' }, true)" class="px-2 py-1 rounded-lg font-bold ${evalMode === 'USD' ? 'bg-emerald-500 text-slate-950' : 'text-slate-300'}">تقييم $</button>
+                                <button onclick="AppNav.navigate('account_statement', { id: '${acc.id}', evalMode: 'DUAL', dateFrom: '${dateFrom}', dateTo: '${dateTo}' }, true)" data-statement-eval="DUAL" class="px-2 py-1 rounded-lg font-bold ${evalMode === 'DUAL' ? 'bg-emerald-500 text-slate-950' : 'text-slate-300'}">بالعملتين</button>
+                                <button onclick="AppNav.navigate('account_statement', { id: '${acc.id}', evalMode: 'SYP', dateFrom: '${dateFrom}', dateTo: '${dateTo}' }, true)" data-statement-eval="SYP" class="px-2 py-1 rounded-lg font-bold ${evalMode === 'SYP' ? 'bg-emerald-500 text-slate-950' : 'text-slate-300'}">تقييم ل.س</button>
+                                <button onclick="AppNav.navigate('account_statement', { id: '${acc.id}', evalMode: 'USD', dateFrom: '${dateFrom}', dateTo: '${dateTo}' }, true)" data-statement-eval="USD" class="px-2 py-1 rounded-lg font-bold ${evalMode === 'USD' ? 'bg-emerald-500 text-slate-950' : 'text-slate-300'}">تقييم $</button>
                             </div>
                         </div>
 
                         <div class="grid grid-cols-2 gap-3">
                             <div class="bg-slate-800/80 p-2.5 rounded-xl">
                                 <span class="text-[11px] text-slate-400 block">الرصيد الفعلي (ل.س)</span>
-                                <span class="font-extrabold text-sm sm:text-base text-emerald-400">${Accounting.format(Math.abs(st.sypBalance), 'SYP')} ${st.sypBalance > 0 ? '(مدين/لنا)' : st.sypBalance < 0 ? '(دائن/علينا)' : ''}</span>
+                                <span class="font-extrabold text-sm sm:text-base text-emerald-400">${AccountStatementPeriod.fmt(st.sypExact.replace(/^-/,''),'SYP')} ${st.sypBalance > 0 ? '(مدين/لنا)' : st.sypBalance < 0 ? '(دائن/علينا)' : ''}</span>
                             </div>
                             <div class="bg-slate-800/80 p-2.5 rounded-xl">
                                 <span class="text-[11px] text-slate-400 block">الرصيد الفعلي (USD)</span>
-                                <span class="font-extrabold text-sm sm:text-base text-amber-300">${Accounting.format(Math.abs(st.usdBalance), 'USD')} ${st.usdBalance > 0 ? '(مدين/لنا)' : st.usdBalance < 0 ? '(دائن/علينا)' : ''}</span>
+                                <span class="font-extrabold text-sm sm:text-base text-amber-300">${AccountStatementPeriod.fmt(st.usdExact.replace(/^-/,''),'USD')} ${st.usdBalance > 0 ? '(مدين/لنا)' : st.usdBalance < 0 ? '(دائن/علينا)' : ''}</span>
                             </div>
                         </div>
                         <div class="mt-2.5 pt-2 border-t border-slate-800 flex items-center justify-between text-xs text-slate-300">
@@ -5059,6 +5073,7 @@ html.ta-ime-open body.ta-3d-v3524 > main#mainContent.ta-main {padding-bottom:24p
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-slate-100">
+                                    <tr class="bg-blue-50 font-extrabold"><td class="p-2">قبل بداية الفترة</td><td class="p-2">الرصيد المدور</td><td class="p-2 text-center">—</td><td class="p-2 text-center">—</td><td class="p-2 text-left" dir="ltr">${AccountStatementPeriod.fmt(st.opening.SYP,'SYP')} / ${AccountStatementPeriod.fmt(st.opening.USD,'USD')}</td></tr>
                                     ${st.entries.length === 0 ? `
                                         <tr><td colspan="5" class="p-6 text-center text-slate-400">لا توجد حركات مسجلة لهذا الحساب</td></tr>
                                     ` : st.entries.map(e => `
@@ -5068,18 +5083,18 @@ html.ta-ime-open body.ta-3d-v3524 > main#mainContent.ta-main {padding-bottom:24p
                                                 <div class="text-[10px] text-slate-400">${(e.date || '').replace('T', ' ')}</div>
                                             </td>
                                             <td class="p-2.5">
-                                                <div class="text-slate-700">${e.desc}</div>
+                                                <div class="text-slate-700">${AppEscape.text(e.desc)}</div><div class="text-[10px] text-slate-500">سعر الصرف: ${AppEscape.text(e.rate??'غير مسجل')} ل.س/$</div>
                                                 ${e.id ? `<button onclick="AppNav.navigate('${e.docType === 'voucher' ? 'voucher_form' : 'invoice_form'}', { id: '${e.id}' })" class="text-[10px] text-blue-600 font-bold hover:underline">فتح المستند للتعديل</button>` : ''}
                                             </td>
-                                            <td class="p-2.5 text-center font-bold text-blue-700">
-                                                ${e.debit > 0 ? Accounting.format(e.debit, e.currency) : '-'}
+                                            <td class="p-2.5 text-center font-bold text-emerald-800 bg-emerald-50">
+                                                ${e.debit > 0 ? AccountStatementPeriod.fmt(e.debitExact,e.currency) : '-'}
                                             </td>
-                                            <td class="p-2.5 text-center font-bold text-rose-600">
-                                                ${e.credit > 0 ? Accounting.format(e.credit, e.currency) : '-'}
+                                            <td class="p-2.5 text-center font-bold text-rose-800 bg-rose-50">
+                                                ${e.credit > 0 ? AccountStatementPeriod.fmt(e.creditExact,e.currency) : '-'}
                                             </td>
                                             <td class="p-2.5 text-left whitespace-nowrap font-bold">
-                                                <div>${Accounting.format(e.sypBalanceAfter, 'SYP')}</div>
-                                                <div class="text-[11px] text-amber-700">${Accounting.format(e.usdBalanceAfter, 'USD')}</div>
+                                                <div>${AccountStatementPeriod.fmt(e.balancePair.SYP,'SYP')}</div>
+                                                <div class="text-[11px] text-amber-700">${AccountStatementPeriod.fmt(e.balancePair.USD,'USD')}</div>
                                             </td>
                                         </tr>
                                     `).join('')}
@@ -9906,5 +9921,6 @@ html.ta-ime-open body.ta-3d-v3524 > main#mainContent.ta-main {padding-bottom:24p
 <script src="static/tiqany-recovery.js"></script>
 <script src="static/tiqany-support.js"></script>
 <script src="static/tiqany-ux-3588.js"></script>
+<script src="static/account-statement-period-3589.js"></script>
 </body>
 </html>

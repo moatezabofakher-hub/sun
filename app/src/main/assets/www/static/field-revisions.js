@@ -2,9 +2,10 @@
 (function(){'use strict';
 const F=FieldSync;
 F.commitOperationsWithRevisions=async function(agent,ops){
+ this.assertAuthorizedOps(ops,agent);
  const cfg=this.data();const known=new Set(cfg.imported.map(x=>x.id));
  const fresh=ops.filter(x=>!known.has(x.id));if(!fresh.length)return 0;
- const original={accounts:State.accounts,invoices:State.invoices,vouchers:State.vouchers,expenses:State.expenses||[],
+ const original={items:State.items,accounts:State.accounts,invoices:State.invoices,vouchers:State.vouchers,expenses:State.expenses||[],
     imported:cfg.imported,events:cfg.events,history:cfg.operationHistory,used:State.license.opsUsedCount};
  if(!State.license.isActivated&&Number(original.used||0)+fresh.length>LicenseManager.MAX_TRIAL_OPS)
    throw Error('تجاوز الحد التجريبي للتطبيق الرئيسي');
@@ -15,6 +16,7 @@ F.commitOperationsWithRevisions=async function(agent,ops){
  const docs=FieldProtocol.toLedgerDocuments(novel,agent,
    Math.max(0,...State.invoices.map(x=>Number(x.number)||0)),Math.max(0,...State.vouchers.map(x=>Number(x.number)||0)));
  this.checkNewCustomers(docs.customers,original.accounts);
+ for(const it of docs.items||[]){if(original.items.some(x=>x.id===it.id||String(x.name).trim().toLowerCase()===String(it.name).trim().toLowerCase()))throw Error('المادة موجودة مسبقًا على الرئيسي');}
  let invoices=[...original.invoices,...docs.invoices],vouchers=[...original.vouchers,...docs.vouchers];
  const changes=[];const deltas={};
  const stockDelta=(op,mul)=>{if(!['sale','sale_return'].includes(op.kind||op.type))return;
@@ -64,6 +66,7 @@ F.commitOperationsWithRevisions=async function(agent,ops){
     throw Error('رصيد سيارة موظف البيع غير كافٍ بعد التعديل: '+(State.items.find(x=>x.id===id)?.name||id));
  }
  try{
+   State.items=[...original.items,...(docs.items||[])];
    State.accounts=[...original.accounts,...docs.customers];State.invoices=invoices;State.vouchers=vouchers;
    State.expenses=[...original.expenses,...docs.expenses];
    cfg.imported=[...original.imported,...fresh.map(x=>({id:x.id,agentId:agent.id,receivedAt:new Date().toISOString(),kind:x.kind}))];
@@ -73,7 +76,7 @@ F.commitOperationsWithRevisions=async function(agent,ops){
    if(!State.license.isActivated)State.license.opsUsedCount+=fresh.length;
    await StorageEngine.saveState();return fresh.length;
  }catch(err){
-   State.accounts=original.accounts;State.invoices=original.invoices;State.vouchers=original.vouchers;State.expenses=original.expenses;
+   State.items=original.items;State.accounts=original.accounts;State.invoices=original.invoices;State.vouchers=original.vouchers;State.expenses=original.expenses;
    cfg.imported=original.imported;cfg.events=original.events;cfg.operationHistory=original.history;
    cfg.revisionAudit=(cfg.revisionAudit||[]).filter(x=>!changes.some(y=>y.id===x.id));
    State.license.opsUsedCount=original.used;throw err;

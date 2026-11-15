@@ -1,3 +1,21 @@
+
+const TiqanyAgentPermissions=(function(){'use strict';
+ const names={priceTier:'تعديل طريقة التسعير',currency:'تعديل العملة المعتمدة في العمليات',balances:'معرفة أرصدة الحسابات',editPrices:'تعديل الأسعار ضمن الفاتورة',exchangeRate:'تعديل سعر الصرف',stock:'مراقبة الجرد',createAccounts:'إضافة حسابات جديدة',createItems:'إضافة مواد جديدة',editOperations:'تعديل العمليات',deleteOperations:'حذف العمليات'};
+ const defaults=Object.freeze({priceTier:true,currency:true,balances:true,editPrices:false,exchangeRate:false,stock:true,createAccounts:true,createItems:false,editOperations:true,deleteOperations:false});
+ function normalize(p){const src=p&&typeof p==='object'&&!Array.isArray(p)?p:defaults;return Object.fromEntries(Object.keys(names).map(k=>[k,src[k]===true]));}
+ function grid(prefix,permissions){const p=normalize(permissions);return `<div class="rounded-xl border-2 border-sky-200 bg-sky-50 p-3" dir="rtl"><h4 class="font-black text-blue-900 mb-2">صلاحيات الموظف — حدد المسموح</h4><div class="grid grid-cols-2 gap-2">${Object.keys(names).map((k,i)=>`<label class="flex gap-2 items-center rounded-lg border border-blue-200 bg-white p-2 text-xs font-bold min-h-[48px]" style="color:#0f2442"><input type="checkbox" data-staff-perm="${prefix}" value="${k}" ${p[k]?'checked':''} style="width:18px;height:18px;accent-color:#0f766e"/><span>${names[k]}</span></label>`).join('')}</div><p class="text-[11px] mt-2 text-slate-600">التغييرات تدخل حيز التنفيذ على هاتف الموظف عند المزامنة التالية، ويُفحص السماح عند استقبال العمليات أيضاً.</p></div>`;}
+ function read(prefix){if(typeof document.querySelector!=='function')return normalize(defaults);const obj={};for(const k of Object.keys(names))obj[k]=!!document.querySelector(`input[data-staff-perm="${prefix}"][value="${k}"]:checked`);return obj;}
+ function assertOperations(ops,agent,rate){const p=normalize(agent?.permissions);
+   for(const o of ops||[]){
+     if(o.kind==='customer_create'&&!p.createAccounts)throw Error('ليس لدى الموظف صلاحية إضافة حسابات');
+     if(o.kind==='document_edit'&&!p.editOperations)throw Error('ليس لدى الموظف صلاحية تعديل العمليات');
+     if(o.kind==='document_delete'&&!p.deleteOperations)throw Error('ليس لدى الموظف صلاحية حذف العمليات');
+     if(o.kind==='item_create'&&!p.createItems)throw Error('ليس لدى الموظف صلاحية إضافة مواد');
+   }
+   return true;
+ }
+ return {names,defaults,normalize,grid,read,assertOperations};
+})();
 /* Manager-side field dispatch. Import is previewed, validated, deduplicated and
  * committed only after explicit approval. Never merges a whole remote database. */
 const FieldSync = {
@@ -51,6 +69,9 @@ const FieldSync = {
     const url=URL.createObjectURL(new Blob([raw],{type:'application/json'}));
     const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),3000);
   },
+  permissionGrid(prefix,stored){return TiqanyAgentPermissions.grid(prefix,stored);},
+  readPermissions(prefix){return TiqanyAgentPermissions.read(prefix);},
+  assertAuthorizedOps(operations,agent){return TiqanyAgentPermissions.assertOperations(operations,agent,State.settings.exchangeRate);},
   accountPicker(prefix,selected=null){
     const restricted=Array.isArray(selected),allowed=new Set(selected||[]);
     return `<section class="p-3 bg-sky-50 rounded-xl border border-sky-200 text-xs" data-account-picker="${prefix}">
@@ -94,6 +115,7 @@ const FieldSync = {
         <input id="fieldNewVehicle" class="w-full border rounded-xl p-3" placeholder="اسم السيارة / خط التوزيع" maxlength="70"/>
         <select id="fieldNewWarehouse" class="w-full border rounded-xl p-3">${opts}</select>
         ${this.accountPicker('fieldNewAccounts')}
+        ${this.permissionGrid('newFieldPermissions')}
         <p class="text-[11px] text-amber-800">أنشئ مستودع سيارة مستقلًا، وحمّله بالمخزون من شاشة المناقلات قبل بدء البيع.</p>
         <button type="button" onclick="FieldSync.addAgent()" class="ta-primary-3d w-full p-3 rounded-xl font-black">إضافة موظف بيع معتمد</button>
       </div>
@@ -130,8 +152,9 @@ const FieldSync = {
     if(!name||name.length<2||!warehouseId)return UI.toast('اكتب اسم موظف البيع واختر المستودع','warn');
     let allowedAccountIds;try{allowedAccountIds=this.readAccountPicker('fieldNewAccounts');}catch(e){return UI.toast(e.message,'warn');}
     if(this.data().agents.some(a=>a.warehouseId===warehouseId && !a.disabled))return UI.toast('المستودع مربوط بموظف بيع آخر؛ خصص مستودع سيارة مستقلًا','warn');
+    const permissions=this.readPermissions('newFieldPermissions');
     const key=new Uint8Array(32);crypto.getRandomValues(key);
-    const a={id:'agent_'+FieldProtocol.uuid(),name,vehicleName:vehicleName||name,warehouseId,key:FieldProtocol.b64u(key),allowedAccountIds,createdAt:new Date().toISOString(),createdOnDevice:'main_phone',disabled:false};
+    const a={id:'agent_'+FieldProtocol.uuid(),name,vehicleName:vehicleName||name,warehouseId,key:FieldProtocol.b64u(key),allowedAccountIds,permissions,createdAt:new Date().toISOString(),createdOnDevice:'main_phone',disabled:false};
     this.data().agents.push(a);
     try { await StorageEngine.saveState();this.open();UI.toast('تم إنشاء موظف البيع. افتح تطبيقه وسيظهر طلب الربط تلقائياً','success'); }
     catch(e){this.data().agents=this.data().agents.filter(x=>x.id!==a.id);UI.toast('فشل حفظ موظف البيع: '+e.message,'error');}
@@ -140,9 +163,9 @@ const FieldSync = {
     const config=this.data();
     const known=config.imported.filter(i=>i.agentId===a.id).map(i=>i.id);
     // Limit optional image payloads to keep periodic encrypted sync reliable on LAN.
-    let imageBudget=650000;
+    let imageBudget=650000,ledgerBudget=4600;
     return {kind:'provision',format:FieldProtocol.FORMAT,companyId:config.companyId,companyName:State.settings.companyName,agentId:a.id,agentName:a.name,vehicleName:a.vehicleName,warehouseId:a.warehouseId,key:a.key,
-      issuedAt:new Date().toISOString(),exchangeRate:Number(State.settings.exchangeRate),
+      issuedAt:new Date().toISOString(),permissions:TiqanyAgentPermissions.normalize(a.permissions),exchangeRate:Number(State.settings.exchangeRate),
       defaultPriceTier:['wholesale','center','consumer'].includes(State.settings.defaultPriceTier)?State.settings.defaultPriceTier:'wholesale',
       // Company branding is an authenticated part of each refreshed catalog; never copied from agent edits.
       companyPhone:String(State.settings.companyPhone||'').slice(0,100),
@@ -166,9 +189,16 @@ const FieldSync = {
         // The agent adjusts only operations not represented in this synchronized snapshot.
         const st=Accounting.getAccountStatement(acc.id);
         return {id:acc.id,name:acc.name,type:acc.type,phone:acc.phone||'',address:acc.address||'',paymentTerms:acc.paymentTerms||'',priceTier:['wholesale','center','consumer'].includes(acc.priceTier)?acc.priceTier:'settings',
-          sypBalance:st.sypBalance,usdBalance:st.usdBalance};
+          sypBalance:TiqanyAgentPermissions.normalize(a.permissions).balances?st.sypBalance:null,usdBalance:TiqanyAgentPermissions.normalize(a.permissions).balances?st.usdBalance:null};
       }),
       stock:Object.fromEntries(State.items.map(it=>[it.id,Accounting.getItemBaseStock(it.id,null,a.warehouseId)])),
+      accountLedgers:TiqanyAgentPermissions.normalize(a.permissions).balances
+       ?State.accounts.filter(acc=>acc.type==='customer' && (!Array.isArray(a.allowedAccountIds)||a.allowedAccountIds.includes(acc.id)||acc.fieldOrigin?.agentId===a.id)).map(acc=>{
+          const entries=Accounting.getAccountStatement(acc.id)?.entries;
+          const complete=Array.isArray(entries)&&entries.length<=1500&&entries.length<=ledgerBudget;
+          if(complete)ledgerBudget-=entries.length;
+          return {accountId:acc.id,complete,entries:complete?entries.map(e=>({date:e.date,ref:e.ref,desc:e.desc,rate:e.rate,currency:e.currency,debit:e.debit,credit:e.credit})):[]};
+        }):[],
       knownIds:known,
       // A cashbox is a separate physical till, not a customer's receivable.
       agentCash:(typeof FieldCash!=='undefined'?((x)=>({sypCash:x.sypCash,usdCash:x.usdCash}))(FieldCash.summary(a.id)):{sypCash:0,usdCash:0}),
@@ -184,6 +214,7 @@ const FieldSync = {
       <label class="text-xs font-black">اسم موظف البيع</label><input id="editFieldAgentName" class="w-full border rounded-xl p-3" maxlength="70" value="${this.escape(a.name)}"/>
       <label class="text-xs font-black">السيارة / خط التوزيع</label><input id="editFieldAgentVehicle" class="w-full border rounded-xl p-3" maxlength="70" value="${this.escape(a.vehicleName||'')}"/>
       ${this.accountPicker('fieldEditAccounts',a.allowedAccountIds)}
+      ${this.permissionGrid('editFieldPermissions',a.permissions)}
       <div class="bg-slate-100 rounded-xl p-2 text-xs">مستودع السيارة: ${this.escape(WarehouseController.name(a.warehouseId))} — ثابت لحماية جرد العمليات</div>
       <button type="button" class="ta-primary-3d w-full p-3 rounded-xl" onclick="FieldSync.saveAgentEdit('${a.id}')">حفظ التعديل</button>
       <button type="button" class="rounded-xl p-2 w-full bg-slate-100" onclick="FieldSync.open()">رجوع</button>
@@ -195,7 +226,7 @@ const FieldSync = {
     const vehicleName=String(document.getElementById('editFieldAgentVehicle')?.value||'').trim();
     if(name.length<2||name.length>70||vehicleName.length>70)return UI.toast('اسم موظف البيع يجب أن يكون بين حرفين و70 حرفًا','warn');
     let allowedAccountIds;try{allowedAccountIds=this.readAccountPicker('fieldEditAccounts');}catch(e){return UI.toast(e.message,'warn');}
-    const original={name:a.name,vehicleName:a.vehicleName,allowedAccountIds:a.allowedAccountIds};a.name=name;a.vehicleName=vehicleName||name;a.allowedAccountIds=allowedAccountIds;
+    const original={name:a.name,vehicleName:a.vehicleName,allowedAccountIds:a.allowedAccountIds,permissions:a.permissions};a.name=name;a.vehicleName=vehicleName||name;a.allowedAccountIds=allowedAccountIds;a.permissions=this.readPermissions('editFieldPermissions');
     try{await StorageEngine.saveState();this.open();UI.toast('حُفظ التعديل. أرسل كشف تجهيز جديدًا إلى هاتف موظف البيع','success');}
     catch(e){Object.assign(a,original);UI.toast('لم يُحفظ تعديل موظف البيع: '+e.message,'error');}
   },
@@ -354,6 +385,7 @@ const FieldSync = {
       const payload=await FieldLanCrypto.open(packet,agent.key,config.companyId,agent.id);
       if(payload.kind!=='operations'||payload.companyId!==config.companyId||payload.agentId!==agent.id||payload.warehouseId!==agent.warehouseId||typeof payload.nonce!=='string'||!/^[a-zA-Z0-9_-]{8,90}$/.test(payload.nonce))throw Error('بيانات موظف البيع غير مطابقة');
       const all=FieldProtocol.validateOps(payload.operations,agent.id,config.companyId,agent.warehouseId,State.items,State.accounts,(this.historyFor?.(agent)||this.data().operationHistory||[]));
+      this.assertAuthorizedOps(all,agent);
       const known=new Set(config.imported.map(x=>x.id));
       const fresh=all.filter(x=>!known.has(x.id));
       const count=await this.commitLanOperations(agent,fresh);
@@ -398,8 +430,9 @@ const FieldSync = {
   },
   async commitLanOperations(agent,ops){
     if(!ops.length)return 0;
+    this.assertAuthorizedOps(ops,agent);
     if(ops.some(op=>op.kind==='document_edit'))return this.commitOperationsWithRevisions(agent,ops);
-    const config=this.data(),old={accounts:State.accounts,invoices:State.invoices,vouchers:State.vouchers,expenses:Array.isArray(State.expenses)?State.expenses:[],imported:config.imported,events:config.events,history:config.operationHistory,used:State.license.opsUsedCount};
+    const config=this.data(),old={items:State.items,accounts:State.accounts,invoices:State.invoices,vouchers:State.vouchers,expenses:Array.isArray(State.expenses)?State.expenses:[],imported:config.imported,events:config.events,history:config.operationHistory,used:State.license.opsUsedCount};
     const existing=new Set(config.imported.map(x=>x.id));
     const fresh=ops.filter(x=>!existing.has(x.id));
     if(!fresh.length)return 0;
@@ -419,6 +452,11 @@ const FieldSync = {
       const docs=FieldProtocol.toLedgerDocuments(fresh,agent,ni,nv);
       docs.invoices.forEach(inv=>(inv.rows||[]).forEach(row=>{const it=State.items.find(x=>x.id===row.itemId);if(it?.isBundle){const u=it.units?.find(x=>x.name===row.unitName)||it.units?.[0];row.baseCostPrice=Accounting.itemCostPrice(it,u);}}));
       this.checkNewCustomers(docs.customers,old.accounts);
+      for(const item of docs.items||[]){
+        if(old.items.some(x=>String(x.name).trim().toLowerCase()===String(item.name).trim().toLowerCase()||x.id===item.id))
+          throw Error('المادة موجودة مسبقًا على الرئيسي؛ لم تُقبل الإضافة المكررة');
+      }
+      State.items=[...old.items,...(docs.items||[])];
       State.accounts=[...old.accounts,...docs.customers];
       State.invoices=[...old.invoices,...docs.invoices];State.vouchers=[...old.vouchers,...docs.vouchers];State.expenses=[...old.expenses,...docs.expenses];
       config.imported=[...old.imported,...fresh.map(x=>({id:x.id,agentId:agent.id,receivedAt:new Date().toISOString(),kind:x.kind}))];
@@ -427,7 +465,7 @@ const FieldSync = {
       if(!State.license.isActivated)State.license.opsUsedCount+=fresh.length;
       await StorageEngine.saveState();
       return fresh.length;
-    }catch(e){State.accounts=old.accounts;State.invoices=old.invoices;State.vouchers=old.vouchers;State.expenses=old.expenses;config.imported=old.imported;config.events=old.events;config.operationHistory=old.history;State.license.opsUsedCount=old.used;throw e;}
+    }catch(e){State.items=old.items;State.accounts=old.accounts;State.invoices=old.invoices;State.vouchers=old.vouchers;State.expenses=old.expenses;config.imported=old.imported;config.events=old.events;config.operationHistory=old.history;State.license.opsUsedCount=old.used;throw e;}
   },
   async previewFile(input){
     const file=input.files?.[0];if(!file)return;
@@ -440,6 +478,7 @@ const FieldSync = {
       const payload=await FieldProtocol.unseal(envelope,a.key);
       if(payload.warehouseId!==a.warehouseId)throw Error('مستودع ملف موظف البيع لا يطابق سجل السيارة');
       const all=FieldProtocol.validateOps(payload.operations,a.id,c.companyId,a.warehouseId,State.items,State.accounts,(this.historyFor?.(a)||this.data().operationHistory||[]));
+      this.assertAuthorizedOps(all,a);
       const known=new Set(c.imported.map(x=>x.id));
       const fresh=all.filter(x=>!known.has(x.id));
       const invoiceCount=fresh.filter(x=>x.kind==='sale'||x.kind==='sale_return').length;
@@ -468,7 +507,7 @@ const FieldSync = {
     if(this.busy||this.lanBusy||!this.staged?.ops?.length)return;
     this.busy=true;
     const {agent,ops}=this.staged,c=this.data();
-    const old={accounts:State.accounts,invoices:State.invoices,vouchers:State.vouchers,expenses:Array.isArray(State.expenses)?State.expenses:[],imported:c.imported,events:c.events,history:c.operationHistory,opsUsedCount:State.license.opsUsedCount};
+    const old={items:State.items,accounts:State.accounts,invoices:State.invoices,vouchers:State.vouchers,expenses:Array.isArray(State.expenses)?State.expenses:[],imported:c.imported,events:c.events,history:c.operationHistory,opsUsedCount:State.license.opsUsedCount};
     try {
       if(ops.some(op=>op.kind==='document_edit')){
         const count=await this.commitLanOperations(agent,ops);
@@ -492,6 +531,11 @@ const FieldSync = {
       const docs=FieldProtocol.toLedgerDocuments(fresh,agent,latestInvoice,latestVoucher);
       docs.invoices.forEach(inv=>(inv.rows||[]).forEach(row=>{const it=State.items.find(x=>x.id===row.itemId);if(it?.isBundle){const u=it.units?.find(x=>x.name===row.unitName)||it.units?.[0];row.baseCostPrice=Accounting.itemCostPrice(it,u);}}));
       this.checkNewCustomers(docs.customers,old.accounts);
+      for(const item of docs.items||[]){
+        if(old.items.some(x=>String(x.name).trim().toLowerCase()===String(item.name).trim().toLowerCase()||x.id===item.id))
+          throw Error('المادة موجودة مسبقًا على الرئيسي؛ لم تُقبل الإضافة المكررة');
+      }
+      State.items=[...old.items,...(docs.items||[])];
       State.accounts=[...old.accounts,...docs.customers];
       State.invoices=[...old.invoices,...docs.invoices];State.vouchers=[...old.vouchers,...docs.vouchers];State.expenses=[...old.expenses,...docs.expenses];
       c.imported=[...old.imported,...fresh.map(x=>({id:x.id,agentId:agent.id,receivedAt:new Date().toISOString(),kind:x.kind}))];
@@ -503,7 +547,7 @@ const FieldSync = {
       if(typeof AppNav!=='undefined')AppNav.refreshAfterSync?.();
       // Let owner transfer ACK back to agent through Quick Share / Bluetooth.
       await this.exportAck(agent.id);
-    }catch(e){State.accounts=old.accounts;State.invoices=old.invoices;State.vouchers=old.vouchers;State.expenses=old.expenses;c.imported=old.imported;c.events=old.events;c.operationHistory=old.history;State.license.opsUsedCount=old.opsUsedCount;UI.toast('لم يتم ترحيل البيانات: '+e.message,'error');}
+    }catch(e){State.items=old.items;State.accounts=old.accounts;State.invoices=old.invoices;State.vouchers=old.vouchers;State.expenses=old.expenses;c.imported=old.imported;c.events=old.events;c.operationHistory=old.history;State.license.opsUsedCount=old.opsUsedCount;UI.toast('لم يتم ترحيل البيانات: '+e.message,'error');}
     finally{this.busy=false;}
   }
 };

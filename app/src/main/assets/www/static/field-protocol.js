@@ -38,7 +38,7 @@
   function validateOps(ops, agentId, companyId, warehouseId, items, accounts, history=null) {
     if(!Array.isArray(ops)||ops.length>2000)throw Error('عدد العمليات غير صالح');
     const itemMap=new Map(items.map(x=>[x.id,x])); const accMap=new Map(accounts.map(x=>[x.id,x]));
-    const seen=new Set(),newAccountIds=new Set();
+    const seen=new Set(),newAccountIds=new Set(),newItemIds=new Set();
     const normalizeName=s=>String(s||'').trim().replace(/\s+/g,' ').toLocaleLowerCase();
     const duplicateCustomer=(a,b)=>normalizeName(a.name)===normalizeName(b.name) && (!a.phone||!b.phone||String(a.phone).replace(/[\s()+-]/g,'')===String(b.phone).replace(/[\s()+-]/g,''));
     return ops.map(op=>{
@@ -48,7 +48,7 @@
       if(typeof op.date!=='string'||!/^\d{4}-\d\d-\d\d/.test(op.date)||isNaN(Date.parse(op.date)))throw Error('تاريخ عملية غير صالح');
       const code=currency(op.currency);
       const rate=positiveNumber(op.exchangeRate);
-      if(!['sale','sale_return','receipt','payment','expense','customer_create','document_edit'].includes(op.kind))throw Error('نوع عملية غير مصرح به');
+      if(!['sale','sale_return','receipt','payment','expense','customer_create','item_create','document_edit'].includes(op.kind))throw Error('نوع عملية غير مصرح به');
       if(op.kind==='document_edit'){
         if(!/^op_[a-f0-9]{32}$/i.test(op.targetOperationId||''))throw Error('معرف المستند المعدّل غير صالح');
         if(!Number.isInteger(op.baseRevision)||op.baseRevision<0||op.baseRevision>1000)throw Error('رقم مراجعة غير صالح');
@@ -62,6 +62,22 @@
             throw Error('تعذر تعديل مستند غير مُرحّل أو تغير في الحساب الرئيسي؛ حدث بيانات موظف البيع');
         }
         return {...op,revision:op.baseRevision+1,replacement:next};
+      }
+      if(op.kind==='item_create'){
+        if(op.accountId||op.rows||op.amount!=null)throw Error('تعريف المادة ليس حركة مالية');
+        const it=op.item;
+        if(!it||typeof it.id!=='string'||!/^itm_field_[a-f0-9]{32}$/i.test(it.id))throw Error('معرّف المادة غير صالح');
+        const name=String(it.name||'').trim().replace(/\s+/g,' '),unitName=String(it.unitName||'').trim(),category=String(it.category||'').trim();
+        if(name.length<2||name.length>120||unitName.length<1||unitName.length>60||category.length>100)throw Error('بيانات المادة غير صحيحة');
+        if(newItemIds.has(it.id)||itemMap.has(it.id))throw Error('تكرار معرّف المادة');
+        if([...itemMap.values()].some(other=>normalizeName(other.name)===normalizeName(name)))throw Error('توجد مادة بالاسم نفسه');
+        const codeItem=currency(it.currency);
+        const price=money(it.salePrice,codeItem),cost=money(it.costPrice||0,codeItem);
+        if(price<=0)throw Error('سعر البيع يجب أن يكون أكبر من الصفر');
+        const created={id:it.id,name,category,currency:codeItem,barcode:'',isBundle:false,openingStockBase:0,minStockBase:0,
+          units:[{name:unitName,factor:1,costPrice:cost,salePrice:price,wholesalePrice:price,centerPrice:price,consumerPrice:price}]};
+        newItemIds.add(it.id);itemMap.set(it.id,created);
+        return {...op,item:created,exchangeRate:rate};
       }
       if(op.kind==='customer_create'){
         if(op.accountId||op.rows||op.amount!=null)throw Error('إنشاء الزبون ليس حركة مالية');
@@ -129,10 +145,12 @@
     });
   }
   function toLedgerDocuments(ops, agent, startingInvoice, startingVoucher) {
-    const invoices=[],vouchers=[],expenses=[],customers=[];
+    const invoices=[],vouchers=[],expenses=[],customers=[],createdItems=[];
     for(const op of ops){
       const origin={agentId:agent.id,agentName:agent.name,vehicleName:agent.vehicleName||'',operationId:op.id,localNumber:op.localNumber||'',receivedAt:new Date().toISOString()};
-      if(op.kind==='customer_create'){
+      if(op.kind==='item_create'){
+        createdItems.push({...op.item,fieldOrigin:origin});
+      }else if(op.kind==='customer_create'){
         customers.push({...op.account,fieldOrigin:origin});
       }else if(op.kind==='sale'||op.kind==='sale_return'){
         const net=op.netTotal,paid=op.paidAmount;
@@ -145,20 +163,23 @@
         vouchers.push({id:'field_'+op.id,number:++startingVoucher,type:op.kind,date:op.date,accountId:op.accountId,currency:op.currency,amount:op.amount,exchangeRate:op.exchangeRate,accountCurrency:op.currency,accountAmount:op.amount,note:op.note||'',linkedInvoiceId:op.linkedInvoiceOpId?'field_'+op.linkedInvoiceOpId:'',fieldOrigin:{...origin,linkedInvoiceOperationId:op.linkedInvoiceOpId||''}});
       }
     }
-    return {invoices,vouchers,expenses,customers};
+    return {invoices,vouchers,expenses,customers,items:createdItems};
   }
-  function applyStock(baseStock, ops, ackIds) {
-    const result={...baseStock},acked=new Set(ackIds||[]);
-    for(const op of ops) {
-      if(acked.has(op.id))continue;
-      if(op.kind==='document_edit'){
-        const apply=(doc,mul)=>{if(!doc||!['sale','sale_return'].includes(doc.kind))return;
-          for(const r of doc.rows||[]){const qty=Number(r.qty)/Number(r.unitFactor);
-            result[r.itemId]=(Number(result[r.itemId])||0)+(doc.kind==='sale_return'?1:-1)*qty*mul;}};
-        apply(op.before,-1);apply(op.replacement,1);continue;
-      }
-      if(!['sale','sale_return'].includes(op.kind))continue;
-      for(const r of op.rows){ const delta=Number(r.qty)/Number(r.unitFactor);result[r.itemId]=(Number(result[r.itemId])||0)+(op.kind==='sale_return'?delta:-delta); }
+  function applyStock(baseStock, ops, ackIds, items=[]) {
+    const result={...baseStock},acked=new Set(ackIds||[]),catalog=new Map((items||[]).map(it=>[it.id,it]));
+    const move=(doc,mul)=>{if(!doc||!['sale','sale_return'].includes(doc.kind))return;
+      for(const row of doc.rows||[]){const item=catalog.get(row.itemId);
+        const parts=item?.isBundle?(row.bomComponents||item.bundleComponents):[{itemId:row.itemId,quantity:1}];
+        const delta=(doc.kind==='sale_return'?1:-1)*Number(row.qty)/Number(row.unitFactor)*mul;
+        for(const part of parts||[]){if(!part||!Number.isFinite(Number(part.quantity)))continue;
+          result[part.itemId]=(Number(result[part.itemId])||0)+delta*Number(part.quantity);}
+      }};
+    for(const op of ops||[]){if(acked.has(op.id))continue;
+      if(op.kind==='document_edit'){move(op.before,-1);move(op.replacement,1);}else move(op,1);
+    }
+    // Kits are virtual: do not double count a sale as both kit and components.
+    for(const it of items||[]){if(!it.isBundle)continue;const parts=it.bundleComponents||[];
+      result[it.id]=parts.length?Math.max(0,Math.floor(Math.min(...parts.map(x=>Number(result[x.itemId]||0)/Number(x.quantity||1)))*10000)/10000):0;
     }
     return result;
   }

@@ -119,8 +119,9 @@
        items:c.items,categories:c.categories||[],accounts:c.accounts,
        stock:c.stock||{},agentCash:c.agentCash||null,cashTransfers:c.cashTransfers||[],warehouseTransfers:mergeTransfer(c.warehouseHistoryPage,{...old,companyId:c.companyId,agentId:c.agentId,warehouseId:c.warehouseId}).docs,warehouseHistoryCursor:mergeTransfer(c.warehouseHistoryPage,{...old,companyId:c.companyId,agentId:c.agentId,warehouseId:c.warehouseId}).cursor,warehouseTransferRevision:c.warehouseHistoryPage?.revision||'',
        ops:mergeHistory(c.historyPage,{...old,companyId:c.companyId,agentId:c.agentId,warehouseId:c.warehouseId}).ops,historyCursor:mergeHistory(c.historyPage,{...old,companyId:c.companyId,agentId:c.agentId,warehouseId:c.warehouseId}).cursor,
-       knownIds:Array.from(new Set([...(old.knownIds||[]),...c.knownIds,...mergeHistory(c.historyPage,{...old,companyId:c.companyId,agentId:c.agentId,warehouseId:c.warehouseId}).restoredIds])),snapshotIds:c.knownIds,exchangeRate:c.exchangeRate,
+       knownIds:Array.from(new Set([...(old.knownIds||[]),...c.knownIds,...mergeHistory(c.historyPage,{...old,companyId:c.companyId,agentId:c.agentId,warehouseId:c.warehouseId}).restoredIds])),snapshotIds:c.knownIds,exchangeRate:c.permissions?.exchangeRate&&Number(old.exchangeRateOverride)>0?Number(old.exchangeRateOverride):c.exchangeRate,exchangeRateOverride:c.permissions?.exchangeRate?old.exchangeRateOverride:null,
        defaultPriceTier:['wholesale','center','consumer'].includes(c.defaultPriceTier)?c.defaultPriceTier:'wholesale',
+       permissions:c.permissions||null,accountLedgers:Array.isArray(c.accountLedgers)?c.accountLedgers:[],
        issuedAt:c.issuedAt,cloud:Object.prototype.hasOwnProperty.call(c,'cloud')?c.cloud:(old.cloud||null),pairedAuthorityKey:message.authorityKey,enrollmentGrant:message.grant};
      A.state=updated;
      try{await A.save();}catch(e){A.state=old;throw e;}

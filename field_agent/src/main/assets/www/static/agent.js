@@ -5,7 +5,7 @@ const Agent={
   // Extension modules provide paginated restorers; these defaults keep older standalone integrations compatible.
   mergeHistoryPage(page,old=this.state){return {ops:old.ops||[],cursor:Number(old.historyCursor||0),restoredIds:[]};},
   mergeTransferPage(page,old=this.state){return {docs:old.warehouseTransfers||[],cursor:Number(old.warehouseHistoryCursor||0),revision:old.warehouseTransferRevision||''};},
-  get blank(){return {deviceId:'TD-'+FieldProtocol.uuid().toUpperCase(),companyId:'',companyName:'',companyPhone:'',companyAddress:'',companyLogo:'',footerNote:'',printerWidth:80,printFontScale:0.75,itemQuantityDecimals:2,agentId:'',agentName:'',vehicleName:'',warehouseId:'',key:'',items:[],categories:[],accounts:[],stock:{},knownIds:[],snapshotIds:[],ops:[],agentCash:null,cashTransfers:[],warehouseTransfers:[],historyCursor:0,warehouseHistoryCursor:0,warehouseTransferRevision:'',license:'',issuedAt:'',lastSyncAt:'',lastSyncSummary:null,exchangeRate:15000,defaultPriceTier:'wholesale'};},
+  get blank(){return {deviceId:'TD-'+FieldProtocol.uuid().toUpperCase(),companyId:'',companyName:'',companyPhone:'',companyAddress:'',companyLogo:'',footerNote:'',printerWidth:80,printFontScale:0.75,itemQuantityDecimals:2,agentId:'',agentName:'',vehicleName:'',warehouseId:'',key:'',items:[],categories:[],accounts:[],stock:{},knownIds:[],snapshotIds:[],ops:[],agentCash:null,cashTransfers:[],warehouseTransfers:[],historyCursor:0,warehouseHistoryCursor:0,warehouseTransferRevision:'',license:'',issuedAt:'',lastSyncAt:'',lastSyncSummary:null,exchangeRate:15000,defaultPriceTier:'wholesale',permissions:null,accountLedgers:[],exchangeRateOverride:null};},
   async init(){
     if(!globalThis.crypto?.subtle){document.getElementById('screen').textContent='هذا الجهاز لا يدعم البيئة الآمنة اللازمة لتشغيل المزامنة.';return;}
     try{
@@ -29,7 +29,7 @@ const Agent={
   escape(t){return String(t??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));},
   ready(){return !!(this.state?.companyId&&this.state.key)},
   async active(){return this.ready() && await FieldProtocol.verifyLicense(this.state.license,AGENT_LICENSE_PUBLIC_KEY,this.state.deviceId,this.state.companyId,this.state.agentId);},
-  get pending(){return this.state.ops.filter(o=>!this.state.knownIds.includes(o.id)).sort((a,b)=>Number(b.kind==='customer_create')-Number(a.kind==='customer_create'));},
+  get pending(){return this.state.ops.filter(o=>!this.state.knownIds.includes(o.id)).sort((a,b)=>Number(['customer_create','item_create'].includes(b.kind))-Number(['customer_create','item_create'].includes(a.kind)));},
   get stock(){return FieldProtocol.applyStock(this.state.stock,this.state.ops,this.state.snapshotIds||[],this.state.items||[]);},
   async show(where){
     this.screen=where;
@@ -178,12 +178,16 @@ const Agent={
         const payload=await FieldProtocol.unseal(e,this.ready()?this.state.key:raw.key);
         if(this.ready() && (payload.companyId!==this.state.companyId||payload.agentId!==this.state.agentId||payload.key!==this.state.key))throw Error('لا يمكن تغيير الشركة أو موظف البيع أو مفتاح الاقتران على جهاز مرتبط مسبقًا');
         if(!Array.isArray(payload.items)||!Array.isArray(payload.accounts)||!payload.companyId||!payload.agentId)throw Error('ملف تجهيز ناقص');
-        this.state={...this.state,companyId:payload.companyId,companyName:payload.companyName,companyPhone:payload.companyPhone||'',companyAddress:payload.companyAddress||'',companyLogo:payload.companyLogo||'',footerNote:payload.footerNote||'',printerWidth:payload.printerWidth===58?58:80,printFontScale:Number(payload.printFontScale)||0.75,itemQuantityDecimals:Number.isInteger(Number(payload.itemQuantityDecimals))?Math.min(4,Math.max(0,Number(payload.itemQuantityDecimals))):2,agentId:payload.agentId,agentName:payload.agentName,vehicleName:payload.vehicleName,warehouseId:payload.warehouseId,key:payload.key,items:payload.items,categories:payload.categories||[],accounts:this.mergeCustomerCatalog?.(payload.accounts,this.state)||payload.accounts,stock:payload.stock,
+        const previous=this.state;
+        const localNewItems=(previous.ops||[]).filter(x=>x.kind==='item_create'&&!(previous.knownIds||[]).includes(x.id)&&!(payload.knownIds||[]).includes(x.id)).map(x=>x.item);
+        const provisionedItems=payload.items.slice();for(const item of localNewItems)if(!provisionedItems.some(x=>x.id===item.id))provisionedItems.push(item);
+        this.state={...this.state,companyId:payload.companyId,companyName:payload.companyName,companyPhone:payload.companyPhone||'',companyAddress:payload.companyAddress||'',companyLogo:payload.companyLogo||'',footerNote:payload.footerNote||'',printerWidth:payload.printerWidth===58?58:80,printFontScale:Number(payload.printFontScale)||0.75,itemQuantityDecimals:Number.isInteger(Number(payload.itemQuantityDecimals))?Math.min(4,Math.max(0,Number(payload.itemQuantityDecimals))):2,agentId:payload.agentId,agentName:payload.agentName,vehicleName:payload.vehicleName,warehouseId:payload.warehouseId,key:payload.key,items:provisionedItems,categories:payload.categories||[],accounts:this.mergeCustomerCatalog?.(payload.accounts,this.state)||payload.accounts,stock:payload.stock,
           agentCash:payload.agentCash||null,cashTransfers:payload.cashTransfers||[],warehouseTransfers:this.mergeTransferPage(payload.warehouseHistoryPage,{...this.state,companyId:payload.companyId,agentId:payload.agentId,warehouseId:payload.warehouseId}).docs,warehouseHistoryCursor:this.mergeTransferPage(payload.warehouseHistoryPage,{...this.state,companyId:payload.companyId,agentId:payload.agentId,warehouseId:payload.warehouseId}).cursor,warehouseTransferRevision:payload.warehouseHistoryPage?.revision||'',
           ops:this.mergeHistoryPage(payload.historyPage,{...this.state,companyId:payload.companyId,agentId:payload.agentId,warehouseId:payload.warehouseId}).ops,
           historyCursor:this.mergeHistoryPage(payload.historyPage,{...this.state,companyId:payload.companyId,agentId:payload.agentId,warehouseId:payload.warehouseId}).cursor,
-          snapshotIds:payload.knownIds||[],knownIds:Array.from(new Set([...(this.state.knownIds||[]),...(payload.knownIds||[]),...this.mergeHistoryPage(payload.historyPage,{...this.state,companyId:payload.companyId,agentId:payload.agentId,warehouseId:payload.warehouseId}).restoredIds])),exchangeRate:payload.exchangeRate,
+          snapshotIds:payload.knownIds||[],knownIds:Array.from(new Set([...(this.state.knownIds||[]),...(payload.knownIds||[]),...this.mergeHistoryPage(payload.historyPage,{...this.state,companyId:payload.companyId,agentId:payload.agentId,warehouseId:payload.warehouseId}).restoredIds])),exchangeRate:payload.permissions?.exchangeRate&&Number(previous.exchangeRateOverride)>0?Number(previous.exchangeRateOverride):payload.exchangeRate,exchangeRateOverride:payload.permissions?.exchangeRate?previous.exchangeRateOverride:null,
           defaultPriceTier:['wholesale','center','consumer'].includes(payload.defaultPriceTier)?payload.defaultPriceTier:'wholesale',
+          permissions:payload.permissions||null,accountLedgers:Array.isArray(payload.accountLedgers)?payload.accountLedgers:[],
           issuedAt:payload.issuedAt,cloud:Object.prototype.hasOwnProperty.call(payload,'cloud')?payload.cloud:(this.state.cloud||null)};
         this.draft=[];this.currency='USD';await this.save();this.toast('استُلم كشف المواد والعملاء دون حذف العمليات القديمة');await this.show('home');
       }else if(raw?.kind==='ack'){
@@ -253,7 +257,10 @@ const Agent={
         for(const id of before.keys())if(!after.has(id))n++;
         return n;
       };
-      const itemsChanged=changed(old.items,catalog.items);
+      const pendingItems=(old.ops||[]).filter(o=>o.kind==='item_create'&&!(ack.knownIds||[]).includes(o.id)&&!(old.knownIds||[]).includes(o.id)).map(o=>o.item);
+      const receivedItems=[...catalog.items];
+      for(const item of pendingItems)if(!receivedItems.some(x=>x.id===item.id))receivedItems.push(item);
+      const itemsChanged=changed(old.items,receivedItems);
       const receivedAccounts=this.mergeCustomerCatalog?.(catalog.accounts,old)||catalog.accounts;
       const accountsChanged=changed(old.accounts,receivedAccounts);
       const stockChanged=Object.keys({...old.stock,...catalog.stock}).filter(id=>Number(old.stock?.[id]??0)!==Number(catalog.stock?.[id]??0)).length;
@@ -275,6 +282,8 @@ const Agent={
         !!(catalog.historyPage?.ops||[]).some(o=>!(old.ops||[]).some(existing=>existing.id===o.id))||
         Number(old.printerWidth)!==Number(catalog.printerWidth||80)||Number(old.printFontScale)!==Number(catalog.printFontScale||0.75)||
         Number(old.itemQuantityDecimals??2)!==Number(catalog.itemQuantityDecimals??2)||
+        JSON.stringify(old.permissions||null)!==JSON.stringify(catalog.permissions||null)||
+        JSON.stringify(old.accountLedgers||[])!==JSON.stringify(catalog.accountLedgers||[])||
         JSON.stringify(old.categories||[])!==JSON.stringify(catalog.categories||[])||
         JSON.stringify(old.snapshotIds||[])!==JSON.stringify(catalog.knownIds||[]);
       // Persist real changes promptly; checkpoint a no-op heartbeat at most once per minute.
@@ -290,9 +299,11 @@ const Agent={
           companyLogo:catalog.companyLogo||'',footerNote:catalog.footerNote||'',
           printerWidth:catalog.printerWidth===58?58:80,printFontScale:Number(catalog.printFontScale)||0.75,
           itemQuantityDecimals:Number.isInteger(Number(catalog.itemQuantityDecimals))?Math.min(4,Math.max(0,Number(catalog.itemQuantityDecimals))):2,
-          exchangeRate:catalog.exchangeRate,
+          exchangeRate:catalog.permissions?.exchangeRate&&Number(old.exchangeRateOverride)>0?Number(old.exchangeRateOverride):catalog.exchangeRate,
+          exchangeRateOverride:catalog.permissions?.exchangeRate?old.exchangeRateOverride:null,
           defaultPriceTier:['wholesale','center','consumer'].includes(catalog.defaultPriceTier)?catalog.defaultPriceTier:'wholesale',
-          categories:catalog.categories||[],items:catalog.items,
+          permissions:catalog.permissions||null,accountLedgers:Array.isArray(catalog.accountLedgers)?catalog.accountLedgers:[],
+          categories:catalog.categories||[],items:receivedItems,
           accounts:receivedAccounts,stock:catalog.stock,snapshotIds:catalog.knownIds||[],
           agentCash:catalog.agentCash||null,cashTransfers:catalog.cashTransfers||[],
           warehouseTransfers:transfersResult.docs,warehouseHistoryCursor:transfersResult.cursor,warehouseTransferRevision:transfersResult.revision,

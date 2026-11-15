@@ -35,6 +35,7 @@ final class ReportPdfRenderer {
 
     static byte[] render(JSONObject input) throws IOException {
         if (input == null) throw new IOException("Invalid report");
+        if ("account_statement".equals(input.optString("reportType"))) return renderStatement(input);
         final JSONArray rows = input.optJSONArray("rows");
         if (rows == null || rows.length() > 8000) throw new IOException("Report has too many rows");
         PdfDocument pdf = new PdfDocument();
@@ -76,6 +77,65 @@ final class ReportPdfRenderer {
             pdf.writeTo(stream);
             return stream.toByteArray();
         } finally { pdf.close(); }
+    }
+
+
+    /** Ledger statement with historical currency and exchange rate preserved per entry. */
+    static byte[] renderStatement(JSONObject input) throws IOException {
+        JSONArray rows=input.optJSONArray("rows");
+        if(rows==null||rows.length()>8000)throw new IOException("Invalid account statement");
+        PdfDocument pdf=new PdfDocument();
+        try {
+            Writer w=new Writer(pdf);w.startPage();
+            String logo=input.optString("companyLogo","");
+            if(logo.startsWith("data:image/")&&logo.length()<2400000&&logo.contains(",")){
+                try{
+                    byte[] decoded=Base64.decode(logo.substring(logo.indexOf(',')+1),Base64.DEFAULT);
+                    if(decoded.length<=1600000){
+                        BitmapFactory.Options bounds=new BitmapFactory.Options();bounds.inJustDecodeBounds=true;
+                        BitmapFactory.decodeByteArray(decoded,0,decoded.length,bounds);
+                        if(bounds.outWidth>0&&bounds.outWidth<=3000&&bounds.outHeight>0&&bounds.outHeight<=3000){
+                            Bitmap bm=BitmapFactory.decodeByteArray(decoded,0,decoded.length);
+                            if(bm!=null)w.addLogo(bm);
+                        }
+                    }
+                }catch(Exception ignored){}
+            }
+            String name=clean(input.optString("companyName","المحاسب التقني"),200);
+            w.add(name,21,true,Color.rgb(15,70,82),Layout.Alignment.ALIGN_CENTER,6);
+            w.add(clean(input.optString("companyPhone"),100)+" | "+clean(input.optString("companyAddress"),240),10,false,Color.DKGRAY,Layout.Alignment.ALIGN_CENTER,4);
+            String email=clean(input.optString("companyEmail"),150);
+            if(!email.isEmpty())w.add(email,10,false,Color.DKGRAY,Layout.Alignment.ALIGN_CENTER,4);
+            w.rule(Color.rgb(42,110,155),10);
+            w.add("كشف حساب تفصيلي",19,true,Color.rgb(15,70,110),Layout.Alignment.ALIGN_CENTER,5);
+            w.add("الحساب: "+clean(input.optString("accountName"),180),13,true,Color.BLACK,Layout.Alignment.ALIGN_NORMAL,5);
+            w.add(clean(input.optString("range"),200),11,false,Color.DKGRAY,Layout.Alignment.ALIGN_NORMAL,8);
+            JSONObject opening=input.optJSONObject("opening"),ending=input.optJSONObject("ending");
+            w.add("الرصيد المدور: "+pairBalance(opening),12,true,Color.rgb(35,85,125),Layout.Alignment.ALIGN_NORMAL,7);
+            w.add("الرصيد النهائي: "+pairBalance(ending),13,true,Color.rgb(9,94,80),Layout.Alignment.ALIGN_NORMAL,11);
+            w.rule(Color.rgb(173,195,208),7);
+            w.add("التاريخ | المرجع | العملة | سعر الصرف | زيادة (+) | نقصان (−) | الرصيد",11,true,Color.rgb(22,72,114),Layout.Alignment.ALIGN_NORMAL,8);
+            for(int i=0;i<rows.length();i++){
+                JSONObject row=rows.optJSONObject(i);if(row==null)continue;
+                String currency=clean(row.optString("currency"),12);
+                w.add((i+1)+". "+clean(row.optString("date"),35)+" — "+clean(row.optString("reference"),100)+" ("+currency+")",11,true,Color.rgb(27,56,79),Layout.Alignment.ALIGN_NORMAL,3);
+                w.add(clean(row.optString("detail"),350)+" — سعر الصرف: "+clean(row.optString("rate","غير مسجل"),50),10,false,Color.DKGRAY,Layout.Alignment.ALIGN_NORMAL,2);
+                String debit=row.optString("debit","0"),credit=row.optString("credit","0");
+                if(!"0".equals(debit))w.add("زيادة (+) "+clean(debit,70)+" "+currency,11,true,Color.rgb(12,109,57),Layout.Alignment.ALIGN_NORMAL,2);
+                if(!"0".equals(credit))w.add("نقصان (−) "+clean(credit,70)+" "+currency,11,true,Color.rgb(174,30,49),Layout.Alignment.ALIGN_NORMAL,2);
+                w.add("الرصيد: "+clean(row.optString("balance"),80)+" "+currency,11,true,Color.rgb(15,72,108),Layout.Alignment.ALIGN_NORMAL,8);
+                w.rule(Color.rgb(227,234,240),5);
+            }
+            w.rule(Color.rgb(177,201,212),8);
+            w.add("الرصيد النهائي: "+pairBalance(ending),13,true,Color.rgb(9,94,80),Layout.Alignment.ALIGN_NORMAL,8);
+            w.add("تاريخ الإصدار: "+clean(input.optString("createdAt"),50)+" — عدد الحركات: "+rows.length(),10,false,Color.DKGRAY,Layout.Alignment.ALIGN_NORMAL,7);
+            String foot=clean(input.optString("footerNote"),500);if(!foot.isEmpty())w.add(foot,10,false,Color.DKGRAY,Layout.Alignment.ALIGN_CENTER,7);
+            w.finish();ByteArrayOutputStream out=new ByteArrayOutputStream(32000);pdf.writeTo(out);return out.toByteArray();
+        }finally{pdf.close();}
+    }
+    private static String pairBalance(JSONObject o){
+        if(o==null)return "غير متاح";
+        return clean(o.optString("USD","0"),85)+" USD | "+clean(o.optString("SYP","0"),85)+" ل.س";
     }
 
     /** Export an actual invoice as an Arabic A4 PDF (not a ledger summary).
