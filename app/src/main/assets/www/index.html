@@ -9509,13 +9509,13 @@ html.ta-ime-open body.ta-3d-v3524 > main#mainContent.ta-main {padding-bottom:24p
                 if (bioPanel) bioPanel.classList.add('hidden');
                 document.getElementById('protectionVerifyPin')?.focus({preventScroll:true});
             },
-            requestPin(message, onSuccess) {
+            requestPin(message, onSuccess, options = {}) {
                 if (!State.settings.appProtection?.pinHash || !State.settings.appProtection?.pinSalt) {
                     this.promptPinSetup('هذه العملية');
                     return;
                 }
                 
-                const bioReady = !!(State.settings.appProtection.fingerprintEnabled &&
+                const bioReady = !!(!options.passwordOnly && State.settings.appProtection.fingerprintEnabled &&
                     typeof window !== 'undefined' && window.NativeSecurity && typeof window.NativeSecurity.authenticate === 'function');
                 const serial = ++this.approvalCounter;
                 const escapedMessage = typeof AppEscape !== 'undefined' ? AppEscape.text(message) : String(message).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');
