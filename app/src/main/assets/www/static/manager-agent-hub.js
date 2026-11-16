@@ -44,12 +44,17 @@ const AgentHub = {
     return this.renderActivity(main,a,params);
   },
   renderLanding(main){
-    UI.setHeader('<i class="fas fa-truck text-emerald-400"></i> <span>موظف البيع</span>','إدارة المستودع والصندوق والحركات لكل موظف بيع');
+    UI.setHeader('<i class="fas fa-truck text-emerald-400"></i> <span>موظف البيع</span>','عرض المتصلين وإدارة المستودع والصندوق');
     main.innerHTML=`<div class="space-y-4" dir="rtl">
-      <div class="rounded-2xl border bg-white p-5 shadow-sm"><h2 class="text-base font-black">إدارة موظفي البيع</h2><p class="text-xs text-slate-500 mt-2">اختر موظف بيعاً لعرض أدواته داخل صفحة واحدة، دون خلط عملياته بعمليات موظف بيع آخر.</p></div>
+      <button type="button" class="ta-connected-employees-button w-full flex flex-col items-center justify-center gap-2" onclick="FieldSync.openConnectedEmployees()" aria-label="الموظفون المتصلون - عرض المتصلين الآن">
+        <i class="fas fa-users text-3xl" aria-hidden="true"></i>
+        <span>الموظفون المتصلون</span>
+        <span class="text-sm font-bold" id="fieldConnectedCountInButton" aria-live="polite">(${FieldSync.connectedCount()})</span>
+      </button>
       <button type="button" class="w-full rounded-2xl border border-emerald-200 bg-emerald-700 text-white p-6 flex flex-col items-center gap-3 font-black" onclick="AgentHub.choose()"><i class="fas fa-users text-3xl"></i><span>اختيار موظف البيع</span><span class="text-xs font-medium opacity-90">${this.agents().filter(a=>!a.archived).length} موظف بيع فعّال</span></button>
       <div class="pt-2"><button type="button" class="ta-agent-hub-manage w-full rounded-2xl p-4 font-extrabold" onclick="FieldSync.open()"><i class="fas fa-users ml-2 text-lg" aria-hidden="true"></i>إدارة موظفي البيع والمزامنة المحلية</button></div>
     </div>`;
+    FieldSync.refreshConnectedBadge();
   },
   renderDetail(main,a){
     UI.setHeader('<i class="fas fa-truck text-emerald-400"></i> <span>'+this.esc(a.name)+'</span>','عمليات موظف البيع ومستودعه وصندوقه');
