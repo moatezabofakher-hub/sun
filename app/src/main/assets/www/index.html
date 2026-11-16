@@ -2842,8 +2842,8 @@ body.ta-transfer-editor-open #mainContent{padding-bottom:calc(var(--ta-transfer-
                 try {
                     const raw = window.Android && typeof window.Android.getAppVersionName === 'function'
                         ? String(window.Android.getAppVersionName() || '') : '';
-                    const match = raw.match(/^\d+\.\d+\.\d+/);
-                    return match ? match[0] : '—';
+                    const match = raw.match(/^(?:\d+\.){2}(\d+)(?:[-+].*)?$/) || raw.match(/^(\d+)$/);
+                    return match ? match[1] : '—';
                 } catch (_) { return '—'; }
             }
         };
