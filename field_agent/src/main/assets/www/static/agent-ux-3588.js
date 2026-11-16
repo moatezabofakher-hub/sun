@@ -7,9 +7,8 @@ function enhanceInvoice(){
  const cur=one('.ta-invoice-currency-choice',top);if(cur){const badge=one('.ta-invoice-currency-code',cur);const code=A.currency==='SYP'?'ل.س':'$ USD';if(badge)badge.textContent=code;cur.setAttribute('aria-label','تبديل عملة الفاتورة؛ الحالية: '+code);}
  const wh=Array.from(top.querySelectorAll('label')).find(x=>/المستودع الذي تتأثر به/.test(x.textContent||''));if(wh){wh.parentElement?.classList.add('ta-ux-warehouse');wh.innerHTML='<i class="fas fa-warehouse" aria-hidden="true"></i> المستودع';}
  const party=one('#fAccount',top);party?.closest('.ta-invoice-party-highlight')?.classList.add('ta-ux-client-dark');
- const date=one('#agentInvoiceDate',top)||one('#fDate:not([type=hidden])',top);if(date&&!one('.ta-ux-date-button',date.parentElement)){
-  const b=document.createElement('button');b.type='button';b.className='ta-ux-date-button';b.innerHTML='<i class="fas fa-calendar-days" aria-hidden="true"></i>';b.setAttribute('aria-label','فتح تقويم تاريخ الفاتورة');b.onclick=()=>{try{date.showPicker();}catch(_){date.focus();date.click();}};date.parentElement.insertBefore(b,date);
- }
+ // 3.5.108: the native date field has one accessible calendar, provided by ta-date-view.
+
  // Payment cycles on a single button in v3.5.95; do not replace it with the older popup picker.
 
 }

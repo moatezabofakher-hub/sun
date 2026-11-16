@@ -44,3 +44,62 @@ button.ta-statement-share-pdf{background:linear-gradient(155deg,#0c8660,#064f36)
 #voucherModalContent:has(.ta-voucher-save-footer) select{
   border-radius:12px;box-shadow:inset 0 2px 0 rgba(255,255,255,.64),0 4px 0 rgba(21,79,85,.24),0 7px 12px rgba(0,38,63,.12);
 }
+
+
+/* 3.5.108: Only one date rendering layer.  The real native field remains editable and keeps the calendar picker. */
+.ta-date-native-wrapper{position:relative!important;display:block!important;min-width:0!important;width:100%!important;min-height:42px;isolation:isolate}
+.ta-date-native-wrapper input[type="date"],.ta-date-native-wrapper input[type="datetime-local"]{
+ position:absolute!important;inset:0!important;width:100%!important;height:100%!important;min-height:42px!important;
+ opacity:0!important;z-index:4!important;cursor:pointer!important;margin:0!important;
+}
+.ta-date-native-wrapper .ta-date-readable{
+ position:relative!important;display:flex!important;align-items:center!important;justify-content:flex-start!important;
+ width:100%!important;min-height:42px!important;min-width:0!important;padding:7px 34px 7px 10px!important;
+ top:auto!important;left:auto!important;right:auto!important;transform:none!important;
+ direction:ltr!important;text-align:left!important;font-size:14px!important;line-height:1.3!important;font-variant-numeric:tabular-nums;
+ overflow:hidden!important;white-space:nowrap!important;text-overflow:ellipsis!important;box-sizing:border-box!important;
+ background:#fff;border:1px solid #bed4e4;border-radius:10px;color:#0f172a!important;pointer-events:none;z-index:2;
+}
+.ta-date-native-wrapper::after{content:"▦";position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:17px;color:#0369a1;pointer-events:none;z-index:3}
+.ta-date-native-wrapper:focus-within .ta-date-readable{outline:2px solid #38bdf8;outline-offset:1px}
+/* No third-party enhancement may insert a second visible calendar in the invoice date row. */
+.ta-invoice-date-visible{position:relative;align-items:center}
+.ta-invoice-date-visible input[aria-label="تاريخ الفاتورة"]{min-width:0!important;width:100%!important;text-align:center;direction:ltr;font-size:14px!important}
+.ta-invoice-date-visible .ta-ux-date-button{position:absolute;top:3px;left:3px;min-width:31px!important;min-height:32px!important;width:31px!important;height:32px!important;z-index:2}
+.ta-invoice-date-visible input[aria-label="تاريخ الفاتورة"]{padding-left:38px!important}
+
+
+/* 3.5.108: 3D sky-blue currency control, white readable label and symbols. */
+.ta-invoice-control-grid .ta-invoice-currency-choice,
+.invoice-entry-top .ta-invoice-currency-choice,
+.agent-main-invoice .ta-invoice-currency-choice{
+ color:#fff!important;-webkit-text-fill-color:#fff!important;
+ background:linear-gradient(150deg,#43cffa 0%,#0e9bd8 44%,#046eab 100%)!important;
+ background-color:#0284c7!important;border:2px solid #087eae!important;
+ border-radius:12px!important;min-height:39px!important;
+ box-shadow:inset 0 2px 0 rgba(255,255,255,.66),0 4px 0 #075985,0 8px 14px #07598540!important;
+ text-shadow:0 1px 2px #003e68!important;
+}
+.ta-invoice-control-grid .ta-invoice-currency-choice *,
+.invoice-entry-top .ta-invoice-currency-choice *,
+.agent-main-invoice .ta-invoice-currency-choice *{color:#fff!important;-webkit-text-fill-color:#fff!important;background:transparent!important}
+
+
+/* 3.5.108: raised emerald save and red cancel in inventory transfer editor. */
+#warehouseTransferPanel #transferSaveButton{
+ color:#fff!important;-webkit-text-fill-color:#fff!important;
+ background:linear-gradient(160deg,#34d399,#047857 64%,#055d47)!important;
+ border:2px solid #047857!important;border-radius:13px!important;
+ box-shadow:inset 0 2px 0 #ffffff75,0 5px 0 #065f46,0 11px 18px #064e3b3b!important;
+ text-shadow:0 1px 2px #064e3b!important;
+}
+#warehouseTransferPanel .ta-transfer-form-actions .ta-transfer-cancel-button,
+#warehouseTransferPanel #transferCancelEditButton{
+ color:#fff!important;-webkit-text-fill-color:#fff!important;
+ background:linear-gradient(155deg,#fb7185,#dc2626 68%,#b91c1c)!important;
+ border:2px solid #be123c!important;border-radius:13px!important;
+ box-shadow:inset 0 2px 0 #ffffff65,0 5px 0 #991b1b,0 11px 18px #7f1d1d38!important;
+ text-shadow:0 1px 2px #7f1d1d!important;
+}
+#warehouseTransferPanel #transferSaveButton *,#warehouseTransferPanel .ta-transfer-cancel-button *,
+#warehouseTransferPanel #transferCancelEditButton *{color:#fff!important;-webkit-text-fill-color:#fff!important}

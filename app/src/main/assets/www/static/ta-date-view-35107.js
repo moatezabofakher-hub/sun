@@ -2,7 +2,7 @@
 (function(root){'use strict';
 function visible(raw){const m=String(raw||'').match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}:\d{2}))?/);if(!m)return String(raw||'');return m[3]+'/'+m[2]+'/'+m[1]+(m[4]?' '+m[4]:'');}
 function isoDate(text){const m=String(text||'').trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);if(!m)return null;const yyyy=Number(m[3]),month=Number(m[2]),day=Number(m[1]);const d=new Date(Date.UTC(yyyy,month-1,day));return d.getUTCFullYear()===yyyy&&d.getUTCMonth()===month-1&&d.getUTCDate()===day?m[3]+'-'+m[2]+'-'+m[1]:null;}
-function decorate(input){if(!input||input.dataset.taDateDecorated==='1'||input.type!=='date'&&input.type!=='datetime-local'||input.closest('.ta-date-native-wrapper'))return;
+function decorate(input){if(!input||input.dataset.taDateDecorated==='1'||input.classList.contains('ta-ux-invoice-picker-native')||input.type!=='date'&&input.type!=='datetime-local'||input.closest('.ta-date-native-wrapper'))return;
   const wrap=document.createElement('span');wrap.className='ta-date-native-wrapper';const display=document.createElement('span');display.className='ta-date-readable';display.setAttribute('aria-hidden','true');
   input.parentNode.insertBefore(wrap,input);wrap.append(input,display);input.dataset.taDateDecorated='1';
   const update=()=>{display.textContent=visible(input.value)||'DD/MM/YYYY';};input.addEventListener('input',update);input.addEventListener('change',update);update();

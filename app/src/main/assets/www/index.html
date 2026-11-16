@@ -1776,10 +1776,28 @@ body:has(#mainContent .ta-voucher-save-footer) #mainContent{padding-bottom:calc(
                 this.pendingTarget=id;
                 const cfg=target.data.settings?.appProtection||{};
                 if(cfg.pinHash&&cfg.pinSalt){
-                    UI.openModal(`<div class="space-y-3 text-right"><h3 class="font-black text-base">تبديل الشركة</h3><p class="text-xs text-slate-600">سيتم حفظ نسخة استرجاع محلية للشركة الحالية، ثم فتح ${AppEscape.text(target.data.settings.companyName)}.</p><label class="block text-xs font-bold">كلمة سر الشركة المستهدفة<input id="profileSwitchPin" type="password" inputmode="numeric" class="w-full mt-2 border rounded-xl p-3" autocomplete="off"></label><button onclick="ProfileManager.confirmSwitch()" class="ta-modal-action-primary w-full bg-emerald-700 text-white rounded-xl py-3 font-black">تحقق وتبديل</button></div>`);
+                    const bio=cfg.fingerprintEnabled===true&&typeof window!=='undefined'&&window.NativeSecurity&&typeof window.NativeSecurity.authenticate==='function';
+                    UI.openModal(`<div class="space-y-3 text-right"><h3 class="font-black text-base">تبديل الشركة</h3><p class="text-xs text-slate-600">سيتم حفظ نسخة استرجاع محلية للشركة الحالية، ثم فتح ${AppEscape.text(target.data.settings.companyName)}.</p>
+                      ${bio?'<button type="button" class="w-full bg-emerald-700 text-white rounded-xl p-3 font-black" onclick="ProfileManager.confirmSwitchWithFingerprint()"><i class="fas fa-fingerprint ml-1"></i> فتح بالبصمة</button>':''}
+                      <label class="block text-xs font-bold">${bio?'أو كلمة سر الشركة المستهدفة':'كلمة سر الشركة المستهدفة'}<input id="profileSwitchPin" type="password" inputmode="numeric" class="w-full mt-2 border rounded-xl p-3" autocomplete="off"></label>
+                      <button onclick="ProfileManager.confirmSwitch()" class="ta-modal-action-primary w-full bg-emerald-700 text-white rounded-xl py-3 font-black">تحقق وتبديل</button></div>`);
+                    if(bio)requestAnimationFrame(()=>this.confirmSwitchWithFingerprint());
                 }else{
                     UI.openModal(`<div class="space-y-3 text-right"><h3 class="font-black text-base">تبديل الشركة</h3><p class="text-xs text-slate-600">سيتم حفظ جميع بيانات ${AppEscape.text(this.currentName())} ونقطة استرجاع محلية قبل التبديل.</p><p class="text-xs text-amber-800 bg-amber-50 p-2 rounded-lg">الشركة المستهدفة ليس لها كلمة سر بعد. يمكنك ضبط كلمة سر منفصلة من قسم الحماية.</p><button onclick="ProfileManager.confirmSwitch()" class="w-full bg-emerald-700 text-white rounded-xl py-3 font-black">حفظ البيانات والتبديل</button></div>`);
                 }
+            },
+            switchingWithBiometric:false,
+            async confirmSwitchWithFingerprint() {
+                if(this.switchingWithBiometric)return;
+                const id=this.pendingTarget;
+                const rec=id?await this.getRecord('profile:'+id):null;
+                if(!rec?.data?.settings?.appProtection?.fingerprintEnabled||!window.NativeSecurity?.authenticate)return;
+                this.switchingWithBiometric=true;
+                try{
+                    await ProtectionController.nativeBiometricAuthenticate();
+                    if(this.pendingTarget===id)await this.activate(id);
+                }catch(e){UI.toast('تعذر التحقق بالبصمة، استخدم كلمة سر الشركة','warn');}
+                finally{this.switchingWithBiometric=false;}
             },
             async confirmSwitch() {
                 const id=this.pendingTarget;
@@ -1834,12 +1852,147 @@ body:has(#mainContent .ta-voucher-save-footer) #mainContent{padding-bottom:calc(
                     UI.toast('تم حفظ الشركة السابقة وفتح '+this.currentName(),'success');
                 }catch(e){UI.toast('لم يتم التبديل؛ بقيت البيانات الحالية دون تغيير: '+e.message,'error');}
             },
+            // 3.5.108: deleting a business is a reversible, locally archived operation.
+            // An archived business is removed from the active chooser but retained in
+            // an isolated IndexedDB snapshot; deleting the app's data still loses it.
+            async commitProfileBatch(records, deleteKeys=[]) {
+                return new Promise((resolve,reject)=>{
+                    const tx=StorageEngine.db.transaction('app_state','readwrite');
+                    const store=tx.objectStore('app_state');
+                    for(const record of records)store.put(record);
+                    for(const id of deleteKeys)store.delete(id);
+                    tx.oncomplete=()=>resolve(true);
+                    tx.onabort=()=>reject(tx.error||Error('تعذّر تثبيت تعديل الحساب المستقل'));
+                    tx.onerror=()=>{};
+                });
+            },
+            requestDeleteActive() {
+                if(!this.registry?.profiles.some(p=>p.id===this.activeId))return;
+                if(AppNav.isDirty||AppNav.isModalDirty||AppNav.activeOperationGuard)
+                    return UI.toast('احفظ أو ألغِ التعديلات المفتوحة قبل حذف الحساب','warn');
+                if(typeof SettingsDraftController!=='undefined'&&SettingsDraftController.section&&SettingsDraftController.changed())
+                    return UI.toast('احفظ أو ألغِ تغييرات الضبط قبل حذف الحساب','warn');
+                if(!State.settings.appProtection?.pinHash||!State.settings.appProtection?.pinSalt)
+                    return ProtectionController.promptPinSetup('حذف الحساب المستقل');
+                const name=this.currentName();
+                UI.openModal(`<div class="space-y-3 text-right" dir="rtl">
+                    <h3 class="font-black text-base text-red-800">أرشفة وإزالة الحساب المفتوح</h3>
+                    <p class="bg-amber-50 border border-amber-200 p-3 rounded-lg text-xs leading-relaxed">ستُزال <b>${AppEscape.text(name)}</b> من قائمة الشركات، ويُحتفظ بكافة سجلاتها في أرشيف محلي لاستعادتها من الضبط. إذا حذفت بيانات التطبيق أو أعدت ضبط الجهاز فقد تفقد الأرشيف. صدّر ملف JSON خارج التطبيق قبل الاستمرار.</p>
+                    <label class="block text-xs font-bold">اكتب اسم الحساب للتأكيد<input id="profileDeleteConfirmName" autocomplete="off" class="w-full border rounded-xl p-3 mt-2 text-sm" placeholder="${AppEscape.text(name)}"></label>
+                    <button type="button" class="w-full rounded-xl p-3 bg-red-700 text-white font-black" onclick="ProfileManager.confirmDeleteActive()">متابعة إلى كلمة السر / البصمة</button>
+                    <button type="button" class="w-full rounded-xl p-2 bg-slate-100 font-bold" onclick="UI.forceCloseModal()">إلغاء</button>
+                  </div>`);
+            },
+            confirmDeleteActive() {
+                if(String(document.getElementById('profileDeleteConfirmName')?.value||'').trim()!==this.currentName())
+                    return UI.toast('اكتب اسم الحساب المفتوح تماماً قبل المتابعة','warn');
+                ProtectionController.requestPin('التحقق من مالك '+this.currentName()+' قبل نقله إلى الأرشيف',async()=>this.archiveActiveProfile());
+            },
+            async archiveActiveProfile() {
+                if(!this.registry?.profiles.some(p=>p.id===this.activeId))return;
+                if(AppNav.isDirty||AppNav.isModalDirty||AppNav.activeOperationGuard)
+                    return UI.toast('لا يمكن إزالة حساب أثناء عملية غير محفوظة','error');
+                try {
+                    if(typeof SettingsDraftController!=='undefined'&&SettingsDraftController.section){
+                        if(SettingsDraftController.changed())throw Error('احفظ أو ألغِ تعديلات الضبط أولاً');
+                        SettingsDraftController.revert(false);
+                    }
+                    await StorageEngine.saveState();
+                    const oldId=this.activeId, oldName=this.currentName(), snapshot=this.cloneState();
+                    const now=new Date().toISOString();
+                    const deletedProfiles=Array.isArray(this.registry.deletedProfiles)?[...this.registry.deletedProfiles]:[];
+                    if(deletedProfiles.some(p=>p.id===oldId))throw Error('هذا الحساب موجود مسبقاً في الأرشيف');
+                    const other=this.registry.profiles.find(p=>p.id!==oldId);
+                    const newId=other?.id||this.generateId();
+                    const target=other?await this.getRecord('profile:'+newId):null;
+                    if(other&&!target?.data)throw Error('لا يمكن فتح الحساب البديل؛ العملية لم تُنفذ');
+                    const newData=JSON.parse(JSON.stringify(other?target.data:this.newState('حساب جديد')));
+                    if(other)newData.settings.companyName=other.name;
+                    const license=JSON.parse(JSON.stringify(State.license));
+                    newData.license=license;
+                    const profileId='profile:'+oldId;
+                    const archiveKey='archived_profile:'+oldId;
+                    const updated={...this.registry,activeId:newId,
+                        profiles:[...this.registry.profiles.filter(p=>p.id!==oldId),...(other?[]:[{id:newId,name:newData.settings.companyName,createdAt:now}])],
+                        deletedProfiles:[...deletedProfiles,{id:oldId,name:oldName,deletedAt:now,archiveKey}]};
+                    await this.commitProfileBatch([
+                        {id:archiveKey,profileId:oldId,profileName:oldName,deletedAt:now,data:snapshot},
+                        {id:'backup:'+oldId+':before-archive:'+now.replace(/[:.]/g,'-'),reason:'before-archive',profileId:oldId,profileName:oldName,createdAt:now,data:snapshot},
+                        {id:'profile:'+newId,data:newData,updatedAt:now},
+                        {id:'main',data:newData,updatedAt:now},
+                        {id:'profile_registry',data:updated}
+                    ],[profileId]);
+                    this.registry=updated;this.activeId=newId;
+                    for(const key of ['settings','categories','items','accounts','invoices','vouchers','warehouses','transfers','expenses','fieldSync','alertCenter'])
+                        State[key]=JSON.parse(JSON.stringify(newData[key]??DEFAULT_PROFILE[key]));
+                    State.license=license;
+                    AppNav.clearDirty();AppNav.clearModalDirty();UI.forceCloseModal();
+                    SettingsController.closeAllSections();AppNav.stack=[{screen:'dashboard',params:{}}];AppNav.renderCurrent();
+                    UI.toast('تمت أرشفة '+oldName+' ويمكن استعادته من الضبط','success');
+                }catch(e){UI.toast('لم تُحذف بيانات الحساب: '+e.message,'error');}
+            },
+            async requestRestoreArchived(id) {
+                const meta=(this.registry?.deletedProfiles||[]).find(p=>p.id===id);
+                if(!meta)return;
+                if(AppNav.isDirty||AppNav.isModalDirty||AppNav.activeOperationGuard)
+                    return UI.toast('احفظ التغييرات قبل الاستعادة','warn');
+                const rec=await this.getRecord(meta.archiveKey);
+                if(!rec?.data)return UI.toast('نسخة الأرشيف غير متوفرة؛ استعد نسخة JSON خارجية','error');
+                const cfg=rec.data.settings?.appProtection||{};
+                if(!cfg.pinHash||!cfg.pinSalt)return UI.toast('أرشيف بلا كلمة سر؛ الاستعادة الآمنة غير ممكنة','error');
+                this.pendingArchiveRestore=id;
+                const biometricReady=cfg.fingerprintEnabled===true&&typeof window!=='undefined'&&window.NativeSecurity&&typeof window.NativeSecurity.authenticate==='function';
+                UI.openModal(`<div class="space-y-3 text-right" dir="rtl"><h3 class="font-black text-base">استعادة الحساب المؤرشف: ${AppEscape.text(meta.name)}</h3>
+                    <p class="text-xs text-slate-600">تُستعاد الشركة إلى قائمة الحسابات دون استبدال بيانات الشركة المفتوحة. تحقق باستخدام حماية الحساب المؤرشف.</p>
+                    ${biometricReady?'<button type="button" class="w-full p-3 rounded-xl bg-emerald-700 text-white font-black" onclick="ProfileManager.restoreWithBiometric()"><i class="fas fa-fingerprint ml-1"></i> الاستعادة بالبصمة</button><p class="text-xs text-slate-500">أو استخدام كلمة السر:</p>':''}
+                    <input type="password" inputmode="numeric" autocomplete="off" id="profileRestoreArchivedPin" class="w-full border rounded-xl p-3" placeholder="كلمة سر الحساب المؤرشف">
+                    <button type="button" class="w-full p-3 rounded-xl bg-slate-900 text-white font-black" onclick="ProfileManager.restoreArchivedProfile()">تحقق واستعد</button>
+                    <button type="button" class="w-full p-2 rounded-xl bg-slate-100" onclick="UI.forceCloseModal()">إلغاء</button></div>`);
+                if(biometricReady)requestAnimationFrame(()=>this.restoreWithBiometric());
+            },
+            async restoreWithBiometric() {
+                const id=this.pendingArchiveRestore;
+                const meta=(this.registry?.deletedProfiles||[]).find(p=>p.id===id);
+                const rec=meta?await this.getRecord(meta.archiveKey):null;
+                if(!rec?.data?.settings?.appProtection?.fingerprintEnabled||!window.NativeSecurity?.authenticate)return;
+                try {await ProtectionController.nativeBiometricAuthenticate();
+                    if(this.pendingArchiveRestore===id)await this.restoreArchivedProfile(true);
+                }catch(e){UI.toast('تعذر التحقق بالبصمة؛ يمكنك استخدام كلمة السر','warn');}
+            },
+            async restoreArchivedProfile(biometricApproved=false) {
+                const id=this.pendingArchiveRestore;
+                const meta=(this.registry?.deletedProfiles||[]).find(p=>p.id===id);
+                if(!meta)return;
+                if(this.registry.profiles.some(p=>p.id===id))return UI.toast('الحساب موجود بالفعل','warn');
+                if(AppNav.isDirty||AppNav.isModalDirty||AppNav.activeOperationGuard)return UI.toast('احفظ التغييرات أولاً','warn');
+                try{
+                    const rec=await this.getRecord(meta.archiveKey);
+                    if(!rec?.data)throw Error('نسخة الأرشيف لم تعد متوفرة');
+                    const cfg=rec.data.settings?.appProtection||{};
+                    if(!biometricApproved){
+                        const pin=document.getElementById('profileRestoreArchivedPin')?.value||'';
+                        if(!pin||!(await ProtectionController.hashPin(pin,cfg.pinSalt,cfg.pinAlgo||'sha256-v1')===cfg.pinHash))
+                            return UI.toast('كلمة سر الحساب المؤرشف غير صحيحة','error');
+                    }
+                    const restored=JSON.parse(JSON.stringify(rec.data));
+                    if(!restored.settings||!Array.isArray(restored.accounts)||!Array.isArray(restored.invoices))throw Error('الأرشيف لا يحتوي على حساب كامل');
+                    restored.settings.companyName=meta.name;
+                    const updated={...this.registry,profiles:[...this.registry.profiles,{id,name:meta.name,createdAt:new Date().toISOString()}],
+                      deletedProfiles:(this.registry.deletedProfiles||[]).filter(p=>p.id!==id)};
+                    await this.putBatch([{id:'profile:'+id,data:restored,updatedAt:new Date().toISOString()},{id:'profile_registry',data:updated}]);
+                    this.registry=updated;this.pendingArchiveRestore=null;
+                    UI.forceCloseModal();AppNav.renderCurrent();
+                    UI.toast('تمت استعادة '+meta.name+'؛ افتحها من قائمة الشركات','success');
+                }catch(e){UI.toast('تعذّرت الاستعادة: '+e.message,'error');}
+            },
             renderSettings() {
                 const profiles=this.registry?.profiles||[{id:'primary',name:this.currentName()}];
                 return `<div class="space-y-3"><div class="bg-sky-50 border border-sky-200 rounded-xl p-3 text-xs text-sky-900">كل شركة تملك مواد وفواتير وعملاء وسندات ومستودعات وإعدادات مستقلة. يتم حفظ نسخة استرجاع محلية قبل تبديل الشركة؛ وللحماية من فقدان الهاتف صدّر ملف JSON لكل شركة بشكل دوري.</div>
                   <div class="space-y-2">${profiles.map(profile=>`<div class="profiles-chip flex items-center justify-between gap-2"><div class="min-w-0"><p class="text-xs font-black text-slate-900">${AppEscape.text(profile.id===this.activeId?this.currentName():profile.name)}</p><p class="text-[10px] text-slate-500">${profile.id===this.activeId?'الشركة المفتوحة حاليًا':'حساب مستقل محفوظ'}</p></div>${profile.id===this.activeId?'<span class="text-xs text-emerald-700 font-black">نشط</span>':`<button type="button" class="bg-slate-800 text-white text-[11px] font-bold rounded-lg p-2" onclick="ProfileManager.requestSwitch('${profile.id}')">فتح</button>`}</div>`).join('')}</div>
                   <label class="block text-xs font-black text-slate-700">إضافة شركة / حساب مستقل<input id="newBusinessProfileName" maxlength="75" placeholder="اسم الشركة الجديدة" class="w-full mt-2 rounded-xl border border-slate-300 p-3 text-sm"></label>
                   <button type="button" onclick="ProfileManager.createProfile()" class="w-full bg-emerald-700 text-white py-3 rounded-xl text-xs font-black"><i class="fas fa-plus ml-1"></i> إنشاء حساب مستقل جديد</button>
+                  <button type="button" onclick="ProfileManager.requestDeleteActive()" class="w-full bg-rose-700 text-white py-3 rounded-xl text-xs font-black"><i class="fas fa-box ml-1"></i> حذف الحساب المفتوح مع الاحتفاظ بنسخة للاستعادة</button>
+                  ${(this.registry?.deletedProfiles||[]).length?`<div class="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2"><h4 class="font-black text-amber-900 text-xs">حسابات محذوفة قابلة للاستعادة</h4>${this.registry.deletedProfiles.map(p=>`<div class="flex items-center justify-between gap-2"><span class="font-bold text-xs">${AppEscape.text(p.name)}</span><button type="button" onclick="ProfileManager.requestRestoreArchived('${p.id}')" class="bg-emerald-700 text-white rounded-lg px-3 py-2 text-xs font-black">استعادة</button></div>`).join('')}</div>`:''}
                   <button type="button" onclick="SettingsController.exportBackup()" class="w-full bg-slate-900 text-white py-3 rounded-xl text-xs font-black"><i class="fas fa-download ml-1"></i> نسخة JSON باسم الشركة الحالية</button>
                   <p class="text-[10px] text-amber-800 leading-relaxed">النسخ الداخلية لا تحمي عند حذف التطبيق أو تلف الهاتف. احفظ نسخة خارجية قبل الانتقال أو التحديث. لا ترفع النسخ إلى مستودع عام.</p>
                 </div>`;

@@ -17,12 +17,35 @@
   const party=q('select[onchange*="changeInvoiceAccount"]',root);
   if(party){const box=party.parentElement;box?.classList.add('ta-invoice-party-highlight');if(desktop)box?.classList.add('ta-ux-client-dark');}
   const day=q('input[onchange*="changeInvoiceDatePart"]',root);
-  if(day){if(day.type!=='date'){const nativeISO=window.TiqanyDateView?.isoDate(day.value)||String(d?.date||'').slice(0,10);day.type='date';day.value=nativeISO;}day.setAttribute('aria-label','تاريخ الفاتورة DD/MM/YYYY: اختر من التقويم');const parent=day.parentElement;
-   if(parent&&!q('.ta-ux-date-button',parent)){
-    const btn=document.createElement('button');btn.type='button';btn.className='ta-ux-date-button';btn.setAttribute('aria-label','فتح التقويم لاختيار تاريخ الفاتورة');btn.innerHTML='<i class="fas fa-calendar-days" aria-hidden="true"></i>';
-    btn.onclick=()=>{try{day.showPicker();}catch(_){day.focus();day.click();}};parent.insertBefore(btn,day);
-   }
+  if(day){
+    day.setAttribute('aria-label','تاريخ الفاتورة');
+    const parent=day.parentElement;
+    if(parent&&!q('.ta-ux-date-button',parent)){
+      const btn=document.createElement('button');btn.type='button';btn.className='ta-ux-date-button';
+      btn.setAttribute('aria-label','فتح تقويم تاريخ الفاتورة');btn.innerHTML='<i class="fas fa-calendar-days" aria-hidden="true"></i>';
+      btn.onclick=()=>{
+        // The visible DD/MM/YYYY input stays a TEXT input. An isolated native
+        // picker cannot overwrite its value with ISO nor add a second date label.
+        if(day.type==='date') {try{day.showPicker();}catch(_){day.focus();day.click();}return;}
+        let picker=q('.ta-ux-invoice-picker-native',parent);
+        if(!picker){
+          picker=document.createElement('input');picker.type='date';picker.className='ta-ux-invoice-picker-native';
+          picker.dataset.taDateDecorated='1';picker.tabIndex=-1;picker.setAttribute('aria-label','تقويم تاريخ الفاتورة');
+          picker.style.cssText='position:absolute;left:2px;top:2px;width:1px;height:1px;opacity:0;pointer-events:none;';
+          parent.append(picker);
+          picker.addEventListener('change',()=>{
+            if(!picker.value)return;
+            const shown=window.TiqanyDateView?.visible(picker.value)||picker.value.slice(8,10)+'/'+picker.value.slice(5,7)+'/'+picker.value.slice(0,4);
+            day.value=shown;InvoiceController.changeInvoiceDatePart('day',shown);
+          });
+        }
+        picker.value=InvoiceController.visibleInvoiceDate(InvoiceController.draft?.date).isoDay;
+        try{picker.showPicker();}catch(_){picker.focus();picker.click();}
+      };
+      parent.insertBefore(btn,day);
+    }
   }
+
   const payment=q('button[onclick*="changePaymentMethod"]',root);
   if(payment){const box=payment.parentElement,mode=d?.paymentMethod||'cash';const choice=payInfo[mode]||payInfo.cash;
    const html='<details class="ta-payment-selector ta-payment-'+mode+'" aria-label="طريقة الدفع"><summary><span><i class="fas '+choice[1]+' ta-payment-icon" aria-hidden="true"></i> طريقة الدفع: '+choice[0]+'</span><i class="fas fa-chevron-down" aria-hidden="true"></i></summary><div class="ta-payment-options">'+Object.entries(payInfo).map(([key,[name,icon]])=>'<button type="button" class="ta-pay-'+key+'" aria-current="'+(mode===key)+'" onclick="InvoiceController.changePaymentMethod(\''+key+'\')"><i class="fas '+icon+'" aria-hidden="true"></i><span>'+name+'</span></button>').join('')+'</div></details>';
