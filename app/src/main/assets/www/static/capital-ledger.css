@@ -1,4 +1,4 @@
-/* 121 — pink glossy capital balance and dark-green glossy transfer controls. */
+/* 122 — glossy pink capital card and grass-green glossy transfer controls. */
 .ta-capital-card{width:100%;display:flex;align-items:center;gap:15px;direction:rtl;text-align:right;margin-bottom:14px;border:2px solid #f6a7d4;border-radius:22px;padding:17px 19px;color:#111827;background:linear-gradient(155deg,#fff9fe 0%,#ffe3f1 38%,#f5b6dc 72%,#e6a1ce 100%);box-shadow:0 6px 0 #c982b1,0 10px 16px #7a365d35,inset 0 2px 3px #ffffffeb;transition:transform .14s,box-shadow .14s;font-weight:900}
 .ta-capital-card:active{transform:translateY(4px);box-shadow:0 2px 0 #c982b1,inset 0 1px 3px #fff}
 .ta-capital-icon{height:61px;width:61px;flex-shrink:0;display:grid;place-items:center;border-radius:20px;font-size:29px;background:linear-gradient(145deg,#fffafa,#f1a4d0);color:#171827;border:1px solid #fff;box-shadow:0 5px 0 #c97da9,0 8px 12px #823a6540,inset 0 2px 4px #fff}
@@ -7,8 +7,8 @@
 .ta-capital-card-text small{font-size:12px;color:#252633;line-height:1.5;font-weight:650}
 .ta-capital-amount{display:block;font-size:14px;font-weight:900;color:#111827;unicode-bidi:plaintext;overflow-wrap:anywhere}
 .ta-capital-divider{margin:0 5px;color:#854d69}
-.ta-capital-green{min-height:76px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:12px;border-radius:19px;color:white !important;background:linear-gradient(145deg,#19835e 0%,#086742 44%,#03422e 100%);border:1px solid #50a17e;box-shadow:0 5px 0 #023321,0 9px 15px #1346324d,inset 0 2px 3px #a7f0c255;text-align:center}
+.ta-capital-green{min-height:76px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:12px;border-radius:19px;color:white !important;background:linear-gradient(145deg,#72cc3d 0%,#459e1d 45%,#27720e 100%);border:1px solid #9ae368;box-shadow:0 5px 0 #1b5709,0 9px 15px #2e6a164d,inset 0 2px 3px #eaffc580;text-align:center}
 .ta-capital-green strong{font-size:15px;color:white !important;font-weight:900}
 .ta-capital-green small{font-size:11px;color:#f2fff7}
 .ta-capital-green i{font-size:23px;color:white}
-.ta-capital-green:active{transform:translateY(3px);box-shadow:0 2px 0 #023321}
+.ta-capital-green:active{transform:translateY(3px);box-shadow:0 2px 0 #1b5709}

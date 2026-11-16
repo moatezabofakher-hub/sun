@@ -26,7 +26,10 @@ test('manager decides whether app lock is required, without deleting employee bi
 });
 test('biometrics use Android BiometricPrompt without device-screen PIN fallback',()=>{
  assert.match(java,/authenticateBiometricOnly\(String requestId, String language\)/);
- assert.match(java,/biometricOnly\s*\?\s*BiometricManager.Authenticators.BIOMETRIC_STRONG/);
+ assert.match(java,/int strong = biometricManager.canAuthenticate\(BiometricManager.Authenticators.BIOMETRIC_STRONG\)/);
+ assert.match(java,/strong == BiometricManager.BIOMETRIC_SUCCESS/);
+ assert.match(java,/authenticators = strong == BiometricManager.BIOMETRIC_SUCCESS/);
+ assert.match(java,/BiometricManager.Authenticators.BIOMETRIC_WEAK/);
  assert.match(lock,/TiqanyEmployeeAuth\.verify\(pin,cfg\(\)\)/);
  assert.doesNotMatch(lock,/TiqanyEmployeeAuth\.create\(/);
  assert.match(manager,/قفل تطبيق الموظف بكلمة السر أو البصمة/);

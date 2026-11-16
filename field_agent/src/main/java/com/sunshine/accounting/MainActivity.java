@@ -757,13 +757,26 @@ public final class MainActivity extends FragmentActivity {
                 }
                 // Android 11+: accept biometrics first, or the device's secure lock
                 // PIN/password when biometrics have not been enrolled.
-                final int authenticators = biometricOnly
-                        ? BiometricManager.Authenticators.BIOMETRIC_STRONG
-                        : (android.os.Build.VERSION.SDK_INT >= 30
+                BiometricManager biometricManager = BiometricManager.from(MainActivity.this);
+                // Prefer Class 3 biometrics. Some devices advertise their enrolled
+                // fingerprint reader only as Class 2, so accept BIOMETRIC_WEAK if
+                // Class 3 is unavailable. Never permit DEVICE_CREDENTIAL for the
+                // employee biometric-only operation: the manager-issued app
+                // password remains its one explicit alternative.
+                int authenticators;
+                int available;
+                if (biometricOnly) {
+                    int strong = biometricManager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG);
+                    authenticators = strong == BiometricManager.BIOMETRIC_SUCCESS
+                            ? BiometricManager.Authenticators.BIOMETRIC_STRONG
+                            : BiometricManager.Authenticators.BIOMETRIC_WEAK;
+                    available = biometricManager.canAuthenticate(authenticators);
+                } else {
+                    authenticators = android.os.Build.VERSION.SDK_INT >= 30
                             ? (BiometricManager.Authenticators.BIOMETRIC_WEAK | BiometricManager.Authenticators.DEVICE_CREDENTIAL)
-                            : BiometricManager.Authenticators.BIOMETRIC_WEAK);
-                int available = BiometricManager.from(MainActivity.this)
-                        .canAuthenticate(authenticators);
+                            : BiometricManager.Authenticators.BIOMETRIC_WEAK;
+                    available = biometricManager.canAuthenticate(authenticators);
+                }
                 if (available != BiometricManager.BIOMETRIC_SUCCESS) {
                     replyBiometric(requestId, false, "البصمة غير متاحة: تأكد من إعداد بصمة أو قفل حيوي في الهاتف");
                     return;
