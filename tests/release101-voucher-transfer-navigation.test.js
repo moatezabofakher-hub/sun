@@ -10,7 +10,7 @@ const src=fs.readFileSync(htmlFile,'utf8');
 test('voucher workspaces hide regular bottom navigation and retain guarded Save/Cancel',()=>{
   assert.match(src,/screen==='voucher_form'/);
   assert.match(src,/body\.ta-workspace-screen nav\.ta-bottom-nav/);
-  assert.match(src,/class="ta-voucher-cancel-button"/);
+  assert.match(src,/class="ta-voucher-cancel-action"/);
   assert.match(src,/onclick="AppNav\.handleBackButton\(\)"/);
   assert.match(src,/onclick="VoucherController\.saveVoucher\(\)"/);
 });

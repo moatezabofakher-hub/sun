@@ -35,3 +35,10 @@ body:has(#screen .ta-agent-voucher-footer) .ta-agent-voucher-footer {
 .ta-agent-voucher-footer .ta-agent-voucher-cancel{background:linear-gradient(155deg,#fda4af,#e11d48)!important;border:1px solid #be123c!important;box-shadow:0 3px 0 #9f1239}
 .ta-invoice-currency-choice .ta-invoice-currency-code{font-size:15px;font-weight:900;white-space:nowrap;direction:ltr;color:#0369a1}
 @media(max-width:350px){.ta-agent-voucher-footer button{font-size:12px}.ta-invoice-currency-choice .ta-invoice-currency-code{font-size:13px}}
+
+/* 3.5.104: voucher ledger preview above the save/cancel buttons. */
+.ta-agent-voucher-footer .ta-agent-voucher-balance-grid{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;width:100%}
+.ta-agent-voucher-balance-tile{background:#fff;border:1px solid #bae6fd;border-radius:11px;padding:5px 7px;text-align:center;min-width:0}
+.ta-agent-voucher-balance-tile span{display:block;color:#475569;font-size:11px;font-weight:800}
+.ta-agent-voucher-balance-tile strong{display:block;color:#064e3b;font-size:clamp(11px,2.7vw,15px);overflow-wrap:anywhere}
+.ta-agent-voucher-currency-note{grid-column:1/-1;text-align:center;color:#64748b;font-size:11px;font-weight:800}
