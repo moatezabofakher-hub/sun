@@ -218,7 +218,7 @@ const Agent={
       const raw=JSON.stringify(packet);
       if(window.TiqanyCloudAgent?.ready()){
         // Cloud first (no inbound firewall rule). Fail closed to LAN; never declare success without ACK.
-        window.TiqanyCloudAgent.send(raw).then(answer=>this.onLocalSyncResult(JSON.stringify({data:answer})))
+        window.TiqanyCloudAgent.send(raw).then(answer=>this.onLocalSyncResult(JSON.stringify({data:answer,transport:'cloud'})))
           .catch(e=>{
             this.lanSyncMessage='السحابة غير متاحة؛ جارٍ محاولة Wi-Fi المحلي: '+e.message;
             this.syncPaint();
@@ -315,7 +315,8 @@ const Agent={
         this.state={...old,lastSyncSummary:summary};
       }
       // Pin this authenticated manager only after its catalog has been saved.
-      window.AndroidLocalSync?.confirmVerifiedSync?.(this.state.companyId);
+      // Cloud ACKs must never mark an unrelated, previously probed LAN IP as verified.
+      if(result.transport!=='cloud')window.AndroidLocalSync?.confirmVerifiedSync?.(this.state.companyId);
       const newCount=newlyConfirmed;
       this.lanSyncMessage='✅ تمت المزامنة بالاتجاهين: '+newCount+' عملية مؤكدة، وتحديث '+itemsChanged+' مادة و'+accountsChanged+' عميل و'+stockChanged+' رصيد. المتبقي '+this.pending.length+'.';
       if(!this.lanSyncQuiet)this.toast(this.lanSyncMessage);

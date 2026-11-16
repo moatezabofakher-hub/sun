@@ -2,6 +2,7 @@ package com.sunshine.accounting;
 
 import android.app.Activity;
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.net.nsd.NsdManager;
 import android.net.ConnectivityManager;
 import android.net.Network;
@@ -45,8 +46,12 @@ public final class NativeLocalSync {
     private static final String SERVICE_TYPE = "_taaccount._tcp.";
     private static final int MAX_FRAME = 7_800_000;
     private static final String ORIGIN = "https://appassets.androidplatform.net/assets/www/";
+    // Only an endpoint acknowledged by the encrypted protocol is remembered.
+    // It is scoped to the paired company; no tokens or keys are saved here.
+    private static final String VERIFIED_ENDPOINT_PREFS = "ta_field_verified_manager_v1";
 
     private final Activity activity;
+    private final SharedPreferences verifiedEndpoints;
     private final WebView webView;
     private final boolean manager;
     private volatile InetSocketAddress directEndpoint;
@@ -77,6 +82,7 @@ public final class NativeLocalSync {
 
     public NativeLocalSync(Activity activity, WebView webView, boolean manager) {
         this.activity = activity;
+        this.verifiedEndpoints = activity.getSharedPreferences(VERIFIED_ENDPOINT_PREFS, Context.MODE_PRIVATE);
         this.webView = webView;
         this.manager = manager;
         this.nsd = (NsdManager) activity.getSystemService(Context.NSD_SERVICE);
@@ -96,9 +102,10 @@ public final class NativeLocalSync {
     private void notifyWifiChange(){
         if(manager){managerStatus("network-changed");return;}
         networkChanged=true;
-        // Keep the current authenticated manager pinned. A Wi-Fi change is not proof
-        // that the manager disconnected; the next sync probes it before failover.
-        lastConfirmedDestination=null;lastConfirmedAt=0;
+        // Retain the last verified endpoint across network changes and app restarts.
+        // The next sync probes it before starting NSD discovery, but never assumes
+        // a reachable socket is authenticated until the encrypted ACK is verified.
+        lastConfirmedAt=0;
         js("window.Agent&&Agent.scheduleAutoSync&&Agent.scheduleAutoSync(300);");
     }
 
@@ -187,9 +194,33 @@ public final class NativeLocalSync {
             directEndpoint = pendingVerifiedEndpoint;
             directCompany = companyId;
             networkChanged = false;
+            // Persist after the WebView has verified and committed the manager catalog.
+            rememberVerifiedEndpoint(companyId, pendingVerifiedEndpoint);
             pendingVerifiedEndpoint = null;
             pendingVerifiedCompany = "";
         }
+    }
+
+    /** Restore only a private IPv4 manager address verified on a past encrypted sync. */
+    private InetSocketAddress rememberedVerifiedEndpoint(String companyId) {
+        if (!isCompany(companyId)) return null;
+        try {
+            String stored = verifiedEndpoints.getString(companyId, "");
+            int separator = stored.lastIndexOf(':');
+            if (separator <= 0) return null;
+            String host = stored.substring(0, separator);
+            int port = Integer.parseInt(stored.substring(separator + 1));
+            if (!safeLocalAddress(host) || port < 1024 || port > 65535) return null;
+            return new InetSocketAddress(host, port);
+        } catch (Exception ignored) { return null; }
+    }
+
+    private void rememberVerifiedEndpoint(String companyId, InetSocketAddress address) {
+        if (!isCompany(companyId) || address == null) return;
+        String host = address.getHostString();
+        int port = address.getPort();
+        if (!safeLocalAddress(host) || port < 1024 || port > 65535) return;
+        verifiedEndpoints.edit().putString(companyId, host + ":" + port).apply();
     }
 
     /** Diagnostic indicator; it does not expose credentials or manager authority. */
@@ -357,13 +388,19 @@ public final class NativeLocalSync {
                     // connection attempt fails (or when no manager is active yet).
                     InetSocketAddress destination;
                     InetSocketAddress pinned = companyId.equals(activeManagerCompany) ? activeManagerEndpoint : null;
-                    if (attempt == 0 && pinned != null) destination = pinned;
-                    else if (attempt == 0 && !networkChanged && directEndpoint != null && companyId.equals(directCompany)) destination = directEndpoint;
-                    else if (attempt == 0 && !networkChanged && lastConfirmedDestination != null &&
-                        System.currentTimeMillis() - lastConfirmedAt < 60_000L) destination = lastConfirmedDestination;
-                    else destination = findServer(companyId, failedDestination);
-                    if (destination == null && attempt == 0 && directEndpoint != null && companyId.equals(directCompany))
-                        destination = directEndpoint;
+                    if (attempt == 0) {
+                        // In order: currently authenticated manager, its last verified
+                        // private LAN address (even after app restart), then manual QR.
+                        // A network change does not skip this first direct attempt.
+                        InetSocketAddress remembered = rememberedVerifiedEndpoint(companyId);
+                        destination = pinned != null ? pinned : remembered != null ? remembered :
+                            companyId.equals(directCompany) ? directEndpoint : null;
+                        if (destination == null) destination = findServer(companyId, null);
+                    } else {
+                        // A real socket error is required before discovering another
+                        // manager. Never send to two managers in parallel.
+                        destination = findServer(companyId, failedDestination);
+                    }
                     if (destination == null || destination.equals(failedDestination)) {
                         lastError = new IOException("لم يظهر مسؤول متاح على شبكة Wi-Fi المحلية");
                         break;

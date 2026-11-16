@@ -4,7 +4,7 @@
 (function(){
  'use strict';
  const ONLINE_PERIOD=12000;  // pull updated prices/stock even with zero new sales
- const OFFLINE_RETRY=20000;
+ const OFFLINE_RETRY=15000;  // retry verified LAN address first, then rediscover
  const BUSY_RETRY=1250;
  const A=Agent;
  A.autoSyncStarted=false;
@@ -60,6 +60,11 @@
  document.addEventListener('visibilitychange',()=>{
    if(!document.hidden && A.autoSyncStarted)A.scheduleAutoSync(0);
  });
+ // Android can regain Wi-Fi without a document visibility change. The native
+ // bridge also schedules a tick from its Wi-Fi callback, while these browser
+ // events cover resumed foreground sessions and transient connectivity returns.
+ window.addEventListener?.('online',()=>{if(A.autoSyncStarted)A.scheduleAutoSync(0);});
+ window.addEventListener?.('pageshow',()=>{if(A.autoSyncStarted)A.scheduleAutoSync(0);});
  const init=A.init.bind(A);
  A.init=async function(){await init();if(this.state)this.startAutoSync();};
  const activate=A.activate.bind(A);

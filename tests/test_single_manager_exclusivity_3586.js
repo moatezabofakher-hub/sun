@@ -6,7 +6,7 @@ const crypto=require('node:crypto');
 const root=process.cwd();
 const native=fs.readFileSync('field_agent/src/main/java/com/sunshine/accounting/NativeLocalSync.java','utf8');
 assert.match(native,/InetSocketAddress activeManagerEndpoint/);
-assert.match(native,/if \(attempt == 0 && pinned != null\) destination = pinned/);
+assert.match(native,/destination = pinned != null \? pinned : remembered != null \? remembered/);
 assert.match(native,/catch \(IOException ioError\)[\s\S]*?failedDestination = destination;[\s\S]*?networkChanged = true/);
 assert.match(native,/findServer\(companyId, failedDestination\)/);
 assert.match(native,/if \(excluded != null && excluded\.equals\(candidate\)\)/);
@@ -29,11 +29,11 @@ const agent=sandbox.TestAgent;
 agent.state={companyId,agentId,key,warehouseId:'wh_1',companyName:'X',agentName:'A',vehicleName:'Van',items:[],accounts:[],categories:[],ops:[],knownIds:[],stock:{},exchangeRate:15000};
 agent.show=async()=>{};agent.toast=()=>{};agent.syncPaint=()=>{};agent.active=async()=>true;agent.save=async()=>{};
 const catalog={kind:'provision',companyId,agentId,key,companyName:'X',agentName:'A',vehicleName:'Van',warehouseId:'wh_1',items:[],accounts:[],stock:{},knownIds:[],exchangeRate:15000};
-async function reply(build){
+async function reply(build,transport){
  const request=await encryption.open(JSON.parse(sandbox.lastFrame),key,companyId,agentId);
  const ack=build(request);
  const cipher=await encryption.pack(ack,key,companyId,agentId);
- await agent.onLocalSyncResult(JSON.stringify({data:JSON.stringify(cipher)}));
+ await agent.onLocalSyncResult(JSON.stringify({data:JSON.stringify(cipher),...(transport?{transport}:{})}));
 }
 (async()=>{
  await agent.syncOneTap();
@@ -42,6 +42,9 @@ async function reply(build){
  await agent.syncOneTap();
  await reply(req=>({kind:'sync_result',companyId,agentId,requestNonce:'old_nonce',knownIds:[],catalog}));
  assert.deepEqual(confirmed,[companyId],'replayed ACK cannot pin a new manager');
+ await agent.syncOneTap();
+ await reply(req=>({kind:'sync_result',companyId,agentId,requestNonce:req.nonce,knownIds:[],catalog}),'cloud');
+ assert.deepEqual(confirmed,[companyId],'cloud ACK cannot verify or persist a stale LAN endpoint');
  agent.save=async()=>{throw Error('disk full');};
  agent.state.companyName='Different';
  await agent.syncOneTap();

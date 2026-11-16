@@ -20,7 +20,7 @@ assert.match(main,/FieldLanCrypto\.open\(packet,agent\.key/);
 assert.match(main,/startsWith\('cloud:'\)/);
 const a=read('field_agent/src/main/assets/www/static/agent.js');
 assert.match(a,/TiqanyCloudAgent\.send\(raw\)/);
-assert.match(a,/onLocalSyncResult\(JSON\.stringify\(\{data:answer\}\)\)/);
+assert.match(a,/onLocalSyncResult\(JSON\.stringify\(\{data:answer,transport:'cloud'\}\)\)/);
 for(const f of ['app/src/main/assets/www/index.html','field_agent/src/main/assets/www/index.html']){
  assert.match(read(f),/tiqany-(manager-link|cloud-agent)\.js/);
 }

@@ -62,7 +62,7 @@ body.ta-agent-voucher-open nav#bottom{display:none!important}
  
   <div class="mark" aria-hidden="true">🚚</div>
   <div class="brandcopy"><h1 id="agentScreenTitle">المحاسب التقني</h1><p id="agentScreenSubtitle">نسخة موظف البيع · توزيع ميداني</p></div>
-  <button type="button" id="agentPrinterQuick" class="header-tool" onclick="Agent.navigate('printer')" aria-label="إعداد الطابعة">🖨</button>
+  <button type="button" id="agentRateQuick" class="header-tool ta-agent-rate-quick" onclick="Agent.openQuickExchangeRate()" aria-label="تعديل سعر الصرف" title="تعديل سعر الصرف"><span class="ta-agent-rate-symbol">1$=</span><span id="agentHeaderExchangeRate" dir="ltr">—</span><span class="ta-agent-rate-pencil" aria-hidden="true">✎</span></button>
  </div>
  <div class="headerbottom"><span class="tag" id="connectionTag">غير مفعّل</span><button type="button" class="tag" id="agentSyncConnection" aria-live="polite" onclick="Agent.requestSyncFromHeader()" title="اتصال ومزامنة فورية">◌ بانتظار الاتصال</button><span id="agentVehicleHeader">مستودع السيارة</span></div>
 </header>
@@ -115,4 +115,6 @@ body.ta-agent-voucher-open nav#bottom{display:none!important}
 <link rel="stylesheet" href="static/agent-manager-invoice-35102.css">
 <link rel="stylesheet" href="static/agent-operation-footers-35103.css">
 <script defer src="static/agent-voucher-ledger-footer-35104.js"></script>
+<link rel="stylesheet" href="static/agent-employee-ui-35105.css">
+<script defer src="static/agent-employee-ui-35105.js"></script>
 </body></html>

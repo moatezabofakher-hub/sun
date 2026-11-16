@@ -44,9 +44,9 @@ a.syncOneTap=async function(opts){assert.equal(opts.quiet,true);tries++;this.lan
 (async()=>{
  a.startAutoSync();await tick(0);assert.equal(tries,1,'first automatic attempt starts without any user press');
  assert.equal(a.autoSyncState,'offline');
- await tick(19999);assert.equal(tries,1);
+ await tick(14999);assert.equal(tries,1);
  await tick(1);assert.equal(tries,2,'automatic retry after main disappears');
- await tick(20000);assert.equal(tries,3);assert.equal(a.autoSyncState,'connected');
+ await tick(15000);assert.equal(tries,3);assert.equal(a.autoSyncState,'connected');
  await tick(11999);assert.equal(tries,3);
  await tick(1);assert.equal(tries,4,'periodic pull continues while connected');
  a.busy=true;await tick(12000);assert.equal(tries,4,'never sends while a local invoice is being saved');

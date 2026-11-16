@@ -16,7 +16,8 @@ for module in ('app','field_agent'):
 print('PASS: both app modules cache trusted WebView main-frame URL on UI thread')
 
 stub={
-'android/content/Context.java': 'package android.content; public class Context {public static final String NSD_SERVICE="nsd",WIFI_SERVICE="wifi",CONNECTIVITY_SERVICE="connectivity"; public Object getSystemService(String n){if(n.equals(NSD_SERVICE))return new android.net.nsd.NsdManager();if(n.equals(WIFI_SERVICE))return new android.net.wifi.WifiManager();if(n.equals(CONNECTIVITY_SERVICE))return new android.net.ConnectivityManager();return null;} public Context getApplicationContext(){return this;} }',
+'android/content/Context.java': 'package android.content; public class Context {public static final int MODE_PRIVATE=0; public static final String NSD_SERVICE="nsd",WIFI_SERVICE="wifi",CONNECTIVITY_SERVICE="connectivity"; public android.content.SharedPreferences getSharedPreferences(String name,int mode){return android.content.SharedPreferences.open(name);} public Object getSystemService(String n){if(n.equals(NSD_SERVICE))return new android.net.nsd.NsdManager();if(n.equals(WIFI_SERVICE))return new android.net.wifi.WifiManager();if(n.equals(CONNECTIVITY_SERVICE))return new android.net.ConnectivityManager();return null;} public Context getApplicationContext(){return this;} }',
+'android/content/SharedPreferences.java': 'package android.content;import java.util.concurrent.*;public class SharedPreferences{private static final ConcurrentHashMap<String,ConcurrentHashMap<String,String>> maps=new ConcurrentHashMap<>();private final ConcurrentHashMap<String,String> data;private SharedPreferences(String name){data=maps.computeIfAbsent(name,k->new ConcurrentHashMap<>());}public static SharedPreferences open(String name){return new SharedPreferences(name);}public String getString(String key,String fallback){return data.getOrDefault(key,fallback);}public Editor edit(){return new Editor(data);}public static class Editor{private final ConcurrentHashMap<String,String> data;Editor(ConcurrentHashMap<String,String> d){data=d;}public Editor putString(String key,String val){data.put(key,val);return this;}public void apply(){}}}',
 'android/app/Activity.java':'package android.app;public class Activity extends android.content.Context {public void runOnUiThread(Runnable r){r.run();}}',
 'android/os/Build.java':'package android.os;public class Build {public static class VERSION{public static final int SDK_INT=35;}}',
 'android/os/Looper.java':'package android.os; public class Looper {private static final Thread MAIN=Thread.currentThread();private static final Looper INSTANCE=new Looper();public static Looper myLooper(){return Thread.currentThread()==MAIN?INSTANCE:null;}public static Looper getMainLooper(){return INSTANCE;}}',
@@ -55,8 +56,32 @@ public class Regression {
     t.start();t.join(3000);
     if(t.isAlive())throw new AssertionError("JavaBridge blocked");
     if(error.get()!=null)throw new AssertionError("JavaBridge threw",error.get());
-    agent.destroy();manager.destroy();
-    System.out.println("PASS: UI-origin cache; receiver/send callable from JavaBridge thread without WebView.getUrl");
+    // The saved endpoint is a network hint, NOT credentials: only a verified
+    // encrypted ACK is allowed to persist it, and the company ID scopes it.
+    NativeLocalSync verified = new NativeLocalSync(a,v,false);
+    verified.onMainFrameUrlChanged("https://appassets.androidplatform.net/assets/www/index.html");
+    java.lang.reflect.Field pending = NativeLocalSync.class.getDeclaredField("pendingVerifiedEndpoint");
+    pending.setAccessible(true);
+    java.lang.reflect.Field pendingCompany = NativeLocalSync.class.getDeclaredField("pendingVerifiedCompany");
+    pendingCompany.setAccessible(true);
+    pending.set(verified,new java.net.InetSocketAddress("192.168.77.51",39271));
+    pendingCompany.set(verified,company);
+    verified.confirmVerifiedSync("company_differentcompany");
+    if(!a.getSharedPreferences("ta_field_verified_manager_v1",0).getString(company,"").isEmpty())
+        throw new AssertionError("Unverified company must not be persisted");
+    verified.confirmVerifiedSync(company);
+    String saved = a.getSharedPreferences("ta_field_verified_manager_v1",0).getString(company,"");
+    if(!"192.168.77.51:39271".equals(saved))throw new AssertionError("Verified endpoint not persisted: "+saved);
+    NativeLocalSync resumed = new NativeLocalSync(a,v,false);
+    resumed.onMainFrameUrlChanged("https://appassets.androidplatform.net/assets/www/index.html");
+    java.lang.reflect.Method restore=NativeLocalSync.class.getDeclaredMethod("rememberedVerifiedEndpoint",String.class);
+    restore.setAccessible(true);
+    Object restored=restore.invoke(resumed,company);
+    if(!new java.net.InetSocketAddress("192.168.77.51",39271).equals(restored))
+        throw new AssertionError("Missing last verified address after a fresh bridge instance");
+    if(restore.invoke(resumed,"company_differentcompany")!=null)throw new AssertionError("Company isolation missing");
+    agent.destroy();manager.destroy();verified.destroy();resumed.destroy();
+    System.out.println("PASS: bridge thread, trusted UI, company-scoped verified LAN address survives app bridge recreation");
   }
 }''',
 }
@@ -64,6 +89,11 @@ for module in ['app','field_agent']:
     with tempfile.TemporaryDirectory() as temp:
         d=Path(temp)
         for name,source in stub.items():
+            if module == 'app' and name == 'com/sunshine/accounting/Regression.java':
+                source = source.split('    // The saved endpoint is a network hint')[0] + (
+                    '    agent.destroy();manager.destroy();\n'
+                    '    System.out.println("PASS: UI-origin cache and JavaBridge thread");\n'
+                    '  }\n}\n')
             p=d/name;p.parent.mkdir(parents=True,exist_ok=True);p.write_text(source,'utf-8')
         bridge=root/module/'src/main/java/com/sunshine/accounting/NativeLocalSync.java'
         cmd=['javac','-d',str(d/'classes'),*[str(p) for p in d.rglob('*.java')],str(bridge)]
