@@ -11,13 +11,9 @@ const escape=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>'
 const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved:false,conflictLog:null,resolvedHistory:[],lastSuccessfulAt:0,lastPhoneSeenAt:0,lastPublishedDigest:null,lastRemoteVersion:null,polling:false,probeFailures:0,nextProbeAt:0,
   authorizedSettingsSection:null,
   headerRequestedSettings:false,
+  qrRevealExpiresAt:0,qrRevealProfile:null,qrRevealTimer:null,scanApproval:null,
   openSettingsFromHeader(){
-    if(AppNav.current()?.screen==='settings'){
-      this.requestHeaderAccess();
-      return;
-    }
-    // AppNav itself guards unsaved invoices, so authentication runs only after
-    // navigation has actually completed (including any discard confirmation).
+    if(AppNav.current()?.screen==='settings'){this.requestHeaderAccess();return;}
     this.headerRequestedSettings=true;
     AppNav.navigate('settings');
   },
@@ -25,44 +21,55 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
     if(AppNav.current()?.screen!=='settings')return;
     const section=document.querySelector('details[data-settings-section="mobile-computer-sync"]');
     if(!section)return;
-    if(section.open){section.scrollIntoView?.({block:'start',behavior:'smooth'});return;}
-    // Do not silently revert edits in another settings accordion.
-    if(typeof SettingsDraftController!=='undefined' && SettingsDraftController.changed?.()){
+    if(!section.open&&typeof SettingsDraftController!=='undefined'&&SettingsDraftController.changed?.()){
       UI.toast('احفظ أو ألغِ تغييرات الضبط الحالية قبل فتح المزامنة','warn');return;
     }
-    const summary=section.querySelector('summary');
-    if(!summary)return;
-    this.requestSettingsAccess({currentTarget:summary,preventDefault(){},stopPropagation(){}});
+    if(!section.open){
+      const summary=section.querySelector('summary');
+      if(summary)this.requestSettingsAccess({currentTarget:summary,preventDefault(){},stopPropagation(){}});
+    }
     section.scrollIntoView?.({block:'start',behavior:'smooth'});
   },
   requestSettingsAccess(event){
-    const section=event?.currentTarget?.closest('details');
-    if(!section)return;
-    // Prevent HTML <summary> from opening the sensitive QR and pairing key.
-    event.preventDefault();event.stopPropagation();
-    if(section.open){
-      this.authorizedSettingsSection=null;
-      section.open=false;
-      return;
-    }
-    // ProtectionController is a global lexical binding in the main application.
-    if(typeof ProtectionController==='undefined' || typeof ProtectionController.requestPin!=='function'){
-      UI.toast('تعذر فتح التحقق بكلمة سر التطبيق','error');return;
-    }
-    ProtectionController.requestPin('أدخل كلمة سر التطبيق لفتح مزامنة الموبايل والكمبيوتر',()=>{
-      if(!section.isConnected)return;
-      this.authorizedSettingsSection=section;
-      section.open=true;
-    });
+    const section=event?.currentTarget?.closest('details');if(!section)return;
+    // In 3.5.117 the sync SETTINGS panel is public to the signed-in manager.
+    // Only viewing the computer's pairing QR or starting a new scan is protected.
+    event.preventDefault?.();event.stopPropagation?.();
+    section.open=!section.open;
+    if(!section.open)this.hidePairingQr();
   },
   guardSettingsToggle(section){
-    if(!section || section.dataset.settingsSection!=='mobile-computer-sync')return;
-    if(section.open && this.authorizedSettingsSection!==section){
-      section.open=false;
+    if(section?.dataset?.settingsSection==='mobile-computer-sync'&&!section.open)this.hidePairingQr();
+  },
+  hidePairingQr(){
+    this.qrRevealExpiresAt=0;this.qrRevealProfile=null;
+    if(this.qrRevealTimer){clearTimeout(this.qrRevealTimer);this.qrRevealTimer=null;}
+  },
+  // Do not grant access if a manager has not configured the application's PIN.
+  authorizePairing(message,action){
+    if(typeof ProtectionController==='undefined'||typeof ProtectionController.requestPin!=='function'){
+      UI.toast('تعذر تشغيل التحقق الأمني','error');return false;
     }
-    if(!section.open && this.authorizedSettingsSection===section){
-      this.authorizedSettingsSection=null;
+    const cfg=State.settings?.appProtection;
+    if(!cfg?.pinHash||!cfg?.pinSalt){
+      ProtectionController.promptPinSetup?.('ربط الأجهزة');return false;
     }
+    const profile=ProfileManager.activeId;
+    ProtectionController.requestPin(message,()=>{
+      if(ProfileManager.activeId!==profile){UI.toast('تغيّرت الشركة، أعد التحقق','warn');return;}
+      action();
+    } );
+    return true;
+  },
+  revealPairingQr(){
+    if(!desktop)return;
+    this.authorizePairing('أدخل كلمة سر المدير لعرض رمز الكمبيوتر ومفتاح ربط الموبايل',()=>{
+      this.qrRevealProfile=ProfileManager.activeId;
+      this.qrRevealExpiresAt=Date.now()+60000;
+      this.renderConnection();
+      if(this.qrRevealTimer)clearTimeout(this.qrRevealTimer);
+      this.qrRevealTimer=setTimeout(()=>{this.qrRevealExpiresAt=0;this.qrRevealTimer=null;this.renderConnection();},60000);
+    });
   },
   updateHeaderConnection(active){
     const el=document.getElementById('ta-desktop-phone-connection');if(!el)return;
@@ -140,10 +147,17 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
   scanPairing(){
     if(desktop)return;
     if(!window.NativeBarcode||typeof NativeBarcode.scan!=='function')return this.message(t('يلزم فتح تطبيق أندرويد الرئيسي لاستخدام الكاميرا','Open the main Android app to use the camera'),true);
-    NativeBarcode.scan('peer');
+    this.scanApproval=null;
+    this.authorizePairing('تحقق بالبصمة أو كلمة سر المدير قبل مسح رمز الكمبيوتر',()=>{
+      this.scanApproval={profileId:ProfileManager.activeId,expiresAt:Date.now()+120000};
+      NativeBarcode.scan('peer');
+    });
   },
   async acceptPairing(raw){
     if(desktop)return;
+    const proof=this.scanApproval;this.scanApproval=null;
+    if(!proof||proof.profileId!==ProfileManager.activeId||Date.now()>proof.expiresAt)
+      return this.message('يجب التحقق بالبصمة أو كلمة السر قبل اعتماد رمز الكمبيوتر',true);
     let data;try{data=JSON.parse(String(raw||''));}catch(_){return this.message(t('هذا ليس رمز اقتران للتقني للمحاسبة','This is not a Tiqany Acc pairing code'),true);}
     if(!data||data.type!=='tiqany-windows-main'||data.v!==1||!/^([0-9]{1,3}\.){3}[0-9]{1,3}$/.test(data.host)||!Number.isInteger(data.port)||data.port<1024||data.port>65535||!/^[A-Za-z0-9_-]{43}$/.test(data.key)||!/^[a-f0-9]{32}$/.test(data.serverId))return this.message(t('رمز الاقتران غير صالح أو غير مكتمل','Invalid or incomplete pairing code'),true);
     const before=await this.base();
@@ -277,9 +291,11 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
   },
   async saveLink(){if(desktop)return;
     const host=document.getElementById('ta-peer-ip')?.value.trim(),port=Number(document.getElementById('ta-peer-port')?.value),key=document.getElementById('ta-peer-key')?.value.trim();
-    if(!window.AndroidPeerSync||AndroidPeerSync.configure(host,port,key)!=='saved')return this.message(t("تأكد من عنوان Wi-Fi المحلي والمنفذ ورمز الربط الصحيح","Check the local Wi-Fi IP address, port and pairing key"),true);
-    /* Reconfiguring an IP address must not discard the last common ancestor. */
-    this.approved=false;this.renderConnection();this.message(t("حُفظ الربط. اضغط مزامنة الآن لتأكيد الشركة والبيانات.","Connection saved. Select Sync now to confirm the business and merge data."));
+    this.authorizePairing('تحقق بالبصمة أو كلمة سر المدير قبل حفظ ربط الكمبيوتر يدويًا',()=>{
+      if(!window.AndroidPeerSync||AndroidPeerSync.configure(host,port,key)!=='saved')return this.message(t("تأكد من عنوان Wi-Fi المحلي والمنفذ ورمز الربط الصحيح","Check the local Wi-Fi IP address, port and pairing key"),true);
+      /* Reconfiguring an IP address must not discard the last common ancestor. */
+      this.approved=false;this.renderConnection();this.message(t("حُفظ الربط. اضغط مزامنة الآن لتأكيد الشركة والبيانات.","Connection saved. Select Sync now to confirm the business and merge data."));
+    });
   },
   async unlink(){if(desktop)return;if(!confirm(t("هل تريد إلغاء ربط هذا الهاتف بالكمبيوتر؟ لن تُحذف البيانات المحاسبية.","Disconnect the phone from the computer? Accounting data will not be deleted.")))return;
     AndroidPeerSync.reset();await ProfileManager.putBatch([{id:this.key(),data:null}]);await this.clearConflicts();this.approved=false;this.renderConnection();this.message(t("تم إلغاء الربط المحلي.","Local connection removed."));
@@ -479,7 +495,7 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
     
     const title='المزامنة المحلية: الهاتف الرئيسي ↔ الكمبيوتر';
     const opened='';
-    ((typeof main.querySelector==='function'&&main.querySelector('[data-app-build]')) || main).insertAdjacentHTML((typeof main.querySelector==='function'&&main.querySelector('[data-app-build]'))?'afterend':'afterbegin',`<details class="settings-section" data-settings-section="mobile-computer-sync" ontoggle="TiqanyPeerSync.guardSettingsToggle(this);SettingsController.onSectionToggle(this)"${opened}><summary class="settings-section-heading" onclick="TiqanyPeerSync.requestSettingsAccess(event)" aria-label="مزامنة الموبايل و الكمبيوتر - يتطلب كلمة السر"><span class="settings-section-leading"><span class="ta-connected-devices-icon" aria-hidden="true">${connectedDevicesIcon}</span><span><span class="settings-section-name">مزامنة الموبايل و الكمبيوتر</span><span class="settings-section-note">الربط المحلي بين الرئيسي والكمبيوتر ومسح رمز QR</span></span></span><i class="fas fa-chevron-down settings-section-arrow" aria-hidden="true"></i></summary><div class="settings-section-body"><section id="ta-peer-settings" class="rounded-2xl border border-teal-300 bg-white p-4 mb-4 space-y-2 text-right" dir="rtl"><h3 class="font-black text-base text-teal-900"><span class="ta-connected-devices-inline" aria-hidden="true">${connectedDevicesIcon}</span> ${title}</h3><p class="text-xs text-slate-600">${desktop?t('أبقِ الكمبيوتر والهاتف على شبكة Wi-Fi واحدة. أدخل بيانات الربط المعروضة هنا في إعدادات الهاتف الرئيسي.','Keep computer and phone on the same Wi-Fi network. Enter the details shown here in the main phone app.'):t('الربط محلي دون إنترنت. احصل على العنوان ورمز الربط من الضبط في الكمبيوتر.','Local sync without internet. Get address and pairing key from Windows settings.')}</p><div id="ta-peer-connection" class="text-sm space-y-2"></div><button type="button" class="ta-peer-btn" onclick="TiqanyPeerSync.${desktop?'config':'sync'}()">${desktop?t('تحديث عنوان الاتصال','Refresh connection details'):t('مزامنة الآن','Sync now')}</button> <button type="button" id="ta-peer-conflict-button" class="ta-peer-btn ta-peer-conflict-button" onclick="TiqanyPeerSync.openConflictLog()"><i class="fas fa-exclamation-triangle"></i> سجل التعارض (0)</button><div id="ta-peer-conflict-panel" class="ta-peer-conflict-panel" hidden></div><p id="ta-peer-status" class="text-xs text-teal-800 font-bold">${escape(this.last)}</p></section></div></details>`);
+    ((typeof main.querySelector==='function'&&main.querySelector('[data-app-build]')) || main).insertAdjacentHTML((typeof main.querySelector==='function'&&main.querySelector('[data-app-build]'))?'afterend':'afterbegin',`<details class="settings-section" data-settings-section="mobile-computer-sync" ontoggle="TiqanyPeerSync.guardSettingsToggle(this);SettingsController.onSectionToggle(this)"${opened}><summary class="settings-section-heading" onclick="TiqanyPeerSync.requestSettingsAccess(event)" aria-label="مزامنة الموبايل و الكمبيوتر"><span class="settings-section-leading"><span class="ta-connected-devices-icon" aria-hidden="true">${connectedDevicesIcon}</span><span><span class="settings-section-name">مزامنة الموبايل و الكمبيوتر</span><span class="settings-section-note">الربط المحلي بين الرئيسي والكمبيوتر ومسح رمز QR</span></span></span><i class="fas fa-chevron-down settings-section-arrow" aria-hidden="true"></i></summary><div class="settings-section-body"><section id="ta-peer-settings" class="rounded-2xl border border-teal-300 bg-white p-4 mb-4 space-y-2 text-right" dir="rtl"><h3 class="font-black text-base text-teal-900"><span class="ta-connected-devices-inline" aria-hidden="true">${connectedDevicesIcon}</span> ${title}</h3><p class="text-xs text-slate-600">${desktop?t('أبقِ الكمبيوتر والهاتف على شبكة Wi-Fi واحدة. أدخل بيانات الربط المعروضة هنا في إعدادات الهاتف الرئيسي.','Keep computer and phone on the same Wi-Fi network. Enter the details shown here in the main phone app.'):t('الربط محلي دون إنترنت. احصل على العنوان ورمز الربط من الضبط في الكمبيوتر.','Local sync without internet. Get address and pairing key from Windows settings.')}</p><div id="ta-peer-connection" class="text-sm space-y-2"></div><button type="button" class="ta-peer-btn" onclick="TiqanyPeerSync.${desktop?'config':'sync'}()">${desktop?t('تحديث عنوان الاتصال','Refresh connection details'):t('مزامنة الآن','Sync now')}</button> <button type="button" id="ta-peer-conflict-button" class="ta-peer-btn ta-peer-conflict-button" onclick="TiqanyPeerSync.openConflictLog()"><i class="fas fa-exclamation-triangle"></i> سجل التعارض (0)</button><div id="ta-peer-conflict-panel" class="ta-peer-conflict-panel" hidden></div><p id="ta-peer-status" class="text-xs text-teal-800 font-bold">${escape(this.last)}</p></section></div></details>`);
     this.renderConnection();Promise.all([this.loadConflicts(),this.loadResolved()]).catch(err=>console.warn('Could not read conflict history',err));
     if(this.headerRequestedSettings){
       this.headerRequestedSettings=false;

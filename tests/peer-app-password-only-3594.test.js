@@ -18,26 +18,16 @@ function harness(){
   const event={currentTarget:{closest:()=>section},preventDefault(){this.prevented=true;},stopPropagation(){this.stopped=true;}};
   return {peer,section,event,requested:()=>requested,toast:()=>toast};
 }
-test('requests biometric-first app approval before exposing the sync section',()=>{
- const h=harness();h.peer.requestSettingsAccess(h.event);
- assert.equal(h.section.open,false);assert.equal(h.event.prevented,true);
- assert.match(h.requested().msg,/كلمة سر التطبيق/);
- assert.equal(h.requested().options?.passwordOnly,undefined);
- h.requested().cb();h.peer.guardSettingsToggle(h.section);
- assert.equal(h.section.open,true);
+test('sync settings are open while pairing scanner requires biometric-first app verification',()=>{
+ const h=harness();h.peer.hidePairingQr=()=>{};
+ h.peer.requestSettingsAccess(h.event);assert.equal(h.section.open,true);assert.equal(h.requested(),null);
+ assert.match(src,/scanPairing\(\)\{[\s\S]*?this\.authorizePairing\(/);
+ assert.match(src,/acceptPairing\(raw\)\{[\s\S]*?const proof=this\.scanApproval/);
+ assert.match(methods,/ProtectionController\.requestPin/);
+ assert.doesNotMatch(methods,/passwordOnly:true/);
 });
-test('unauthorized direct opening is reverted and clicking to close does not re-prompt',()=>{
- const h=harness();h.section.open=true;h.peer.guardSettingsToggle(h.section);
- assert.equal(h.section.open,false);
- h.peer.requestSettingsAccess(h.event);h.requested().cb();
- h.peer.requestSettingsAccess(h.event);
- assert.equal(h.section.open,false);
- assert.equal(h.peer.authorizedSettingsSection,null);
+test('Android PIN dialog supports biometrics and a password fallback',()=>{
+ assert.match(html,/requestPin\(message, onSuccess, options = \{\}\)/);
+ assert.match(html,/!options\.passwordOnly && State\.settings\.appProtection\.fingerprintEnabled/);
+ assert.match(html,/showApprovalPassword\(\)/);
 });
-test('authentication uses lexical ProtectionController, never window property',()=>{
- assert.doesNotMatch(methods,/window\.ProtectionController/);
- assert.match(methods,/typeof ProtectionController/);
- assert.match(src,/guardSettingsToggle\(this\)/);
-});
-
-test('Android PIN dialog can explicitly disable biometric path',()=>{assert.match(html,/requestPin\(message, onSuccess, options = \{\}\)/);assert.match(html,/!options\.passwordOnly && State\.settings\.appProtection\.fingerprintEnabled/);});

@@ -239,24 +239,43 @@ const FieldSync = {
     let allowedAccountIds;try{allowedAccountIds=this.readAccountPicker('fieldEditAccounts');}catch(e){return UI.toast(e.message,'warn');}
     const employeePassword=document.getElementById('editFieldEmployeePassword')?.value||'';
     const employeeConfirm=document.getElementById('editFieldEmployeeConfirm')?.value||'';
+    const managerPin=document.getElementById('editFieldManagerApprovalPin')?.value||'';
     if((employeePassword||employeeConfirm)&&employeePassword!==employeeConfirm)return UI.toast('تأكيد كلمة سر الموظف غير مطابق','error');
     if(!a.employeeAuth?.hash&&!employeePassword)return UI.toast('عيّن كلمة سر خاصة بالموظف قبل حفظ بياناته','warn');
-    let employeeAuth=a.employeeAuth||null;
-    if(employeePassword){
-      try{
-        if(State.settings.appProtection?.pinHash){
-          const managerPin=document.getElementById('editFieldManagerApprovalPin')?.value||'';
-          if(!managerPin||!await ProtectionController.verifyPin(managerPin))throw Error('أدخل كلمة سر المدير الصحيحة للموافقة على تعيين كلمة الموظف');
-          if(await ProtectionController.verifyPin(employeePassword))throw Error('يجب أن تختلف كلمة سر الموظف عن كلمة سر المدير');
-        }
-        employeeAuth={...await TiqanyEmployeeAuth.create(employeePassword),version:(Number(a.employeeAuth?.version)||0)+1};
-      }catch(e){return UI.toast(e.message||'تعذر إعداد كلمة سر الموظف','error');}
+    const permissions=this.readPermissions('editFieldPermissions');
+    const samePermissions=(x,y)=>JSON.stringify(TiqanyAgentPermissions.normalize(x))===JSON.stringify(TiqanyAgentPermissions.normalize(y));
+    const permissionsChanged=!samePermissions(a.permissions,permissions);
+    const originalPermissions=JSON.stringify(TiqanyAgentPermissions.normalize(a.permissions));
+    const companyProfile=typeof ProfileManager!=='undefined'?ProfileManager.activeId:null;
+    const saveVerified=async()=>{
+      if(companyProfile!==null&&ProfileManager.activeId!==companyProfile)return UI.toast('تغيّرت الشركة أثناء التحقق، أعد تعديل الموظف','warn');
+      const current=this.data().agents.find(x=>x.id===id&&!x.archived);
+      if(current!==a||JSON.stringify(TiqanyAgentPermissions.normalize(a.permissions))!==originalPermissions)return UI.toast('تغيّرت صلاحيات الموظف أثناء التحقق؛ أعد فتح التعديل','warn');
+      let employeeAuth=a.employeeAuth||null;
+      if(employeePassword){
+        try{
+          if(State.settings.appProtection?.pinHash){
+            if(!managerPin||!await ProtectionController.verifyPin(managerPin))throw Error('أدخل كلمة سر المدير الصحيحة للموافقة على تعيين كلمة الموظف');
+            if(await ProtectionController.verifyPin(employeePassword))throw Error('يجب أن تختلف كلمة سر الموظف عن كلمة سر المدير');
+          }
+          employeeAuth={...await TiqanyEmployeeAuth.create(employeePassword),version:(Number(a.employeeAuth?.version)||0)+1};
+        }catch(e){return UI.toast(e.message||'تعذر إعداد كلمة سر الموظف','error');}
+      }
+      const original={name:a.name,vehicleName:a.vehicleName,allowedAccountIds:a.allowedAccountIds,permissions:a.permissions,employeeAuth:a.employeeAuth};
+      a.name=name;a.vehicleName=vehicleName||name;a.allowedAccountIds=allowedAccountIds;
+      a.permissions=permissions;a.employeeAuth=employeeAuth;
+      try{await StorageEngine.saveState();this.open();UI.toast('حُفظ موظف البيع؛ ستنتقل التعديلات عند أول مزامنة موثوقة','success');}
+      catch(e){Object.assign(a,original);UI.toast('لم يُحفظ تعديل موظف البيع: '+e.message,'error');}
+    };
+    if(permissionsChanged){
+      if(typeof ProtectionController==='undefined'||typeof ProtectionController.requestPin!=='function')return UI.toast('التحقق الأمني غير متاح','error');
+      if(!State.settings.appProtection?.pinHash||!State.settings.appProtection?.pinSalt)return ProtectionController.promptPinSetup?.('تعديل صلاحيات الموظف');
+      // The edit modal is replaced by the PIN/Biometric modal; all values above
+      // were captured BEFORE opening it, so no user changes are discarded.
+      ProtectionController.requestPin('تحقق بهوية المدير قبل تغيير صلاحيات موظف البيع',saveVerified );
+      return;
     }
-    const original={name:a.name,vehicleName:a.vehicleName,allowedAccountIds:a.allowedAccountIds,permissions:a.permissions,employeeAuth:a.employeeAuth};
-    a.name=name;a.vehicleName=vehicleName||name;a.allowedAccountIds=allowedAccountIds;
-    a.permissions=this.readPermissions('editFieldPermissions');a.employeeAuth=employeeAuth;
-    try{await StorageEngine.saveState();this.open();UI.toast('حُفظ موظف البيع؛ ستنتقل كلمة سره الجديدة تلقائيًا عند أول مزامنة موثوقة','success');}
-    catch(e){Object.assign(a,original);UI.toast('لم يُحفظ تعديل موظف البيع: '+e.message,'error');}
+    return saveVerified();
   },
   confirmRemoveAgent(id){
     const a=this.data().agents.find(x=>x.id===id&&!x.archived);if(!a)return;

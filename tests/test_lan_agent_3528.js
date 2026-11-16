@@ -3,9 +3,10 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs'),vm=require('node:vm'),crypto=require('node:crypto');
 const FieldProtocol=require('../app/src/main/assets/www/static/field-protocol.js');
 const FieldLanCrypto=require('../app/src/main/assets/www/static/field-lan-crypto.js');
+const TiqanyEmployeeAuth=require('../app/src/main/assets/www/static/employee-password-auth.js');
 const key=FieldProtocol.b64u(crypto.randomBytes(32));
 const companyId='company_1234567890',agentId='agent_1234567890';
-const vmScope={FieldProtocol,FieldLanCrypto,crypto:crypto.webcrypto,TextEncoder,TextDecoder,atob,btoa,
+const vmScope={FieldProtocol,FieldLanCrypto,TiqanyEmployeeAuth,crypto:crypto.webcrypto,TextEncoder,TextDecoder,atob,btoa,
   console,document:{getElementById:()=>null},setTimeout,clearTimeout,
   window:{AndroidLocalSync:{send:(company,packet)=>{vmScope.sent={company,packet};}}}};
 vm.createContext(vmScope);

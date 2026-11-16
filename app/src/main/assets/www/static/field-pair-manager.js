@@ -61,9 +61,25 @@
    }catch(e){answer={pairingProtocol:P.VERSION,kind:'error',message:String(e.message||e).slice(0,170)};}
    finally{window.AndroidLocalSync?.reply(String(requestId),JSON.stringify(answer));}
  };
- f.approvePairing=async function(id){
+ f.approvePairing=function(id){
    if(this.pairingBusy||this.lanBusy||this.busy)return UI.toast('المزامنة أو حفظ البيانات قيد العمل؛ أعد الموافقة بعد اكتمالها','warn');
    const session=this.pairingRequests.get(id),agentId=document.getElementById('pairAgent_'+id)?.value;
+   const a=this.data().agents.find(x=>x.id===agentId&&!x.archived&&!x.disabled);
+   if(!session||!a)return UI.toast('اختر موظف بيعاً مسجلاً أولاً','warn');
+   if(session.status!=='pending'||Date.now()-session.createdAt>lifetime)return UI.toast('طلب الربط غير صالح أو انتهت مدته','warn');
+   if(typeof ProtectionController==='undefined'||typeof ProtectionController.requestPin!=='function')return UI.toast('التحقق الأمني غير متاح','error');
+   if(!State.settings.appProtection?.pinHash||!State.settings.appProtection?.pinSalt){
+     ProtectionController.promptPinSetup?.('الموافقة على ربط الموظف');return;
+   }
+   const profile=typeof ProfileManager!=='undefined'?ProfileManager.activeId:null;
+   ProtectionController.requestPin('تحقق بهوية المدير قبل مطابقة رقم الأمان والموافقة على ربط موظف البيع',()=>{
+     if(profile!==null&&ProfileManager.activeId!==profile)return UI.toast('تغيّرت الشركة؛ أعد طلب الموافقة','warn');
+     return approveVerifiedPairing.call(this,id,agentId);
+   } );
+ };
+ const approveVerifiedPairing=async function(id,agentId){
+   if(this.pairingBusy||this.lanBusy||this.busy)return UI.toast('جارٍ حفظ عملية أخرى، أعد المحاولة','warn');
+   const session=this.pairingRequests.get(id);
    const cfg=this.data(),a=cfg.agents.find(x=>x.id===agentId&&!x.archived&&!x.disabled);
    if(!session||!a)return UI.toast('اختر موظف بيعاً مسجلاً أولاً','warn');
    if(!TiqanyEmployeeAuth.valid(a.employeeAuth))return UI.toast('عيّن كلمة سر الموظف أولاً من تعديل الموظف قبل الموافقة على الربط','warn');

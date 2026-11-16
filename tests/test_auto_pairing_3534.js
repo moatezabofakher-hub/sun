@@ -4,21 +4,22 @@ const fs=require('node:fs');
 const vm=require('node:vm');
 const crypto=require('node:crypto');
 const P=require('../app/src/main/assets/www/static/field-pair-crypto.js');
+const EmployeeAuth=require('../app/src/main/assets/www/static/employee-password-auth.js');
 const FP=require('../app/src/main/assets/www/static/field-protocol.js');
 const companyId='company_123456789abc',agentId='agent_123456789abc',deviceId='TD-'+FP.uuid().toUpperCase();
 const randomKey=()=>FP.b64u(crypto.randomBytes(32));
 const agent={id:agentId,name:'موظف بيع جديد',vehicleName:'سيارة 3',warehouseId:'wh_car_3',key:randomKey(),disabled:false};
 const cfg={companyId,agents:[agent],imported:[],events:[]};
-let saved=0,lastReply=null,replyCount=0,uiNotices=[];
+let saved=0,lastReply=null,replyCount=0,uiNotices=[],approvals=[];
 const managerDoc={getElementById(id){if(id.startsWith('pairAgent_'))return {value:agentId};return null;}};
 const fm={data:()=>cfg,pairingBusy:false,catalog:a=>({kind:'provision',companyId,companyName:'المركز',agentId:a.id,agentName:a.name,vehicleName:a.vehicleName,warehouseId:a.warehouseId,key:a.key,issuedAt:new Date().toISOString(),exchangeRate:15000,categories:[],items:[],accounts:[],stock:{},knownIds:[]}),escape:x=>String(x)};
-const managerScope={FieldSync:fm,FieldPairCrypto:P,FieldProtocol:FP,State:{settings:{companyName:'المركز'}},StorageEngine:{saveState:async()=>{saved++;}},document:managerDoc,crypto:crypto.webcrypto,window:{AndroidLocalSync:{reply:(id,data)=>{lastReply=JSON.parse(data);replyCount++;}}},UI:{toast:(msg)=>uiNotices.push(msg)},console,Map,Date,setTimeout,clearTimeout};
+const managerScope={FieldSync:fm,FieldPairCrypto:P,FieldProtocol:FP,State:{settings:{companyName:'المركز',appProtection:{pinHash:'manager-hash',pinSalt:'salt'}}},ProtectionController:{requestPin:(_message,cb)=>approvals.push(cb)},ProfileManager:{activeId:'test-business'},TiqanyEmployeeAuth:EmployeeAuth,StorageEngine:{saveState:async()=>{saved++;}},document:managerDoc,crypto:crypto.webcrypto,window:{AndroidLocalSync:{reply:(id,data)=>{lastReply=JSON.parse(data);replyCount++;}}},UI:{toast:(msg)=>uiNotices.push(msg)},console,Map,Date,setTimeout,clearTimeout};
 vm.createContext(managerScope);
 vm.runInContext(fs.readFileSync('app/src/main/assets/www/static/field-pair-manager.js','utf8'),managerScope);
 let nativeResult,screen='setup',toasts=[],autoCalls=0,sessionState={deviceId,companyId:'',agentId:'',key:'',ops:[],knownIds:[],items:[],accounts:[],stock:{}};
 const field={state:sessionState,renderSetup:()=>'<p>legacy</p>',renderActivation:()=>'<p>legacy</p>',ready(){return !!this.state.companyId&&!!this.state.key;},async active(){return false;},get pending(){return this.state.ops.filter(o=>!this.state.knownIds.includes(o.id));},async init(){},async show(s){screen=s;},async save(){},toast(x){toasts.push(x)},scheduleAutoSync(){autoCalls++;}};
 const clientDoc={hidden:false,addEventListener(){},getElementById(){return null;}};
-const clientScope={Agent:field,FieldPairCrypto:P,FieldProtocol:FP,crypto:crypto.webcrypto,document:clientDoc,setTimeout,clearTimeout,console,
+const clientScope={Agent:field,FieldPairCrypto:P,FieldProtocol:FP,TiqanyEmployeeAuth:EmployeeAuth,crypto:crypto.webcrypto,document:clientDoc,setTimeout,clearTimeout,console,
  window:{AndroidLocalSync:{requestPairing(c,raw){nativeResult={c,raw};}}}};
 vm.createContext(clientScope);
 vm.runInContext(fs.readFileSync('field_agent/src/main/assets/www/static/agent-pairing.js','utf8'),clientScope);
@@ -32,6 +33,7 @@ async function pass(){
  return {answer,c};
 }
 (async()=>{
+ agent.employeeAuth=await EmployeeAuth.create('separate-employee-password');
  // Device discovers manager; pending request is NOT sufficient to activate.
  await C.start();
  const first=await pass();
@@ -45,6 +47,9 @@ async function pass(){
  assert.equal(saved,0);assert.equal(fm.pairingRequests.get(C.requestId).status,'pending');
  managerDoc.getElementById=old;
  await fm.approvePairing(C.requestId);
+ assert.equal(saved,0,'manager confirmation required before authorization');
+ assert.equal(approvals.length,1,'PIN or biometric approval must be requested');
+ await approvals.shift()();
  assert.equal(saved,1);assert.equal(agent.pairedDeviceId,deviceId);
  assert.equal(fm.pairingRequests.get(C.requestId).status,'approved');
  clearTimeout(C.timer);await C.next();

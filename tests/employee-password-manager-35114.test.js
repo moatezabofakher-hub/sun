@@ -11,7 +11,7 @@ function fixture(){
   TiqanyEmployeeAuth:auth,crypto:webcrypto,TextEncoder,btoa,atob,
   State:{fieldSync:{companyId:'company_abc',agents:[employee],imported:[],events:[]},settings:{companyName:'شركة',exchangeRate:14500,appProtection:{pinHash:'hash'}},accounts:[],warehouses:[],categories:[],items:[]},
   UI:{toast:(message,type)=>events.push({message,type}),openModal:html=>events.push({html})},
-  document:{readyState:'loading',addEventListener(){},getElementById:id=>({value:elements[id]??''}),querySelector:()=>({value:'all'}),querySelectorAll:()=>[]},
+  document:{readyState:'loading',addEventListener(){},getElementById:id=>({value:elements[id]??''}),querySelector:q=>q.startsWith('input[data-staff-perm=')?null:({value:'all'}),querySelectorAll:()=>[]},
   StorageEngine:{async saveState(){saves++}},ProtectionController:{async verifyPin(pin){return pin==='manager-secret'}},
   Accounting:{getAccountStatement(){return {sypBalance:0,usdBalance:0}},getItemBaseStock(){return 0}},
   WarehouseController:{name(){return 'سيارة 1'}},FieldProtocol:{uuid(){return 'abcdefgh'},FORMAT:'TA_FIELD_SYNC_1'},
