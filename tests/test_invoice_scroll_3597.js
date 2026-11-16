@@ -1,0 +1,13 @@
+const fs=require('node:fs'), assert=require('node:assert/strict');
+const html=fs.readFileSync('app/src/main/assets/www/index.html','utf8');
+assert.match(html,/html body\.ta-3d-v3524\.ta-invoice-editor-screen > main#mainContent\.ta-main/);
+assert.match(html,/scroll-padding-bottom:calc\(var\(--ta-invoice-footer-height, 170px\) \+ 22px\)!important/);
+assert.match(html,/new ResizeObserver\(queueMeasurement\)/);
+assert.match(html,/new MutationObserver\(queueMeasurement\)\.observe\(main, \{childList:true\}\)/);
+assert.match(html,/class="ta-invoice-save-footer"/);
+assert.match(html,/\['invoice_form','pos','pos_form','invoice_print'\]\.includes\(screen\)/);
+assert.match(html,/body:not\(\.ta-dashboard-screen\) #headerSettingsBtn\{display:none!important\}/);
+const block=html.slice(html.indexOf('paintForm(main) {'),html.indexOf('async saveInvoice(andBluetoothPrint = false)'));
+assert(!block.includes('${this.draftBalanceHTML()}'));
+assert.equal((block.match(/onclick="InvoiceController\.saveInvoice\(/g)||[]).length,2);
+console.log('PASS: dynamic last-row scroll clearance and fixed footer invoice actions');

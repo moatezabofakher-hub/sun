@@ -1218,6 +1218,34 @@ body.ta-invoice-editor-screen .ta-invoice-save-footer{position:fixed;bottom:0;le
 #topAppBar.ta-operation-header #headerSettingsBtn,#topAppBar.ta-operation-header #headerNotificationsBtn,body:not(.ta-dashboard-screen) #headerSettingsBtn{display:none!important}
 @media(max-width:420px){body.ta-invoice-editor-screen #mainContent{padding-bottom:157px!important}.ta-invoice-save-footer .ta-footer-actions button{font-size:11px}.ta-invoice-save-footer .ta-balance-tile strong{font-size:11px}}
 </style>
+
+<style id="ta-invoice-reach-last-line-3597">
+/* The invoice editor scrollport must extend BELOW the actual height of the fixed save bar.
+   This selector deliberately outranks the general 3.5.78 scrollport / IME rules. */
+html body.ta-3d-v3524.ta-invoice-editor-screen > main#mainContent.ta-main,
+html.ta-ime-open body.ta-3d-v3524.ta-invoice-editor-screen > main#mainContent.ta-main {
+  padding-bottom:calc(var(--ta-invoice-footer-height, 170px) + 22px)!important;
+  scroll-padding-bottom:calc(var(--ta-invoice-footer-height, 170px) + 22px)!important;
+}
+/* The bottom strip is never a second scrolling panel: all invoice details scroll in mainContent. */
+body.ta-invoice-editor-screen .ta-invoice-save-footer {
+  box-sizing:border-box;max-height:none!important;overflow:visible!important;
+  padding-bottom:calc(8px + env(safe-area-inset-bottom,0px))!important;
+}
+/* Date/time spans the column next to the warehouse, with pricing directly under warehouse. */
+.ta-invoice-control-grid .ta-invoice-date-field{grid-column:1;grid-row:2 / span 2}
+.ta-invoice-control-grid .ta-invoice-warehouse-field{grid-column:2;grid-row:2}
+.ta-invoice-control-grid > .ta-invoice-pricing-choice{grid-column:2;grid-row:3}
+/* Keep the balances legible without making the bar tall on small displays. */
+.ta-invoice-save-footer .ta-footer-balances{gap:6px}
+.ta-invoice-save-footer .ta-balance-tile{padding:5px 6px;overflow:hidden}
+.ta-invoice-save-footer .ta-balance-tile span{display:block;font-size:11px}
+.ta-invoice-save-footer .ta-balance-tile strong{font-size:clamp(11px,2.8vw,15px);line-height:1.35}
+@media (max-width:360px) {
+ .ta-invoice-save-footer .ta-footer-actions button{min-height:36px!important;padding:5px 3px!important;font-size:11px!important}
+ .ta-invoice-save-footer .ta-balance-tile{padding:4px!important}
+}
+</style>
 </head>
 <body class="ta-premium-ui ta-3d-v3524 bg-slate-100 text-slate-800 min-h-screen flex flex-col w-full max-w-full overflow-x-hidden">
 
@@ -9986,5 +10014,49 @@ body.ta-invoice-editor-screen .ta-invoice-save-footer{position:fixed;bottom:0;le
 <script src="static/tiqany-support.js"></script>
 <script src="static/tiqany-ux-3588.js"></script>
 <script src="static/account-statement-period-3589.js"></script>
+
+<script id="ta-invoice-measured-footer-3597">
+/* Measure the rendered footer, not an assumed pixel height. The main invoice scrollport
+   then has enough bottom inset for its final row to pass the fixed footer on any screen. */
+(function () {
+  'use strict';
+  const main = document.getElementById('mainContent');
+  if (!main) return;
+  let footer = null;
+  let footerResizeObserver = null;
+  let pending = false;
+  function updateMeasurement() {
+    pending = false;
+    const current = document.body.classList.contains('ta-invoice-editor-screen')
+      ? main.querySelector('.ta-invoice-save-footer') : null;
+    if (current !== footer) {
+      if (footerResizeObserver) footerResizeObserver.disconnect();
+      footer = current;
+      if (footer && typeof ResizeObserver !== 'undefined') {
+        footerResizeObserver = new ResizeObserver(queueMeasurement);
+        footerResizeObserver.observe(footer);
+      }
+    }
+    const h = footer ? Math.ceil(footer.getBoundingClientRect().height) : 0;
+    const next = h > 0 ? String(h) + 'px' : '';
+    const root = document.documentElement;
+    if (root.style.getPropertyValue('--ta-invoice-footer-height') !== next) {
+      if (next) root.style.setProperty('--ta-invoice-footer-height', next);
+      else root.style.removeProperty('--ta-invoice-footer-height');
+    }
+  }
+  function queueMeasurement() {
+    if (pending) return;
+    pending = true;
+    requestAnimationFrame(updateMeasurement);
+  }
+  // InvoiceController replaces main.innerHTML as rows and options change.
+  new MutationObserver(queueMeasurement).observe(main, {childList:true});
+  new MutationObserver(queueMeasurement).observe(document.body, {attributes:true,attributeFilter:['class']});
+  window.addEventListener('resize', queueMeasurement, {passive:true});
+  window.addEventListener('orientationchange', queueMeasurement, {passive:true});
+  queueMeasurement();
+})();
+</script>
 </body>
 </html>
