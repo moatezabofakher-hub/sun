@@ -12,16 +12,16 @@ function setup(){
   vm.runInContext(fs.readFileSync(path.join(dir,'agent-manager-notifications-35107.js'),'utf8'),ctx);
   return {agent,alert,count,saved:()=>saved};
 }
-test('authenticated manager rate/stock changes produce readable local notifications',async()=>{
+test('authenticated manager rate/item changes do not double-alert on their stock consequences',async()=>{
  const {agent,alert,count,saved}=setup();
  await agent.onLocalSyncResult({managerPublishedRate:15400,items:[{id:'i1',name:'مادة'}],stock:{i1:3}});
- assert.equal(agent.state.managerNotifications.length,3);
+ assert.equal(agent.state.managerNotifications.length,2);
  assert.equal(agent.state.managerNotifications.find(n=>n.kind==='exchangeRate').title,'تعديل سعر الصرف');
- assert.equal(count.textContent,'3');assert.equal(alert.hidden,false);
+ assert.equal(count.textContent,'2');assert.equal(alert.hidden,false);
  assert.ok(saved()>0);
  // Same snapshot must not repeat notifications on every heartbeat.
  await agent.onLocalSyncResult({managerPublishedRate:15400,items:[{id:'i1',name:'مادة'}],stock:{i1:3}});
- assert.equal(agent.state.managerNotifications.length,3);
+ assert.equal(agent.state.managerNotifications.length,2);
 });
 test('failed unauthenticated synchronization cannot create manager notifications',async()=>{
  const {agent,saved}=setup();await agent.onLocalSyncResult('failure');

@@ -1,0 +1,7 @@
+/* 3.5.125 — Registered employees vs authenticated online presence */
+.ta-connected-employees-button{display:block!important;min-height:56px;padding:13px 18px!important;cursor:pointer!important;border:2px solid #047a49!important;border-radius:17px!important;background:linear-gradient(166deg,#8df6b0 0%,#2aca69 18%,#079345 53%,#026533 100%)!important;color:#fff!important;font-size:17px!important;font-weight:900!important;text-align:center!important;text-shadow:0 1px 2px #03582f!important;box-shadow:inset 0 3px 1px #effff3b3,inset 0 -2px 3px #00532960,0 5px 0 #03572c,0 9px 15px #066c4352!important;transition:transform .15s,box-shadow .15s}
+.ta-connected-employees-button:active{transform:translateY(3px);box-shadow:inset 0 2px 3px #fff7,0 2px 0 #03572c!important}
+.ta-connected-employees-button:focus-visible{outline:3px solid #ffdf6d;outline-offset:3px}
+.ta-connected-employee-list{max-height:57vh;overflow:auto;padding:4px;display:grid;gap:9px}
+.ta-connected-employee-row{display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:14px;background:linear-gradient(160deg,#e8fff2,#b8f4d5);border:1px solid #66cc97;color:#08472b;box-shadow:inset 0 2px 0 white,0 3px 0 #64af85}
+.ta-connected-employee-dot{width:15px;height:15px;flex:none;border-radius:50%;background:radial-gradient(circle at 35% 30%,#dcffdb,#21d563 45%,#068640);border:2px solid #fff;box-shadow:0 0 0 2px #239e58,0 0 8px #24e778}

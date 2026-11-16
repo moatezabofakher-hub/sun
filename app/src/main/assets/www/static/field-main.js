@@ -19,7 +19,7 @@ const TiqanyAgentPermissions=(function(){'use strict';
 /* Manager-side field dispatch. Import is previewed, validated, deduplicated and
  * committed only after explicit approval. Never merges a whole remote database. */
 const FieldSync = {
-  busy:false, staged:null, connectedAt:{}, lanListening:false, lanBusy:false, autoReceiverBooted:false, autoReceiverWatchdog:null, autoReceiverCompany:null, lanNetworkTimer:null,
+  busy:false, staged:null, creatingAgent:false, connectedAt:{}, lanListening:false, lanBusy:false, autoReceiverBooted:false, autoReceiverWatchdog:null, autoReceiverCompany:null, lanNetworkTimer:null,
   data(){
     if(!State.fieldSync || typeof State.fieldSync!=='object') State.fieldSync={companyId:'',agents:[],imported:[],events:[]};
     const x=State.fieldSync;
@@ -37,6 +37,12 @@ const FieldSync = {
     this.connectedAt[id]=Date.now();
     this.refreshConnectedBadge();
   },
+  connectedEmployees(){
+    // Runtime-only: saved/paired staff are NOT treated as online.
+    this.connectedCount();
+    return this.data().agents.filter(a=>!a.archived&&!a.disabled&&
+      Number.isFinite(this.connectedAt[a.id])&&Date.now()-this.connectedAt[a.id]<this.presenceTTL);
+  },
   connectedCount(){
     const now=Date.now();
     const active=new Set(this.data().agents.filter(a=>!a.archived&&!a.disabled).map(a=>String(a.id)));
@@ -48,7 +54,9 @@ const FieldSync = {
   refreshConnectedBadge(){
     const el=document.getElementById('salesStaffConnectedCount');
     const badges=typeof document.querySelectorAll==='function' ? document.querySelectorAll('[data-agent-online-id]') : [];
-    if(!el&&!badges.length)return; // Do not initialize company identity from a status timer.
+    const connectedPanel=document.getElementById('fieldConnectedEmployeeList');
+    const connectedButtonCount=document.getElementById('fieldConnectedCountInButton');
+    if(!el&&!badges.length&&!connectedPanel&&!connectedButtonCount)return; // Do not initialize company identity from a status timer.
     const count=this.connectedCount();
     // Presence is based on a recent authenticated employee exchange, not a saved pairing.
     badges.forEach(badge=>{
@@ -57,10 +65,23 @@ const FieldSync = {
       badge.className='ta-peer-presence '+(live?'connected':'offline');
       badge.textContent=live?'● متصل الآن':'● غير متصل';
     });
+    if(connectedPanel)this.paintConnectedEmployees();
+    if(connectedButtonCount)connectedButtonCount.textContent='('+count+')';
     if(!el)return;
     el.textContent=String(count);
     el.parentElement?.setAttribute('title',count+' موظفي بيع متصلين خلال آخر 40 ثانية بمزامنة موثّقة');
     el.parentElement?.classList.toggle('has-staff',count>0);
+  },
+  paintConnectedEmployees(){
+    const el=document.getElementById('fieldConnectedEmployeeList');if(!el)return;
+    const connected=this.connectedEmployees();
+    el.innerHTML=connected.length?connected.map(a=>`<div class="ta-connected-employee-row" data-connected-employee="${this.escape(a.id)}"><span class="ta-connected-employee-dot" aria-label="متصل" role="img"></span><span class="font-black">${this.escape(a.name)}</span></div>`).join('')
+      :'<p class="p-4 text-center font-bold text-slate-500">لا يوجد موظفون متصلون حالياً</p>';
+    const total=document.getElementById('fieldConnectedEmployeeTotal');if(total)total.textContent=String(connected.length);
+  },
+  openConnectedEmployees(){
+    UI.openModal(`<div class="ta-field-panel space-y-3 text-right" dir="rtl"><h3 class="font-black text-lg text-emerald-900">الموظفون المتصلون <span id="fieldConnectedEmployeeTotal" class="text-sm">0</span></h3><p class="text-xs text-slate-600">تظهر الأجهزة التي تبادلت مزامنة موثّقة خلال آخر 40 ثانية. عند انقطاع الاتصال تختفي بعد انتهاء مهلة التحقق.</p><div id="fieldConnectedEmployeeList" class="ta-connected-employee-list" aria-live="polite"></div><button type="button" onclick="FieldSync.open()" class="w-full rounded-xl bg-slate-200 p-3 font-black">العودة إلى صفحة الموظفين</button></div>`);
+    this.paintConnectedEmployees();
   },
   escape(value){return AppEscape.text(value)},
   async saveFile(name, data){
@@ -109,6 +130,7 @@ const FieldSync = {
         <p class="text-xs">افتح تطبيق موظف البيع الجديد على شبكة Wi-Fi نفسها. سيظهر الطلب هنا تلقائياً. طابق رمز الأمان على الهاتفين، اختر موظف البيع واضغط موافقة واحدة؛ لا حاجة إلى ملفات أو نسخ معرّفات أو مفاتيح.</p>
         <div id="fieldPairingRequests">${this.pairingCards?.()||'بانتظار طلب جهاز موظف البيع…'}</div>
       </div>
+      <button type="button" onclick="FieldSync.openConnectedEmployees()" class="ta-connected-employees-button w-full" aria-label="عرض الموظفين المتصلين"><i class="fas fa-users ml-2" aria-hidden="true"></i> الموظفون المتصلون <span id="fieldConnectedCountInButton">(${this.connectedCount()})</span></button>
       <div class="rounded-2xl border p-3 space-y-2 bg-white">
         <b class="text-sm">تسجيل سيارة / موظف بيع</b>
         <input id="fieldNewAgent" class="w-full border rounded-xl p-3" placeholder="اسم موظف البيع" maxlength="70"/>
@@ -116,13 +138,14 @@ const FieldSync = {
         <select id="fieldNewWarehouse" class="w-full border rounded-xl p-3">${opts}</select>
         ${this.accountPicker('fieldNewAccounts')}
         ${this.permissionGrid('newFieldPermissions')}
+        ${State.settings.appProtection?.protectDeviceAddition===true?`<div class="rounded-xl border-2 border-emerald-300 bg-emerald-50 p-3 space-y-2"><p class="text-sm font-black text-emerald-900">🔒 تعيين كلمة سر الموظف الجديد (إجباري عند تفعيل الحماية)</p><input type="password" autocomplete="new-password" id="fieldNewEmployeePassword" minlength="6" maxlength="128" class="w-full border rounded-xl p-3 bg-white" placeholder="كلمة سر الموظف (6 خانات على الأقل)"/><input type="password" autocomplete="new-password" id="fieldNewEmployeeConfirm" minlength="6" maxlength="128" class="w-full border rounded-xl p-3 bg-white" placeholder="تأكيد كلمة سر الموظف"/><p class="text-xs text-emerald-900">سيُطلب ${window.WindowsPeerSync?'إدخال كلمة سر المدير':'التحقق ببصمة المدير أو كلمة سره'} قبل اعتماد الموظف.</p></div>`:'<p class="text-xs text-emerald-800 font-bold">حماية إضافة الأجهزة معطلة: إضافة الموظف لا تتطلب كلمة سر.</p>'}
         <p class="text-[11px] text-amber-800">أنشئ مستودع سيارة مستقلًا، وحمّله بالمخزون من شاشة المناقلات قبل بدء البيع.</p>
         <button type="button" onclick="FieldSync.addAgent()" class="ta-primary-3d w-full p-3 rounded-xl font-black">إضافة موظف بيع معتمد</button>
       </div>
       <div class="rounded-2xl border p-3 space-y-2 bg-white"><b class="text-sm">موظفو البيع المسجلون</b>
          ${config.agents.filter(a=>!a.archived).length? config.agents.filter(a=>!a.archived).map(a=>`<div class="rounded-xl bg-slate-50 border p-3 space-y-2">
              <div class="flex justify-between gap-2"><span class="font-bold">${this.escape(a.name)} · ${this.escape(a.vehicleName||'')}</span><span class="text-[10px]">${a.disabled?'موقوف':'معتمد'}</span></div><div class="mt-1"><span data-agent-online-id="${this.escape(a.id)}" class="ta-peer-presence offline">● غير متصل</span></div>${a.createdOnDevice?`<div class="text-[10px] text-sky-800 font-bold">${a.createdOnDevice==='computer'?'🖥️ أُنشئ على الكمبيوتر':'📱 أُنشئ على الموبايل الرئيسي'}</div>`:''}
-             <p class="text-[10px] text-slate-500">${this.escape(WarehouseController.name(a.warehouseId))}</p><p class="text-[11px] font-extrabold ${a.employeeAuth?.hash?'text-teal-700':'text-rose-700'}">${a.employeeAuth?.hash?'🔒 كلمة سر الموظف جاهزة':'⚠ عيّن كلمة سر الموظف من تعديل الموظف'}</p>
+             <p class="text-[10px] text-slate-500">${this.escape(WarehouseController.name(a.warehouseId))}</p><p class="text-[11px] font-extrabold ${a.employeeAuth?.hash?'text-teal-700':'text-slate-600'}">${a.employeeAuth?.hash?'🔒 كلمة سر الموظف جاهزة':State.settings.appProtection?.protectDeviceAddition===true?'⚠ عيّن كلمة سر الموظف من تعديل الموظف':'إضافة الأجهزة دون كلمة سر'}</p>
              <p class="text-[10px] ${a.pairedDeviceId?'text-teal-700':'text-amber-700'}">${a.pairedDeviceId?'🔒 مرتبط بجهاز ينتهي معرفه بـ '+this.escape(a.pairedDeviceId.slice(-8)):'بانتظار طلب ربط جهاز جديد'}</p>
              <div class="grid grid-cols-2 gap-2">
                <button type="button" class="rounded-lg bg-teal-700 text-white p-2 font-bold" onclick="FieldSync.exportProvision('${a.id}')">تجهيز بيانات موظف البيع</button>
@@ -147,17 +170,47 @@ const FieldSync = {
     if(window.AndroidLocalSync) this.startLanReceiver(true);
   },
   async addAgent(){
+    if(this.creatingAgent)return UI.toast('جارٍ حفظ الموظف الجديد','warn');
     const name=document.getElementById('fieldNewAgent')?.value.trim(), vehicleName=document.getElementById('fieldNewVehicle')?.value.trim();
     const warehouseId=document.getElementById('fieldNewWarehouse')?.value;
     if(!name||name.length<2||!warehouseId)return UI.toast('اكتب اسم موظف البيع واختر المستودع','warn');
     let allowedAccountIds;try{allowedAccountIds=this.readAccountPicker('fieldNewAccounts');}catch(e){return UI.toast(e.message,'warn');}
     if(this.data().agents.some(a=>(a.warehouseId===warehouseId||a.pendingWarehouseId===warehouseId)&&!a.disabled&&!a.archived))return UI.toast('المستودع مربوط بموظف بيع آخر؛ خصص مستودع سيارة مستقلًا','warn');
     const permissions=this.readPermissions('newFieldPermissions');
-    const key=new Uint8Array(32);crypto.getRandomValues(key);
-    const a={id:'agent_'+FieldProtocol.uuid(),name,vehicleName:vehicleName||name,warehouseId,key:FieldProtocol.b64u(key),allowedAccountIds,permissions,createdAt:new Date().toISOString(),createdOnDevice:'main_phone',disabled:false};
-    this.data().agents.push(a);
-    try { await StorageEngine.saveState();this.open();UI.toast('تم إنشاء موظف البيع. افتح تطبيقه وسيظهر طلب الربط تلقائياً','success'); }
-    catch(e){this.data().agents=this.data().agents.filter(x=>x.id!==a.id);UI.toast('فشل حفظ موظف البيع: '+e.message,'error');}
+    const protectionOn=State.settings.appProtection?.protectDeviceAddition===true;
+    const employeePassword=String(document.getElementById('fieldNewEmployeePassword')?.value||'');
+    const confirmation=String(document.getElementById('fieldNewEmployeeConfirm')?.value||'');
+    if(protectionOn && (employeePassword.length<6||employeePassword.length>128||employeePassword!==confirmation))
+      return UI.toast('يجب تعيين كلمة سر الموظف وتأكيدها (6 خانات على الأقل)','warn');
+    const profile=typeof ProfileManager!=='undefined'?ProfileManager.activeId:null;
+    const companyId=this.data().companyId;
+    const saveNewAgent=async()=>{
+      if(this.creatingAgent)return;
+      if(profile!==null&&ProfileManager.activeId!==profile||this.data().companyId!==companyId ||
+         (State.settings.appProtection?.protectDeviceAddition===true)!==protectionOn)
+        return UI.toast('تغيّرت الشركة أو إعدادات الحماية؛ أعد إضافة الموظف','warn');
+      if(this.data().agents.some(a=>(a.warehouseId===warehouseId||a.pendingWarehouseId===warehouseId)&&!a.disabled&&!a.archived))
+        return UI.toast('المستودع أصبح محجوزًا لموظف بيع آخر','warn');
+      this.creatingAgent=true;
+      try{
+        if(protectionOn && await ProtectionController.verifyPin(employeePassword))throw Error('يجب أن تختلف كلمة سر الموظف عن كلمة سر المدير');
+        const key=new Uint8Array(32);crypto.getRandomValues(key);
+        const a={id:'agent_'+FieldProtocol.uuid(),name,vehicleName:vehicleName||name,warehouseId,
+          key:FieldProtocol.b64u(key),allowedAccountIds,permissions,createdAt:new Date().toISOString(),
+          createdOnDevice:window.WindowsPeerSync?'computer':'main-android',disabled:false};
+        if(protectionOn)a.employeeAuth={...await TiqanyEmployeeAuth.create(employeePassword),version:1,lockApp:true};
+        this.data().agents.push(a);
+        try {await StorageEngine.saveState();this.open();UI.toast('تم إنشاء موظف البيع. افتح تطبيقه وسيظهر طلب الربط تلقائياً','success');}
+        catch(error){this.data().agents=this.data().agents.filter(x=>x.id!==a.id);throw error;}
+      }catch(error){UI.toast('فشل حفظ موظف البيع: '+(error.message||error),'error');}
+      finally{this.creatingAgent=false;}
+    };
+    if(!protectionOn)return saveNewAgent();
+    if(typeof ProtectionController==='undefined'||typeof ProtectionController.requestPin!=='function')return UI.toast('التحقق الأمني غير متاح','error');
+    if(!State.settings.appProtection?.pinHash||!State.settings.appProtection?.pinSalt)
+      return ProtectionController.promptPinSetup?.('إضافة الموظف');
+    ProtectionController.requestPin('تأكيد هوية المدير قبل إضافة الموظف',saveNewAgent,
+      {passwordOnly:!!window.WindowsPeerSync});
   },
   catalog(a, historyCursor=0){
     const config=this.data();
@@ -217,7 +270,7 @@ const FieldSync = {
       ${this.permissionGrid('editFieldPermissions',a.permissions)}
       <section class="rounded-2xl border-2 border-teal-300 bg-teal-50 p-3 space-y-3" aria-label="كلمة سر الموظف">
         <h4 class="font-black text-teal-950 text-base">🔐 كلمة سر موظف البيع</h4>
-        <p class="text-xs font-bold ${a.employeeAuth?.hash?'text-teal-800':'text-rose-800'}">${a.employeeAuth?.hash?'✓ تم تعيين كلمة سر خاصة بهذا الموظف':'⚠ لم يتم تعيين كلمة سر لهذا الموظف بعد'}</p>
+        <p class="text-xs font-bold ${a.employeeAuth?.hash?'text-teal-800':'text-rose-800'}">${a.employeeAuth?.hash?'✓ تم تعيين كلمة سر خاصة بهذا الموظف':State.settings.appProtection?.protectDeviceAddition===true?'⚠ لم يتم تعيين كلمة سر لهذا الموظف بعد':'لا يلزم تعيين كلمة سر مع إيقاف حماية إضافة الأجهزة'}</p>
         <label class="flex items-center gap-3 rounded-xl border-2 border-emerald-300 p-3 bg-white font-black text-slate-900" for="editFieldEmployeeLock"><input id="editFieldEmployeeLock" type="checkbox" class="w-5 h-5 accent-emerald-700" ${a.employeeAuth?.lockApp!==false?'checked':''}/> قفل تطبيق الموظف بكلمة السر أو البصمة</label>
         <p class="text-xs text-emerald-900">عند إلغاء القفل يستطيع الموظف فتح التطبيق دون طلب كلمة السر، وتظل بصمته المسجلة على هاتفه محفوظة لحين إعادة تفعيل القفل.</p>
         <p class="text-xs text-slate-700">للمدير فقط. يستلمها تطبيق الموظف عند المزامنة، ولا يمكن للموظف تغييرها. اترك الخانتين فارغتين للاحتفاظ بالرمز الحالي.</p>
@@ -225,7 +278,7 @@ const FieldSync = {
         <input id="editFieldEmployeePassword" type="password" autocomplete="new-password" minlength="6" maxlength="128" class="w-full border-2 border-teal-300 rounded-xl p-3 bg-white" placeholder="كلمة سر خاصة بهذا الموظف"/>
         <label class="block text-sm font-black text-slate-900" for="editFieldEmployeeConfirm">تأكيد كلمة سر الموظف</label>
         <input id="editFieldEmployeeConfirm" type="password" autocomplete="new-password" minlength="6" maxlength="128" class="w-full border-2 border-teal-300 rounded-xl p-3 bg-white"/>
-        ${State.settings.appProtection?.pinHash?'<label class="block text-sm font-black text-slate-900" for="editFieldManagerApprovalPin">كلمة سر المدير للسماح بتغيير كلمة الموظف</label><input id="editFieldManagerApprovalPin" type="password" autocomplete="current-password" class="w-full border-2 border-slate-300 rounded-xl p-3 bg-white" placeholder="تُطلب عند تغيير كلمة الموظف فقط"/>':''}
+        ${State.settings.appProtection?.protectDeviceAddition===true&&State.settings.appProtection?.pinHash?'<label class="block text-sm font-black text-slate-900" for="editFieldManagerApprovalPin">كلمة سر المدير للسماح بتغيير كلمة الموظف</label><input id="editFieldManagerApprovalPin" type="password" autocomplete="current-password" class="w-full border-2 border-slate-300 rounded-xl p-3 bg-white" placeholder="تُطلب عند تغيير كلمة الموظف فقط"/>':''}
         <p class="text-xs text-teal-900 font-bold">لا تُخزن كلمة السر كما أُدخلت ولا تُرسل نصًا؛ يُنقل رمز تحقق مشفّر مشتق منها. وتُستخدم كلمة الموظف لاستعادة نسخه الاحتياطية الجديدة.</p>
       </section>
       <section class="rounded-2xl border-2 border-sky-200 bg-sky-50 p-3 space-y-2" dir="rtl">
@@ -260,7 +313,7 @@ const FieldSync = {
     const employeeLockControl=document.getElementById('editFieldEmployeeLock');
     const employeeLockEnabled=employeeLockControl && typeof employeeLockControl.checked === 'boolean' ? employeeLockControl.checked : (a.employeeAuth?.lockApp!==false);
     if((employeePassword||employeeConfirm)&&employeePassword!==employeeConfirm)return UI.toast('تأكيد كلمة سر الموظف غير مطابق','error');
-    if(!a.employeeAuth?.hash&&!employeePassword)return UI.toast('عيّن كلمة سر خاصة بالموظف قبل حفظ بياناته','warn');
+    if(State.settings.appProtection?.protectDeviceAddition===true&&!a.employeeAuth?.hash&&!employeePassword)return UI.toast('عيّن كلمة سر خاصة بالموظف قبل حفظ بياناته','warn');
     const permissions=this.readPermissions('editFieldPermissions');
     const samePermissions=(x,y)=>JSON.stringify(TiqanyAgentPermissions.normalize(x))===JSON.stringify(TiqanyAgentPermissions.normalize(y));
     const permissionsChanged=!samePermissions(a.permissions,permissions);
@@ -274,7 +327,7 @@ const FieldSync = {
       let employeeAuth=a.employeeAuth||null;
       if(employeePassword){
         try{
-          if(State.settings.appProtection?.pinHash){
+          if(State.settings.appProtection?.protectDeviceAddition===true&&State.settings.appProtection?.pinHash){
             if(!managerPin||!await ProtectionController.verifyPin(managerPin))throw Error('أدخل كلمة سر المدير الصحيحة للموافقة على تعيين كلمة الموظف');
             if(await ProtectionController.verifyPin(employeePassword))throw Error('يجب أن تختلف كلمة سر الموظف عن كلمة سر المدير');
           }
@@ -350,7 +403,7 @@ const FieldSync = {
   },
   async exportProvision(id){
     const a=this.data().agents.find(x=>x.id===id&&!x.disabled);if(!a)return UI.toast('موظف البيع غير موجود','error');
-    if(!TiqanyEmployeeAuth.valid(a.employeeAuth))return UI.toast('عيّن كلمة سر الموظف من صفحة تعديل الموظف قبل إصدار كشف التجهيز','warn');
+    if(State.settings.appProtection?.protectDeviceAddition===true&&!TiqanyEmployeeAuth.valid(a.employeeAuth))return UI.toast('عيّن كلمة سر الموظف من صفحة تعديل الموظف قبل إصدار كشف التجهيز','warn');
     try {
       await StorageEngine.saveState();
       const envelope=await FieldProtocol.seal(this.catalog(a),a.key);

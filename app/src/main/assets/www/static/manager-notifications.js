@@ -15,6 +15,7 @@ const ManagerNotifications = {
     if(!State.alertCenter || typeof State.alertCenter!=='object')State.alertCenter={entries:[],seenImportIds:null,stockLevels:null};
     const n=State.alertCenter;
     if(!Array.isArray(n.entries))n.entries=[];
+    if(!Array.isArray(n.seenPeerEventKeys))n.seenPeerEventKeys=[];
     return n;
   },
   stockSnapshot(){
@@ -29,6 +30,18 @@ const ManagerNotifications = {
       }
     }
     return values;
+  },
+  filterPeerEvents(entries){
+    const n=this.ensure();const seen=new Set(n.seenPeerEventKeys);
+    for(const entry of n.entries){if(entry?.eventKey)seen.add(entry.eventKey);}
+    const fresh=[];
+    for(const entry of entries||[]){
+      const key=String(entry?.eventKey||entry?.id||'');
+      if(!key||seen.has(key))continue;
+      seen.add(key);fresh.push(entry);
+    }
+    n.seenPeerEventKeys=[...seen].slice(-20000);
+    return fresh;
   },
   bootstrap(){
     const n=this.ensure(),already=State.fieldSync?.imported||[];
@@ -100,6 +113,7 @@ const ManagerNotifications = {
     const n=this.ensure(),created=[];
     if(!Array.isArray(n.seenImportIds)||!n.stockLevels){this.bootstrap();return created;}
     const seen=new Set(n.seenImportIds);
+    for(const entry of n.entries)if(entry.type==='agent'&&entry.operationId)seen.add(entry.operationId);
     const history=State.fieldSync?.operationHistory||[];
     const opById=new Map(history.map(x=>[x.id,x]));
     // Save notifications only for new authenticated and posted imports, not every LAN ping.

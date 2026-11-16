@@ -16,7 +16,7 @@ function pairingHarness(){
     FieldSync:f,FieldPairCrypto:{VERSION:1,createSigner:async()=>({publicKey:'pub'}),issueGrant:async()=>({license:'signed'}),seal:async()=>({encrypted:true})},
     FieldProtocol:{b64u:()=>('x'.repeat(43)),uuid:()=>('id'.repeat(20))},
     TiqanyEmployeeAuth:{valid:auth=>auth?.hash==='valid'},
-    State:{settings:{companyName:'شركة',appProtection:{pinHash:'x',pinSalt:'s'}}},
+    State:{settings:{companyName:'شركة',appProtection:{pinHash:'x',pinSalt:'s',protectDeviceAddition:true}}},
     ProtectionController:{requestPin:(message,callback,options)=>{authCall={message,options};nextAuth=callback;}},
     StorageEngine:{saveState:async()=>storage.push('save')},
     ProfileManager:{activeId:'business-one'},
@@ -33,7 +33,7 @@ test(platform+': employee code matching cannot approve a pairing without manager
   const h=pairingHarness();
   h.f.approvePairing('req1');
   assert.match(h.call().message,/مطابقة رقم الأمان/);
-  assert.equal(h.call().options?.passwordOnly,isWindows?true:undefined);
+  assert.equal(h.call().options?.passwordOnly,isWindows?true:false);
   assert.equal(h.agent.pairedDeviceId,undefined);
   assert.equal(h.storage.length,0);
   assert.equal(h.f.pairingRequests.get('req1').status,'pending');

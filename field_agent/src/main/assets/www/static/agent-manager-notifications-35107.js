@@ -20,7 +20,8 @@ const displayTime=stamp=>{
 };
 function messages(before,after){
   const out=[];
-  const add=(kind,title,detail,routeName,targetId)=>out.push({kind,title,detail:detail.slice(0,450),route:routeName||route[kind]||'home',targetId:targetId||null});
+  const add=(kind,title,detail,routeName,targetId,revisionValue)=>out.push({kind,title,detail:detail.slice(0,450),route:routeName||route[kind]||'home',targetId:targetId||null,
+    revisionKey:versionHash(revisionValue??detail)});
   const parse=value=>{try{const data=JSON.parse(value||'[]');return Array.isArray(data)?data:[];}catch(_){return [];}};
   const desc=x=>{
     const detail=[x.name||x.title||x.category||'',x.number!=null?'رقم '+x.number:'',
@@ -38,10 +39,10 @@ function messages(before,after){
       const a=old.get(id),b=current.get(id);if(JSON.stringify(a)===JSON.stringify(b))continue;
       changed++;
       if(changed<=25){const action=a===undefined?'إضافة':b===undefined?'حذف':'تعديل';
-        add(field,action+' '+title,desc(b??a??{}),where,id);}
+        add(field,action+' '+title,desc(b??a??{}),where,id,b??a);}
     }
-    if(changed>25)add(field,'تحديث '+title,'وصلت '+(changed-25)+' تغييرات إضافية. افتح '+title+' لعرضها.',where);
-    if(changed===0)add(field,'تحديث '+title,'تغيّر محتوى '+title+'، راجع القائمة للاطلاع على التفاصيل.',where);
+    if(changed>25)add(field,'تحديث '+title,'وصلت '+(changed-25)+' تغييرات إضافية. افتح '+title+' لعرضها.',where,null,after[field]);
+    if(changed===0)add(field,'تحديث '+title,'تغيّر محتوى '+title+'، راجع القائمة للاطلاع على التفاصيل.',where,null,after[field]);
   };
   if(before.exchangeRate!==after.exchangeRate)add('exchangeRate','تعديل سعر الصرف','سعر الصرف الجديد: '+after.exchangeRate,'settings');
   compare('items','المواد','stock');
@@ -51,14 +52,31 @@ function messages(before,after){
   compare('accountLedgers','الحركة المحاسبية','accounts');
   compare('ops','عملية موظف البيع','ops');
   compare('categories','مجموعات المواد','stock');
-  if(before.stock!==after.stock)add('stock','تغيير أرصدة المستودع','وصل تعديل جديد على كميات المواد في مستودع الموظف','stock');
-  if(before.agentCash!==after.agentCash)add('agentCash','تغيير رصيد صندوق الموظف','وصل تحديث في صندوق الموظف','cashbox');
-  if(before.permissions!==after.permissions)add('permissions','تعديل صلاحيات الموظف','غيّر المدير صلاحيات الوصول؛ راجع صفحة الضبط','settings');
+  // Stock and cash summaries are consequences of the same operation; do not
+  // send duplicate banners when the detailed transfer/invoice notice exists.
+  const detailAlreadyAdded=out.some(n=>['ops','warehouseTransfers','cashTransfers','accountLedgers','items','accounts'].includes(n.kind));
+  if(!detailAlreadyAdded&&before.stock!==after.stock)add('stock','تغيير أرصدة المستودع','وصل تعديل جديد على كميات المواد في مستودع الموظف','stock',null,after.stock);
+  if(!detailAlreadyAdded&&before.agentCash!==after.agentCash)add('agentCash','تغيير رصيد صندوق الموظف','وصل تحديث في صندوق الموظف','cashbox',null,after.agentCash);
+  if(before.permissions!==after.permissions)add('permissions','تعديل صلاحيات الموظف','غيّر المدير صلاحيات الوصول؛ راجع صفحة الضبط','settings',null,after.permissions);
   if(before.pricing!==after.pricing)add('pricing','تعديل التسعير','طريقة التسعير الجديدة: '+after.pricing,'settings');
-  if(before.company!==after.company)add('company','تحديث بيانات الشركة','وصلت بيانات شركة معدّلة من المدير','home');
+  if(before.company!==after.company)add('company','تحديث بيانات الشركة','وصلت بيانات شركة معدّلة من المدير','home',null,after.company);
   return out;
 }
 function noticeList(){return Array.isArray(A.state?.managerNotifications)?A.state.managerNotifications:[];}
+function versionHash(value){
+ const raw=typeof value==='string'?value:JSON.stringify(value??null);
+ let a=2166136261,b=0x9e3779b9;
+ for(let i=0;i<raw.length;i++){a=Math.imul(a^raw.charCodeAt(i),16777619);b=Math.imul(b^raw.charCodeAt(i),2246822519);}
+ return (a>>>0).toString(36)+'-'+(b>>>0).toString(36);
+}
+function noticeKey(item){
+ // ID comes from kind + target record + content; re-delivery of an old version
+ // after reconnect does not produce another alert, even across process restarts.
+ const raw=JSON.stringify([item.kind,item.targetId,item.title,item.detail,item.revisionKey||'']);
+ let h=2166136261,k=0x9e3779b9;
+ for(let i=0;i<raw.length;i++){h=Math.imul(h^raw.charCodeAt(i),16777619);k=Math.imul(k^raw.charCodeAt(i),2246822519);}
+ return 'manager:v2:'+(h>>>0).toString(36)+'-'+(k>>>0).toString(36);
+}
 function badge(){const el=document.getElementById('agentManagerNotifications');if(!el)return;
   const home=A.screen==='home'&&!!A.state?.companyId;
   el.hidden=!home;
@@ -76,11 +94,20 @@ A.onLocalSyncResult=async function(raw){
   const incoming=messages(before,after);
   if(!incoming.length)return badge();
   const stamp=new Date().toISOString();
-  const fresh=incoming.map((n,i)=>({...n,id:'manager-'+stamp+'-'+i,at:stamp,read:false}));
-  const previous=noticeList();const all=[...fresh,...previous].slice(0,200);
+  const previous=noticeList();
+  const seen=new Set(Array.isArray(this.state.managerNotificationSeenKeys)?this.state.managerNotificationSeenKeys:[]);
+  // Upgrade existing histories without replaying notices from past connections.
+  for(const entry of previous)seen.add(entry.eventKey||noticeKey(entry));
+  const fresh=[];
+  for(const n of incoming){const id=noticeKey(n);if(seen.has(id))continue;
+    seen.add(id);fresh.push({...n,id,eventKey:id,at:stamp,read:false});}
+  if(!fresh.length){this.state.managerNotificationSeenKeys=[...seen].slice(-10000);return badge();}
+  const beforeSeen=this.state.managerNotificationSeenKeys;
+  this.state.managerNotificationSeenKeys=[...seen].slice(-10000);
+  const all=[...fresh,...previous].slice(0,200);
   this.state.managerNotifications=all;
   let persisted=false;
-  try{await this.save();persisted=true;}catch(error){this.state.managerNotifications=previous;this.toast('تعذر حفظ إشعارات المسؤول: '+(error?.message||''));}
+  try{await this.save();persisted=true;}catch(error){this.state.managerNotifications=previous;this.state.managerNotificationSeenKeys=beforeSeen;this.toast('تعذر حفظ إشعارات المسؤول: '+(error?.message||''));}
   // Deliver device notifications only for newly committed, authenticated sync updates.
   // Never claim an update arrived when synchronization or local persistence failed.
   if(persisted && typeof window!=='undefined' && window.AndroidManagerNotifications?.postUpdates){

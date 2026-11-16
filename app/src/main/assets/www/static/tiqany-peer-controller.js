@@ -445,8 +445,9 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
         core.apply(State,merged.snapshot);
         if(companyMatch.adopt)State.settings.companyUid=fetched.companyUid;
         if(bootstrap){State.fieldSync??={};State.fieldSync.companyId=fieldCompanyId;}
-        const eventEntries=incoming?.entries?.map((entry,i)=>({...entry,id:'peer:'+Date.now()+':'+i+':'+core.digest(merged.snapshot).slice(0,10)}))||[];
-        if(incoming?.truncated)eventEntries.push({id:'peer:'+Date.now()+':more',type:'peer-operation',title:'وصول عمليات إضافية',detail:'وصلت '+(incoming.count-incoming.entries.length)+' تغييرات أخرى؛ راجع سجلات العمليات.',at:new Date().toISOString(),read:false});
+        const eventEntries=typeof ManagerNotifications!=='undefined'?
+          ManagerNotifications.filterPeerEvents(incoming?.entries||[]):(incoming?.entries||[]);
+        if(incoming?.truncated&&eventEntries.length)eventEntries.push({id:'peer:more:'+core.digest(merged.snapshot).slice(0,24),type:'peer-operation',title:'وصول عمليات إضافية',detail:'وصلت '+(incoming.count-incoming.entries.length)+' تغييرات أخرى؛ راجع سجلات العمليات.',at:new Date().toISOString(),read:false});
         if(eventEntries.length){State.alertCenter??={entries:[]};State.alertCenter.entries??=[];
           State.alertCenter.entries.unshift(...eventEntries);State.alertCenter.entries=State.alertCenter.entries.slice(0,3000);}
         try{await StorageEngine.saveState();

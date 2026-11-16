@@ -67,22 +67,28 @@
    const a=this.data().agents.find(x=>x.id===agentId&&!x.archived&&!x.disabled);
    if(!session||!a)return UI.toast('اختر موظف بيعاً مسجلاً أولاً','warn');
    if(session.status!=='pending'||Date.now()-session.createdAt>lifetime)return UI.toast('طلب الربط غير صالح أو انتهت مدته','warn');
+   const profile=typeof ProfileManager!=='undefined'?ProfileManager.activeId:null;
+   const protectedAddition=State.settings.appProtection?.protectDeviceAddition===true;
+   const approve=()=>{
+     if(profile!==null&&ProfileManager.activeId!==profile||
+        (State.settings.appProtection?.protectDeviceAddition===true)!==protectedAddition)
+       return UI.toast('تغيّرت الشركة أو إعدادات الحماية؛ أعد طلب الموافقة','warn');
+     return approveVerifiedPairing.call(this,id,agentId);
+   };
+   if(!protectedAddition)return approve();
    if(typeof ProtectionController==='undefined'||typeof ProtectionController.requestPin!=='function')return UI.toast('التحقق الأمني غير متاح','error');
    if(!State.settings.appProtection?.pinHash||!State.settings.appProtection?.pinSalt){
      ProtectionController.promptPinSetup?.('الموافقة على ربط الموظف');return;
    }
-   const profile=typeof ProfileManager!=='undefined'?ProfileManager.activeId:null;
-   ProtectionController.requestPin('تحقق بهوية المدير قبل مطابقة رقم الأمان والموافقة على ربط موظف البيع',()=>{
-     if(profile!==null&&ProfileManager.activeId!==profile)return UI.toast('تغيّرت الشركة؛ أعد طلب الموافقة','warn');
-     return approveVerifiedPairing.call(this,id,agentId);
-   } );
+   ProtectionController.requestPin('تحقق بهوية المدير قبل مطابقة رقم الأمان والموافقة على ربط موظف البيع',approve,
+     {passwordOnly:!!window.WindowsPeerSync});
  };
  const approveVerifiedPairing=async function(id,agentId){
    if(this.pairingBusy||this.lanBusy||this.busy)return UI.toast('جارٍ حفظ عملية أخرى، أعد المحاولة','warn');
    const session=this.pairingRequests.get(id);
    const cfg=this.data(),a=cfg.agents.find(x=>x.id===agentId&&!x.archived&&!x.disabled);
    if(!session||!a)return UI.toast('اختر موظف بيعاً مسجلاً أولاً','warn');
-   if(!TiqanyEmployeeAuth.valid(a.employeeAuth))return UI.toast('عيّن كلمة سر الموظف أولاً من تعديل الموظف قبل الموافقة على الربط','warn');
+   if(State.settings.appProtection?.protectDeviceAddition===true&&!TiqanyEmployeeAuth.valid(a.employeeAuth))return UI.toast('عيّن كلمة سر الموظف أولاً من تعديل الموظف قبل الموافقة على الربط','warn');
    if(Date.now()-session.createdAt>lifetime)return UI.toast('انتهت صلاحية الطلب، أعد الربط من جهاز موظف البيع','warn');
    if(session.status!=='pending')return;
    this.pairingBusy=true;
