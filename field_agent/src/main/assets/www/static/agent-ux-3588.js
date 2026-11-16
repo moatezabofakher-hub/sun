@@ -4,7 +4,7 @@ const A=Agent,modeInfo={cash:['نقدي','fa-money-bill-wave'],credit:['آجل (
 const one=(s,root=document)=>root.querySelector(s);
 function enhanceInvoice(){
  const top=one('#screen .invoice-entry-top');if(!top)return;top.classList.add('ta-ux-compact');
- const cur=one('.ta-invoice-currency-choice',top);if(cur&&!cur.dataset.ux388){cur.dataset.ux388='1';cur.innerHTML='<i class="fas fa-coins" aria-hidden="true"></i><span class="ta-ux-currency-label">العملة</span><strong class="ta-ux-currency-value">'+(A.currency==='SYP'?'الليرة السورية':'الدولار الأمريكي')+'</strong><i class="fas fa-rotate" aria-hidden="true"></i>';}
+ const cur=one('.ta-invoice-currency-choice',top);if(cur){const badge=one('.ta-invoice-currency-code',cur);const code=A.currency==='SYP'?'ل.س':'$ USD';if(badge)badge.textContent=code;cur.setAttribute('aria-label','تبديل عملة الفاتورة؛ الحالية: '+code);}
  const wh=Array.from(top.querySelectorAll('label')).find(x=>/المستودع الذي تتأثر به/.test(x.textContent||''));if(wh){wh.parentElement?.classList.add('ta-ux-warehouse');wh.innerHTML='<i class="fas fa-warehouse" aria-hidden="true"></i> المستودع';}
  const party=one('#fAccount',top);party?.closest('.ta-invoice-party-highlight')?.classList.add('ta-ux-client-dark');
  const date=one('#agentInvoiceDate',top)||one('#fDate:not([type=hidden])',top);if(date&&!one('.ta-ux-date-button',date.parentElement)){

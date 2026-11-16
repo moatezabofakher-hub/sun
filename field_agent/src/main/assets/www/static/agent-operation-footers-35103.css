@@ -1,0 +1,37 @@
+/* 3.5.103: Dedicated employee invoice and voucher action bars. */
+:root {--ta-agent-operation-footer-height:138px}
+body.ta-agent-invoice-workspace nav#bottom,
+body.ta-agent-voucher-workspace nav#bottom,
+body:has(#screen .ta-agent-invoice-save-footer) nav#bottom,
+body:has(#screen .ta-agent-voucher-footer) nav#bottom {display:none!important}
+body.ta-agent-invoice-workspace main#screen,
+body.ta-agent-voucher-workspace main#screen,
+body:has(#screen .ta-agent-invoice-save-footer) main#screen,
+body:has(#screen .ta-agent-voucher-footer) main#screen {
+ padding-bottom:calc(var(--ta-agent-operation-footer-height,138px) + 28px + env(safe-area-inset-bottom,0px))!important;
+ scroll-padding-bottom:calc(var(--ta-agent-operation-footer-height,138px) + 28px);
+}
+body.ta-agent-invoice-workspace .ta-agent-invoice-save-footer,
+body:has(#screen .ta-agent-invoice-save-footer) .ta-agent-invoice-save-footer,
+body.ta-agent-voucher-workspace .ta-agent-voucher-footer,
+body:has(#screen .ta-agent-voucher-footer) .ta-agent-voucher-footer {
+ position:fixed!important;bottom:0!important;left:0!important;right:0!important;
+ z-index:32!important;box-sizing:border-box!important;max-width:100vw;
+ direction:rtl;background:linear-gradient(180deg,#effaff,#fff);
+ border-top:2px solid #7dd3fc;box-shadow:0 -8px 28px #0b47602b;
+ padding:9px max(10px,env(safe-area-inset-right,0px))
+ calc(9px + env(safe-area-inset-bottom,0px)) max(10px,env(safe-area-inset-left,0px));
+}
+.ta-agent-invoice-save-footer .ta-footer-balances {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.ta-agent-invoice-save-footer .ta-balance-tile {min-width:0;background:white;border:1px solid #bae6fd;border-radius:11px;text-align:center;padding:7px 5px}
+.ta-agent-invoice-save-footer .ta-balance-tile strong {display:block;overflow-wrap:anywhere;font-variant-numeric:tabular-nums}
+.ta-agent-invoice-save-footer .ta-footer-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.ta-agent-invoice-save-footer .ta-footer-actions button{min-height:42px;color:white;font-weight:900;border-radius:11px}
+.ta-agent-invoice-save-footer .ta-footer-actions button:first-child{background:#047857}
+.ta-agent-invoice-save-footer .ta-footer-actions button:last-child{background:#0e4260}
+.ta-agent-voucher-footer {display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;align-items:center}
+.ta-agent-voucher-footer button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;margin:0!important;padding:8px 6px;border-radius:12px;font-size:14px;font-weight:900;color:white!important}
+.ta-agent-voucher-footer .ta-agent-voucher-save{background:linear-gradient(155deg,#34d399,#047857)!important;border:1px solid #059669!important;box-shadow:0 3px 0 #065f46}
+.ta-agent-voucher-footer .ta-agent-voucher-cancel{background:linear-gradient(155deg,#fda4af,#e11d48)!important;border:1px solid #be123c!important;box-shadow:0 3px 0 #9f1239}
+.ta-invoice-currency-choice .ta-invoice-currency-code{font-size:15px;font-weight:900;white-space:nowrap;direction:ltr;color:#0369a1}
+@media(max-width:350px){.ta-agent-voucher-footer button{font-size:12px}.ta-invoice-currency-choice .ta-invoice-currency-code{font-size:13px}}

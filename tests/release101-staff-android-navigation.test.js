@@ -16,7 +16,7 @@ test('employee pages have no custom red exit/back and keep native Back handling'
 test('employee voucher hides dock and offers a guarded Cancel with Save',()=>{
  assert.match(js,/this\.screen==='voucher'\);/);
  assert.match(js,/getElementById\('bottom'\)\?\.classList\.toggle\('hide',!active \|\| this\.screen==='voucher'\)/);
- assert.match(js,/class="row ta-agent-voucher-actions"/);
+ assert.match(js,/class="ta-agent-voucher-actions ta-agent-voucher-footer"/);
  assert.match(js,/onclick="Agent\.goBack\(\)"/);
  assert.match(js,/onclick="Agent\.saveVoucher\(\)"/);
 });

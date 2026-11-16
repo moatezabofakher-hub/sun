@@ -193,7 +193,11 @@ Agent.renderVoucher=function(){
   <div class="row"><div><label class="label">التاريخ</label><input id="vDate" type="datetime-local" class="field" value="${this.defaultDate()}"></div><div><label class="label">عملة السند</label><input id="vCurrency" type="hidden" value="${currency}"><button id="vCurrencyToggle" type="button" class="field" style="cursor:pointer;border:2px solid #99f6e4;background:#f0fdfa;color:#115e59;font-weight:900;min-height:44px" onclick="Agent.toggleVoucherCurrency()" aria-label="تبديل عملة السند دون فتح قائمة"><span aria-hidden="true">🔄</span> <span class="agent-voucher-currency-label">${currency==='SYP'?'ليرة سورية (ل.س)':'دولار (USD)'}</span></button></div></div>
   <label class="label">المبلغ</label><input type="number" id="vAmount" class="field ltr" placeholder="0.00" min="0.01" step="any">
   <label class="label">البيان</label><textarea id="vNote" class="field" rows="2" placeholder="بيان السند (اختياري)"></textarea>
-  <div class="row ta-agent-voucher-actions"><button type="button" class="secondary" onclick="Agent.goBack()">✕ إلغاء</button><button type="button" class="primary" onclick="Agent.saveVoucher()">✓ حفظ ${k==='receipt'?'سند القبض':'سند الدفع'}</button></div></section>`;};
+  </section>
+ <div class="ta-agent-voucher-actions ta-agent-voucher-footer" role="group" aria-label="خيارات حفظ أو إلغاء السند">
+  <button type="button" class="primary ta-agent-voucher-save" onclick="Agent.saveVoucher()"><i class="fas fa-floppy-disk" aria-hidden="true"></i> حفظ ${k==='receipt'?'سند القبض':'سند الدفع'}</button>
+  <button type="button" class="secondary ta-agent-voucher-cancel" onclick="Agent.goBack()"><i class="fas fa-xmark" aria-hidden="true"></i> إلغاء</button>
+ </div>`;};
 // Persist a new operation atomically; on storage failure do not leave a ghost entry in memory.
 Agent.appendOperation=async function(op){const before=this.state.ops.slice();this.state.ops.push(op);
  try{await this.save();}catch(e){this.state.ops=before;throw e;}};
