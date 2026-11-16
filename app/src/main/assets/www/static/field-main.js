@@ -218,6 +218,8 @@ const FieldSync = {
       <section class="rounded-2xl border-2 border-teal-300 bg-teal-50 p-3 space-y-3" aria-label="كلمة سر الموظف">
         <h4 class="font-black text-teal-950 text-base">🔐 كلمة سر موظف البيع</h4>
         <p class="text-xs font-bold ${a.employeeAuth?.hash?'text-teal-800':'text-rose-800'}">${a.employeeAuth?.hash?'✓ تم تعيين كلمة سر خاصة بهذا الموظف':'⚠ لم يتم تعيين كلمة سر لهذا الموظف بعد'}</p>
+        <label class="flex items-center gap-3 rounded-xl border-2 border-emerald-300 p-3 bg-white font-black text-slate-900" for="editFieldEmployeeLock"><input id="editFieldEmployeeLock" type="checkbox" class="w-5 h-5 accent-emerald-700" ${a.employeeAuth?.lockApp!==false?'checked':''}/> قفل تطبيق الموظف بكلمة السر أو البصمة</label>
+        <p class="text-xs text-emerald-900">عند إلغاء القفل يستطيع الموظف فتح التطبيق دون طلب كلمة السر، وتظل بصمته المسجلة على هاتفه محفوظة لحين إعادة تفعيل القفل.</p>
         <p class="text-xs text-slate-700">للمدير فقط. يستلمها تطبيق الموظف عند المزامنة، ولا يمكن للموظف تغييرها. اترك الخانتين فارغتين للاحتفاظ بالرمز الحالي.</p>
         <label class="block text-sm font-black text-slate-900" for="editFieldEmployeePassword">${a.employeeAuth?.hash?'تغيير كلمة سر الموظف':'تعيين كلمة سر الموظف'} (6 خانات على الأقل)</label>
         <input id="editFieldEmployeePassword" type="password" autocomplete="new-password" minlength="6" maxlength="128" class="w-full border-2 border-teal-300 rounded-xl p-3 bg-white" placeholder="كلمة سر خاصة بهذا الموظف"/>
@@ -240,11 +242,14 @@ const FieldSync = {
     const employeePassword=document.getElementById('editFieldEmployeePassword')?.value||'';
     const employeeConfirm=document.getElementById('editFieldEmployeeConfirm')?.value||'';
     const managerPin=document.getElementById('editFieldManagerApprovalPin')?.value||'';
+    const employeeLockControl=document.getElementById('editFieldEmployeeLock');
+    const employeeLockEnabled=employeeLockControl && typeof employeeLockControl.checked === 'boolean' ? employeeLockControl.checked : (a.employeeAuth?.lockApp!==false);
     if((employeePassword||employeeConfirm)&&employeePassword!==employeeConfirm)return UI.toast('تأكيد كلمة سر الموظف غير مطابق','error');
     if(!a.employeeAuth?.hash&&!employeePassword)return UI.toast('عيّن كلمة سر خاصة بالموظف قبل حفظ بياناته','warn');
     const permissions=this.readPermissions('editFieldPermissions');
     const samePermissions=(x,y)=>JSON.stringify(TiqanyAgentPermissions.normalize(x))===JSON.stringify(TiqanyAgentPermissions.normalize(y));
     const permissionsChanged=!samePermissions(a.permissions,permissions);
+    const lockChanged=(a.employeeAuth?.lockApp!==false)!==employeeLockEnabled;
     const originalPermissions=JSON.stringify(TiqanyAgentPermissions.normalize(a.permissions));
     const companyProfile=typeof ProfileManager!=='undefined'?ProfileManager.activeId:null;
     const saveVerified=async()=>{
@@ -261,13 +266,14 @@ const FieldSync = {
           employeeAuth={...await TiqanyEmployeeAuth.create(employeePassword),version:(Number(a.employeeAuth?.version)||0)+1};
         }catch(e){return UI.toast(e.message||'تعذر إعداد كلمة سر الموظف','error');}
       }
+      if(employeeAuth?.hash && (lockChanged||employeePassword)) employeeAuth={...employeeAuth,lockApp:employeeLockEnabled,version:(Number(employeeAuth.version)||0)+(employeePassword?0:1),updatedAt:new Date().toISOString()};
       const original={name:a.name,vehicleName:a.vehicleName,allowedAccountIds:a.allowedAccountIds,permissions:a.permissions,employeeAuth:a.employeeAuth};
       a.name=name;a.vehicleName=vehicleName||name;a.allowedAccountIds=allowedAccountIds;
       a.permissions=permissions;a.employeeAuth=employeeAuth;
       try{await StorageEngine.saveState();this.open();UI.toast('حُفظ موظف البيع؛ ستنتقل التعديلات عند أول مزامنة موثوقة','success');}
       catch(e){Object.assign(a,original);UI.toast('لم يُحفظ تعديل موظف البيع: '+e.message,'error');}
     };
-    if(permissionsChanged){
+    if(permissionsChanged||lockChanged){
       if(typeof ProtectionController==='undefined'||typeof ProtectionController.requestPin!=='function')return UI.toast('التحقق الأمني غير متاح','error');
       if(!State.settings.appProtection?.pinHash||!State.settings.appProtection?.pinSalt)return ProtectionController.promptPinSetup?.('تعديل صلاحيات الموظف');
       // The edit modal is replaced by the PIN/Biometric modal; all values above

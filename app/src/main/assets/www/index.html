@@ -9552,6 +9552,7 @@ body.ta-transfer-editor-open #mainContent{padding-bottom:calc(var(--ta-transfer-
                     <label class="block text-xs font-bold text-slate-700">تكرار النسخ الاحتياطي</label>
                     <select aria-label="تكرار النسخ الاحتياطي" class="w-full border border-slate-300 rounded-lg p-2.5 font-bold text-xs bg-white"
                         ${status.supported?'':'disabled'} onchange="BackupController.setHours('${kind}', this.value)">
+                        <option value="2" ${hours===2?'selected':''}>كل ساعتين</option>
                         <option value="6" ${hours===6?'selected':''}>كل 6 ساعات</option>
                         <option value="12" ${hours===12?'selected':''}>كل 12 ساعة</option>
                         <option value="24" ${hours===24?'selected':''}>كل 24 ساعة</option>

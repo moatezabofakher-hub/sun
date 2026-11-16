@@ -37,7 +37,7 @@ public final class AutoBackupManager {
         return ctx.getApplicationContext().getSharedPreferences(PREF, Context.MODE_PRIVATE);
     }
 
-    public static boolean validHours(int hours) { return hours == 6 || hours == 12 || hours == 24; }
+    public static boolean validHours(int hours) { return hours == 2 || hours == 2 || hours == 6 || hours == 12 || hours == 24; }
 
     /** Drive backup has been removed from user settings. Migrate old schedules safely. */
     public static void disableOldDriveBackups(Context ctx) {
@@ -142,7 +142,7 @@ public final class AutoBackupManager {
     /** Returns an actionable error or an empty string when the preference was saved. */
     public static String configure(Context ctx, String kind, boolean enabled, int hours) {
         if (!"local".equals(kind)) return "النسخ الاحتياطي إلى Google Drive غير متاح في هذا الإصدار";
-        if (!validHours(hours)) return "اختر 6 أو 12 أو 24 ساعة";
+        if (!validHours(hours)) return "اختر 2 أو 6 أو 12 أو 24 ساعة";
         SharedPreferences p = prefs(ctx);
         if (enabled && "local".equals(kind) && p.getString("localFolder", "").isEmpty())
             return "اختر مجلد النسخ المحلي أولاً";

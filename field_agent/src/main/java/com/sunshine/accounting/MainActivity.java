@@ -739,7 +739,14 @@ public final class MainActivity extends FragmentActivity {
 
     private final class SecurityBridge {
         @JavascriptInterface
+        public void authenticateBiometricOnly(String requestId, String language) {
+            startAuthentication(requestId, language, true);
+        }
+        @JavascriptInterface
         public void authenticate(String requestId, String language) {
+            startAuthentication(requestId, language, false);
+        }
+        private void startAuthentication(String requestId, String language, boolean biometricOnly) {
             if (requestId == null || !requestId.matches("[A-Za-z0-9]{6,40}")) return;
             
             runOnUiThread(() -> {
@@ -750,9 +757,11 @@ public final class MainActivity extends FragmentActivity {
                 }
                 // Android 11+: accept biometrics first, or the device's secure lock
                 // PIN/password when biometrics have not been enrolled.
-                final int authenticators = android.os.Build.VERSION.SDK_INT >= 30
-                        ? (BiometricManager.Authenticators.BIOMETRIC_WEAK | BiometricManager.Authenticators.DEVICE_CREDENTIAL)
-                        : BiometricManager.Authenticators.BIOMETRIC_WEAK;
+                final int authenticators = biometricOnly
+                        ? BiometricManager.Authenticators.BIOMETRIC_STRONG
+                        : (android.os.Build.VERSION.SDK_INT >= 30
+                            ? (BiometricManager.Authenticators.BIOMETRIC_WEAK | BiometricManager.Authenticators.DEVICE_CREDENTIAL)
+                            : BiometricManager.Authenticators.BIOMETRIC_WEAK);
                 int available = BiometricManager.from(MainActivity.this)
                         .canAuthenticate(authenticators);
                 if (available != BiometricManager.BIOMETRIC_SUCCESS) {
@@ -762,9 +771,9 @@ public final class MainActivity extends FragmentActivity {
                 pendingBiometricId = requestId;
                 BiometricPrompt.PromptInfo.Builder promptBuilder = new BiometricPrompt.PromptInfo.Builder()
                         .setTitle("تأكيد الهوية - المحاسب التقني")
-                        .setSubtitle("استخدم البصمة أو رمز قفل الشاشة للتحقق قبل استعادة البيانات")
+                        .setSubtitle(biometricOnly ? "استخدم البصمة المسجلة على هذا الهاتف" : "استخدم البصمة أو رمز قفل الشاشة للتحقق")
                         .setAllowedAuthenticators(authenticators);
-                if (android.os.Build.VERSION.SDK_INT < 30) {
+                if (biometricOnly || android.os.Build.VERSION.SDK_INT < 30) {
                     promptBuilder.setNegativeButtonText("إلغاء - استخدم كلمة السر");
                 }
                 BiometricPrompt.PromptInfo promptInfo = promptBuilder.build();

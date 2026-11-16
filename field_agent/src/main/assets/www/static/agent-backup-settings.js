@@ -21,7 +21,7 @@ Agent.renderBackupSettings = function () {
        <label class="label" for="agentBackupEnabled">تشغيل النسخ التلقائي</label>
        <select id="agentBackupEnabled" class="field"><option value="false" ${enabled?'':'selected'}>إيقاف</option><option value="true" ${enabled?'selected':''}>تشغيل</option></select>
        <label class="label" for="agentBackupHours">تكرار إنشاء نسخة</label>
-       <select class="field" id="agentBackupHours">${[6,12,24].map(h=>`<option value="${h}" ${Number(cfg.localHours||24)===h?'selected':''}>كل ${h} ساعة</option>`).join('')}</select>
+       <select class="field" id="agentBackupHours">${[2,6,12,24].map(h=>`<option value="${h}" ${Number(cfg.localHours||24)===h?'selected':''}>كل ${h===2?'ساعتين':h+' ساعة'}</option>`).join('')}</select>
        <button type="button" class="primary" onclick="Agent.saveBackupFrequency()">حفظ إعدادات المجلد</button>
        <button type="button" class="secondary" onclick="Agent.backupNow()">نسخ الآن إلى المجلد</button>
        <p class="tiny">آخر نسخة للمجلد: ${esc(showTime(cfg.localLast))}</p>

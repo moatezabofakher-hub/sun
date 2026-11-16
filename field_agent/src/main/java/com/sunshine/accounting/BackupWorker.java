@@ -129,8 +129,30 @@ public final class BackupWorker extends Worker {
                 out.flush();
             }
             completed = true;
+            pruneAutoBackups(dir, name);
         } finally {
             if (!completed) doc.delete();
+        }
+    }
+
+    // Keep only the latest 20 automatically generated backup files for this profile.
+    // User-created backups and backups for other profiles are never touched.
+    private static void pruneAutoBackups(DocumentFile folder, String generatedName) {
+        try {
+            int last = generatedName.lastIndexOf('_');
+            int second = generatedName.lastIndexOf('_', last - 1);
+            int third = generatedName.lastIndexOf('_', second - 1);
+            if (third < 0 || !generatedName.endsWith(".json")) return;
+            String prefix = generatedName.substring(0, third + 1);
+            java.util.List<DocumentFile> items = new java.util.ArrayList<>();
+            for (DocumentFile file : folder.listFiles()) {
+                String filename = file.getName();
+                if (file.isFile() && filename != null && filename.startsWith(prefix)
+                     && filename.matches(".*_[0-9]{8}_[0-9]{6}_[0-9]{3}\\.json")) items.add(file);
+            }
+            items.sort((a,b) -> String.valueOf(b.getName()).compareTo(String.valueOf(a.getName())));
+            for (int i=20; i<items.size(); i++) items.get(i).delete();
+        } catch (Exception ignored) { // Retention cleanup must not invalidate a successful backup.
         }
     }
 

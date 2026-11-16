@@ -3,11 +3,75 @@
 (function(){
  'use strict';
  const A=Agent;
- let unlocked=false,credentialFingerprint='',failures=0,blockedUntil=0;
+ let unlocked=false,credentialFingerprint='',failures=0,blockedUntil=0,biometricBusy=false;
+ // Local biometric preference belongs to THIS staff member on THIS device.
+ // It never becomes part of the sync payload/backup. Disabling the manager's lock
+ // does not erase the employee's locally approved fingerprint preference.
+ function biometricStorageKey(){return 'tiqany.employee.biometric.v1.'+[A.state?.companyId,A.state?.agentId,A.state?.deviceId].map(x=>encodeURIComponent(String(x||''))).join(':');}
+ function biometricPreference(){
+   try {return JSON.parse(localStorage.getItem(biometricStorageKey())||'null');}catch(_){return null;}
+ }
+ function biometricReady(){const p=biometricPreference(),c=cfg();return !!(p?.enabled && c?.hash && p.credentialHash===c.hash && window.NativeSecurity?.authenticateBiometricOnly);}
+ function biometricNative(){
+   return new Promise((resolve,reject)=>{
+     if(!window.NativeSecurity?.authenticateBiometricOnly)return reject(Error('البصمة غير متاحة على هذا الجهاز'));
+     const id='E'+Math.random().toString(36).slice(2,14);const old=window.__nativeBiometricReply;
+     let done=false;
+     window.__nativeBiometricReply=(requestId,success,reason)=>{
+       if(requestId!==id){if(typeof old==='function')old(requestId,success,reason);return;}
+       if(done)return;done=true;window.__nativeBiometricReply=old;
+       if(success)resolve(true);else reject(Error(reason||'تعذر التحقق بالبصمة'));
+     };
+     try{NativeSecurity.authenticateBiometricOnly(id,'ar');}catch(e){window.__nativeBiometricReply=old;reject(e);}
+   });
+ }
+ async function unlockWithBiometric(){
+   if(biometricBusy||!required()||!biometricReady()||unlocked)return false;
+   biometricBusy=true;const identity=key();
+   try{
+     await biometricNative();
+     if(identity!==key()||!required()||!biometricReady())throw Error('تغيّرت صلاحيات الموظف أثناء التحقق');
+     unlocked=true;credentialFingerprint=identity;remove();await A.show(A.screen||'home');return true;
+   }catch(e){const error=document.getElementById('ta-employee-lock-error');if(error)error.textContent='يمكنك استخدام كلمة سر الموظف بدلاً من البصمة';return false;}
+   finally{biometricBusy=false;}
+ }
+ function requestAssignedPassword(){
+   return new Promise(resolve=>{
+     const overlay=document.createElement('div');
+     overlay.id='ta-employee-biometric-enroll';
+     overlay.style.cssText='position:fixed;inset:0;z-index:2147483647;background:#08283ec9;display:flex;align-items:center;justify-content:center;padding:18px;direction:rtl';
+     overlay.innerHTML='<form style="width:min(100%,420px);background:white;padding:22px;border-radius:18px;box-shadow:0 12px 36px #0005"><h3 style="margin:0 0 12px;font-size:19px">تفعيل بصمة موظف البيع</h3><p style="font-size:13px">أدخل كلمة السر التي أعطاك إياها المدير، وليس كلمة سر جديدة.</p><input type="password" autocomplete="current-password" aria-label="كلمة سر الموظف" required maxlength="128" style="width:100%;border:2px solid #0d8178;border-radius:12px;padding:12px;direction:ltr"><div style="display:flex;gap:10px;margin-top:13px"><button type="submit" style="flex:1;padding:12px;border:0;border-radius:12px;background:#067e70;color:white;font-weight:900">متابعة</button><button type="button" id="ta-employee-cancel-enroll" style="flex:1;padding:12px;border:0;border-radius:12px;background:#e2e8f0">إلغاء</button></div></form>';
+     const close=v=>{overlay.remove();resolve(v);};
+     overlay.querySelector('form').addEventListener('submit',e=>{e.preventDefault();const input=overlay.querySelector('input');const value=input.value;input.value='';close(value);});
+     overlay.querySelector('#ta-employee-cancel-enroll').addEventListener('click',()=>close(null));
+     document.body.appendChild(overlay);overlay.querySelector('input').focus();
+   });
+ }
+ async function registerFingerprint(){
+   if(!TiqanyEmployeeAuth.valid(cfg()))return A.toast('يجب استلام كلمة سر الموظف من المدير أولاً');
+   if(!window.NativeSecurity?.authenticateBiometricOnly)return A.toast('البصمة الأصلية غير متاحة؛ تأكد من إعدادها في الهاتف');
+   const pin=await requestAssignedPassword();
+   if(pin===null)return;
+   if(!(await TiqanyEmployeeAuth.verify(pin,cfg())))return A.toast('كلمة سر الموظف التي حددها المدير غير صحيحة');
+   const before=key();
+   try{
+     await biometricNative();
+     if(before!==key())throw Error('تغيّرت كلمة السر أثناء التحقق؛ أعد المحاولة');
+     localStorage.setItem(biometricStorageKey(),JSON.stringify({enabled:true,credentialHash:cfg().hash}));
+     A.toast('تم تفعيل البصمة لهذا الهاتف؛ ستبقى محفوظة حتى إن عطّل المدير قفل التطبيق');
+     await A.show('settings');
+   }catch(e){A.toast('لم تُفعّل البصمة: '+e.message);}
+ }
+ function removeFingerprint(){
+   // Local, explicit revocation by the employee; never synchronized by managers.
+   localStorage.removeItem(biometricStorageKey());
+   A.toast('أُزيل تفعيل البصمة من هذا الهاتف');A.show('settings');
+ }
+
  const escape=s=>A.escape(s);
  function cfg(){return A.state?.employeeAuth;}
  function key(){const c=cfg();return c?.hash?String(c.salt||'')+':'+c.hash+':'+String(c.updatedAt||''):'';}
- function required(){return !!cfg()?.hash;}
+ function required(){return !!(cfg()?.hash && cfg()?.lockApp!==false);}
  const style=document.createElement('style');
  style.textContent='#ta-employee-lock{position:fixed;inset:0;z-index:2147483646;display:flex;align-items:center;justify-content:center;background:linear-gradient(140deg,#0a2846,#0b656a);padding:15px;box-sizing:border-box;font-family:system-ui,sans-serif;color:#132d47}#ta-employee-lock-card{width:min(100%,420px);padding:25px;border-radius:24px;background:#fff;box-shadow:0 16px 55px #0007;text-align:right;direction:rtl}#ta-employee-lock-card h2{font-size:21px;margin:0 0 12px;font-weight:900;color:#104770}#ta-employee-lock-card p{font-size:14px;line-height:1.7}#ta-employee-lock-card input{width:100%;min-height:49px;background:#effafa;border:2px solid #93d8cc;border-radius:13px;box-sizing:border-box;padding:12px;font-size:18px;direction:ltr;text-align:center}#ta-employee-lock-card button{width:100%;margin-top:14px;min-height:47px;border:0;border-radius:13px;background:#0a777c;color:#fff;font-weight:900;font-size:16px}#ta-employee-lock-card button:disabled{opacity:.55}#ta-employee-lock-error{color:#b91c1c;font-size:13px;min-height:24px;font-weight:700}body.ta-employee-locked #agentHeader,body.ta-employee-locked #screen,body.ta-employee-locked #bottom{visibility:hidden!important;pointer-events:none!important}';
  document.head.appendChild(style);
@@ -18,7 +82,7 @@
    for(const id of ['screen','bottom','agentHeader']){const el=document.getElementById(id);if(el)el.inert=true;}
    if(document.getElementById('ta-employee-lock'))return;
    const el=document.createElement('section');el.id='ta-employee-lock';el.setAttribute('role','dialog');el.setAttribute('aria-modal','true');el.setAttribute('aria-label','تسجيل دخول موظف البيع');
-   el.innerHTML='<div id="ta-employee-lock-card"><h2>🔒 كلمة سر موظف البيع</h2><p>ادخل كلمة السر التي خصصها لك المدير لفتح تطبيق المحاسب التقني. عند تغييرها من المدير ستصل بعد المزامنة.</p><form id="ta-employee-login-form" autocomplete="off"><label for="ta-employee-login-pin">كلمة سر الموظف</label><input id="ta-employee-login-pin" type="password" autocomplete="current-password" maxlength="128" required><button type="submit" id="ta-employee-login-button">فتح التطبيق</button></form><p id="ta-employee-lock-error" role="alert"></p><p style="font-size:12px;color:#64748b">نسيت كلمة السر؟ اطلبها من المدير، ولا يمكن إعادة تعيينها من هاتف الموظف.</p></div>';
+   el.innerHTML='<div id="ta-employee-lock-card"><h2>🔒 كلمة سر موظف البيع</h2><p>ادخل كلمة السر التي خصصها لك المدير لفتح تطبيق المحاسب التقني. عند تغييرها من المدير ستصل بعد المزامنة.</p>'+(biometricReady()?'<button type="button" id="ta-employee-biometric-btn">فتح بالبصمة</button>':'')+'<form id="ta-employee-login-form" autocomplete="off"><label for="ta-employee-login-pin">كلمة سر الموظف</label><input id="ta-employee-login-pin" type="password" autocomplete="current-password" maxlength="128" required><button type="submit" id="ta-employee-login-button">فتح التطبيق</button></form><p id="ta-employee-lock-error" role="alert"></p><p style="font-size:12px;color:#64748b">نسيت كلمة السر؟ اطلبها من المدير، ولا يمكن إعادة تعيينها من هاتف الموظف.</p></div>';
    document.body.appendChild(el);
    el.querySelector('form').addEventListener('submit',async e=>{
      e.preventDefault();const field=document.getElementById('ta-employee-login-pin');const button=document.getElementById('ta-employee-login-button');const error=document.getElementById('ta-employee-lock-error');
@@ -37,7 +101,9 @@
      }catch(_){error.textContent='تعذر التحقق من كلمة السر؛ حاول مجدداً';}
      finally{button.disabled=false;}
    });
-   el.querySelector('input')?.focus();
+   el.querySelector('#ta-employee-biometric-btn')?.addEventListener('click',unlockWithBiometric);
+   if(biometricReady())setTimeout(()=>{if(document.getElementById('ta-employee-lock'))unlockWithBiometric();},200);
+   else el.querySelector('input')?.focus();
  }
  function enforce(){
    if(!required()){unlocked=false;credentialFingerprint='';remove();return;}
@@ -53,5 +119,5 @@
    if(document.hidden){unlocked=false;credentialFingerprint='';}else enforce();
  });
  window.addEventListener('pagehide',()=>{unlocked=false;credentialFingerprint='';});
- window.TiqanyEmployeeLock={enforce,isUnlocked:()=>!required()||(unlocked&&credentialFingerprint===key()),lock:()=>{unlocked=false;credentialFingerprint='';enforce();}};
+ window.TiqanyEmployeeLock={registerFingerprint,removeFingerprint,biometricReady,enforce,isUnlocked:()=>!required()||(unlocked&&credentialFingerprint===key()),lock:()=>{unlocked=false;credentialFingerprint='';enforce();}};
 })();
