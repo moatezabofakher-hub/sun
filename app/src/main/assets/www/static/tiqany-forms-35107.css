@@ -1,0 +1,46 @@
+/* 3.5.107 — shared visual design; preserves native accounting form handlers. */
+:root{--ta-emerald-top:#26c67d;--ta-emerald-bottom:#087044;--ta-green-edge:#064b32;--ta-gloss:inset 0 2px 0 rgba(255,255,255,.55),0 4px 0 rgba(6,65,48,.8),0 7px 13px rgba(4,59,48,.23)}
+body:not(.ta-dashboard-screen) #headerNotificationsBtn{display:none!important}
+/* Graphical buttons remain the existing action elements; only presentation changes. */
+.invoice-entry-top button,.invoice-entry-top select,.ta-invoice-control-grid button,.ta-invoice-control-grid select,.pos-page button,.ta-voucher-save-footer button,.ta-invoice-save-footer button,
+#mainContent .invoice-entry-top .ta-payment-cycle{border-radius:12px;box-shadow:inset 0 2px 0 rgba(255,255,255,.48),0 4px 0 rgba(17,78,85,.35),0 7px 13px rgba(5,46,65,.12);transition:transform .12s ease,box-shadow .12s ease}
+.invoice-entry-top button:active,.pos-page button:active,.ta-voucher-save-footer button:active,.ta-invoice-save-footer button:active{transform:translateY(2px);box-shadow:inset 0 1px 0 #fff5,0 1px 0 #0c574666}
+/* Currency selection: bright sky blue, with explicit SYP/USD labels in the template. */
+.ta-invoice-currency-choice{background:linear-gradient(155deg,#bdf2ff,#36b9ea)!important;border:1px solid #1598cb!important;color:#064867!important;box-shadow:inset 0 2px 0 #ffffffab,0 4px 0 #0789bf,0 7px 13px #08638e31!important}
+.ta-invoice-currency-choice i,.ta-invoice-currency-choice span{color:#063f61!important}
+/* Both invoice save options are glossy green, not blue. */
+.ta-invoice-save-footer .ta-footer-actions button,
+.ta-invoice-save-footer .ta-footer-actions button:first-child,
+.ta-invoice-save-footer .ta-footer-actions button:last-child,
+.ta-agent-invoice-footer .ta-footer-actions button{background:linear-gradient(155deg,#39dc91 0%,#0fa75d 46%,#087448 100%)!important;border:1px solid #067044!important;color:#fff!important;box-shadow:inset 0 2px 0 #ffffff88,0 5px 0 #065333,0 9px 15px #0d70432c!important;text-shadow:0 1px 1px #053c2d}
+.ta-invoice-save-footer .ta-footer-actions button i{color:white!important}
+/* Voucher colors retained; explicitly make both labels/icons white. */
+.ta-voucher-save-footer .ta-voucher-footer-actions .ta-voucher-save-action{background:linear-gradient(160deg,#29ca7e,#047857)!important;border:1px solid #035e42!important;color:#fff!important}
+.ta-voucher-save-footer .ta-voucher-footer-actions .ta-voucher-cancel-action{background:linear-gradient(160deg,#fb6571,#dc2626)!important;border:1px solid #af1926!important;color:#fff!important}
+.ta-voucher-save-footer .ta-voucher-footer-actions button i,.ta-voucher-save-footer .ta-voucher-footer-actions button span{color:#fff!important}
+.ta-voucher-footer-actions button{box-shadow:inset 0 2px 0 #ffffff8c,0 4px 0 #173c3a55,0 8px 13px #123b3c27!important}
+/* POS: dedicated always-visible due amount & save actions, above navigation dock. */
+body:has(#mainContent .ta-pos-fixed-footer) nav.ta-bottom-nav{display:none!important}
+body:has(#mainContent .ta-pos-fixed-footer) #mainContent{padding-bottom:calc(var(--ta-pos-footer-height,140px) + 28px + env(safe-area-inset-bottom,0px))!important;scroll-padding-bottom:calc(var(--ta-pos-footer-height,140px) + 28px)!important}
+.ta-pos-fixed-footer{position:fixed;bottom:0;left:0;right:0;z-index:35;direction:rtl;padding:8px max(11px,env(safe-area-inset-right,0px)) calc(10px + env(safe-area-inset-bottom,0px));background:linear-gradient(180deg,#edfff4,#fff);border-top:2px solid #8edbb8;box-shadow:0 -7px 23px #064d2a30;display:grid;gap:8px;max-height:43vh;overflow:auto}
+.ta-pos-footer-total{display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid #a5dcb8;border-radius:12px;padding:7px 12px;background:#fff;color:#0b4a38;font-weight:900}
+.ta-pos-footer-total strong{font-size:clamp(21px,5vw,31px);line-height:1.4;color:#064c35;overflow-wrap:anywhere}
+.ta-pos-footer-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.ta-pos-footer-actions button{border:1px solid #067044!important;border-radius:13px!important;padding:10px 5px!important;background:linear-gradient(145deg,#37d788,#078453)!important;color:white!important;font-size:13px!important;font-weight:900;box-shadow:inset 0 2px 0 #fff8,0 5px 0 #065333,0 9px 12px #075b3f24!important}
+.ta-pos-footer-actions button:disabled{opacity:.52;filter:grayscale(.4)}
+.pos-page:has(.ta-pos-fixed-footer) .pos-cart-actions:not([data-show-read-only]){display:none}
+.ta-date-native-wrapper{position:relative;display:block;min-width:0;width:100%;isolation:isolate}
+.ta-date-native-wrapper input[type=date],.ta-date-native-wrapper input[type=datetime-local]{color:transparent!important;min-height:40px;position:relative;z-index:1;cursor:pointer}
+.ta-date-native-wrapper input[type=date]::-webkit-calendar-picker-indicator,.ta-date-native-wrapper input[type=datetime-local]::-webkit-calendar-picker-indicator{opacity:1!important;cursor:pointer;position:relative;z-index:3}
+.ta-date-readable{position:absolute;right:10px;left:35px;top:50%;transform:translateY(-50%);pointer-events:none;z-index:2;text-align:right;font-weight:900;color:#102c46;font-size:12px;direction:ltr;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* Detailed statement: darker PDF action + readable date controls. */
+button.ta-statement-share-pdf{background:linear-gradient(155deg,#0c8660,#064f36)!important;border:2px solid #03442f!important;color:#fff!important;box-shadow:inset 0 2px 0 #ffffff5c,0 4px 0 #033d2c,0 8px 15px #035c3b37!important}
+#statementFrom,#statementTo,.ta-date-native-wrapper:has(#statementFrom) .ta-date-readable,.ta-date-native-wrapper:has(#statementTo) .ta-date-readable{color:#050505!important}
+
+/* Voucher editors: all controls, not only the footer, have raised glossy edges. */
+#mainContent:has(.ta-voucher-save-footer) button,
+#mainContent:has(.ta-voucher-save-footer) select,
+#voucherModalContent:has(.ta-voucher-save-footer) button,
+#voucherModalContent:has(.ta-voucher-save-footer) select{
+  border-radius:12px;box-shadow:inset 0 2px 0 rgba(255,255,255,.64),0 4px 0 rgba(21,79,85,.24),0 7px 12px rgba(0,38,63,.12);
+}

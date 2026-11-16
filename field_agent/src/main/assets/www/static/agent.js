@@ -157,7 +157,7 @@ const Agent={
   renderOps(){return `<div class="hero"><h2>سجل العمليات الميدانية</h2><p>لا يتم حذف العملية أو تعديلها بعد حفظها؛ تصحيح العمليات المرحّلة يكون في الإدارة المركزية.</p></div><div class="panel">
    <div class="stats"><div class="stat"><b>${this.state.ops.length}</b><small>المحفوظة</small></div><div class="stat"><b>${this.pending.length}</b><small>غير مستلمة</small></div><div class="stat"><b>${this.state.ops.length-this.pending.length}</b><small>مؤكدة</small></div></div>
    ${this.state.ops.length?this.state.ops.slice().reverse().map((o,i)=>`<div class="itemrow"><div class="itemhead"><span>${this.escape(o.localNumber)} · ${o.kind==='sale'?'مبيعات':o.kind==='sale_return'?'مردود':o.kind==='receipt'?'قبض':'دفع'}</span><span class="pill ${this.state.knownIds.includes(o.id)?'':'wait'}">${this.state.knownIds.includes(o.id)?'مزامنة مؤكدة':'بانتظار المزامنة'}</span></div>
-   <p class="tiny">${this.escape(o.date.slice(0,16))} · ${this.escape(this.state.accounts.find(x=>x.id===o.accountId)?.name||'نقدي')}</p>
+   <p class="tiny">${this.escape(window.TiqanyDateView?.visible(o.date)||o.date.slice(0,16))} · ${this.escape(this.state.accounts.find(x=>x.id===o.accountId)?.name||'نقدي')}</p>
    <div class="row"><b>${o.kind==='sale'||o.kind==='sale_return'?o.rows.reduce((sum,r)=>sum+r.total,0):o.amount} ${o.currency}</b><button class="secondary" style="margin:0" onclick="Agent.printOp('${o.id}')">طباعة</button></div></div>`).join(''):'<p class="muted">لم تُسجّل عمليات بعد.</p>'}</div>`;},
   renderSync(){return `<div class="hero"><h2>المزامنة المحلية الآمنة</h2><p>لا يلزم الإنترنت. يمكنك نقل الملفات عبر Quick Share أو Bluetooth أو وسيط USB. أكد استلامها باستيراد ملف ACK من المحاسب الرئيسي.</p></div>
    <div class="panel"><h3>العمليات الجديدة</h3><div class="stats"><div class="stat"><b>${this.pending.length}</b><small>بانتظار الاستلام</small></div><div class="stat"><b>${this.state.ops.length-this.pending.length}</b><small>تم تأكيدها</small></div><div class="stat"><b>${this.state.items.length}</b><small>مواد معتمدة</small></div></div>
@@ -271,7 +271,7 @@ const Agent={
       const newlyConfirmed=confirmed.filter(id=>!(old.knownIds||[]).includes(id)).length;
       const historyResult=this.mergeHistoryPage(catalog.historyPage,old);
       const transfersResult=this.mergeTransferPage(catalog.warehouseHistoryPage,old);
-      const metadataChanged=old.companyName!==catalog.companyName||old.agentName!==catalog.agentName||
+      const metadataChanged=Number(old.managerPublishedRate??old.exchangeRate)!==Number(catalog.exchangeRate)||old.companyName!==catalog.companyName||old.agentName!==catalog.agentName||
         old.vehicleName!==catalog.vehicleName||Number(old.exchangeRate)!==Number(catalog.exchangeRate)||
         (old.defaultPriceTier||'wholesale')!==(catalog.defaultPriceTier||'wholesale')||
         old.companyPhone!==(catalog.companyPhone||'')||old.companyAddress!==(catalog.companyAddress||'')||
@@ -300,6 +300,7 @@ const Agent={
           printerWidth:catalog.printerWidth===58?58:80,printFontScale:Number(catalog.printFontScale)||0.75,
           itemQuantityDecimals:Number.isInteger(Number(catalog.itemQuantityDecimals))?Math.min(4,Math.max(0,Number(catalog.itemQuantityDecimals))):2,
           exchangeRate:catalog.permissions?.exchangeRate&&Number(old.exchangeRateOverride)>0?Number(old.exchangeRateOverride):catalog.exchangeRate,
+          managerPublishedRate:Number(catalog.exchangeRate),
           exchangeRateOverride:catalog.permissions?.exchangeRate?old.exchangeRateOverride:null,
           defaultPriceTier:['wholesale','center','consumer'].includes(catalog.defaultPriceTier)?catalog.defaultPriceTier:'wholesale',
           permissions:catalog.permissions||null,accountLedgers:Array.isArray(catalog.accountLedgers)?catalog.accountLedgers:[],

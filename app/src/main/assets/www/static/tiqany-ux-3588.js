@@ -9,7 +9,7 @@
   const root=q('.invoice-entry-top');if(!root)return;
   root.classList.add('ta-ux-compact');
   const cur=q('.ta-invoice-currency-choice',root),d=InvoiceController.draft;
-  if(cur&&!cur.dataset.ux388){cur.dataset.ux388='1';const c=d?.currency==='SYP'?'الليرة السورية':'الدولار الأمريكي';cur.innerHTML='<i class="fas fa-coins" aria-hidden="true"></i><span class="ta-ux-currency-label">العملة</span><strong class="ta-ux-currency-value">'+c+'</strong>'+(cur.disabled?'':'<i class="fas fa-rotate" aria-hidden="true"></i>');}
+  if(cur&&!cur.dataset.ux388){cur.dataset.ux388='1';const c=d?.currency==='SYP'?'ل.س':'$USD';cur.innerHTML='<i class="fas fa-coins" aria-hidden="true"></i><span class="ta-ux-currency-label">العملة</span><strong class="ta-ux-currency-value">'+c+'</strong>'+(cur.disabled?'':'<i class="fas fa-rotate" aria-hidden="true"></i>');}
   const wh=q('select[onchange*="changeWarehouse"]',root);
   if(wh){const parent=wh.parentElement;parent?.classList.add('ta-ux-warehouse');const label=q('label',parent);if(label)label.innerHTML='<i class="fas fa-warehouse" aria-hidden="true"></i> المستودع';}
   const pricing=q('.ta-invoice-pricing-choice',root);
@@ -17,7 +17,7 @@
   const party=q('select[onchange*="changeInvoiceAccount"]',root);
   if(party){const box=party.parentElement;box?.classList.add('ta-invoice-party-highlight');if(desktop)box?.classList.add('ta-ux-client-dark');}
   const day=q('input[onchange*="changeInvoiceDatePart"]',root);
-  if(day){if(day.type!=='date')day.type='date';day.setAttribute('aria-label','تاريخ الفاتورة: اختر من التقويم');const parent=day.parentElement;
+  if(day){if(day.type!=='date'){const nativeISO=window.TiqanyDateView?.isoDate(day.value)||String(d?.date||'').slice(0,10);day.type='date';day.value=nativeISO;}day.setAttribute('aria-label','تاريخ الفاتورة DD/MM/YYYY: اختر من التقويم');const parent=day.parentElement;
    if(parent&&!q('.ta-ux-date-button',parent)){
     const btn=document.createElement('button');btn.type='button';btn.className='ta-ux-date-button';btn.setAttribute('aria-label','فتح التقويم لاختيار تاريخ الفاتورة');btn.innerHTML='<i class="fas fa-calendar-days" aria-hidden="true"></i>';
     btn.onclick=()=>{try{day.showPicker();}catch(_){day.focus();day.click();}};parent.insertBefore(btn,day);

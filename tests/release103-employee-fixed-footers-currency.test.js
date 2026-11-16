@@ -21,7 +21,7 @@ function fixture(){
 }
 test('employee invoice badge shows selected SYP and USD labels, not long names',()=>{
  const {a}=fixture();
- const usd=a.renderInvoice();assert.match(usd,/ta-invoice-currency-code/);assert.match(usd,/>\$ USD<\/strong>/);assert.doesNotMatch(usd,/ta-invoice-currency-code[^<]*>الدولار/);
+ const usd=a.renderInvoice();assert.match(usd,/ta-invoice-currency-code/);assert.match(usd,/>\$USD<\/strong>/);assert.doesNotMatch(usd,/ta-invoice-currency-code[^<]*>الدولار/);
  a.currency='SYP';a.invoiceMeta.currency='SYP';const syp=a.renderInvoice();assert.match(syp,/>ل\.س<\/strong>/);
  assert.match(load('static/agent-ux-3588.js'),/badge\.textContent=code/);
  assert.doesNotMatch(load('static/agent-ux-3588.js'),/الدولار الأمريكي/);

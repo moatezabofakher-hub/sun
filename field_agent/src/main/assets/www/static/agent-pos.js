@@ -74,7 +74,7 @@ const originalRender=A.renderInvoice.bind(A);
 A.renderInvoice=function(){
   if(!this.posMode)return originalRender();
   const m=this.invoiceMeta||{},c=this.currency||'USD',calc=typeof this.invoiceCalc==='function'?this.invoiceCalc():{subTotal:(this.draft||[]).reduce((n,r)=>n+Number(r.total||0),0),netTotal:(this.draft||[]).reduce((n,r)=>n+Number(r.total||0),0)};
-  const curLabel=c==='SYP'?'ل.س':'USD';
+  const curLabel=c==='SYP'?'ل.س':'$USD';
   const heading=this.posViewId?'عرض نقطة البيع النقدية':this.editingId?'تعديل نقطة البيع النقدية':'نقطة البيع النقدية';
   const accounts=(this.state.accounts||[]).map(account=>`<option value="${esc(account.id)}" ${String(m.accountId||'')===String(account.id)?'selected':''}>${esc(account.name)}</option>`).join('');
   const products=(this.draft||[]).map((r,i)=>{
@@ -103,13 +103,18 @@ A.renderInvoice=function(){
       <input type="hidden" id="invPaidInput" value="${calc.netTotal}"><input type="hidden" id="invRemainingTxt" value="0">
       <label class="agent-pos-note-label">ملاحظات<textarea id="fNote" rows="2" placeholder="ملاحظة اختيارية" oninput="Agent.invoiceMeta.note=this.value">${esc(m.note||'')}</textarea></label></div>
     <div class="agent-pos-save"><button type="button" onclick="Agent.saveInvoice(true)">حفظ وطباعة</button><button type="button" onclick="Agent.saveInvoice()">حفظ البيع</button></div>
+    <div class="ta-agent-pos-footer" role="group" aria-label="المبلغ الإجمالي والحفظ في نقطة البيع">
+      <div class="ta-agent-pos-total"><span>المبلغ الإجمالي المستحق</span><b id="agentPosFooterDue">${this.money(calc.netTotal,c)} ${curLabel}</b></div>
+      <div class="ta-agent-pos-actions"><button type="button" onclick="Agent.saveInvoice()">حفظ</button><button type="button" onclick="Agent.saveInvoice(true)">حفظ وطباعة</button></div>
+    </div>
   </div>`;
 };
 A.posUpdateTotals=function(){
-  const calc=this.invoiceCalc(),currency=this.currency==='SYP'?'ل.س':'USD';
+  const calc=this.invoiceCalc(),currency=this.currency==='SYP'?'ل.س':'$USD';
   for(const [id,amount] of [['invSubTotalTxt',calc.subTotal],['invNetTotalTxt',calc.netTotal]]){
     const node=document.getElementById(id);if(node)node.textContent=this.money(amount,this.currency)+' '+currency;
   }
+  const due=document.getElementById('agentPosFooterDue');if(due)due.textContent=this.money(calc.netTotal,this.currency)+' '+currency;
   const paid=document.getElementById('invPaidInput');if(paid)paid.value=String(calc.netTotal);
   const hidden=document.getElementById('fPaid');if(hidden)hidden.value=String(calc.netTotal);
 };

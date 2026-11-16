@@ -1,0 +1,35 @@
+/* Employee manager UI, 3.5.107. */
+:root{--agent-pos-footer-height:137px}
+#agentManagerNotifications.ta-agent-manager-alert{position:relative;flex:0 0 auto;width:42px;height:42px;border-radius:13px;background:linear-gradient(150deg,#e1fdff,#75c8e5);border:1px solid #38a9c4;box-shadow:inset 0 2px 0 #fff9,0 4px 0 #066f88;color:#06415a;display:inline-grid;place-items:center;font-size:22px}
+#agentManagerNotifications[hidden]{display:none!important}
+#agentManagerNotificationCount:not([hidden]){position:absolute;left:-4px;top:-5px;background:#dc2626;color:#fff;border-radius:999px;padding:1px 5px;font-size:10px;min-width:18px;box-shadow:0 2px 0 #74181e}
+.agent-main-invoice button,.agent-main-invoice select,.agent-pos-screen button,.agent-pos-screen select,.ta-agent-voucher-footer button,
+.ta-agent-invoice-save-footer button{box-shadow:inset 0 2px 0 #ffffff7a,0 4px 0 #0a536064,0 8px 13px #06475726;border-radius:12px;transition:transform .1s ease,box-shadow .1s ease}
+.agent-main-invoice button:active,.agent-pos-screen button:active,.ta-agent-invoice-save-footer button:active{transform:translateY(2px)}
+.ta-agent-invoice-save-footer .ta-footer-actions button,.ta-agent-invoice-save-footer .ta-footer-actions button:first-child,.ta-agent-invoice-save-footer .ta-footer-actions button:last-child,
+.agent-main-invoice .ta-footer-actions button{background:linear-gradient(155deg,#39dc91,#0aa25d 50%,#047857)!important;border:1px solid #057344!important;color:white!important;box-shadow:inset 0 2px 0 #fff8,0 5px 0 #064c32,0 8px 14px #075d3c30!important}
+.ta-agent-voucher-footer .ta-agent-voucher-save{background:linear-gradient(155deg,#22c97b,#047857)!important;color:#fff!important;border:1px solid #065f46!important;box-shadow:inset 0 2px 0 #fff7,0 4px 0 #054b38!important}
+.ta-agent-voucher-footer .ta-agent-voucher-cancel{background:linear-gradient(155deg,#fb7485,#dc2626)!important;color:#fff!important;border:1px solid #a31621!important;box-shadow:inset 0 2px 0 #fff7,0 4px 0 #951a24!important}
+.ta-agent-voucher-footer button i,.ta-agent-voucher-footer button span{color:#fff!important}
+.agent-main-invoice .ta-invoice-currency-choice,.agent-pos-currency{background:linear-gradient(145deg,#bcefff,#2baee0)!important;border:1px solid #208bb7!important;color:#063e5d!important;box-shadow:inset 0 2px 0 #fffa,0 4px 0 #08749b!important}
+body:has(#screen .ta-agent-pos-footer) nav#bottom{display:none!important}
+body:has(#screen .ta-agent-pos-footer) main#screen{padding-bottom:calc(var(--agent-pos-footer-height,137px) + 28px + env(safe-area-inset-bottom,0px))!important;scroll-padding-bottom:calc(var(--agent-pos-footer-height,137px) + 28px)!important}
+.ta-agent-pos-footer{position:fixed;bottom:0;left:0;right:0;z-index:39;display:grid;gap:8px;padding:8px 12px calc(10px + env(safe-area-inset-bottom,0px));background:linear-gradient(#edfff7,#fff);border-top:2px solid #83d8b1;box-shadow:0 -7px 22px #063b3333;max-height:43vh;overflow:auto}
+.ta-agent-pos-total{display:flex;align-items:center;justify-content:space-between;gap:8px;border-radius:12px;padding:8px 12px;background:#fff;border:1px solid #aadbc1;color:#13523c;font-size:12px;font-weight:900}
+.ta-agent-pos-total b{font-size:clamp(21px,5.5vw,31px);font-weight:950;color:#075236;overflow-wrap:anywhere}
+.ta-agent-pos-footer .ta-agent-pos-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.ta-agent-pos-footer .ta-agent-pos-actions button{background:linear-gradient(155deg,#35d98d,#087c4c)!important;color:#fff!important;box-shadow:inset 0 2px 0 #fff8,0 5px 0 #065333!important;border:1px solid #056443!important;border-radius:12px;min-height:47px;font-weight:900;font-size:13px}
+.agent-pos-screen:has(.ta-agent-pos-footer) .agent-pos-save{display:none}
+.ta-date-native-wrapper{position:relative;display:block;width:100%;min-width:0}
+.ta-date-native-wrapper input[type=date],.ta-date-native-wrapper input[type=datetime-local]{color:transparent!important;position:relative;min-height:40px}
+.ta-date-native-wrapper input::-webkit-calendar-picker-indicator{opacity:1;position:relative;z-index:3}
+.ta-date-readable{position:absolute;top:50%;transform:translateY(-50%);right:10px;left:33px;color:#142f45;font-size:12px;font-weight:900;pointer-events:none;direction:ltr;text-align:right;white-space:nowrap}
+.ta-manager-notification-panel{background:#fff;border:1px solid #cae5e0;border-radius:16px;box-shadow:0 5px 0 #d3e5e3;padding:13px;margin-bottom:10px}
+.ta-manager-notification-panel h2{font-size:17px;font-weight:900;margin:0 0 5px}
+.ta-manager-notification{display:block;width:100%;text-align:right;margin-top:10px;padding:12px 10px;border:1px solid #c5dada;border-radius:12px;background:#f6fbfb;color:#174258;box-shadow:0 3px 0 #c8dada}
+.ta-manager-notification.unread{background:#e9f9f1;border-color:#4bca91}
+.ta-manager-notification strong{display:block;font-size:13px;margin-bottom:4px}
+.ta-manager-notification small{display:block;font-size:11px;color:#476779}
+
+/* Employee voucher editor: raised controls, while the footer keeps its separate colored buttons. */
+#screen .panel:has(#vKind) button,#screen .panel:has(#vKind) select{border-radius:12px;box-shadow:inset 0 2px 0 #ffffff8b,0 4px 0 #16576048,0 7px 13px #153a4d22}

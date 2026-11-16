@@ -1308,6 +1308,7 @@ body:has(#mainContent .ta-voucher-save-footer) #mainContent{padding-bottom:calc(
 .ta-voucher-save-footer .ta-voucher-save-action{background:#047857!important;background-color:#047857!important;background-image:none!important}
 .ta-voucher-save-footer .ta-voucher-cancel-action,.ta-voucher-cancel-button{background:#dc2626!important;background-color:#dc2626!important;background-image:none!important}
 </style>
+<link rel="stylesheet" href="static/tiqany-forms-35107.css">
 </head>
 <body class="ta-premium-ui ta-3d-v3524 bg-slate-100 text-slate-800 min-h-screen flex flex-col w-full max-w-full overflow-x-hidden">
 
@@ -1795,6 +1796,13 @@ body:has(#mainContent .ta-voucher-save-footer) #mainContent{padding-bottom:calc(
             async activate(id) {
                 if(!this.registry?.profiles.some(p=>p.id===id)||id===this.activeId) return;
                 if(AppNav.isDirty||AppNav.isModalDirty||AppNav.activeOperationGuard) return UI.toast('يوجد تعديل غير محفوظ', 'warn');
+                // Close any settings draft BEFORE switching businesses. Otherwise
+                // SettingsController.closeAllSections() reverts the previous firm's
+                // settings AFTER the new profile was loaded, replacing its name.
+                if(typeof SettingsDraftController!=='undefined' && SettingsDraftController.section){
+                    if(SettingsDraftController.changed())return UI.toast('احفظ أو ألغِ تعديلات الضبط قبل تبديل الشركة', 'warn');
+                    SettingsDraftController.revert(false);
+                }
                 try {
                     const target=await this.getRecord('profile:'+id);
                     if(!target?.data) throw Error('لا توجد بيانات محفوظة للشركة');
@@ -3463,7 +3471,7 @@ body:has(#mainContent .ta-voucher-save-footer) #mainContent{padding-bottom:calc(
                     hours = hours % 12;
                     hours = hours ? hours : 12;
                     const hh = String(hours).padStart(2, '0');
-                    return `${dd}-${mm}-${yyyy} - ${hh}:${mins} ${ampm}`;
+                    return `${dd}/${mm}/${yyyy} - ${hh}:${mins} ${ampm}`;
                 } catch (e) {
                     return String(dateStr || '').replace('T', ' ');
                 }
@@ -5213,15 +5221,15 @@ body:has(#mainContent .ta-voucher-save-footer) #mainContent{padding-bottom:calc(
                     <div class="bg-white border border-blue-200 rounded-2xl p-3 mb-3" dir="rtl">
                        <h3 class="font-black text-slate-900 mb-2">فترة كشف الحساب</h3>
                        <div class="grid grid-cols-2 gap-2 mb-2">
-                           <label class="text-xs font-extrabold">من تاريخ<input id="statementFrom" type="date" value="${AppEscape.text(dateFrom)}" onchange="AccountStatementPeriod.update('${acc.id}')" oninput="AccountStatementPeriod.queueUpdate('${acc.id}')" class="w-full border p-2 rounded-lg bg-white mt-1"/></label>
-                           <label class="text-xs font-extrabold">إلى تاريخ<input id="statementTo" type="date" value="${AppEscape.text(dateTo)}" onchange="AccountStatementPeriod.update('${acc.id}')" oninput="AccountStatementPeriod.queueUpdate('${acc.id}')" class="w-full border p-2 rounded-lg bg-white mt-1"/></label>
+                           <label class="text-xs font-extrabold">من تاريخ<input id="statementFrom" type="date" style="color:#050505" value="${AppEscape.text(dateFrom)}" onchange="AccountStatementPeriod.update('${acc.id}')" oninput="AccountStatementPeriod.queueUpdate('${acc.id}')" class="w-full border p-2 rounded-lg bg-white mt-1"/></label>
+                           <label class="text-xs font-extrabold">إلى تاريخ<input id="statementTo" type="date" style="color:#050505" value="${AppEscape.text(dateTo)}" onchange="AccountStatementPeriod.update('${acc.id}')" oninput="AccountStatementPeriod.queueUpdate('${acc.id}')" class="w-full border p-2 rounded-lg bg-white mt-1"/></label>
                        </div>
                        <p class="text-[11px] text-slate-600 mb-2">اترك التاريخ فارغاً لعرض كامل الفترة. الرصيد المدور هو جميع حركات ما قبل تاريخ البداية.</p>
                        <div class="grid grid-cols-2 gap-2 text-xs mb-2">
                          <div class="bg-sky-50 p-2 rounded-xl border border-sky-200"><b>الرصيد المدور ل.س</b><div class="font-bold">${AccountStatementPeriod.fmt(st.opening.SYP,'SYP')}</div></div>
                          <div class="bg-amber-50 p-2 rounded-xl border border-amber-200"><b>الرصيد المدور USD</b><div class="font-bold">${AccountStatementPeriod.fmt(st.opening.USD,'USD')}</div></div>
                        </div>
-                       <button type="button" class="w-full bg-green-700 hover:bg-green-800 text-white font-black rounded-xl p-3" onclick="AccountStatementPeriod.sharePdf('${acc.id}')"><i class="fas fa-file-pdf ml-2"></i>إنشاء ومشاركة كشف حساب PDF</button>
+                       <button type="button" class="ta-statement-share-pdf w-full bg-green-900 hover:bg-green-800 text-white font-black rounded-xl p-3" onclick="AccountStatementPeriod.sharePdf('${acc.id}')"><i class="fas fa-file-pdf ml-2"></i>إنشاء ومشاركة كشف حساب PDF</button>
                     </div>
                     <div class="bg-slate-900 text-white p-4 rounded-2xl mb-3 shadow-md">
                         <div class="flex items-center justify-between border-b border-slate-800 pb-2 mb-3">
@@ -5275,7 +5283,7 @@ body:has(#mainContent .ta-voucher-save-footer) #mainContent{padding-bottom:calc(
                                         <tr class="hover:bg-slate-50">
                                             <td class="p-2.5 whitespace-nowrap">
                                                 <div class="font-bold text-slate-800">${e.ref}</div>
-                                                <div class="text-[10px] text-slate-400">${(e.date || '').replace('T', ' ')}</div>
+                                                <div class="text-[10px] text-slate-400">${TiqanyDateView.visible(e.date)}</div>
                                             </td>
                                             <td class="p-2.5">
                                                 <div class="text-slate-700">${AppEscape.text(e.desc)}</div><div class="text-[10px] text-slate-500">سعر الصرف: ${AppEscape.text(e.rate??'غير مسجل')} ل.س/$</div>
@@ -5338,7 +5346,7 @@ body:has(#mainContent .ta-voucher-save-footer) #mainContent{padding-bottom:calc(
                                         <span class="px-2.5 py-0.5 rounded-lg text-xs font-bold ${isRec ? 'bg-teal-50 text-teal-700' : 'bg-amber-50 text-amber-700'}">
                                             ${isRec ? 'سند قبض' : 'سند دفع'} #${v.number}
                                         </span>
-                                        <span class="text-[11px] text-slate-400">${v.date.replace('T', ' ')}</span>
+                                        <span class="text-[11px] text-slate-400">${TiqanyDateView.visible(v.date)}</span>
                                     </div>
                                     <div class="flex items-center justify-between">
                                         <div>
@@ -5494,7 +5502,7 @@ body:has(#mainContent .ta-voucher-save-footer) #mainContent{padding-bottom:calc(
                             <div class="bg-slate-900 text-white p-3.5 rounded-2xl"><span class="text-xs opacity-80 block">صافي صندوق الدولار الأمريكي</span><span class="font-extrabold text-base sm:text-lg text-amber-300">${Accounting.format(cash.usdCash, 'USD')}</span></div>
                         </div>
                         <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden"><div class="p-3 font-bold text-xs border-b border-slate-100">سجل المقبوضات والمدفوعات النقدية</div>
-                        ${visibleCashMovements.length === 0 ? `<div class="p-6 text-center text-xs text-slate-400">لا توجد حركات صندوق مسجلة</div>` : `<div class="divide-y divide-slate-100 text-xs">${visibleCashMovements.map(m => `<div class="p-3 flex items-center justify-between gap-2 ${m.inflow > 0 ? 'ta-cash-inflow' : 'ta-cash-outflow'}"><div><div class="font-bold ta-cash-title">${m.ref} - ${m.party}</div><div class="text-[11px] text-slate-600">${m.desc} | ${m.date.replace('T', ' ')}</div></div><div class="font-extrabold ta-cash-amount shrink-0" dir="auto">${m.inflow > 0 ? '+ ' + Accounting.format(m.inflow, m.currency) : '- ' + Accounting.format(m.outflow, m.currency)}</div></div>`).join('')}</div>`}</div>
+                        ${visibleCashMovements.length === 0 ? `<div class="p-6 text-center text-xs text-slate-400">لا توجد حركات صندوق مسجلة</div>` : `<div class="divide-y divide-slate-100 text-xs">${visibleCashMovements.map(m => `<div class="p-3 flex items-center justify-between gap-2 ${m.inflow > 0 ? 'ta-cash-inflow' : 'ta-cash-outflow'}"><div><div class="font-bold ta-cash-title">${m.ref} - ${m.party}</div><div class="text-[11px] text-slate-600">${m.desc} | ${TiqanyDateView.visible(m.date)}</div></div><div class="font-extrabold ta-cash-amount shrink-0" dir="auto">${m.inflow > 0 ? '+ ' + Accounting.format(m.inflow, m.currency) : '- ' + Accounting.format(m.outflow, m.currency)}</div></div>`).join('')}</div>`}</div>
                     ` : tab === 'inventory' ? `
                         <div class="bg-sky-50 border border-sky-200 rounded-xl p-3 mb-3">
                             <label class="text-xs font-bold text-sky-900 block mb-1">عرض جرد مستودع محدد أو جميع المستودعات</label>
@@ -7460,22 +7468,24 @@ body:has(#mainContent .ta-voucher-save-footer) #mainContent{padding-bottom:calc(
             visibleInvoiceDate(raw) {
                 const match = String(raw || '').match(/^(\d{4}-\d{2}-\d{2})(?:[T\s](\d{2}:\d{2}))?/);
                 const now = new Date(Date.now() - new Date().getTimezoneOffset()*60000).toISOString();
-                const day = match?.[1] || now.slice(0,10);
-                return { day, time: match?.[2] || '00:00' };
+                const isoDay = match?.[1] || now.slice(0,10);
+                const day = isoDay.slice(8,10)+'/'+isoDay.slice(5,7)+'/'+isoDay.slice(0,4);
+                return { day, isoDay, time: match?.[2] || '00:00' };
             },
             changeInvoiceDatePart(part, input) {
                 if (!this.draft || !['day','time'].includes(part)) return;
                 const value = String(input || '').trim();
                 const old = this.visibleInvoiceDate(this.draft.date);
-                if (part === 'day' && (!/^\d{4}-\d{2}-\d{2}$/.test(value) || Number.isNaN(Date.parse(value+'T12:00:00Z')) || new Date(value+'T12:00:00Z').toISOString().slice(0,10)!==value)) {
-                    UI.toast('أدخل التاريخ بصيغة 2026-11-14', 'warn');
+                const isoInput = part==='day' ? (window.TiqanyDateView?.isoDate(value) || (/^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value+'T12:00:00Z')) && new Date(value+'T12:00:00Z').toISOString().slice(0,10)===value ? value : null)) : null;
+                if (part === 'day' && !isoInput) {
+                    UI.toast('أدخل التاريخ بصيغة DD/MM/YYYY مثل 14/11/2026', 'warn');
                     return this.paintForm(document.getElementById('mainContent'));
                 }
                 if (part === 'time' && (!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(value))) {
                     UI.toast('أدخل وقتاً صحيحاً مثل 14:30', 'warn');
                     return this.paintForm(document.getElementById('mainContent'));
                 }
-                this.draft.date = (part==='day'?value:old.day)+'T'+(part==='time'?value:old.time);
+                this.draft.date = (part==='day'?isoInput:old.isoDay)+'T'+(part==='time'?value:old.time);
                 this.markModified();
             },
             changeInvoicePricingTier(tier) {
@@ -8325,12 +8335,12 @@ body:has(#mainContent .ta-voucher-save-footer) #mainContent{padding-bottom:calc(
                         </div>
                         <div class="ta-invoice-field"><label><i class="fas fa-coins text-amber-600"></i> العملة</label>
                           <button type="button" ${State.settings.primaryOnlyMode ? 'disabled' : ''} onclick="InvoiceController.toggleInvoiceCurrency()" class="ta-invoice-currency-choice bg-sky-100 border border-sky-300 text-sky-900 px-2 py-1 rounded-lg font-extrabold flex items-center gap-1">
-                            <i class="fas fa-coins text-sky-600"></i><span dir="ltr" lang="en">${cur === 'SYP' ? 'ل.س' : '$ USD'}</span>
+                            <i class="fas fa-coins text-sky-600"></i><span dir="ltr" lang="en">${cur === 'SYP' ? 'ل.س' : '$USD'}</span>
                           </button>
                         </div>
                         <div class="ta-invoice-field ta-invoice-date-field"><label><i class="fas fa-calendar-days text-blue-600"></i> التاريخ والوقت</label>
                           <div class="ta-invoice-date-visible" lang="en" dir="ltr">
-                            <input aria-label="تاريخ الفاتورة" type="text" inputmode="numeric" autocomplete="off" value="${this.visibleInvoiceDate(d.date).day}" placeholder="YYYY-MM-DD" onchange="InvoiceController.changeInvoiceDatePart('day',this.value)" class="w-full border border-sky-300 rounded-lg px-1 py-2 text-center font-extrabold" />
+                            <input aria-label="تاريخ الفاتورة" type="text" inputmode="numeric" autocomplete="off" value="${this.visibleInvoiceDate(d.date).day}" placeholder="DD/MM/YYYY" onchange="InvoiceController.changeInvoiceDatePart('day',this.value)" class="w-full border border-sky-300 rounded-lg px-1 py-2 text-center font-extrabold" />
                             <input aria-label="وقت الفاتورة" type="time" value="${this.visibleInvoiceDate(d.date).time}" onchange="InvoiceController.changeInvoiceDatePart('time',this.value)" class="border border-sky-300 rounded-lg px-1 py-2 font-bold" />
                           </div>
                         </div>
@@ -8960,7 +8970,7 @@ body:has(#mainContent .ta-voucher-save-footer) #mainContent{padding-bottom:calc(
                 const fmt=(v)=>value?Accounting.format(v,value.currency):'—';
                 if(before)before.textContent=value?fmt(value.before):'اختر الحساب';
                 if(after)after.textContent=value?fmt(value.after):'اختر الحساب';
-                if(label)label.textContent=value?(value.currency==='USD'?'$ USD':'ل.س'):'—';
+                if(label)label.textContent=value?(value.currency==='USD'?'$USD':'ل.س'):'—';
             },
 
             paintVoucherForm(main) {
@@ -10255,5 +10265,6 @@ body:has(#mainContent .ta-voucher-save-footer) #mainContent{padding-bottom:calc(
   queueMeasurement();
 })();
 </script>
+<script defer src="static/ta-date-view-35107.js"></script>
 </body>
 </html>

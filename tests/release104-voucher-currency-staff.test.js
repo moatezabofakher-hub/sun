@@ -5,7 +5,7 @@ const fs=require('node:fs');
 const path=require('node:path');
 const src=fs.readFileSync(path.join(__dirname,'..','app/src/main/assets/www/index.html'),'utf8');
 test('invoice currency uses live short code in header, preserving ISO currency storage',()=>{
- assert.match(src,/cur === 'SYP' \? 'ل\.س' : '\$ USD'/);
+ assert.match(src,/cur === 'SYP' \? 'ل\.س' : '\$USD'/);
  assert.match(src,/onclick="InvoiceController\.toggleInvoiceCurrency\(\)"/);
 });
 test('voucher ledger bar has balances and guarded save + cancel',()=>{

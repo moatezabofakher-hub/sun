@@ -1,6 +1,14 @@
 /* 3.5.89 — precision-safe statement reports for any date interval. No mutations to the ledger. */
 (function(root){'use strict';
  const SCALE=100000000n;
+ // State, Accounting, AppNav and UI are top-level const declarations in index.html.
+ // Global lexical bindings are intentionally not window properties, so window.State
+ // and window.Accounting are undefined in a production WebView / Electron renderer.
+ const getState=()=>typeof State!=='undefined'?State:root.State;
+ const getAccounting=()=>typeof Accounting!=='undefined'?Accounting:root.Accounting;
+ const getNavigation=()=>typeof AppNav!=='undefined'?AppNav:root.AppNav;
+ const getUI=()=>typeof UI!=='undefined'?UI:root.UI;
+
  function parse(v){
    // Binary floating-point residue (0.1+0.2) is not a ninth decimal place.
    // But any meaningful fractional amount beyond eight digits is rejected, not silently rounded.
@@ -46,7 +54,7 @@
  }
  function filter(ledger,from='',to=''){
    const result=build(ledger?.entries||[],from,to);
-   const rate=Number(root.State?.settings?.exchangeRate||15000);
+   const rate=Number(getState()?.settings?.exchangeRate||15000);
    result.evalSyp=result.sypBalance+result.usdBalance*rate;
    result.evalUsd=result.usdBalance+result.sypBalance/(rate||1);
    return result;
@@ -64,11 +72,11 @@
    if(dateUpdateTimer!==null){clearTimeout(dateUpdateTimer);dateUpdateTimer=null;}
    const from=document.getElementById('statementFrom')?.value||'';
    const to=document.getElementById('statementTo')?.value||'';
-   if(from&&to&&to<from){root.UI?.toast('تاريخ النهاية يجب ألا يسبق البداية','warn');return false;}
+   if(from&&to&&to<from){getUI()?.toast('تاريخ النهاية يجب ألا يسبق البداية','warn');return false;}
    const active=document.querySelector('[data-statement-eval].bg-emerald-500')?.dataset.statementEval||'DUAL';
    const scrollY=typeof root.scrollY==='number'?root.scrollY:0;
    const content=document.getElementById('mainContent');const innerScroll=content?.scrollTop||0;
-   root.AppNav.navigate('account_statement',{id,dateFrom:from,dateTo:to,evalMode:active},true);
+   getNavigation()?.navigate('account_statement',{id,dateFrom:from,dateTo:to,evalMode:active},true);
    if(typeof root.requestAnimationFrame==='function')root.requestAnimationFrame(()=>{
      if(content)content.scrollTop=innerScroll;
      if(typeof root.scrollTo==='function')root.scrollTo(0,scrollY);
@@ -76,28 +84,30 @@
    return true;
  }
  function payload(account,entries,from='',to=''){
-   const x=build(entries,from,to),s=root.State?.settings||{};
-   return {reportType:'account_statement',title:'كشف حساب تفصيلي',companyName:String(s.companyName||''),companyPhone:String(s.companyPhone||''),companyAddress:String(s.companyAddress||''),companyLogo:String(s.companyLogo||''),companyEmail:String(s.companyEmail||''),footerNote:String(s.footerNote||''),accountName:account.name,accountPhone:account.phone||'',accountAddress:account.address||'',range:from||to?('من '+(from||'البداية')+' إلى '+(to||'اليوم')):'كامل الفترة',from,to,
-    opening:x.opening,ending:x.ending,rows:x.rows.map(e=>({date:String(e.date||''),reference:String(e.ref||''),detail:String(e.desc||''),rate:String(e.rate??''),currency:e.currency==='SYP'?'SYP':'USD',debit:e.debitExact,credit:e.creditExact,balance:e.balanceExact})),createdAt:new Date().toISOString()};
+   const x=build(entries,from,to),s=getState()?.settings||{};
+   return {reportType:'account_statement',title:'كشف حساب تفصيلي',companyName:String(s.companyName||''),companyPhone:String(s.companyPhone||''),companyAddress:String(s.companyAddress||''),companyLogo:String(s.companyLogo||''),companyEmail:String(s.companyEmail||''),footerNote:String(s.footerNote||''),accountName:account.name,accountPhone:account.phone||'',accountAddress:account.address||'',range:from||to?('من '+(root.TiqanyDateView?.visible(from)||'البداية')+' إلى '+(root.TiqanyDateView?.visible(to)||'اليوم')):'كامل الفترة',from,to,
+    opening:x.opening,ending:x.ending,rows:x.rows.map(e=>({date:root.TiqanyDateView?.visible(e.date)||String(e.date||''),reference:String(e.ref||''),detail:String(e.desc||''),rate:String(e.rate??''),currency:e.currency==='SYP'?'SYP':'USD',debit:e.debitExact,credit:e.creditExact,balance:e.balanceExact})),createdAt:new Date().toISOString()};
  }
  function sharePdf(id){
-   const acc=root.State?.accounts?.find(a=>a.id===id);if(!acc)return root.UI?.toast('الحساب غير موجود','warn');
+   const acc=getState()?.accounts?.find(a=>a.id===id);if(!acc)return getUI()?.toast('الحساب غير موجود','warn');
    try{const from=document.getElementById('statementFrom')?.value||'',to=document.getElementById('statementTo')?.value||'';
-      const p=payload(acc,root.Accounting.getAccountStatement(id).entries,from,to);
+      const ledger=getAccounting()?.getAccountStatement?.(id);
+      if(!Array.isArray(ledger?.entries))throw Error('تعذرت قراءة حركات الحساب لإنشاء الكشف');
+      const p=payload(acc,ledger.entries,from,to);
       const filename='Statement_'+String(id).replace(/[^\w-]/g,'_')+'.pdf';
       if(root.WindowsPDF?.createAccountStatement){
-        root.UI?.toast('جارٍ تجهيز كشف الحساب PDF...','info');
+        getUI()?.toast('جارٍ تجهيز كشف الحساب PDF...','info');
         return root.WindowsPDF.createAccountStatement(JSON.stringify(p),filename).then(result=>{
-          if(result?.ok){root.UI?.toast('تم تجهيز PDF وفتح مجلده للإرسال','success');return true;}
-          root.UI?.toast(result?.message||'لم يتم إنشاء PDF','warn');return false;
-        }).catch(err=>{root.UI?.toast('فشل إنشاء PDF: '+(err?.message||'خطأ غير معروف'),'error');return false;});
+          if(result?.ok){getUI()?.toast('تم تجهيز PDF وفتح مجلده للإرسال','success');return true;}
+          getUI()?.toast(result?.message||'لم يتم إنشاء PDF','warn');return false;
+        }).catch(err=>{getUI()?.toast('فشل إنشاء PDF: '+(err?.message||'خطأ غير معروف'),'error');return false;});
       }
       if(root.AndroidReports?.shareReport){
-        root.UI?.toast('جارٍ تجهيز PDF لفتح شاشة المشاركة...','info');
+        getUI()?.toast('جارٍ تجهيز PDF لفتح شاشة المشاركة...','info');
         root.AndroidReports.shareReport(JSON.stringify(p),filename);return true;
       }
-      root.UI?.toast('مشاركة PDF تتطلب تطبيق أندرويد أو ويندوز','warn');return false;
-   }catch(e){root.UI?.toast('تعذر إعداد الكشف: '+e.message,'error');return false;}
+      getUI()?.toast('مشاركة PDF تتطلب تطبيق أندرويد أو ويندوز','warn');return false;
+   }catch(e){getUI()?.toast('تعذر إعداد الكشف: '+e.message,'error');return false;}
  }
  root.AccountStatementPeriod={parse,money,fmt,day,build,filter,update,queueUpdate,payload,sharePdf};
 })(typeof window!=='undefined'?window:globalThis);
