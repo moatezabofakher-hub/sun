@@ -2741,6 +2741,16 @@ body.ta-invoice-editor-screen .ta-invoice-save-footer {
                     return;
                 }
 
+                // An open stock transfer is a sub-editor. Back must never leave it
+                // silently; closeTransferForm asks before discarding selected items.
+                if(this.current()?.screen === 'warehouses'){
+                    const transferPanel=document.getElementById('warehouseTransferPanel');
+                    if(transferPanel && transferPanel.hidden === false){
+                        WarehouseController.closeTransferForm();
+                        return;
+                    }
+                }
+
                 // Empty invoice/POS: Back closes it immediately, with no unsaved-data dialog.
                 // Do not change the guarded behavior when at least one item exists.
                 if (['invoice_form','pos'].includes(this.current()?.screen) &&
@@ -4432,6 +4442,9 @@ body.ta-invoice-editor-screen .ta-invoice-save-footer {
             renderWarehouses(main, params = {}) {
                 UI.setHeader('<i class="fas fa-box-open text-sky-400"></i> <span>المستودعات والمناقلات</span>',
                              'أرصدة مستقلة لكل مستودع ومناقلة لا تؤثر على المبيعات أو الأرباح');
+                // A refresh of this route must never discard an in-progress stock transfer.
+                // Capture the visible editor BEFORE replacing main.innerHTML.
+                const transferEditorSnapshot = WarehouseController.captureTransferEditorState();
                 const wopts = WarehouseController.options(State.settings.selectedWarehouseId);
                 const warehouseName = id => WarehouseController.name(id);
                 main.innerHTML = `
@@ -4503,15 +4516,20 @@ body.ta-invoice-editor-screen .ta-invoice-save-footer {
                         <div id="transferHistoryList" aria-live="polite">${WarehouseController.renderTransferHistoryHtml((State.warehouses||[]).find(w=>w.id !== (State.settings.selectedWarehouseId||'wh_main'))?.id || 'wh_main')}</div>
                     </div>
                 `;
-                WarehouseController.transferDraft = [];
-                WarehouseController.editingTransferBatchId = null;
-                WarehouseController.filterTransferGrid();
-                WarehouseController.refreshTransferAvailability();
-                WarehouseController.renderTransferDraft();
-                WarehouseController.refreshTransferHistory();
+                if (transferEditorSnapshot) {
+                    WarehouseController.restoreTransferEditorState(transferEditorSnapshot);
+                } else {
+                    WarehouseController.transferDraft = [];
+                    WarehouseController.editingTransferBatchId = null;
+                    WarehouseController.filterTransferGrid();
+                    WarehouseController.refreshTransferAvailability();
+                    WarehouseController.renderTransferDraft();
+                    WarehouseController.refreshTransferHistory();
+                }
                 if (params.action === 'add') WarehouseController.toggleWarehouseCreate();
-                if (params.action === 'transfer') {
+                if (params.action === 'transfer' && !transferEditorSnapshot) {
                     WarehouseController.openTransferForm();
+                    delete params.action;
                     const selectedAgent=(State.fieldSync?.agents||[]).find(a=>a.id===params.transferAgentId);
                     if(selectedAgent && selectedAgent.warehouseId!=='wh_main'){
                         const toAgent=params.transferDirection!=='fromAgent';
@@ -6788,10 +6806,58 @@ body.ta-invoice-editor-screen .ta-invoice-save-footer {
                 }).join('');
                 UI.openModal(`<div class="text-right" dir="rtl"><h3 class="font-extrabold text-base mb-3"><i class="fas fa-boxes-stacked text-teal-700 ml-1"></i>قائمة المستودعات</h3>${list}<p class="text-[11px] text-slate-500">لا يمكن حذف المستودع الرئيسي أو أي مستودع يحوي أرصدة أو حركات محفوظة، حفاظاً على سلامة الجرد.</p><button type="button" onclick="UI.forceCloseModal()" class="mt-3 p-3 w-full bg-slate-100 rounded-xl font-bold">إغلاق</button></div>`);
             },
+            captureTransferEditorState(){
+                const panel=document.getElementById('warehouseTransferPanel');
+                if(!panel || panel.hidden !== false) return null;
+                const fieldIds=['transferFrom','transferTo','transferDate','transferNote','transferSearchInput','transferCategory'];
+                const fields={};
+                for(const id of fieldIds){
+                    const input=document.getElementById(id);
+                    if(input) fields[id]=input.value;
+                }
+                return {
+                    fields,
+                    draft:(this.transferDraft||[]).map(row=>({...row})),
+                    editingTransferBatchId:this.editingTransferBatchId||null,
+                    scrollTop:panel.scrollTop||0,
+                    gridScrollTop:document.getElementById('transferGrid')?.scrollTop||0
+                };
+            },
+            restoreTransferEditorState(snapshot){
+                if(!snapshot)return;
+                const panel=document.getElementById('warehouseTransferPanel');
+                if(!panel)return;
+                panel.hidden=false;
+                this.editingTransferBatchId=snapshot.editingTransferBatchId;
+                this.transferDraft=snapshot.draft.map(row=>({...row}));
+                for(const [id,value] of Object.entries(snapshot.fields)){
+                    const input=document.getElementById(id);
+                    if(input)input.value=value;
+                }
+                const editing=!!this.editingTransferBatchId;
+                const title=document.getElementById('transferFormTitle');
+                if(title)title.textContent=editing?'تعديل فاتورة مناقلة':'فاتورة مناقلة جديدة';
+                const banner=document.getElementById('transferEditBanner');
+                if(banner)banner.hidden=!editing;
+                const ref=document.getElementById('transferEditingRef');
+                if(ref && editing)ref.textContent='رقم الفاتورة: '+this.editingTransferBatchId;
+                const cancel=document.getElementById('transferCancelEditButton');
+                if(cancel)cancel.hidden=!editing;
+                this.filterTransferGrid();
+                this.updateTransferGridSelections();
+                this.renderTransferDraft();
+                if(typeof this.refreshTransferHistory==='function')this.refreshTransferHistory();
+                panel.scrollTop=snapshot.scrollTop;
+                const grid=document.getElementById('transferGrid');
+                if(grid)grid.scrollTop=snapshot.gridScrollTop;
+            },
             openTransferForm(edit=false){
                 const panel=document.getElementById('warehouseTransferPanel');if(!panel)return;
-                if(!edit && !panel.hidden && (this.transferDraft||[]).length){
-                    UI.toast('توجد فاتورة مناقلة غير محفوظة؛ احفظها أو أغلقها أولاً','warn');
+                if(!edit && panel.hidden === false){
+                    // Opening a transfer already on screen is an idempotent action.
+                    // Never clear a draft (including an empty draft's date/warehouses).
+                    if((this.transferDraft||[]).length)
+                        UI.toast('توجد فاتورة مناقلة غير محفوظة؛ احفظها أو أغلقها أولاً','warn');
                     Views.jumpToEntry('warehouseTransferPanel','transferSearchInput');return;
                 }
                 panel.hidden=false;
@@ -6911,8 +6977,11 @@ body.ta-invoice-editor-screen .ta-invoice-save-footer {
                     existing.qty=String(Math.round(next*10000)/10000);
                 }else{
                     const units=Array.isArray(item.units)&&item.units.length?item.units:[{name:'وحدة كبرى',factor:1}];
-                    // The editable row still supports fractions and non-base units.
-                    this.transferDraft.push({itemId,qty:'1',factor:String(Number(units[0].factor)||1)});
+                    // The first click also must obey available source stock.
+                    const factor=Number(units[0].factor)||1;
+                    if(1/factor>available+0.00001)
+                        return UI.toast('الكمية المطلوبة تتجاوز رصيد المصدر للصنف: '+item.name,'warn');
+                    this.transferDraft.push({itemId,qty:'1',factor:String(factor)});
                 }
                 this.updateTransferGridSelections();
                 this.renderTransferDraft();
@@ -7027,6 +7096,10 @@ body.ta-invoice-editor-screen .ta-invoice-save-footer {
             cancelTransferEdit(){
                 this.editingTransferBatchId=null;
                 this.transferDraft=[];
+                // Explicitly close the old editor before refreshing, otherwise
+                // its snapshot would restore the cancelled invoice on the new page.
+                const panel=document.getElementById('warehouseTransferPanel');
+                if(panel)panel.hidden=true;
                 AppNav.renderCurrent();
                 this.openTransferForm();
             },
@@ -7126,6 +7199,10 @@ body.ta-invoice-editor-screen .ta-invoice-save-footer {
                     LicenseManager.updateBadgeUI();
                     this.transferDraft=[];
                     this.editingTransferBatchId=null;
+                    // A saved invoice is no longer an active draft. Refresh the
+                    // history without reopening an empty editor by accident.
+                    const panel=document.getElementById('warehouseTransferPanel');
+                    if(panel)panel.hidden=true;
                     UI.toast(originalDoc?'تم تعديل فاتورة المناقلة وحفظ جميع أصنافها وأرصدتها':'تم حفظ فاتورة المناقلة بنجاح','success');
                     AppNav.renderCurrent();
                 }finally{
