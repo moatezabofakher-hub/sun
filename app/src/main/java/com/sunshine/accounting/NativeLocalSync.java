@@ -25,6 +25,9 @@ import java.net.Socket;
 import java.net.NetworkInterface;
 import java.util.Enumeration;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import android.net.LinkProperties;
+import android.net.LinkAddress;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
@@ -44,6 +47,8 @@ import java.util.concurrent.atomic.AtomicReference;
 public final class NativeLocalSync {
     private static final String SERVICE_TYPE = "_taaccount._tcp.";
     private static final int MAX_FRAME = 7_800_000;
+    private static final int PREFERRED_LAN_PORT = 48371;
+    private static final String DISCOVERY_PROTOCOL = "TA-DISCOVER-1";
     private static final String ORIGIN = "https://appassets.androidplatform.net/assets/www/";
 
     private final Activity activity;
@@ -155,6 +160,16 @@ public final class NativeLocalSync {
         return "saved";
     }
 
+    /** Non-secret discovery hint; possession does not grant access to sync or pairing. */
+    private static String companyTag(String id) {
+        try {
+            byte[] hash = MessageDigest.getInstance("SHA-256").digest(id.getBytes(StandardCharsets.UTF_8));
+            StringBuilder hex = new StringBuilder();
+            for (int i=0;i<10;i++) hex.append(String.format(java.util.Locale.ROOT, "%02x", hash[i] & 0xff));
+            return hex.toString();
+        } catch (Exception e) { return ""; }
+    }
+
     private static boolean isCompany(String id) {
         return id != null && id.matches("company_[A-Za-z0-9_-]{8,128}");
     }
@@ -217,7 +232,9 @@ public final class NativeLocalSync {
         }
         io.execute(() -> {
             try {
-                ServerSocket opened = new ServerSocket(0);
+                ServerSocket opened;
+                try { opened = new ServerSocket(PREFERRED_LAN_PORT); }
+                catch (java.net.BindException occupied) { opened = new ServerSocket(0); }
                 opened.setSoTimeout(1000);
                 synchronized (this) {
                     if (closing || !companyId.equals(activeCompany)) { opened.close(); return; }
@@ -230,7 +247,7 @@ public final class NativeLocalSync {
                 info.setPort(opened.getLocalPort());
                 NsdManager.RegistrationListener listener = new NsdManager.RegistrationListener() {
                     @Override public void onServiceRegistered(NsdServiceInfo serviceInfo) { managerStatus("ready"); }
-                    @Override public void onRegistrationFailed(NsdServiceInfo serviceInfo, int errorCode) { managerStatus("فشل إعلان استقبال Wi-Fi: " + errorCode); }
+                    @Override public void onRegistrationFailed(NsdServiceInfo serviceInfo, int errorCode) { managerStatus("ready-no-mdns"); } // TCP stays available if multicast is blocked
                     @Override public void onServiceUnregistered(NsdServiceInfo serviceInfo) { }
                     @Override public void onUnregistrationFailed(NsdServiceInfo serviceInfo, int errorCode) { }
                 };
@@ -263,6 +280,23 @@ public final class NativeLocalSync {
             byte[] content = new byte[size];
             input.readFully(content);
             String raw = new String(content, StandardCharsets.UTF_8);
+            // Read-only LAN discovery: allow a previously enrolled device to
+            // find its company's current IP without photographing QR again.
+            // Actual operations still require AES-GCM authenticated payloads.
+            if (raw.length() < 256 && raw.contains("\"discoveryProtocol\":\"TA-DISCOVER-1\"")) {
+                try {
+                    JSONObject probe = new JSONObject(raw);
+                    String expected = companyTag(activeCompany == null ? "" : activeCompany);
+                    if (DISCOVERY_PROTOCOL.equals(probe.optString("discoveryProtocol"))
+                            && !expected.isEmpty() && expected.equals(probe.optString("companyTag"))) {
+                        String response = new JSONObject().put("discoveryProtocol", DISCOVERY_PROTOCOL)
+                            .put("companyTag", expected).toString();
+                        byte[] packet = response.getBytes(StandardCharsets.UTF_8);
+                        output.writeInt(packet.length); output.write(packet); output.flush();
+                    }
+                } catch (Exception ignored) { }
+                return;
+            }
             String id = String.valueOf(requestIds.incrementAndGet());
             ArrayBlockingQueue<String> q = new ArrayBlockingQueue<>(1);
             answers.put(id, q);

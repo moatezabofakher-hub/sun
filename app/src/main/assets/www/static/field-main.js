@@ -407,7 +407,7 @@ const FieldSync = {
     }catch(e){this.lanListening=false;if(status)status.textContent='تعذر فتح الاستقبال: '+e.message;if(!silent)UI.toast('تعذر تشغيل Wi-Fi المحلي','warn');}
   },
   onLanStatus(status){
-    if(status==='ready')this.lanListening=true;
+    if(status==='ready'||status==='ready-no-mdns')this.lanListening=true;
     if(status==='stopped'||status==='network-down'||status.startsWith('فشل')||status.startsWith('تعذر'))this.lanListening=false;
     if(status==='network-changed' && this.autoReceiverBooted){
       clearTimeout(this.lanNetworkTimer);
@@ -418,6 +418,7 @@ const FieldSync = {
     }
     const label=document.getElementById('fieldLanStatus');
     if(label)label.textContent=status==='ready'?'✅ الاستقبال التلقائي يعمل — سيتم تبادل التحديثات طوال الاتصال':
+      status==='ready-no-mdns'?'✅ الاستقبال المباشر يعمل، والاكتشاف عبر الراوتر محدود؛ سيستخدم الموظف البحث الاحتياطي تلقائيًا':
       status==='network-changed'?'تم رصد اتصال Wi-Fi، جارٍ إعادة الاستقبال…':status==='network-down'?'بانتظار عودة Wi-Fi…':status==='stopped'?'الاستقبال متوقف':String(status);
   },
   // Called only by Android's own local network bridge. No unverified document touches the ledger.

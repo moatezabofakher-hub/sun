@@ -26,6 +26,9 @@ import java.net.Socket;
 import java.net.NetworkInterface;
 import java.util.Enumeration;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import android.net.LinkProperties;
+import android.net.LinkAddress;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
@@ -45,6 +48,8 @@ import java.util.concurrent.atomic.AtomicReference;
 public final class NativeLocalSync {
     private static final String SERVICE_TYPE = "_taaccount._tcp.";
     private static final int MAX_FRAME = 7_800_000;
+    private static final int PREFERRED_LAN_PORT = 48371;
+    private static final String DISCOVERY_PROTOCOL = "TA-DISCOVER-1";
     private static final String ORIGIN = "https://appassets.androidplatform.net/assets/www/";
     // Only an endpoint acknowledged by the encrypted protocol is remembered.
     // It is scoped to the paired company; no tokens or keys are saved here.
@@ -61,6 +66,10 @@ public final class NativeLocalSync {
     private final ConnectivityManager connectivity;
     private ConnectivityManager.NetworkCallback wifiCallback;
     private final ExecutorService io = Executors.newCachedThreadPool();
+    private final ExecutorService subnetProbePool = Executors.newFixedThreadPool(20);
+    private volatile long lastSubnetSweepAt = 0;
+    private volatile boolean rediscoverAfterInvalidReply = false;
+    private volatile InetSocketAddress rejectedEndpoint;
     private final ConcurrentHashMap<String, ArrayBlockingQueue<String>> answers = new ConcurrentHashMap<>();
     private final AtomicLong requestIds = new AtomicLong();
     private volatile ServerSocket server;
@@ -194,10 +203,32 @@ public final class NativeLocalSync {
             directEndpoint = pendingVerifiedEndpoint;
             directCompany = companyId;
             networkChanged = false;
+            rediscoverAfterInvalidReply = false;
+            rejectedEndpoint = null;
             // Persist after the WebView has verified and committed the manager catalog.
             rememberVerifiedEndpoint(companyId, pendingVerifiedEndpoint);
             pendingVerifiedEndpoint = null;
             pendingVerifiedCompany = "";
+        }
+    }
+
+    /** Called only when the decrypted ACK is invalid, never by a simple LAN scan.
+     * Keep the existing employee enrollment and verified endpoint on disk;
+     * try other addresses on the next sync before trusting the old route. */
+    @JavascriptInterface
+    public void rejectUnverifiedSync(String companyId) {
+        if (manager || !isTrustedPage() || !isCompany(companyId)) return;
+        synchronized (this) {
+            if (!companyId.equals(pendingVerifiedCompany) || pendingVerifiedEndpoint == null) return;
+            rejectedEndpoint = pendingVerifiedEndpoint;
+            pendingVerifiedEndpoint = null;
+            pendingVerifiedCompany = "";
+            rediscoverAfterInvalidReply = true;
+            lastSubnetSweepAt = 0;
+            if (companyId.equals(activeManagerCompany)) {
+                activeManagerEndpoint = null;
+                activeManagerCompany = "";
+            }
         }
     }
 
@@ -229,6 +260,16 @@ public final class NativeLocalSync {
         if (manager || !isTrustedPage() || !isCompany(companyId) || !companyId.equals(activeManagerCompany)) return "";
         InetSocketAddress address = activeManagerEndpoint;
         return address == null ? "" : address.getHostString() + ":" + address.getPort();
+    }
+
+    /** Non-secret discovery hint; possession does not grant access to sync or pairing. */
+    private static String companyTag(String id) {
+        try {
+            byte[] hash = MessageDigest.getInstance("SHA-256").digest(id.getBytes(StandardCharsets.UTF_8));
+            StringBuilder hex = new StringBuilder();
+            for (int i=0;i<10;i++) hex.append(String.format(java.util.Locale.ROOT, "%02x", hash[i] & 0xff));
+            return hex.toString();
+        } catch (Exception e) { return ""; }
     }
 
     private static boolean isCompany(String id) {
@@ -293,7 +334,9 @@ public final class NativeLocalSync {
         }
         io.execute(() -> {
             try {
-                ServerSocket opened = new ServerSocket(0);
+                ServerSocket opened;
+                try { opened = new ServerSocket(PREFERRED_LAN_PORT); }
+                catch (java.net.BindException occupied) { opened = new ServerSocket(0); }
                 opened.setSoTimeout(1000);
                 synchronized (this) {
                     if (closing || !companyId.equals(activeCompany)) { opened.close(); return; }
@@ -339,6 +382,23 @@ public final class NativeLocalSync {
             byte[] content = new byte[size];
             input.readFully(content);
             String raw = new String(content, StandardCharsets.UTF_8);
+            // Read-only LAN discovery: allow a previously enrolled device to
+            // find its company's current IP without photographing QR again.
+            // Actual operations still require AES-GCM authenticated payloads.
+            if (raw.length() < 256 && raw.contains("\"discoveryProtocol\":\"TA-DISCOVER-1\"")) {
+                try {
+                    JSONObject probe = new JSONObject(raw);
+                    String expected = companyTag(activeCompany == null ? "" : activeCompany);
+                    if (DISCOVERY_PROTOCOL.equals(probe.optString("discoveryProtocol"))
+                            && !expected.isEmpty() && expected.equals(probe.optString("companyTag"))) {
+                        String response = new JSONObject().put("discoveryProtocol", DISCOVERY_PROTOCOL)
+                            .put("companyTag", expected).toString();
+                        byte[] packet = response.getBytes(StandardCharsets.UTF_8);
+                        output.writeInt(packet.length); output.write(packet); output.flush();
+                    }
+                } catch (Exception ignored) { }
+                return;
+            }
             String id = String.valueOf(requestIds.incrementAndGet());
             ArrayBlockingQueue<String> q = new ArrayBlockingQueue<>(1);
             answers.put(id, q);
@@ -388,7 +448,11 @@ public final class NativeLocalSync {
                     // connection attempt fails (or when no manager is active yet).
                     InetSocketAddress destination;
                     InetSocketAddress pinned = companyId.equals(activeManagerCompany) ? activeManagerEndpoint : null;
-                    if (attempt == 0) {
+                    if (attempt == 0 && rediscoverAfterInvalidReply) {
+                        // The last socket replied without a valid authenticated ACK.
+                        // Its address may now belong to another device after DHCP.
+                        destination = findServer(companyId, rejectedEndpoint);
+                    } else if (attempt == 0) {
                         // In order: currently authenticated manager, its last verified
                         // private LAN address (even after app restart), then manual QR.
                         // A network change does not skip this first direct attempt.
@@ -397,12 +461,16 @@ public final class NativeLocalSync {
                             companyId.equals(directCompany) ? directEndpoint : null;
                         if (destination == null) destination = findServer(companyId, null);
                     } else {
-                        // A real socket error is required before discovering another
-                        // manager. Never send to two managers in parallel.
-                        destination = findServer(companyId, failedDestination);
+                        // After a manager restarts, its former ephemeral port may
+                        // no longer exist. Probe its new stable port before multicast.
+                        // A probe is only a locator, not authentication.
+                        InetSocketAddress stable = failedDestination == null ? null :
+                            new InetSocketAddress(failedDestination.getHostString(), PREFERRED_LAN_PORT);
+                        destination = stable != null && !stable.equals(failedDestination)
+                            && probeManager(stable, companyId) ? stable : findServer(companyId, failedDestination);
                     }
                     if (destination == null || destination.equals(failedDestination)) {
-                        lastError = new IOException("لم يظهر مسؤول متاح على شبكة Wi-Fi المحلية");
+                        lastError = new IOException("لم يُعثر على المدير المرتبط على شبكة Wi-Fi. تحقق من أن هاتف المدير مفتوح وأن الراوتر لا يمنع التواصل بين الأجهزة (AP Isolation)؛ لا حاجة لإعادة تصوير QR.");
                         break;
                     }
                     try (Socket socket = new Socket()) {
@@ -480,9 +548,10 @@ public final class NativeLocalSync {
         if (!pairingSending.compareAndSet(false, true)) return;
         io.execute(() -> {
             try {
-                InetSocketAddress target = networkChanged ? findServer(companyId.isEmpty() ? null : companyId) :
-                    directEndpoint != null && (companyId.isEmpty() || companyId.equals(directCompany))
+                InetSocketAddress target = directEndpoint != null && (companyId.isEmpty() || companyId.equals(directCompany))
                     ? directEndpoint : findServer(companyId.isEmpty() ? null : companyId);
+                if (target != null && !probeManager(target, companyId) && !companyId.isEmpty())
+                    target = findServer(companyId, target);
                 if (target == null) throw new IOException("لم يُعثر على التطبيق الرئيسي على شبكة Wi-Fi المحلية");
                 try (Socket socket = new Socket()) {
                     bindToWifiIfAvailable(socket);
@@ -537,13 +606,89 @@ public final class NativeLocalSync {
         };
         try {
             nsd.discoverServices(SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, discovery);
-            completed.await(9, TimeUnit.SECONDS);
-        } catch (Exception e) { return null; }
+            completed.await(companyId == null ? 9 : 3, TimeUnit.SECONDS);
+        } catch (Exception ignored) { /* fall through to direct Wi-Fi subnet discovery */ }
         finally {
             try { nsd.stopServiceDiscovery(discovery); } catch (Exception ignored) { }
             releaseMulticast();
         }
-        return address.get();
+        InetSocketAddress result = address.get();
+        if (result != null || companyId == null) return result;
+        // Some routers suppress mDNS. On a previously paired company only,
+        // query our own Wi-Fi /24 for the dedicated TCP service. A responding
+        // endpoint is still untrusted until its encrypted ACK is validated.
+        return findOnLocalSubnet(companyId, excluded);
+    }
+
+    /** Probe a single candidate without sending invoices, passwords or tokens. */
+    private boolean probeManager(InetSocketAddress endpoint, String companyId) {
+        if (endpoint == null || !isCompany(companyId) || !safeLocalAddress(endpoint.getHostString())) return false;
+        try (Socket socket = new Socket()) {
+            bindToWifiIfAvailable(socket);
+            socket.connect(endpoint, 360);
+            socket.setSoTimeout(650);
+            JSONObject hello = new JSONObject().put("discoveryProtocol", DISCOVERY_PROTOCOL)
+                .put("companyTag", companyTag(companyId));
+            byte[] body = hello.toString().getBytes(StandardCharsets.UTF_8);
+            DataOutputStream out = new DataOutputStream(socket.getOutputStream());
+            out.writeInt(body.length); out.write(body); out.flush();
+            DataInputStream in = new DataInputStream(socket.getInputStream());
+            int size = in.readInt();
+            if (size < 20 || size > 240) return false;
+            byte[] reply = new byte[size]; in.readFully(reply);
+            JSONObject answer = new JSONObject(new String(reply, StandardCharsets.UTF_8));
+            return DISCOVERY_PROTOCOL.equals(answer.optString("discoveryProtocol"))
+                && companyTag(companyId).equals(answer.optString("companyTag"));
+        } catch (Exception ignored) { return false; }
+    }
+
+    /** Only the subnet of the active Wi-Fi is searched; never cellular/VPN. */
+    private InetAddress currentWifiIPv4() {
+        if (connectivity == null) return null;
+        try {
+            for (Network network: connectivity.getAllNetworks()) {
+                NetworkCapabilities caps = connectivity.getNetworkCapabilities(network);
+                if (caps == null || !caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) continue;
+                LinkProperties props = connectivity.getLinkProperties(network);
+                if (props == null) continue;
+                for (LinkAddress link: props.getLinkAddresses()) {
+                    InetAddress addr = link.getAddress();
+                    if (addr.getAddress().length == 4 && addr.isSiteLocalAddress()) return addr;
+                }
+            }
+        } catch (Exception ignored) { }
+        return null;
+    }
+
+    private InetSocketAddress findOnLocalSubnet(String companyId, InetSocketAddress excluded) throws InterruptedException {
+        long now = System.currentTimeMillis();
+        if (now - lastSubnetSweepAt < 25000) return null;
+        InetAddress wifi = currentWifiIPv4();
+        if (wifi == null || !isCompany(companyId)) return null;
+        lastSubnetSweepAt = now;
+        final byte[] octets = wifi.getAddress();
+        final int own = octets[3] & 0xff;
+        final AtomicReference<InetSocketAddress> result = new AtomicReference<>();
+        final CountDownLatch found = new CountDownLatch(1);
+        // 20 bounded workers, 1 preferred port, at most 254 private hosts.
+        for (int worker = 1; worker <= 20; worker++) {
+            final int start = worker;
+            subnetProbePool.execute(() -> {
+                for (int n = start; n <= 254 && result.get() == null && !closing; n += 20) {
+                    if (n == own) continue;
+                    try {
+                        byte[] ip = new byte[]{octets[0], octets[1], octets[2], (byte)n};
+                        InetSocketAddress candidate = new InetSocketAddress(InetAddress.getByAddress(ip), PREFERRED_LAN_PORT);
+                        if (candidate.equals(excluded)) continue;
+                        if (probeManager(candidate, companyId) && result.compareAndSet(null, candidate)) {
+                            found.countDown(); return;
+                        }
+                    } catch (Exception ignored) { }
+                }
+            });
+        }
+        found.await(8, TimeUnit.SECONDS);
+        return result.get();
     }
 
     private synchronized void stopReceiverInternal() {
@@ -575,5 +720,6 @@ public final class NativeLocalSync {
         synchronized (this) { stopReceiverInternal(); }
         answers.clear();
         io.shutdownNow();
+        subnetProbePool.shutdownNow();
     }
 }

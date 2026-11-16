@@ -17,7 +17,7 @@ test('after a disconnect try authenticated session, then remembered LAN address,
  const chunk=native.split('public void send(String companyId, String encryptedRequest)')[1].split('private void bindToWifiIfAvailable')[0];
  assert.match(chunk,/InetSocketAddress remembered = rememberedVerifiedEndpoint\(companyId\)/);
  assert.match(chunk,/destination = pinned != null \? pinned : remembered != null \? remembered/);
- assert.match(chunk,/destination = findServer\(companyId, failedDestination\)/);
+ assert.match(chunk,/findServer\(companyId, failedDestination\)/);
  assert.match(chunk,/catch \(IOException ioError\)[\s\S]+?failedDestination = destination/);
  assert.match(native,/if \(!sending\.compareAndSet\(false, true\)\)/);
  assert.match(native,/pendingVerifiedEndpoint = destination/);
@@ -35,6 +35,7 @@ test('network change and foreground resume wake automatic sync, no infinite rapi
 test('cloud ACK cannot mark stale LAN IP as trusted; native requires authenticated catalog',()=>{
  assert.match(employee,/transport:'cloud'/);
  assert.match(employee,/if\(result\.transport!=='cloud'\)window\.AndroidLocalSync\?\.confirmVerifiedSync\?\.\(this\.state\.companyId\)/);
- assert.match(employee,/const ack=await FieldLanCrypto\.open\(/);
+ assert.match(employee,/ack=await FieldLanCrypto\.open\(/);
+ assert.match(employee,/rejectUnverifiedSync/);
  assert.match(employee,/if\(ack\.kind!=='sync_result'/);
 });

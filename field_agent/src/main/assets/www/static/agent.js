@@ -234,9 +234,24 @@ const Agent={
     try {
       if(!this.lanSyncBusy||!this.lanRequestNonce)throw Error('تأكيد مزامنة غير متوقع');
       const result=JSON.parse(raw);
-      if(result.error)throw Error(result.error);
-      const packet=JSON.parse(result.data);
-      const ack=await FieldLanCrypto.open(packet,this.state.key,this.state.companyId,this.state.agentId);
+      if(result.error){
+        // A router can reassign the manager's old IP to a different company.
+        // Reject the *route*, not the employee enrollment; never fail over on
+        // 'employee disabled' or other authorization decisions.
+        if(result.transport!=='cloud' && /الشركة غير مطابقة|شركة أخرى/.test(String(result.error)))
+          window.AndroidLocalSync?.rejectUnverifiedSync?.(this.state.companyId);
+        throw Error(result.error);
+      }
+      let packet,ack;
+      try {
+        packet=JSON.parse(result.data);
+        ack=await FieldLanCrypto.open(packet,this.state.key,this.state.companyId,this.state.agentId);
+      } catch(error) {
+        // A reachable IP is not proof that it still hosts our enrolled manager.
+        // A DHCP change may have reassigned the old address to another device.
+        if(result.transport!=='cloud')window.AndroidLocalSync?.rejectUnverifiedSync?.(this.state.companyId);
+        throw error;
+      }
       if(ack.kind!=='sync_result'||ack.requestNonce!==this.lanRequestNonce||ack.companyId!==this.state.companyId||ack.agentId!==this.state.agentId||!Array.isArray(ack.knownIds))throw Error('تأكيد استلام غير صالح');
       const catalog=ack.catalog;
       if(!catalog||catalog.kind!=='provision'||catalog.companyId!==this.state.companyId||catalog.agentId!==this.state.agentId||catalog.key!==this.state.key||!Array.isArray(catalog.items)||!Array.isArray(catalog.accounts)||!catalog.stock)throw Error('كشف تحديث غير صالح');
