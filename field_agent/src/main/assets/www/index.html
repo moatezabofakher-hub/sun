@@ -49,11 +49,17 @@ html.ta-ime-open .wrap{padding-bottom:20px!important;}
 </script>
 <link rel="stylesheet" href="static/tiqany-support.css">
 <link rel="stylesheet" href="static/tiqany-ux-3588.css">
+<style id="ta-employee-android-back-35101">
+/* No on-page exit/back controls; the native Android system Back retains safeguards. */
+#agentBack,body.ta-agent-operation #agentBack{display:none!important}
+#screen > .ta-page-exit-line,#screen > .ta-ux3d-legacy-close,#screen > .ta-popup-exit-red{display:none!important}
+body.ta-agent-voucher-open nav#bottom{display:none!important}
+</style>
 </head>
 <body>
 <header class="top" id="agentHeader">
  <div class="brand">
-  <button id="agentBack" class="headback hide" type="button" onclick="Agent.goBack()" aria-label="رجوع"><span aria-hidden="true">‹</span></button>
+ 
   <div class="mark" aria-hidden="true">🚚</div>
   <div class="brandcopy"><h1 id="agentScreenTitle">المحاسب التقني</h1><p id="agentScreenSubtitle">نسخة موظف البيع · توزيع ميداني</p></div>
   <button type="button" id="agentPrinterQuick" class="header-tool" onclick="Agent.navigate('printer')" aria-label="إعداد الطابعة">🖨</button>

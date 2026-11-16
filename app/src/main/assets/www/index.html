@@ -1265,6 +1265,25 @@ body.ta-invoice-editor-screen .ta-invoice-save-footer {
 .ta-payment-cycle.ta-pay-partial .ta-payment-method-value > i {background:linear-gradient(155deg,#60a5fa,#2563eb,#1d4ed8)}
 .ta-payment-cycle.ta-pay-credit .ta-payment-method-value > i {background:linear-gradient(155deg,#fda4af,#f472b6,#db2777)}
 </style>
+
+<style id="ta-voucher-transfer-workspace-35101">
+/* Voucher and transfer screens are full-height workspaces; leave the native system Back active. */
+body.ta-workspace-screen nav.ta-bottom-nav,
+body.ta-transfer-editor-open nav.ta-bottom-nav,
+body:has(#modalContainer:not(.hidden) #voucherModalContent) nav.ta-bottom-nav {display:none!important}
+body.ta-transfer-editor-open #mainContent{padding-bottom:calc(22px + env(safe-area-inset-bottom,0px))!important}
+#warehouseTransferPanel .ta-transfer-form-actions{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:9px;margin-top:12px;align-items:stretch}
+#warehouseTransferPanel .ta-transfer-form-actions #transferSaveButton{min-height:50px!important;margin:0!important;padding:8px 6px!important;width:100%!important;font-size:12px!important}
+#warehouseTransferPanel .ta-transfer-form-actions .ta-transfer-cancel-button{min-height:50px;border-radius:14px;border:1px solid #fda4af;background:linear-gradient(155deg,#fff1f2,#fecdd3);box-shadow:0 4px 0 #e9a1a9;color:#9f1239;font-size:13px;font-weight:900;display:flex;align-items:center;justify-content:center;gap:6px}
+#warehouseTransferPanel .ta-transfer-form-actions button i{font-size:16px}
+.ta-voucher-cancel-button{min-height:43px;display:inline-flex;gap:6px;align-items:center;justify-content:center;background:#f1f5f9;color:#9f1239;border:1px solid #fecdd3;border-radius:12px;padding:8px 14px;font-weight:900}
+</style>
+
+<style id="ta-no-top-back-on-android-35101">
+/* Android system Back replaces the duplicated top-bar Back control. */
+html body #headerBackBtn,
+html body #topAppBar.ta-operation-header #headerBackBtn{display:none!important}
+</style>
 </head>
 <body class="ta-premium-ui ta-3d-v3524 bg-slate-100 text-slate-800 min-h-screen flex flex-col w-full max-w-full overflow-x-hidden">
 
@@ -2848,7 +2867,7 @@ body.ta-invoice-editor-screen .ta-invoice-save-footer {
             renderCurrent() {
                 const { screen, params } = this.current();
                 document.body.classList.toggle('ta-dashboard-screen',screen==='dashboard');
-                document.body.classList.toggle('ta-workspace-screen',['invoice_form','pos','pos_form','invoice_print'].includes(screen));
+                document.body.classList.toggle('ta-workspace-screen',(['invoice_form','pos','pos_form','invoice_print'].includes(screen) || screen==='voucher_form'));
                 document.body.classList.toggle('ta-invoice-editor-screen',screen==='invoice_form');
                 // A successful setting change may re-render this screen before the
                 // queued <details> toggle event has updated expandedSections.
@@ -2903,6 +2922,7 @@ body.ta-invoice-editor-screen .ta-invoice-save-footer {
                 try {
                     Views.render(screen, params);
                     if (settingsView) SettingsController.restoreVisibleSettingsView(settingsView);
+                    document.body?.classList?.toggle('ta-transfer-editor-open', screen === 'warehouses' && !!document.querySelector('#warehouseTransferPanel:not([hidden])'));
                 } catch (error) {
                     console.error('Application screen render failed:', screen, error);
                     const main = document.getElementById('mainContent');
@@ -4230,6 +4250,10 @@ body.ta-invoice-editor-screen .ta-invoice-save-footer {
         };
 
         const Views = {
+            scrollToTransferPanel() {
+                const panel=document.getElementById('warehouseTransferPanel');
+                if(panel) panel.scrollIntoView({behavior:'smooth',block:'start'});
+            },
             jumpToEntry(panelId, fieldId) {
                 const panel = document.getElementById(panelId);
                 if (!panel) return;
@@ -4491,7 +4515,7 @@ body.ta-invoice-editor-screen .ta-invoice-save-footer {
                         </div>
                     </div>
                     <div id="warehouseTransferPanel" hidden class="ta-transfer-invoice-editor rounded-2xl p-3 mb-3 scroll-mt-4">
-                        <div class="flex justify-between items-center border-b border-slate-200 pb-3 mb-3"><h3 class="ta-transfer-title"><i class="fas fa-file-invoice text-teal-700 ml-2"></i> <span id="transferFormTitle">فاتورة مناقلة جديدة</span></h3><button type="button" onclick="WarehouseController.closeTransferForm()" class="rounded-xl bg-slate-100 text-slate-700 border px-3 py-2 text-xs font-bold" aria-label="إغلاق فاتورة المناقلة">✕ إغلاق</button></div>
+                        <div class="flex justify-between items-center border-b border-slate-200 pb-3 mb-3"><h3 class="ta-transfer-title"><i class="fas fa-file-invoice text-teal-700 ml-2"></i> <span id="transferFormTitle">فاتورة مناقلة جديدة</span></h3></div>
                         <div id="transferEditBanner" class="ta-transfer-edit-banner" hidden><div class="font-extrabold">تعديل فاتورة مناقلة محفوظة</div><div class="mt-1" id="transferEditingRef"></div><div class="mt-1">بعد الحفظ تُحدث الأرصدة وتبقى الفاتورة بنفس رقمها في سجل المناقلات.</div></div>
                         <p class="ta-transfer-subtitle">فاتورة حركة مخزون وليست فاتورة بيع. لا أسعار أو دفعات؛ الكميات فقط تنتقل من المصدر إلى المستلم. انقر على أي صنف لزيادة وحداته واستخدم × للحذف.</p>
                         <div class="grid grid-cols-2 gap-2 mb-2">
@@ -4524,9 +4548,14 @@ body.ta-invoice-editor-screen .ta-invoice-save-footer {
                             <div><label class="block text-xs font-bold mb-1" for="transferDate">التاريخ</label><input id="transferDate" type="date" value="${new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10)}" class="w-full border rounded-xl p-2.5 text-sm"></div>
                             <div><label class="block text-xs font-bold mb-1" for="transferNote">ملاحظة المناقلة</label><input id="transferNote" maxlength="200" class="w-full border rounded-xl p-2.5 text-sm" placeholder="ملاحظة اختيارية لجميع الأصناف"></div>
                         </div>
-                        <button type="button" id="transferSaveButton" onclick="WarehouseController.saveTransfer()" disabled>
-                            <i class="fas fa-check-circle" aria-hidden="true"></i><span id="transferSaveLabel">حفظ فاتورة المناقلة (<span id="transferSaveCount">0</span> صنف)</span>
-                        </button>
+                        <div class="ta-transfer-form-actions" aria-label="إجراءات فاتورة المناقلة">
+                            <button type="button" id="transferSaveButton" onclick="WarehouseController.saveTransfer()" disabled>
+                                <i class="fas fa-check-circle" aria-hidden="true"></i><span id="transferSaveLabel">حفظ فاتورة المناقلة (<span id="transferSaveCount">0</span> صنف)</span>
+                            </button>
+                            <button type="button" class="ta-transfer-cancel-button" onclick="WarehouseController.closeTransferForm()" aria-label="إلغاء المناقلة">
+                                <i class="fas fa-times" aria-hidden="true"></i><span>إلغاء</span>
+                            </button>
+                        </div>
                         <button type="button" id="transferCancelEditButton" onclick="WarehouseController.cancelTransferEdit()" hidden class="mt-2 w-full rounded-xl bg-slate-100 border border-slate-300 text-slate-700 text-xs font-extrabold p-3">إلغاء التعديل والعودة لفاتورة جديدة</button>
                     </div>
                     <div class="rounded-2xl bg-white border p-3 ta-transfer-history">
@@ -4545,6 +4574,7 @@ body.ta-invoice-editor-screen .ta-invoice-save-footer {
                     WarehouseController.renderTransferDraft();
                     WarehouseController.refreshTransferHistory();
                 }
+                document.body?.classList?.toggle('ta-transfer-editor-open', !document.getElementById('warehouseTransferPanel')?.hidden);
                 if (params.action === 'add') WarehouseController.toggleWarehouseCreate();
                 if (params.action === 'transfer' && !transferEditorSnapshot) {
                     WarehouseController.openTransferForm();
@@ -6877,9 +6907,10 @@ body.ta-invoice-editor-screen .ta-invoice-save-footer {
                     // Never clear a draft (including an empty draft's date/warehouses).
                     if((this.transferDraft||[]).length)
                         UI.toast('توجد فاتورة مناقلة غير محفوظة؛ احفظها أو أغلقها أولاً','warn');
-                    Views.jumpToEntry('warehouseTransferPanel','transferSearchInput');return;
+                    Views.scrollToTransferPanel();return;
                 }
                 panel.hidden=false;
+                document.body?.classList?.add('ta-transfer-editor-open');
                 if(!edit){this.transferDraft=[];this.editingTransferBatchId=null;
                     const title=document.getElementById('transferFormTitle');if(title)title.textContent='فاتورة مناقلة جديدة';
                     const editBanner=document.getElementById('transferEditBanner');if(editBanner)editBanner.hidden=true;
@@ -6887,7 +6918,7 @@ body.ta-invoice-editor-screen .ta-invoice-save-footer {
                     const note=document.getElementById('transferNote');if(note)note.value='';
                     this.updateTransferGridSelections();this.renderTransferDraft();
                 }
-                Views.jumpToEntry('warehouseTransferPanel','transferSearchInput');
+                Views.scrollToTransferPanel();
             },
             closeTransferForm(){
                 if((this.transferDraft||[]).length){
@@ -6898,6 +6929,7 @@ body.ta-invoice-editor-screen .ta-invoice-save-footer {
             discardTransferForm(){
                 this.transferDraft=[];this.editingTransferBatchId=null;
                 const panel=document.getElementById('warehouseTransferPanel');if(panel)panel.hidden=true;
+                document.body?.classList?.remove('ta-transfer-editor-open');
                 this.updateTransferGridSelections();this.renderTransferDraft();
             },
             async addWarehouse() {
@@ -8946,7 +8978,7 @@ body.ta-invoice-editor-screen .ta-invoice-save-footer {
                         </div>
 
                         <div class="flex gap-2 pt-2">
-                            ${this.modalMode ? `<button type="button" onclick="UI.requestCloseModal()" class="px-4 bg-slate-100 text-slate-600 font-bold rounded-xl text-xs">إلغاء</button>` : ''}
+                            ${this.modalMode ? `<button type="button" onclick="UI.requestCloseModal()" class="ta-voucher-cancel-button"><i class="fas fa-times" aria-hidden="true"></i> إلغاء</button>` : `<button type="button" onclick="AppNav.handleBackButton()" class="ta-voucher-cancel-button"><i class="fas fa-times" aria-hidden="true"></i> إلغاء</button>`}
                             <button type="button" onclick="VoucherController.saveVoucher()" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-3 rounded-xl text-sm">
                                 <i class="fas fa-floppy-disk ml-1"></i> ${d.isEditing ? 'حفظ تعديلات السند وعكس الأثر' : 'حفظ السند'}
                             </button>
