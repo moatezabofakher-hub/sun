@@ -31,8 +31,8 @@ const CapitalLedger={
       <h3 class="font-black text-lg text-slate-950"><i class="fas fa-piggy-bank text-pink-500 ml-2"></i>رأس المال</h3>
       <p class="text-xs text-slate-700">حركات داخلية بين رأس المال والصندوق الرئيسي فقط؛ لا تدخل في المبيعات أو الأرباح أو المصاريف أو ديون العملاء.</p>
       <div class="grid grid-cols-2 gap-3">
-       <button type="button" class="ta-capital-green" onclick="CapitalLedger.openForm('receive')"><i class="fas fa-arrow-down"></i><strong>استلام مبلغ</strong><small>من رأس المال إلى الصندوق</small></button>
-       <button type="button" class="ta-capital-green" onclick="CapitalLedger.openForm('pay')"><i class="fas fa-arrow-up"></i><strong>دفع مبلغ</strong><small>من الصندوق إلى رأس المال</small></button>
+       <button type="button" class="ta-capital-green ta-capital-action" style="background-color:#0b562d !important; background-image:linear-gradient(148deg,#278d50 0%,#146c39 34%,#0b562d 70%,#064321 100%) !important; color:#ffffff !important; border-color:#4cbf79 !important; box-shadow:0 6px 0 #04341b,0 12px 18px rgba(4,52,27,.35),inset 0 3px 3px rgba(241,255,245,.44) !important;" onclick="CapitalLedger.openForm('receive')"><i class="fas fa-arrow-down"></i><strong>استلام مبلغ</strong><small>من رأس المال إلى الصندوق</small></button>
+       <button type="button" class="ta-capital-green ta-capital-action" style="background-color:#0b562d !important; background-image:linear-gradient(148deg,#278d50 0%,#146c39 34%,#0b562d 70%,#064321 100%) !important; color:#ffffff !important; border-color:#4cbf79 !important; box-shadow:0 6px 0 #04341b,0 12px 18px rgba(4,52,27,.35),inset 0 3px 3px rgba(241,255,245,.44) !important;" onclick="CapitalLedger.openForm('pay')"><i class="fas fa-arrow-up"></i><strong>دفع مبلغ</strong><small>من الصندوق إلى رأس المال</small></button>
       </div>
       <h4 class="font-black text-sm text-slate-700">آخر حركات رأس المال</h4>
       <div class="max-h-52 overflow-auto divide-y border rounded-xl bg-white text-xs">${history.length?history.map(m=>`<div class="px-3 py-2 flex justify-between gap-2"><span class="font-bold">${escapeText(TYPES[m.direction]||'حركة') }<span class="block text-slate-500 font-normal">${escapeText((m.date||'').replace('T',' ').slice(0,19))}${m.note?' · '+escapeText(m.note):''}</span></span><b dir="ltr" class="shrink-0">${m.direction==='receive'?'+':'−'} ${Accounting.format(Number(m.amount),m.currency)}</b></div>`).join(''):'<p class="p-4 text-center text-slate-500">لا توجد حركات رأس مال بعد</p>'}</div>
@@ -51,7 +51,7 @@ const CapitalLedger={
       <input id="capitalAmount" type="number" inputmode="decimal" step="any" min="0" max="1000000000000" class="w-full border-2 rounded-xl p-3 text-lg font-black" placeholder="0" />
       <label class="block font-bold text-sm" for="capitalNote">بيان الحركة (اختياري)</label>
       <input id="capitalNote" maxlength="200" class="w-full border rounded-xl p-3" placeholder="مثال: رأس المال الافتتاحي" />
-      <button class="ta-capital-green w-full" type="button" onclick="CapitalLedger.save('${direction}')"><i class="fas fa-save"></i><strong>حفظ ${TYPES[direction]}</strong></button>
+      <button class="ta-capital-green ta-capital-save w-full" style="background-color:#0b562d !important; background-image:linear-gradient(148deg,#278d50 0%,#146c39 34%,#0b562d 70%,#064321 100%) !important; color:#ffffff !important; border-color:#4cbf79 !important; box-shadow:0 6px 0 #04341b,0 12px 18px rgba(4,52,27,.35),inset 0 3px 3px rgba(241,255,245,.44) !important;" type="button" onclick="CapitalLedger.save('${direction}')"><i class="fas fa-save"></i><strong>حفظ ${TYPES[direction]}</strong></button>
       <button type="button" class="w-full border rounded-xl py-3" onclick="CapitalLedger.open()">رجوع</button>
    </div>`);
  },

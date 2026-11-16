@@ -10,7 +10,7 @@ android {
         applicationId 'com.sunshine.technicalaccountant'
         minSdk 26
         targetSdk 35
-        versionCode 122
+        versionCode 123
         versionName '3.5.122'
     }
 

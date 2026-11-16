@@ -1,0 +1,31 @@
+'use strict';
+const test=require('node:test');
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const path=require('node:path');
+const root=path.join(__dirname,'..');
+const webBase=fs.existsSync(path.join(root,'web','static','capital-ledger.js'))?'web':'app/src/main/assets/www';
+const css=fs.readFileSync(path.join(root,webBase,'static/capital-ledger.css'),'utf8');
+const js=fs.readFileSync(path.join(root,webBase,'static/capital-ledger.js'),'utf8');
+const html=fs.readFileSync(path.join(root,webBase,'index.html'),'utf8');
+test('all four capital controls use approved dark-green style, not light grass green',()=>{
+ assert.equal((js.match(/class="ta-capital-green ta-capital-action"/g)||[]).length,2);
+ assert.equal((js.match(/class="ta-capital-green ta-capital-save w-full"/g)||[]).length,1);
+ assert.match(js,/openForm\('receive'\)/);
+ assert.match(js,/openForm\('pay'\)/);
+ assert.match(js,/save\('\$\{direction\}'\)/);
+ assert.match(js,/#0b562d !important/);
+ assert.equal((js.match(/background-image:linear-gradient\(148deg,#278d50/g)||[]).length,3);
+ assert.match(css,/#modalBox \.ta-capital-modal button\.ta-capital-green/);
+ assert.match(css,/background-image:linear-gradient\(148deg,#278d50/);
+ assert.match(css,/color:#fff !important/);
+ assert.match(css,/button\.ta-capital-save/);
+ assert.doesNotMatch(css,/#72cc3d/);
+});
+test('capital modal style loads at the end of head, preserving pink capital card',()=>{
+ const style='<link rel="stylesheet" href="static/capital-ledger.css?v=122-dark-green-4-controls">';
+ assert.ok(html.indexOf(style)>0);
+ assert.ok(html.indexOf(style)<html.indexOf('</head>'));
+ assert.ok(html.indexOf(style)>html.lastIndexOf('<style'));
+ assert.match(css,/\.ta-capital-card\{[^}]*#f6a7d4/);
+});
