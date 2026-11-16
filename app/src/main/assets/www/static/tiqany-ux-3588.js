@@ -29,29 +29,13 @@
    box.outerHTML=html;
   }
   const usb=q('button[onclick*="openScanner"]');if(usb)usb.classList.add('ta-ux-usb');
-  ensureBalances();
- }
- function balanceText(v,c){return v===null||!Number.isFinite(v)?'—':Accounting.format(v,c);}
- function ensureBalances(){
-  const main=q('#mainContent'),save=q('button[onclick*="InvoiceController.saveInvoice(true)"]',main);
-  if(!save)return;
-  const row=save.parentElement;if(!row)return;
-  if(!q('#taDraftBalance3588',main)){
-   const node=document.createElement('div');node.id='taDraftBalance3588';node.className='ta-ux-draft-balances';row.insertAdjacentElement('beforebegin',node);
-  }
   updateBalances();
  }
+ // v3.5.98: Remove the old duplicate customer balance panel.  The
+ // live before/projected balances remain managed by the fixed invoice footer.
  function updateBalances(){
-  const output=q('#taDraftBalance3588'),d=InvoiceController.draft;
-  if(!output||!d)return;
-  const c=d.currency==='SYP'?'SYP':'USD';
-  if(!d.accountId){output.innerHTML='<h3>رصيد العميل ('+c+')</h3><p>اختر العميل لعرض الرصيد السابق والرصيد النهائي المتوقع.</p>';return;}
-  if(!window.InvoiceDualBalances){output.textContent='الرصيد غير متاح مؤقتاً';return;}
-  try{
-   const calc=InvoiceDualBalances.managerBalance(d,State.accounts,State.invoices,State.vouchers);
-   const before=balanceText(calc.before[c],c),after=balanceText(calc.after[c],c);
-   output.innerHTML='<h3><i class="fas fa-scale-balanced" aria-hidden="true"></i> أرصدة العميل بعملة الفاتورة ('+c+')</h3><div class="ta-ux-balance-pair"><div><span>الرصيد السابق</span><strong dir="ltr">'+before+'</strong></div><div class="ta-ux-final"><span>الرصيد النهائي المتوقع</span><strong dir="ltr">'+after+'</strong></div></div>';
-  }catch(e){console.warn('Invoice draft balance display:',e);output.textContent='تعذّر حساب الرصيد المتوقع؛ لم تتغيّر بيانات الفاتورة.';}
+  const legacy=q('#taDraftBalance3588');
+  if(legacy)legacy.remove();
  }
  // v3.5.90: all full pages rely on normal Back/navigation, never an extra red X.
  function removeLegacyPageExit(){

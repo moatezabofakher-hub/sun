@@ -33,14 +33,6 @@
 .ta-ux-desktop .ta-ux-client-dark select{background:#e9f9ff!important;color:#082e47!important;min-height:46px!important;font-weight:900!important;font-size:17px!important;border:2px solid #70d7ed!important}
 .ta-ux-desktop .ta-ux-usb{background:linear-gradient(145deg,#fef08a,#efa51d)!important;color:#482807!important;border:2px solid #b57904!important;box-shadow:inset 0 2px #fff9,0 4px 0 #9b6204!important;min-height:39px;white-space:nowrap;font-size:13px!important}
 .ta-ux-usb i{font-size:17px;filter:drop-shadow(0 2px 1px #99681e66)}
-.ta-ux-draft-balances{background:#e8f6ff;border:2px solid #66b7df;border-radius:15px;margin:10px 0;padding:10px 12px;box-shadow:0 3px 0 #87b2cc}
-.ta-ux-draft-balances h3{font-size:15px;color:#13446b;font-weight:900;margin-bottom:8px}
-.ta-ux-draft-balances .ta-ux-balance-pair{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
-.ta-ux-draft-balances .ta-ux-balance-pair>div{background:#fff;border:1px solid #94c3d9;padding:9px;border-radius:11px;min-width:0}
-.ta-ux-draft-balances strong{display:block;line-height:1.5;font-size:15px;overflow-wrap:anywhere}
-.ta-ux-draft-balances span{font-weight:900;font-size:12px;color:#244e65}
-.ta-ux-draft-balances .ta-ux-final{border-color:#53bfa7;background:#e5fff2}
-.ta-ux-draft-balances .ta-ux-final strong{color:#07624b}
 .ta-close3d,.ta-ux3d-legacy-close,.ta-popup-exit-red{border:2px solid #8b0f29!important;background:linear-gradient(150deg,#ffb5b9 0%,#f53051 50%,#ac0d2f 100%)!important;color:#fff!important;border-radius:12px!important;box-shadow:inset 0 2px #fff7,0 4px 0 #760a24,0 6px 12px #57071e66!important;width:38px!important;height:36px!important;min-width:38px!important;display:flex!important;align-items:center!important;justify-content:center!important;font-weight:900!important;font-size:23px!important;line-height:1!important;text-shadow:0 1px #4b0a1b!important;cursor:pointer!important}
 .ta-page-exit-line{display:none!important} /* Legacy screen-close strip is removed in 3.5.90. */
 .ta-ux-popup-frame{position:relative!important;padding-top:max(47px,2.7rem)!important}
@@ -51,3 +43,6 @@
 .ta-peer-presence.offline{background:#ffe2e2;color:#991b1b;border-color:#fda4af}
 .ta-peer-presence.connecting{background:#fef3c7;color:#78350f;border-color:#fcd34d}
 @media(max-width:420px){.ta-ux-warehouse,.ta-ux-compact .ta-invoice-pricing-choice{grid-template-columns:minmax(95px,38%) minmax(0,1fr);gap:5px!important}.ta-ux-warehouse label,.ta-ux-compact .ta-invoice-pricing-choice label{font-size:13px!important}.ta-payment-options button{font-size:12px}.ta-ux-compact .ta-invoice-currency-choice{font-size:14px!important}}
+
+/* v3.5.98: Legacy duplicate hidden for compatibility with old cached markup. */
+#taDraftBalance3588 {display:none!important;}
