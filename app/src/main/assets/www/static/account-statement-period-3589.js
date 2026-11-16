@@ -51,11 +51,29 @@
    result.evalUsd=result.usdBalance+result.sypBalance/(rate||1);
    return result;
  }
- function update(id){const from=document.getElementById('statementFrom')?.value||'';
+ let dateUpdateTimer=null;
+ function queueUpdate(id){
+   // Date pickers may dispatch input before change. Update as soon as a full date is selected.
+   if(dateUpdateTimer!==null)clearTimeout(dateUpdateTimer);
+   const a=document.getElementById('statementFrom')?.value||'';
+   const b=document.getElementById('statementTo')?.value||'';
+   if((a&&!/^\d{4}-\d{2}-\d{2}$/.test(a))||(b&&!/^\d{4}-\d{2}-\d{2}$/.test(b)))return;
+   dateUpdateTimer=setTimeout(()=>{dateUpdateTimer=null;update(id);},140);
+ }
+ function update(id){
+   if(dateUpdateTimer!==null){clearTimeout(dateUpdateTimer);dateUpdateTimer=null;}
+   const from=document.getElementById('statementFrom')?.value||'';
    const to=document.getElementById('statementTo')?.value||'';
-   if(from&&to&&to<from){root.UI?.toast('تاريخ النهاية يجب ألا يسبق البداية','warn');return;}
+   if(from&&to&&to<from){root.UI?.toast('تاريخ النهاية يجب ألا يسبق البداية','warn');return false;}
    const active=document.querySelector('[data-statement-eval].bg-emerald-500')?.dataset.statementEval||'DUAL';
+   const scrollY=typeof root.scrollY==='number'?root.scrollY:0;
+   const content=document.getElementById('mainContent');const innerScroll=content?.scrollTop||0;
    root.AppNav.navigate('account_statement',{id,dateFrom:from,dateTo:to,evalMode:active},true);
+   if(typeof root.requestAnimationFrame==='function')root.requestAnimationFrame(()=>{
+     if(content)content.scrollTop=innerScroll;
+     if(typeof root.scrollTo==='function')root.scrollTo(0,scrollY);
+   });
+   return true;
  }
  function payload(account,entries,from='',to=''){
    const x=build(entries,from,to),s=root.State?.settings||{};
@@ -66,9 +84,20 @@
    const acc=root.State?.accounts?.find(a=>a.id===id);if(!acc)return root.UI?.toast('الحساب غير موجود','warn');
    try{const from=document.getElementById('statementFrom')?.value||'',to=document.getElementById('statementTo')?.value||'';
       const p=payload(acc,root.Accounting.getAccountStatement(id).entries,from,to);
-      if(root.AndroidReports?.shareReport){root.AndroidReports.shareReport(JSON.stringify(p),'Statement_'+String(id).replace(/[^\w-]/g,'_')+'.pdf');return true;}
-      root.UI?.toast('تصدير PDF غير متاح في هذه النسخة','warn');return false;
+      const filename='Statement_'+String(id).replace(/[^\w-]/g,'_')+'.pdf';
+      if(root.WindowsPDF?.createAccountStatement){
+        root.UI?.toast('جارٍ تجهيز كشف الحساب PDF...','info');
+        return root.WindowsPDF.createAccountStatement(JSON.stringify(p),filename).then(result=>{
+          if(result?.ok){root.UI?.toast('تم تجهيز PDF وفتح مجلده للإرسال','success');return true;}
+          root.UI?.toast(result?.message||'لم يتم إنشاء PDF','warn');return false;
+        }).catch(err=>{root.UI?.toast('فشل إنشاء PDF: '+(err?.message||'خطأ غير معروف'),'error');return false;});
+      }
+      if(root.AndroidReports?.shareReport){
+        root.UI?.toast('جارٍ تجهيز PDF لفتح شاشة المشاركة...','info');
+        root.AndroidReports.shareReport(JSON.stringify(p),filename);return true;
+      }
+      root.UI?.toast('مشاركة PDF تتطلب تطبيق أندرويد أو ويندوز','warn');return false;
    }catch(e){root.UI?.toast('تعذر إعداد الكشف: '+e.message,'error');return false;}
  }
- root.AccountStatementPeriod={parse,money,fmt,day,build,filter,update,payload,sharePdf};
+ root.AccountStatementPeriod={parse,money,fmt,day,build,filter,update,queueUpdate,payload,sharePdf};
 })(typeof window!=='undefined'?window:globalThis);

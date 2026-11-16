@@ -10,6 +10,31 @@ const connectedDevicesIcon='<svg width="48" height="32" viewBox="0 0 74 46" xmln
 const escape=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved:false,conflictLog:null,lastSuccessfulAt:0,lastPhoneSeenAt:0,
   authorizedSettingsSection:null,
+  headerRequestedSettings:false,
+  openSettingsFromHeader(){
+    if(AppNav.current()?.screen==='settings'){
+      this.requestHeaderAccess();
+      return;
+    }
+    // AppNav itself guards unsaved invoices, so authentication runs only after
+    // navigation has actually completed (including any discard confirmation).
+    this.headerRequestedSettings=true;
+    AppNav.navigate('settings');
+  },
+  requestHeaderAccess(){
+    if(AppNav.current()?.screen!=='settings')return;
+    const section=document.querySelector('details[data-settings-section="mobile-computer-sync"]');
+    if(!section)return;
+    if(section.open){section.scrollIntoView?.({block:'start',behavior:'smooth'});return;}
+    // Do not silently revert edits in another settings accordion.
+    if(typeof SettingsDraftController!=='undefined' && SettingsDraftController.changed?.()){
+      UI.toast('احفظ أو ألغِ تغييرات الضبط الحالية قبل فتح المزامنة','warn');return;
+    }
+    const summary=section.querySelector('summary');
+    if(!summary)return;
+    this.requestSettingsAccess({currentTarget:summary,preventDefault(){},stopPropagation(){}});
+    section.scrollIntoView?.({block:'start',behavior:'smooth'});
+  },
   requestSettingsAccess(event){
     const section=event?.currentTarget?.closest('details');
     if(!section)return;
@@ -43,8 +68,8 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
     const el=document.getElementById('ta-desktop-phone-connection');if(!el)return;
     el.classList.toggle('ta-link-online',!!active);
     el.classList.toggle('ta-link-offline',!active);
-    el.setAttribute('aria-label',active?'متصل: الكمبيوتر والموبايل':'غير متصل: الكمبيوتر والموبايل');
-    el.setAttribute('title',active?'اتصال الموبايل والكمبيوتر نشط':'انقطع الاتصال أو لم تصل مزامنة مؤكدة حديثاً');
+    el.setAttribute('aria-label',active?'متصل: اضغط لفتح مزامنة الموبايل والكمبيوتر':'غير متصل: اضغط لفتح مزامنة الموبايل والكمبيوتر');
+    el.setAttribute('title',active?'الاتصال نشط — اضغط لفتح إعدادات المزامنة':'غير متصل — اضغط لفتح إعدادات المزامنة');
     el.querySelector('.ta-link-dot')?.setAttribute('aria-label',active?'متصل':'غير متصل');
   },
   updatePresence(){
@@ -340,6 +365,11 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
     const opened='';
     ((typeof main.querySelector==='function'&&main.querySelector('[data-app-build]')) || main).insertAdjacentHTML((typeof main.querySelector==='function'&&main.querySelector('[data-app-build]'))?'afterend':'afterbegin',`<details class="settings-section" data-settings-section="mobile-computer-sync" ontoggle="TiqanyPeerSync.guardSettingsToggle(this);SettingsController.onSectionToggle(this)"${opened}><summary class="settings-section-heading" onclick="TiqanyPeerSync.requestSettingsAccess(event)" aria-label="مزامنة الموبايل و الكمبيوتر - يتطلب كلمة السر"><span class="settings-section-leading"><span class="ta-connected-devices-icon" aria-hidden="true">${connectedDevicesIcon}</span><span><span class="settings-section-name">مزامنة الموبايل و الكمبيوتر</span><span class="settings-section-note">الربط المحلي بين الرئيسي والكمبيوتر ومسح رمز QR</span></span></span><i class="fas fa-chevron-down settings-section-arrow" aria-hidden="true"></i></summary><div class="settings-section-body"><section id="ta-peer-settings" class="rounded-2xl border border-teal-300 bg-white p-4 mb-4 space-y-2 text-right" dir="rtl"><h3 class="font-black text-base text-teal-900"><span class="ta-connected-devices-inline" aria-hidden="true">${connectedDevicesIcon}</span> ${title}</h3><p class="text-xs text-slate-600">${desktop?t('أبقِ الكمبيوتر والهاتف على شبكة Wi-Fi واحدة. أدخل بيانات الربط المعروضة هنا في إعدادات الهاتف الرئيسي.','Keep computer and phone on the same Wi-Fi network. Enter the details shown here in the main phone app.'):t('الربط محلي دون إنترنت. احصل على العنوان ورمز الربط من الضبط في الكمبيوتر.','Local sync without internet. Get address and pairing key from Windows settings.')}</p><div id="ta-peer-connection" class="text-sm space-y-2"></div><button type="button" class="ta-peer-btn" onclick="TiqanyPeerSync.${desktop?'config':'sync'}()">${desktop?t('تحديث عنوان الاتصال','Refresh connection details'):t('مزامنة الآن','Sync now')}</button> <button type="button" id="ta-peer-conflict-button" class="ta-peer-btn ta-peer-conflict-button" onclick="TiqanyPeerSync.openConflictLog()"><i class="fas fa-exclamation-triangle"></i> سجل التعارض (0)</button><div id="ta-peer-conflict-panel" class="ta-peer-conflict-panel" hidden></div><p id="ta-peer-status" class="text-xs text-teal-800 font-bold">${escape(this.last)}</p></section></div></details>`);
     this.renderConnection();this.loadConflicts().catch(err=>console.warn('Could not read conflict log',err));
+    if(this.headerRequestedSettings){
+      this.headerRequestedSettings=false;
+      // The inserted settings details must be connected before PIN approval.
+      setTimeout(()=>this.requestHeaderAccess(),0);
+    }
   },
   onNetworkChanged(){
     if(desktop)return;

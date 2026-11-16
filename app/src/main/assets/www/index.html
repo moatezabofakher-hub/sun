@@ -1152,7 +1152,7 @@ html.ta-ime-open body.ta-3d-v3524 > main#mainContent.ta-main {padding-bottom:24p
 <style>.ta-origin-badge{display:inline-flex;align-items:center;gap:5px;margin-top:5px;background:#e3f3ff;border:1px solid #93c5d8;border-radius:9px;padding:4px 8px;color:#075985;font-size:11px;font-weight:850;line-height:1.5}</style>
 <link rel="stylesheet" href="static/tiqany-support.css">
 <link rel="stylesheet" href="static/tiqany-ux-3588.css">
-<style>.ta-link-status{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;margin-inline:4px;border-radius:13px;font-size:12px;font-weight:800;border:1px solid transparent;white-space:nowrap}.ta-link-dot{height:9px;width:9px;border-radius:50%;display:inline-block}.ta-link-online{background:#064e3b;color:#d1fae5;border-color:#10b981}.ta-link-online .ta-link-dot{background:#22c55e;box-shadow:0 0 8px #4ade80}.ta-link-offline{background:#ffe4e6;color:#9f1239;border-color:#fda4af}.ta-link-offline .ta-link-dot{background:#f87171}</style><style id="ta-compact-header-connections-3592">
+<style>.ta-link-status{cursor:pointer;display:inline-flex;align-items:center;gap:5px;padding:3px 9px;margin-inline:4px;border-radius:13px;font-size:12px;font-weight:800;border:1px solid transparent;white-space:nowrap}.ta-link-dot{height:9px;width:9px;border-radius:50%;display:inline-block}.ta-link-online{background:#064e3b;color:#d1fae5;border-color:#10b981}.ta-link-online .ta-link-dot{background:#22c55e;box-shadow:0 0 8px #4ade80}.ta-link-offline{background:#ffe4e6;color:#9f1239;border-color:#fda4af}.ta-link-offline .ta-link-dot{background:#f87171}</style><style id="ta-compact-header-connections-3592">
 #topAppBar.dashboard-header #headerTitleWrap{display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;gap:3px!important;top:50%!important;transform:translate(-50%,-50%)!important;max-width:310px!important;width:calc(100% - 120px)!important;pointer-events:none!important}
 #topAppBar.dashboard-header #headerTitleWrap #screenTitle{display:flex!important;justify-content:center!important;max-width:100%!important;margin:0!important;line-height:1.2!important;font-size:clamp(13px,3.6vw,17px)!important}
 #topAppBar.dashboard-header .ta-header-connections{display:flex!important;flex-direction:row!important;align-items:center!important;justify-content:center!important;gap:5px!important;width:100%;pointer-events:auto}
@@ -1300,6 +1300,14 @@ body:has(#mainContent .ta-voucher-save-footer) #mainContent{padding-bottom:calc(
 .ta-voucher-footer-actions button{min-height:39px;border-radius:12px;padding:7px 5px;font-size:14px;font-weight:900;color:#fff;display:flex;align-items:center;justify-content:center;gap:7px}
 .ta-voucher-save-action{background:#047857;border:1px solid #065f46}.ta-voucher-cancel-action{background:#e11d48;border:1px solid #be123c}
 </style>
+<style id="ta-explicit-save-cancel-background-35106">
+/* 3.5.106: Change only action backgrounds; inherit original label/icon colors. */
+#warehouseTransferPanel #transferSaveButton{background:#047857!important;background-color:#047857!important;background-image:none!important}
+#warehouseTransferPanel .ta-transfer-form-actions .ta-transfer-cancel-button{background:#dc2626!important;background-color:#dc2626!important;background-image:none!important}
+#warehouseTransferPanel #transferCancelEditButton{background:#dc2626!important;background-color:#dc2626!important;background-image:none!important}
+.ta-voucher-save-footer .ta-voucher-save-action{background:#047857!important;background-color:#047857!important;background-image:none!important}
+.ta-voucher-save-footer .ta-voucher-cancel-action,.ta-voucher-cancel-button{background:#dc2626!important;background-color:#dc2626!important;background-image:none!important}
+</style>
 </head>
 <body class="ta-premium-ui ta-3d-v3524 bg-slate-100 text-slate-800 min-h-screen flex flex-col w-full max-w-full overflow-x-hidden">
 
@@ -1323,7 +1331,7 @@ body:has(#mainContent .ta-voucher-save-footer) #mainContent{padding-bottom:calc(
                     </h1>
                     <p id="screenSubtitle" class="text-[10px] sm:text-[11px] text-slate-400 truncate">نظام محاسبة ومستودعات (Offline-First)</p>
                     <div class="ta-header-connections"><button id="salesStaffCounterButton" type="button" class="ta-staff-counter" onclick="AppNav.navigate('agent_hub')" title="موظفو البيع المتصلون" aria-label="عدد موظفي البيع المتصلين"><i class="fas fa-users" aria-hidden="true"></i><span class="ta-staff-counter-label">متصل</span><strong id="salesStaffConnectedCount" aria-live="polite">0</strong></button>
-                <span id="ta-desktop-phone-connection" class="ta-link-status ta-link-offline" role="status" aria-live="polite" title="غير متصل: الكمبيوتر والموبايل"><span class="ta-link-devices" aria-hidden="true"><svg width="14" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8m-4-4v4"/></svg><i class="fas fa-mobile-screen"></i></span><span class="ta-link-dot" aria-hidden="true"></span></span></div>
+                <button id="ta-desktop-phone-connection" type="button" class="ta-link-status ta-link-offline" onclick="TiqanyPeerSync.openSettingsFromHeader()" aria-label="فتح مزامنة الموبايل والكمبيوتر من الضبط" title="افتح مزامنة الموبايل والكمبيوتر"><span class="ta-link-devices" aria-hidden="true"><svg width="14" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8m-4-4v4"/></svg><i class="fas fa-mobile-screen"></i></span><span class="ta-link-dot" aria-hidden="true"></span></button></div>
                 </div>
             </div>
 
@@ -1754,6 +1762,8 @@ body:has(#mainContent .ta-voucher-save-footer) #mainContent{padding-bottom:calc(
                     await this.putBatch([{id:'profile:'+id,data:next,updatedAt:new Date().toISOString()},{id:'profile_registry',data:updated}]);
                     this.registry=updated;
                     await this.activate(id);
+                    if(this.activeId!==id || this.currentName()!==name)
+                        UI.toast('تعذر فتح الشركة الجديدة باسمها الصحيح؛ تحقق من قائمة الشركات قبل أي عملية','error');
                 }catch(e){UI.toast('تعذّر إنشاء حساب مستقل: '+e.message,'error');}
             },
             async requestSwitch(id) {
@@ -1788,7 +1798,10 @@ body:has(#mainContent .ta-voucher-save-footer) #mainContent{padding-bottom:calc(
                 try {
                     const target=await this.getRecord('profile:'+id);
                     if(!target?.data) throw Error('لا توجد بيانات محفوظة للشركة');
-                    const oldId=this.activeId,oldState=this.cloneState(),newState=target.data;
+                    const oldId=this.activeId,oldState=this.cloneState(),newState=JSON.parse(JSON.stringify(target.data));
+                    const selected=this.registry.profiles.find(p=>p.id===id);
+                    if(!newState.settings || !selected?.name)throw Error('تعذر قراءة اسم الشركة المختارة');
+                    newState.settings.companyName=String(selected.name).trim();
                     const commonLicense=JSON.parse(JSON.stringify(State.license));
                     const registry={...this.registry,activeId:id};
                     const date=new Date().toISOString();
@@ -5200,15 +5213,15 @@ body:has(#mainContent .ta-voucher-save-footer) #mainContent{padding-bottom:calc(
                     <div class="bg-white border border-blue-200 rounded-2xl p-3 mb-3" dir="rtl">
                        <h3 class="font-black text-slate-900 mb-2">فترة كشف الحساب</h3>
                        <div class="grid grid-cols-2 gap-2 mb-2">
-                           <label class="text-xs font-extrabold">من تاريخ<input id="statementFrom" type="date" value="${AppEscape.text(dateFrom)}" onchange="AccountStatementPeriod.update('${acc.id}')" class="w-full border p-2 rounded-lg bg-white mt-1"/></label>
-                           <label class="text-xs font-extrabold">إلى تاريخ<input id="statementTo" type="date" value="${AppEscape.text(dateTo)}" onchange="AccountStatementPeriod.update('${acc.id}')" class="w-full border p-2 rounded-lg bg-white mt-1"/></label>
+                           <label class="text-xs font-extrabold">من تاريخ<input id="statementFrom" type="date" value="${AppEscape.text(dateFrom)}" onchange="AccountStatementPeriod.update('${acc.id}')" oninput="AccountStatementPeriod.queueUpdate('${acc.id}')" class="w-full border p-2 rounded-lg bg-white mt-1"/></label>
+                           <label class="text-xs font-extrabold">إلى تاريخ<input id="statementTo" type="date" value="${AppEscape.text(dateTo)}" onchange="AccountStatementPeriod.update('${acc.id}')" oninput="AccountStatementPeriod.queueUpdate('${acc.id}')" class="w-full border p-2 rounded-lg bg-white mt-1"/></label>
                        </div>
                        <p class="text-[11px] text-slate-600 mb-2">اترك التاريخ فارغاً لعرض كامل الفترة. الرصيد المدور هو جميع حركات ما قبل تاريخ البداية.</p>
                        <div class="grid grid-cols-2 gap-2 text-xs mb-2">
                          <div class="bg-sky-50 p-2 rounded-xl border border-sky-200"><b>الرصيد المدور ل.س</b><div class="font-bold">${AccountStatementPeriod.fmt(st.opening.SYP,'SYP')}</div></div>
                          <div class="bg-amber-50 p-2 rounded-xl border border-amber-200"><b>الرصيد المدور USD</b><div class="font-bold">${AccountStatementPeriod.fmt(st.opening.USD,'USD')}</div></div>
                        </div>
-                       <button type="button" class="w-full bg-rose-700 text-white font-black rounded-xl p-3" onclick="AccountStatementPeriod.sharePdf('${acc.id}')"><i class="fas fa-file-pdf ml-2"></i>إنشاء ومشاركة كشف حساب PDF</button>
+                       <button type="button" class="w-full bg-green-700 hover:bg-green-800 text-white font-black rounded-xl p-3" onclick="AccountStatementPeriod.sharePdf('${acc.id}')"><i class="fas fa-file-pdf ml-2"></i>إنشاء ومشاركة كشف حساب PDF</button>
                     </div>
                     <div class="bg-slate-900 text-white p-4 rounded-2xl mb-3 shadow-md">
                         <div class="flex items-center justify-between border-b border-slate-800 pb-2 mb-3">
