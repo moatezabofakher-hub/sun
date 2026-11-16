@@ -1,7 +1,7 @@
 /* Tiqany peer ledger merge (shared, testable, deliberately independent of UI). */
 (function(root,factory){const api=factory();if(typeof module==='object'&&module.exports)module.exports=api;root.TiqanyPeerMerge=api;})(typeof globalThis==='object'?globalThis:this,function(){
 'use strict';
-const BASE_COLLECTIONS=['categories','items','accounts','invoices','vouchers','warehouses','transfers','expenses'];
+const BASE_COLLECTIONS=['categories','items','accounts','invoices','vouchers','warehouses','transfers','expenses','capitalMovements'];
 // The field staff directory, pending imported IDs and cash hand-offs must travel with the ledger.
 const STAFF_COLLECTIONS=['fieldAgents','fieldImported','fieldEvents','fieldCashTransfers','fieldOperationHistory','fieldRevisionAudit','fieldCompany'];
 const COLLECTIONS=BASE_COLLECTIONS.concat(STAFF_COLLECTIONS);
@@ -22,7 +22,7 @@ function snapshot(state){
 }
 function emptyLedger(s){
  if(!s||typeof s!=='object')return false;
- const arrays=['categories','items','accounts','invoices','vouchers','transfers','expenses',
+ const arrays=['categories','items','accounts','invoices','vouchers','transfers','expenses','capitalMovements',
    'fieldAgents','fieldImported','fieldEvents','fieldCashTransfers','fieldOperationHistory','fieldRevisionAudit'];
  if(arrays.some(k=>Array.isArray(s[k])&&s[k].length>0))return false;
  // The template contains wh_main; additional warehouses imply an established company.
@@ -59,7 +59,7 @@ function bootstrapProtection(cfg){
    recoveryFailures:0,recoveryLockedUntil:0,lockApp:true,protectDeletion:!!cfg.protectDeletion,
    fingerprintEnabled:false,fingerprintCredentialId:''};
 }
-function ensureSnapshot(s){if(!s||typeof s!=='object'||Array.isArray(s))throw Error('نسخة مزامنة غير صالحة');for(const k of BASE_COLLECTIONS)if(!Array.isArray(s[k]))throw Error('سجل '+k+' غير صالح');for(const k of STAFF_COLLECTIONS)if(s[k]!==undefined&&!Array.isArray(s[k]))throw Error('سجل موظفي البيع '+k+' غير صالح');if(!s.sharedSettings||typeof s.sharedSettings!=='object'||Array.isArray(s.sharedSettings))throw Error('إعدادات المزامنة غير صالحة');}
+function ensureSnapshot(s){if(!s||typeof s!=='object'||Array.isArray(s))throw Error('نسخة مزامنة غير صالحة');for(const k of BASE_COLLECTIONS)if(!Array.isArray(s[k])&&(k!=='capitalMovements'||s[k]!==undefined))throw Error('سجل '+k+' غير صالح');for(const k of STAFF_COLLECTIONS)if(s[k]!==undefined&&!Array.isArray(s[k]))throw Error('سجل موظفي البيع '+k+' غير صالح');if(!s.sharedSettings||typeof s.sharedSettings!=='object'||Array.isArray(s.sharedSettings))throw Error('إعدادات المزامنة غير صالحة');}
 function recordKey(name,r){
  if(name==='categories'){if(typeof r!=='string')throw Error('اسم مجموعة غير صالح');return 'str:'+r;}
  if(!r||typeof r!=='object'||typeof r.id!=='string'||!r.id||r.id.length>200)throw Error('معرف سجل غير صالح في '+name);
@@ -348,7 +348,7 @@ function merge(base,local,remote,resolutions={},history=[]){
 }
 function apply(state,data){
  ensureSnapshot(data);
- for(const k of BASE_COLLECTIONS)state[k]=clone(data[k]);
+ for(const k of BASE_COLLECTIONS)state[k]=clone(Array.isArray(data[k])?data[k]:[]);
  for(const k of SETTINGS)if(Object.hasOwn(data.sharedSettings,k))state.settings[k]=clone(data.sharedSettings[k]);
  const field=state.fieldSync&&typeof state.fieldSync==='object'?state.fieldSync:{};
  for(const [name,dest] of [['fieldAgents','agents'],['fieldImported','imported'],['fieldEvents','events'],['fieldCashTransfers','cashTransfers'],['fieldOperationHistory','operationHistory'],['fieldRevisionAudit','revisionAudit']])

@@ -43,6 +43,8 @@ const FieldCash={
       const label=cfg().agents.find(a=>a.id===tr.agentId)?.name||'موظف بيع';
       add({id:tr.id,date:tr.date,ref:incoming?'استلام دفعة':'تسليم دفعة',party:label,desc:tr.note||'مناقلة نقدية بين الصندوقين',currency:tr.currency,inflow:incoming?tr.amount:0,outflow:incoming?0:tr.amount});
     }
+    // Capital receipts/returns are posted only to the office cashbox.
+    if(scope==='all'||scope==='office')for(const m of CapitalLedger.cashMovements())add(m);
     movements.sort((a,b)=>String(b.date).localeCompare(String(a.date)));
     return {sypCash,usdCash,movements};
   },

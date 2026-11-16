@@ -1,7 +1,7 @@
 /* 119: transaction-level notices for authenticated main-phone/Windows sync. */
 (function(root,factory){const api=factory();if(typeof module==='object'&&module.exports)module.exports=api;root.TiqanyPeerEvents=api;})(typeof globalThis==='object'?globalThis:this,function(){
 'use strict';
-const labels={categories:'المجموعات',items:'المواد',accounts:'الحسابات',invoices:'الفواتير',vouchers:'السندات',warehouses:'المستودعات',transfers:'المناقلات',expenses:'المصاريف',fieldAgents:'موظفو البيع',fieldImported:'العمليات المستوردة',fieldEvents:'الأحداث',fieldCashTransfers:'حركات الصندوق',fieldOperationHistory:'سجل العمليات',fieldRevisionAudit:'سجل التدقيق',fieldCompany:'بيانات الموظفين'};
+const labels={categories:'المجموعات',items:'المواد',accounts:'الحسابات',invoices:'الفواتير',vouchers:'السندات',warehouses:'المستودعات',transfers:'المناقلات',expenses:'المصاريف',capitalMovements:'رأس المال',fieldAgents:'موظفو البيع',fieldImported:'العمليات المستوردة',fieldEvents:'الأحداث',fieldCashTransfers:'حركات الصندوق',fieldOperationHistory:'سجل العمليات',fieldRevisionAudit:'سجل التدقيق',fieldCompany:'بيانات الموظفين'};
 const settingsLabels={companyName:'اسم الشركة',companyPhone:'هاتف الشركة',companyAddress:'عنوان الشركة',exchangeRate:'سعر الصرف',defaultCurrency:'العملة',defaultPriceTier:'التسعير'};
 const stable=v=>JSON.stringify(v===undefined?null:v);
 const clean=v=>String(v??'').slice(0,130);
