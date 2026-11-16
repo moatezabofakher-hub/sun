@@ -119,6 +119,7 @@
     <script defer src="static/field-protocol.js"></script><script defer src="static/purchase-cost-engine.js"></script><script defer src="static/invoice-dual-balances.js"></script><script defer src="static/draft-invoice-balance-preview.js"></script>
     <script defer src="static/field-lan-crypto.js"></script>
     <script defer src="static/field-pair-crypto.js"></script>
+    <script defer src="static/employee-password-auth.js"></script>
     <script defer src="static/field-main.js"></script>
     <script defer src="static/field-pair-manager.js"></script>
     <script defer src="static/field-cash.js"></script><script defer src="static/field-revisions.js"></script>
@@ -1458,6 +1459,7 @@ body.ta-transfer-editor-open #mainContent{padding-bottom:calc(var(--ta-transfer-
         const State = {
             settings: {
                 companyName: 'مؤسسة الرائد التجارية',
+                companyUid: '', // Stable hidden random company identity; never matched by displayed name
                 companyPhone: '',
                 companyAddress: '',
                 companyLogo: '',
@@ -1703,6 +1705,8 @@ body.ta-transfer-editor-open #mainContent{padding-bottom:calc(var(--ta-transfer-
          * Before changing the active ledger we persist a dated, local recovery snapshot.
          * No uploaded backup can silently overwrite the current business.
          */
+        // Private, one-time restore authorization capability; literal true is never sufficient.
+        const BackupRestoreApprovalCapability=Object.freeze({});
         const ProfileManager = {
             registry: null,
             activeId: 'primary',
@@ -1716,6 +1720,7 @@ body.ta-transfer-editor-open #mainContent{padding-bottom:calc(var(--ta-transfer-
             newState(name) {
                 const data=JSON.parse(JSON.stringify(DEFAULT_PROFILE));
                 data.settings.companyName=String(name||'شركة جديدة').trim();
+                data.settings.companyUid=this.generateId();
                 data.license=JSON.parse(JSON.stringify(State.license)); // device-wide activation & trial counter
                 return data;
             },
@@ -2020,10 +2025,41 @@ body.ta-transfer-editor-open #mainContent{padding-bottom:calc(var(--ta-transfer-
                   <p class="text-[10px] text-amber-800 leading-relaxed">النسخ الداخلية لا تحمي عند حذف التطبيق أو تلف الهاتف. احفظ نسخة خارجية قبل الانتقال أو التحديث. لا ترفع النسخ إلى مستودع عام.</p>
                 </div>`;
             },
-            async restoreParsed(parsed) {
+            // 3.5.113: authorization is mandatory before any imported ledger is applied.
+            // Approve the CURRENT business first; on a newly installed app, require
+            // verification against the saved backup's PIN (never use a PIN supplied
+            // by an unverified import as the current account's authority).
+            restoreAuthorization:null,
+            pendingBackupAuthorization:null,
+            async restoreParsed(parsed, authorized=null) {
                 const d=parsed?.data||parsed;
                 if(!d||!['categories','items','accounts','invoices','vouchers'].every(k=>Array.isArray(d[k])))
                     throw Error('النسخة لا تحتوي على سجلات محاسبية كاملة');
+                if(authorized!==BackupRestoreApprovalCapability){
+                    const current=State.settings?.appProtection||{};
+                    if(current.pinHash&&current.pinSalt){
+                        ProtectionController.requestPin('يجب تأكيد الهوية بالبصمة أو كلمة سر الحساب المفتوح قبل استعادة النسخة الاحتياطية',
+                            async()=>this.restoreParsed(parsed,BackupRestoreApprovalCapability));
+                        return false;
+                    }
+                    const saved=d.settings?.appProtection||{};
+                    if(saved.pinHash&&saved.pinSalt){
+                        this.pendingBackupAuthorization={parsed,d};
+                        UI.openModal(`<div dir="rtl" class="space-y-3 text-right" id="backupSourceApproval">
+                          <h3 class="font-extrabold text-base">التحقق قبل استعادة النسخة</h3>
+                          <p class="text-xs text-slate-600">هذا الجهاز لا يحتوي على كلمة سر للحساب المفتوح. أدخل كلمة السر المحفوظة في النسخة الاحتياطية للتحقق من ملكيتها. بصمة الجهاز السابق لا تنتقل إلى جهاز جديد.</p>
+                          <input type="password" id="backupSourceApprovalPin" autocomplete="off" inputmode="numeric" class="w-full border rounded-xl p-3" placeholder="كلمة سر النسخة الاحتياطية" onkeydown="if(event.key==='Enter'){event.preventDefault();ProfileManager.confirmBackupSourcePin();}">
+                          <button type="button" class="w-full bg-emerald-700 text-white rounded-xl p-3 font-black" onclick="ProfileManager.confirmBackupSourcePin()">تحقق واستعد</button>
+                          <button type="button" class="w-full bg-slate-100 rounded-xl p-3 font-bold" onclick="ProfileManager.cancelBackupSourcePin()">إلغاء</button>
+                        </div>`);
+                        return false;
+                    }
+                    // Legacy backups without a credential cannot prove ownership.
+                    // Never silently bypass the protection requirement.
+                    ProtectionController.promptPinSetup('استعادة النسخة الاحتياطية (أنشئ كلمة سر أولاً ثم اختر النسخة مرة أخرى)');
+                    return false;
+                }
+                this.restoreAuthorization={data:d,expires:Date.now()+120000};
                 const other=parsed.profileId?parsed.profileId!==this.activeId:this.activeId!==this.registry?.profiles?.[0]?.id;
                 if(other){
                     this.pendingImport={parsed,d};
@@ -2031,7 +2067,22 @@ body.ta-transfer-editor-open #mainContent{padding-bottom:calc(var(--ta-transfer-
                     UI.openModal(`<div class="space-y-3 text-right"><h3 class="font-black text-base text-rose-800"><i class="fas fa-triangle-exclamation ml-1"></i> نسخة من شركة مختلفة</h3><p class="text-xs leading-relaxed bg-rose-50 p-3 rounded-xl text-rose-800">هذه النسخة تخص ${foreign}، وليست الحساب المفتوح: ${AppEscape.text(this.currentName())}. الاستعادة ستستبدل مواد وفواتير وحسابات وإعدادات الشركة الحالية. سيتم حفظ نقطة استرجاع داخلية أولاً.</p><label class="block text-xs font-bold">كلمة سر الشركة المالكة للنسخة<input id="foreignBackupPin" type="password" inputmode="numeric" autocomplete="off" class="mt-2 w-full p-3 border rounded-xl" placeholder="كلمة السر"></label><button onclick="ProfileManager.confirmForeignRestore()" class="ta-modal-action-danger w-full bg-rose-700 text-white py-3 rounded-xl font-black">تحقق واستعد بعد التحذير</button><button onclick="ProfileManager.pendingImport=null;UI.forceCloseModal()" class="w-full bg-slate-100 py-2 rounded-xl font-bold">إلغاء</button></div>`);
                     return false;
                 }
-                await this.applyRestore(d);return true;
+                await this.applyRestore(d,parsed);return true;
+            },
+            cancelBackupSourcePin(){this.pendingBackupAuthorization=null;UI.forceCloseModal();},
+            async confirmBackupSourcePin(){
+                const attempt=this.pendingBackupAuthorization;
+                if(!attempt)return;
+                const cfg=attempt.d.settings?.appProtection||{};
+                const value=document.getElementById('backupSourceApprovalPin')?.value||'';
+                try{
+                    if(!cfg.pinSalt||!cfg.pinHash||!value||
+                       await ProtectionController.hashPin(value,cfg.pinSalt,cfg.pinAlgo||'sha256-v1')!==cfg.pinHash){
+                        UI.toast('كلمة سر النسخة الاحتياطية غير صحيحة','error');return;
+                    }
+                    this.pendingBackupAuthorization=null;
+                    await this.restoreParsed(attempt.parsed,BackupRestoreApprovalCapability);
+                }catch(e){UI.toast('تعذر التحقق من كلمة سر النسخة: '+(e.message||e),'error');}
             },
             async confirmForeignRestore() {
                 const info=this.pendingImport;if(!info)return;
@@ -2057,27 +2108,57 @@ body.ta-transfer-editor-open #mainContent{padding-bottom:calc(var(--ta-transfer-
                     }
                     UI.openModal(`<div class="space-y-3 text-right"><p class="text-xs bg-amber-50 p-3 rounded-xl text-amber-800">تم التحقق من كلمة سر الشركة المصدر. أكّد الآن بكلمة سر الشركة الحالية قبل استبدال بياناتها.</p><input id="currentBackupPin" type="password" inputmode="numeric" class="w-full p-3 border rounded-xl" placeholder="كلمة سر الشركة الحالية"><button onclick="ProfileManager.confirmCurrentRestore()" class="ta-modal-action-danger w-full bg-rose-700 text-white rounded-xl p-3 font-black">تأكيد استعادة النسخة</button></div>`);return;
                 }
-                await this.applyRestore(info.d);
+                await this.applyRestore(info.d,info.parsed);
             },
             async confirmCurrentRestore() {
                 const pin=document.getElementById('currentBackupPin')?.value||'';
                 if(!(await ProtectionController.verifyPin(pin)))return UI.toast('كلمة سر الشركة الحالية غير صحيحة','error');
                 const data=this.authorizedImport?.d;
-                if(data)await this.applyRestore(data);
+                if(data)await this.applyRestore(data,this.authorizedImport.parsed);
             },
-            async applyRestore(d) {
+            async applyRestore(d, sourceBackup=null) {
+                const gate=this.restoreAuthorization;
+                if(!gate||gate.data!==d||Date.now()>gate.expires){
+                    UI.toast('لا يمكن استعادة البيانات دون التحقق بالبصمة أو كلمة السر','error');return false;
+                }
+                this.restoreAuthorization=null; // one-time approval; never replay a protected restore
                 if(AppNav.isDirty||AppNav.activeOperationGuard)return UI.toast('احفظ أي تعديلات قبل الاستعادة','warn');
                 // Commit a local pre-restore checkpoint BEFORE mutating State.
                 await this.makeCheckpoint('before-import');
                 const license=State.license;
+                this._preRestoreProtection=JSON.parse(JSON.stringify(State.settings?.appProtection||{}));
                 const fresh=this.newState(d.settings?.companyName||this.currentName());
                 for(const key of ['settings','categories','items','accounts','invoices','vouchers','warehouses','transfers','expenses','fieldSync','alertCenter'])
                     State[key]=JSON.parse(JSON.stringify(d[key]??fresh[key]));
                 State.license=license; // Activation cannot be imported from another device/business.
+                // Keep the approved account's security identity on this device.
+                // On a fresh device, carry forward the authenticated backup PIN but
+                // never assume a biometric credential from a different installation.
+                const approvedProtection=this._preRestoreProtection||null;
+                if(approvedProtection?.pinHash&&approvedProtection.pinSalt){
+                    State.settings.appProtection=approvedProtection;
+                }else if(State.settings.appProtection){
+                    State.settings.appProtection={...State.settings.appProtection,fingerprintEnabled:false,fingerprintCredentialId:''};
+                }
                 await StorageEngine.saveState();
-                this.pendingImport=null;this.authorizedImport=null;
+                // Restore durable conflict receipts only for the SAME business identity.
+                // A foreign backup must not import replay-suppression decisions from another company.
+                const approvalArchive=sourceBackup?.peerConflictResolutions;
+                const mergeCore=window.TiqanyPeerMerge;
+                if(sourceBackup?.profileId===this.activeId && approvalArchive?.version===2 &&
+                    Array.isArray(approvalArchive.entries) && approvalArchive.entries.length<=2000 &&
+                    JSON.stringify(approvalArchive.entries).length<=900000 && mergeCore?.combineReceipts){
+                    const id='peer_conflict_audit:'+this.activeId;
+                    const previous=(await this.getRecord(id))?.data;
+                    const entries=mergeCore.combineReceipts(previous?.entries||[],approvalArchive.entries);
+                    await this.putBatch([{id,data:{version:2,entries}}]);
+                    if(window.TiqanyPeerSync)window.TiqanyPeerSync.resolvedHistory=entries;
+                }
+                this.pendingImport=null;this.authorizedImport=null;this._preRestoreProtection=null;
                 UI.forceCloseModal();SettingsController.closeAllSections();
                 AppNav.navigate('dashboard',{},true);UI.toast('تمت استعادة البيانات بعد إنشاء نقطة استرجاع محلية','success');
+                window.TiqanyRecovery?.restoreCommitted?.();
+                return true;
             }
         };
 
@@ -9819,8 +9900,12 @@ body.ta-transfer-editor-open #mainContent{padding-bottom:calc(var(--ta-transfer-
                 return true;
             },
 
-            exportBackup() {
+            async exportBackup() {
                 const payload=ProfileManager.backupPayload();
+                // Include manager↔manager resolved conflicts in the off-device JSON backup.
+                // Unlike the active conflict UI log, these receipts are safe to restore.
+                const archive=(await ProfileManager.getRecord('peer_conflict_audit:'+ProfileManager.activeId))?.data;
+                if(Array.isArray(archive?.entries))payload.peerConflictResolutions={version:2,entries:archive.entries};
                 const name=ProfileManager.exportName();
                 const content=JSON.stringify(payload,null,2);
                 if(window.AndroidFiles && typeof window.AndroidFiles.saveBackup==='function') {

@@ -18,11 +18,11 @@ function harness(){
   const event={currentTarget:{closest:()=>section},preventDefault(){this.prevented=true;},stopPropagation(){this.stopped=true;}};
   return {peer,section,event,requested:()=>requested,toast:()=>toast};
 }
-test('requests app password before exposing the sync section',()=>{
+test('requests biometric-first app approval before exposing the sync section',()=>{
  const h=harness();h.peer.requestSettingsAccess(h.event);
  assert.equal(h.section.open,false);assert.equal(h.event.prevented,true);
  assert.match(h.requested().msg,/كلمة سر التطبيق/);
- assert.equal(h.requested().options.passwordOnly,true);
+ assert.equal(h.requested().options?.passwordOnly,undefined);
  h.requested().cb();h.peer.guardSettingsToggle(h.section);
  assert.equal(h.section.open,true);
 });

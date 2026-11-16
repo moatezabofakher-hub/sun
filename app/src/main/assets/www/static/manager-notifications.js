@@ -123,6 +123,15 @@ const ManagerNotifications = {
     if(n.entries.length>this.maxEntries)n.entries.length=this.maxEntries;
     return created;
   },
+  async addSyncNotice(reason){
+    const entry={id:'sync-stopped:'+Date.now()+':'+Math.random().toString(36).slice(2,8),type:'sync',
+      title:'توقفت مزامنة المدير والكمبيوتر',detail:String(reason||'انقطع الاتصال').slice(0,240),
+      at:new Date().toISOString(),read:false};
+    const center=this.ensure();center.entries.unshift(entry);center.entries.length=Math.min(center.entries.length,this.maxEntries);
+    try{await StorageEngine.saveState();this.saved([entry]);}
+    catch(error){center.entries=center.entries.filter(e=>e.id!==entry.id);this.updateBadge();throw error;}
+    return entry;
+  },
   unread(){return this.ensure().entries.reduce((sum,x)=>sum+(x.read?0:1),0);},
   updateBadge(){
     const badge=document.getElementById('headerNotificationsCount');if(!badge)return;
@@ -132,7 +141,7 @@ const ManagerNotifications = {
     if(btn)btn.setAttribute('aria-label',count?'الإشعارات: '+count+' غير مقروء':'الإشعارات');
   },
   render(main){
-    UI.setHeader('<i class="fas fa-bell text-emerald-400"></i> <span>الإشعارات</span>','عمليات موظف البيع ونفاد المواد من المستودعات');
+    UI.setHeader('<i class="fas fa-bell text-emerald-400"></i> <span>الإشعارات</span>','عمليات موظف البيع والمزامنة وتنبيهات المواد');
     const n=this.ensure(),list=n.entries;
     main.innerHTML=`<div class="space-y-3" dir="rtl">
       <div class="rounded-2xl bg-white border p-4 flex items-center justify-between gap-2">
@@ -155,6 +164,11 @@ const ManagerNotifications = {
   async open(id){
     const entry=this.ensure().entries.find(x=>x.id===id);if(!entry)return UI.toast('هذا الإشعار غير متوفر','warn');
     if(!entry.read){entry.read=true;this.updateBadge();try{await StorageEngine.saveState();}catch(e){entry.read=false;this.updateBadge();}}
+    if(AppNav.current?.()?.screen==='notifications')AppNav.renderCurrent();
+    if(window.WindowsPeerSync){return this.showDesktopDetails(entry);}
+    if(entry.type==='sync'){
+      UI.openModal(`<div dir="rtl" class="text-right space-y-3"><h3 class="font-black">${this.escape(entry.title)}</h3><p>${this.escape(entry.detail)}</p><button class="w-full p-3 rounded-xl bg-teal-700 text-white font-bold" onclick="UI.forceCloseModal();TiqanyPeerSync.openSettingsFromHeader()">فتح إعدادات المزامنة</button></div>`);return;
+    }
     if(entry.type==='stock'){
       AppNav.navigate('reports',{tab:'inventory',warehouseId:entry.warehouseId});
       UI.toast('المادة: '+(State.items.find(x=>x.id===entry.itemId)?.name||entry.itemId),'warn');
@@ -173,6 +187,29 @@ const ManagerNotifications = {
     UI.openModal(`<div dir="rtl" class="text-right space-y-3"><h3 class="font-black text-base">${this.escape(entry.title)}</h3><p class="text-sm">${this.escape(entry.detail)}</p>${expenseInfo}<p class="text-xs text-slate-500">${this.escape(entry.at)}</p>
       ${entry.agentId?`<button type="button" class="w-full rounded-xl p-3 bg-teal-700 text-white font-bold" onclick="UI.forceCloseModal();AppNav.navigate('agent_activity',{agentId:${JSON.stringify(entry.agentId).replace(/"/g,'&quot;')},view:'${entry.target==='expense'?'expenses':'all'}',period:'all'})">عرض سجل معاملات موظف البيع</button>`:''}
       <button type="button" class="w-full rounded-xl p-3 bg-slate-100 font-bold" onclick="UI.forceCloseModal()">إغلاق</button></div>`);
+  },
+  showDesktopDetails(entry){
+    const links={invoice:State.invoices,voucher:State.vouchers,customer:State.accounts,expense:State.expenses};
+    const found=Array.isArray(links[entry.target])&&links[entry.target].some(x=>x.id===entry.targetId);
+    const canOpen=entry.action!=='حذف'&&!!found;
+    const operationLabel=entry.target==='invoice'?'فتح الفاتورة':entry.target==='voucher'?'فتح السند':entry.target==='customer'?'فتح حساب الزبون':'عرض التفاصيل';
+    UI.openModal(`<div class="text-right space-y-3" dir="rtl"><h3 class="font-black">${this.escape(entry.title)}</h3><p class="text-sm">${this.escape(entry.detail)}</p><p class="text-xs text-slate-500">${this.escape(entry.at||'')}</p>
+      ${canOpen?`<button class="w-full p-3 rounded-xl bg-teal-700 text-white font-bold" onclick="ManagerNotifications.goToOperation(${JSON.stringify(entry.id).replace(/"/g,'&quot;')})">الانتقال إلى العملية — ${operationLabel}</button>`:''}
+      ${entry.type==='peer'&&!canOpen?'<button class="w-full p-3 rounded-xl bg-teal-700 text-white font-bold" onclick="UI.forceCloseModal();AppNav.navigate(\'invoices_list\')">عرض قائمة العمليات والفواتير</button>':''}
+      ${entry.type==='sync'?'<button class="w-full p-3 rounded-xl bg-teal-700 text-white font-bold" onclick="UI.forceCloseModal();TiqanyPeerSync.openSettingsFromHeader()">فتح المزامنة لمعرفة الحالة</button>':''}
+      ${!canOpen&&entry.agentId?`<button class="w-full p-3 rounded-xl bg-teal-700 text-white font-bold" onclick="UI.forceCloseModal();AppNav.navigate('agent_activity',{agentId:${JSON.stringify(entry.agentId).replace(/"/g,'&quot;')},view:'all',period:'all'})">عرض سجل عمليات الموظف</button>`:''}
+      <button class="w-full p-3 rounded-xl bg-slate-100 font-bold" onclick="UI.forceCloseModal()">إغلاق</button></div>`);
+  },
+  goToOperation(id){
+    const entry=this.ensure().entries.find(x=>x.id===id);if(!entry)return;
+    UI.forceCloseModal();
+    if(entry.target==='invoice'&&State.invoices.some(x=>x.id===entry.targetId))return AppNav.navigate('invoice_print',{id:entry.targetId});
+    if(entry.target==='voucher'&&State.vouchers.some(x=>x.id===entry.targetId))return AppNav.navigate('voucher_form',{id:entry.targetId});
+    if(entry.target==='customer'&&State.accounts.some(x=>x.id===entry.targetId))return AppNav.navigate('account_statement',{id:entry.targetId,accountId:entry.targetId});
+    if(entry.target==='expense'&&State.expenses.some(x=>x.id===entry.targetId))return AppNav.navigate('expenses');
+    if(entry.type==='stock')return AppNav.navigate('reports',{tab:'inventory',warehouseId:entry.warehouseId});
+    if(entry.agentId)return AppNav.navigate('agent_activity',{agentId:entry.agentId,view:entry.target==='expense'?'expenses':'all',period:'all'});
+    UI.toast('العملية لم تعد موجودة. راجع سجل الموظف أو التفاصيل المسجلة.','warn');
   },
   openNativePending(){
     try{

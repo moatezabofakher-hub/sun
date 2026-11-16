@@ -748,19 +748,26 @@ public final class MainActivity extends FragmentActivity {
                     replyBiometric(requestId, false, "يوجد تحقق آخر قيد التنفيذ");
                     return;
                 }
+                // Android 11+: accept biometrics first, or the device's secure lock
+                // PIN/password when biometrics have not been enrolled.
+                final int authenticators = android.os.Build.VERSION.SDK_INT >= 30
+                        ? (BiometricManager.Authenticators.BIOMETRIC_WEAK | BiometricManager.Authenticators.DEVICE_CREDENTIAL)
+                        : BiometricManager.Authenticators.BIOMETRIC_WEAK;
                 int available = BiometricManager.from(MainActivity.this)
-                        .canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_WEAK);
+                        .canAuthenticate(authenticators);
                 if (available != BiometricManager.BIOMETRIC_SUCCESS) {
                     replyBiometric(requestId, false, "البصمة غير متاحة: تأكد من إعداد بصمة أو قفل حيوي في الهاتف");
                     return;
                 }
                 pendingBiometricId = requestId;
-                BiometricPrompt.PromptInfo promptInfo = new BiometricPrompt.PromptInfo.Builder()
+                BiometricPrompt.PromptInfo.Builder promptBuilder = new BiometricPrompt.PromptInfo.Builder()
                         .setTitle("تأكيد الهوية - المحاسب التقني")
-                        .setSubtitle("استخدم بصمة الإصبع أو وسيلة التحقق الحيوية في الهاتف")
-                        .setNegativeButtonText("إلغاء - استخدم كلمة السر")
-                        .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_WEAK)
-                        .build();
+                        .setSubtitle("استخدم البصمة أو رمز قفل الشاشة للتحقق قبل استعادة البيانات")
+                        .setAllowedAuthenticators(authenticators);
+                if (android.os.Build.VERSION.SDK_INT < 30) {
+                    promptBuilder.setNegativeButtonText("إلغاء - استخدم كلمة السر");
+                }
+                BiometricPrompt.PromptInfo promptInfo = promptBuilder.build();
                 try {
                     biometricPrompt.authenticate(promptInfo);
                 } catch (Exception e) {

@@ -28,6 +28,10 @@ Agent.renderBackupSettings = function () {
        ${cfg.localError?`<p class="tiny" style="color:#b91c1c">${esc(cfg.localError)}</p>`:''}
        ${cfg.snapshotError?`<p class="tiny" style="color:#b91c1c">${esc(cfg.snapshotError)}</p>`:''}
     </section>
+    <section class="panel"><h3>🔒 كلمة سر موظف البيع والاستعادة</h3>
+       <p class="tiny">${this.state?.employeeAuth?.hash?'✓ كلمة السر مستلمة من المدير؛ تُستخدم لفتح تطبيق الموظف واستعادة النسخ الجديدة':'⚠ لم تصل كلمة سر الموظف بعد. اطلب من المدير تعيينها من صفحة تعديل الموظف ثم زامن التطبيق.'}</p>
+       <p class="tiny" style="background:#ecfdf5;border:1px solid #99f6e4;border-radius:12px;padding:11px;color:#115e59;font-weight:800">إدارة كلمة السر وتغييرها متاحان فقط للمدير من تطبيق الكمبيوتر أو التطبيق الرئيسي. لا يمكن تغييرها من هاتف الموظف.</p>
+    </section>
     <section class="panel"><h3>مشاركة نسخة احتياطية عبر واتساب</h3>
        <label class="label" for="agentWhatsappFrom">رقم واتساب المرسل (مع رمز الدولة)</label>
        <input class="field ltr" id="agentWhatsappFrom" type="tel" inputmode="tel" value="${esc(cfg.whatsAppSender||'')}" placeholder="+9639..." autocomplete="off"/>
@@ -38,6 +42,27 @@ Agent.renderBackupSettings = function () {
        <p class="tiny" style="background:#fff7e5;border-radius:12px;padding:11px;color:#724b13">رقم المرسل حقل تعريف فقط؛ الإرسال يتم من حساب واتساب المفتوح على هذا الجهاز. سيفتح واتساب لمراجعة المستلم والضغط على «إرسال». لا يمكن لتطبيق واتساب العادي إرسال ملف تلقائياً من دون موافقتك؛ ذلك يتطلب إعداد منصة واتساب للأعمال (Cloud API). النسخة تحتوي على بيانات محاسبية حساسة: أرسلها إلى رقم موثوق فقط.</p>
     </section>`;
 };
+// PBKDF2 password verifier stays with the backup. Never store raw passwords.
+const BackupRecoverySecurity={
+  async hash(pin,salt){
+    const bytes=new TextEncoder().encode(pin);
+    const key=await crypto.subtle.importKey('raw',bytes,'PBKDF2',false,['deriveBits']);
+    const saltBytes=Uint8Array.from(atob(salt),c=>c.charCodeAt(0));
+    const result=await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',salt:saltBytes,iterations:180000},key,256);
+    return btoa(String.fromCharCode(...new Uint8Array(result)));
+  },
+  async verifyPin(pin,cfg){
+    if(!cfg?.hash||!cfg.salt||!pin||cfg.algo!=='pbkdf2-sha256-v1')return false;
+    const computed=await this.hash(String(pin),cfg.salt);
+    // Constant-time byte comparison where feasible within JS.
+    const a=Uint8Array.from(atob(computed),x=>x.charCodeAt(0)),b=Uint8Array.from(atob(cfg.hash),x=>x.charCodeAt(0));
+    if(a.length!==b.length)return false;
+    let difference=0;for(let i=0;i<a.length;i++)difference|=a[i]^b[i];
+    return difference===0;
+  }
+};
+window.AgentBackupAuth=BackupRecoverySecurity;
+Agent.saveBackupRecoveryPin=function(){this.toast('لا يمكن تغيير كلمة سر الموظف من هاتفه؛ اطلب التغيير من المدير.');return false;};
 Agent.chooseBackupFolder = function () { if(window.AndroidAutoBackup?.chooseLocalFolder) window.AndroidAutoBackup.chooseLocalFolder();else this.toast('اختيار المجلد متاح داخل APK فقط'); };
 Agent.saveBackupFrequency = async function () {
     const enabled=document.getElementById('agentBackupEnabled')?.value==='true';

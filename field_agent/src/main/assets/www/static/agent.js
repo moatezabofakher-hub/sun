@@ -5,7 +5,7 @@ const Agent={
   // Extension modules provide paginated restorers; these defaults keep older standalone integrations compatible.
   mergeHistoryPage(page,old=this.state){return {ops:old.ops||[],cursor:Number(old.historyCursor||0),restoredIds:[]};},
   mergeTransferPage(page,old=this.state){return {docs:old.warehouseTransfers||[],cursor:Number(old.warehouseHistoryCursor||0),revision:old.warehouseTransferRevision||''};},
-  get blank(){return {deviceId:'TD-'+FieldProtocol.uuid().toUpperCase(),companyId:'',companyName:'',companyPhone:'',companyAddress:'',companyLogo:'',footerNote:'',printerWidth:80,printFontScale:0.75,itemQuantityDecimals:2,agentId:'',agentName:'',vehicleName:'',warehouseId:'',key:'',items:[],categories:[],accounts:[],stock:{},knownIds:[],snapshotIds:[],ops:[],agentCash:null,cashTransfers:[],warehouseTransfers:[],historyCursor:0,warehouseHistoryCursor:0,warehouseTransferRevision:'',license:'',issuedAt:'',lastSyncAt:'',lastSyncSummary:null,exchangeRate:15000,defaultPriceTier:'wholesale',permissions:null,accountLedgers:[],exchangeRateOverride:null};},
+  get blank(){return {deviceId:'TD-'+FieldProtocol.uuid().toUpperCase(),companyId:'',companyName:'',companyPhone:'',companyAddress:'',companyLogo:'',footerNote:'',printerWidth:80,printFontScale:0.75,itemQuantityDecimals:2,agentId:'',agentName:'',vehicleName:'',warehouseId:'',key:'',items:[],categories:[],accounts:[],stock:{},knownIds:[],snapshotIds:[],ops:[],agentCash:null,cashTransfers:[],warehouseTransfers:[],historyCursor:0,warehouseHistoryCursor:0,warehouseTransferRevision:'',license:'',issuedAt:'',lastSyncAt:'',lastSyncSummary:null,exchangeRate:15000,defaultPriceTier:'wholesale',permissions:null,accountLedgers:[],exchangeRateOverride:null,employeeAuth:null,backupRecovery:null};},
   async init(){
     if(!globalThis.crypto?.subtle){document.getElementById('screen').textContent='هذا الجهاز لا يدعم البيئة الآمنة اللازمة لتشغيل المزامنة.';return;}
     try{
@@ -187,7 +187,7 @@ const Agent={
           historyCursor:this.mergeHistoryPage(payload.historyPage,{...this.state,companyId:payload.companyId,agentId:payload.agentId,warehouseId:payload.warehouseId}).cursor,
           snapshotIds:payload.knownIds||[],knownIds:Array.from(new Set([...(this.state.knownIds||[]),...(payload.knownIds||[]),...this.mergeHistoryPage(payload.historyPage,{...this.state,companyId:payload.companyId,agentId:payload.agentId,warehouseId:payload.warehouseId}).restoredIds])),exchangeRate:payload.permissions?.exchangeRate&&Number(previous.exchangeRateOverride)>0?Number(previous.exchangeRateOverride):payload.exchangeRate,exchangeRateOverride:payload.permissions?.exchangeRate?previous.exchangeRateOverride:null,
           defaultPriceTier:['wholesale','center','consumer'].includes(payload.defaultPriceTier)?payload.defaultPriceTier:'wholesale',
-          permissions:payload.permissions||null,accountLedgers:Array.isArray(payload.accountLedgers)?payload.accountLedgers:[],
+          permissions:payload.permissions||null,employeeAuth:TiqanyEmployeeAuth.resolve(this.state.employeeAuth,payload.employeeAuth),backupRecovery:TiqanyEmployeeAuth.resolve(this.state.employeeAuth,payload.employeeAuth)||this.state.backupRecovery||null,accountLedgers:Array.isArray(payload.accountLedgers)?payload.accountLedgers:[],
           issuedAt:payload.issuedAt,cloud:Object.prototype.hasOwnProperty.call(payload,'cloud')?payload.cloud:(this.state.cloud||null)};
         this.draft=[];this.currency='USD';await this.save();this.toast('استُلم كشف المواد والعملاء دون حذف العمليات القديمة');await this.show('home');
       }else if(raw?.kind==='ack'){
@@ -282,6 +282,7 @@ const Agent={
         !!(catalog.historyPage?.ops||[]).some(o=>!(old.ops||[]).some(existing=>existing.id===o.id))||
         Number(old.printerWidth)!==Number(catalog.printerWidth||80)||Number(old.printFontScale)!==Number(catalog.printFontScale||0.75)||
         Number(old.itemQuantityDecimals??2)!==Number(catalog.itemQuantityDecimals??2)||
+        JSON.stringify(old.employeeAuth||null)!==JSON.stringify(TiqanyEmployeeAuth.resolve(old.employeeAuth,catalog.employeeAuth))||
         JSON.stringify(old.permissions||null)!==JSON.stringify(catalog.permissions||null)||
         JSON.stringify(old.accountLedgers||[])!==JSON.stringify(catalog.accountLedgers||[])||
         JSON.stringify(old.categories||[])!==JSON.stringify(catalog.categories||[])||
@@ -303,7 +304,8 @@ const Agent={
           managerPublishedRate:Number(catalog.exchangeRate),
           exchangeRateOverride:catalog.permissions?.exchangeRate?old.exchangeRateOverride:null,
           defaultPriceTier:['wholesale','center','consumer'].includes(catalog.defaultPriceTier)?catalog.defaultPriceTier:'wholesale',
-          permissions:catalog.permissions||null,accountLedgers:Array.isArray(catalog.accountLedgers)?catalog.accountLedgers:[],
+          permissions:catalog.permissions||null,employeeAuth:TiqanyEmployeeAuth.resolve(old.employeeAuth,catalog.employeeAuth),
+          backupRecovery:TiqanyEmployeeAuth.resolve(old.employeeAuth,catalog.employeeAuth)||old.backupRecovery||null,accountLedgers:Array.isArray(catalog.accountLedgers)?catalog.accountLedgers:[],
           categories:catalog.categories||[],items:receivedItems,
           accounts:receivedAccounts,stock:catalog.stock,snapshotIds:catalog.knownIds||[],
           agentCash:catalog.agentCash||null,cashTransfers:catalog.cashTransfers||[],

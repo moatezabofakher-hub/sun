@@ -122,7 +122,7 @@ const FieldSync = {
       <div class="rounded-2xl border p-3 space-y-2 bg-white"><b class="text-sm">موظفو البيع المسجلون</b>
          ${config.agents.filter(a=>!a.archived).length? config.agents.filter(a=>!a.archived).map(a=>`<div class="rounded-xl bg-slate-50 border p-3 space-y-2">
              <div class="flex justify-between gap-2"><span class="font-bold">${this.escape(a.name)} · ${this.escape(a.vehicleName||'')}</span><span class="text-[10px]">${a.disabled?'موقوف':'معتمد'}</span></div><div class="mt-1"><span data-agent-online-id="${this.escape(a.id)}" class="ta-peer-presence offline">● غير متصل</span></div>${a.createdOnDevice?`<div class="text-[10px] text-sky-800 font-bold">${a.createdOnDevice==='computer'?'🖥️ أُنشئ على الكمبيوتر':'📱 أُنشئ على الموبايل الرئيسي'}</div>`:''}
-             <p class="text-[10px] text-slate-500">${this.escape(WarehouseController.name(a.warehouseId))}</p>
+             <p class="text-[10px] text-slate-500">${this.escape(WarehouseController.name(a.warehouseId))}</p><p class="text-[11px] font-extrabold ${a.employeeAuth?.hash?'text-teal-700':'text-rose-700'}">${a.employeeAuth?.hash?'🔒 كلمة سر الموظف جاهزة':'⚠ عيّن كلمة سر الموظف من تعديل الموظف'}</p>
              <p class="text-[10px] ${a.pairedDeviceId?'text-teal-700':'text-amber-700'}">${a.pairedDeviceId?'🔒 مرتبط بجهاز ينتهي معرفه بـ '+this.escape(a.pairedDeviceId.slice(-8)):'بانتظار طلب ربط جهاز جديد'}</p>
              <div class="grid grid-cols-2 gap-2">
                <button type="button" class="rounded-lg bg-teal-700 text-white p-2 font-bold" onclick="FieldSync.exportProvision('${a.id}')">تجهيز بيانات موظف البيع</button>
@@ -165,7 +165,7 @@ const FieldSync = {
     // Limit optional image payloads to keep periodic encrypted sync reliable on LAN.
     let imageBudget=650000,ledgerBudget=4600;
     return {kind:'provision',format:FieldProtocol.FORMAT,companyId:config.companyId,companyName:State.settings.companyName,agentId:a.id,agentName:a.name,vehicleName:a.vehicleName,warehouseId:a.warehouseId,key:a.key,
-      issuedAt:new Date().toISOString(),permissions:TiqanyAgentPermissions.normalize(a.permissions),exchangeRate:Number(State.settings.exchangeRate),
+      issuedAt:new Date().toISOString(),permissions:TiqanyAgentPermissions.normalize(a.permissions),employeeAuth:a.employeeAuth||null,exchangeRate:Number(State.settings.exchangeRate),
       defaultPriceTier:['wholesale','center','consumer'].includes(State.settings.defaultPriceTier)?State.settings.defaultPriceTier:'wholesale',
       // Company branding is an authenticated part of each refreshed catalog; never copied from agent edits.
       companyPhone:String(State.settings.companyPhone||'').slice(0,100),
@@ -215,6 +215,17 @@ const FieldSync = {
       <label class="text-xs font-black">السيارة / خط التوزيع</label><input id="editFieldAgentVehicle" class="w-full border rounded-xl p-3" maxlength="70" value="${this.escape(a.vehicleName||'')}"/>
       ${this.accountPicker('fieldEditAccounts',a.allowedAccountIds)}
       ${this.permissionGrid('editFieldPermissions',a.permissions)}
+      <section class="rounded-2xl border-2 border-teal-300 bg-teal-50 p-3 space-y-3" aria-label="كلمة سر الموظف">
+        <h4 class="font-black text-teal-950 text-base">🔐 كلمة سر موظف البيع</h4>
+        <p class="text-xs font-bold ${a.employeeAuth?.hash?'text-teal-800':'text-rose-800'}">${a.employeeAuth?.hash?'✓ تم تعيين كلمة سر خاصة بهذا الموظف':'⚠ لم يتم تعيين كلمة سر لهذا الموظف بعد'}</p>
+        <p class="text-xs text-slate-700">للمدير فقط. يستلمها تطبيق الموظف عند المزامنة، ولا يمكن للموظف تغييرها. اترك الخانتين فارغتين للاحتفاظ بالرمز الحالي.</p>
+        <label class="block text-sm font-black text-slate-900" for="editFieldEmployeePassword">${a.employeeAuth?.hash?'تغيير كلمة سر الموظف':'تعيين كلمة سر الموظف'} (6 خانات على الأقل)</label>
+        <input id="editFieldEmployeePassword" type="password" autocomplete="new-password" minlength="6" maxlength="128" class="w-full border-2 border-teal-300 rounded-xl p-3 bg-white" placeholder="كلمة سر خاصة بهذا الموظف"/>
+        <label class="block text-sm font-black text-slate-900" for="editFieldEmployeeConfirm">تأكيد كلمة سر الموظف</label>
+        <input id="editFieldEmployeeConfirm" type="password" autocomplete="new-password" minlength="6" maxlength="128" class="w-full border-2 border-teal-300 rounded-xl p-3 bg-white"/>
+        ${State.settings.appProtection?.pinHash?'<label class="block text-sm font-black text-slate-900" for="editFieldManagerApprovalPin">كلمة سر المدير للسماح بتغيير كلمة الموظف</label><input id="editFieldManagerApprovalPin" type="password" autocomplete="current-password" class="w-full border-2 border-slate-300 rounded-xl p-3 bg-white" placeholder="تُطلب عند تغيير كلمة الموظف فقط"/>':''}
+        <p class="text-xs text-teal-900 font-bold">لا تُخزن كلمة السر كما أُدخلت ولا تُرسل نصًا؛ يُنقل رمز تحقق مشفّر مشتق منها. وتُستخدم كلمة الموظف لاستعادة نسخه الاحتياطية الجديدة.</p>
+      </section>
       <div class="bg-slate-100 rounded-xl p-2 text-xs">مستودع السيارة: ${this.escape(WarehouseController.name(a.warehouseId))} — ثابت لحماية جرد العمليات</div>
       <button type="button" class="ta-primary-3d w-full p-3 rounded-xl" onclick="FieldSync.saveAgentEdit('${a.id}')">حفظ التعديل</button>
       <button type="button" class="rounded-xl p-2 w-full bg-slate-100" onclick="FieldSync.open()">رجوع</button>
@@ -226,8 +237,25 @@ const FieldSync = {
     const vehicleName=String(document.getElementById('editFieldAgentVehicle')?.value||'').trim();
     if(name.length<2||name.length>70||vehicleName.length>70)return UI.toast('اسم موظف البيع يجب أن يكون بين حرفين و70 حرفًا','warn');
     let allowedAccountIds;try{allowedAccountIds=this.readAccountPicker('fieldEditAccounts');}catch(e){return UI.toast(e.message,'warn');}
-    const original={name:a.name,vehicleName:a.vehicleName,allowedAccountIds:a.allowedAccountIds,permissions:a.permissions};a.name=name;a.vehicleName=vehicleName||name;a.allowedAccountIds=allowedAccountIds;a.permissions=this.readPermissions('editFieldPermissions');
-    try{await StorageEngine.saveState();this.open();UI.toast('حُفظ التعديل. أرسل كشف تجهيز جديدًا إلى هاتف موظف البيع','success');}
+    const employeePassword=document.getElementById('editFieldEmployeePassword')?.value||'';
+    const employeeConfirm=document.getElementById('editFieldEmployeeConfirm')?.value||'';
+    if((employeePassword||employeeConfirm)&&employeePassword!==employeeConfirm)return UI.toast('تأكيد كلمة سر الموظف غير مطابق','error');
+    if(!a.employeeAuth?.hash&&!employeePassword)return UI.toast('عيّن كلمة سر خاصة بالموظف قبل حفظ بياناته','warn');
+    let employeeAuth=a.employeeAuth||null;
+    if(employeePassword){
+      try{
+        if(State.settings.appProtection?.pinHash){
+          const managerPin=document.getElementById('editFieldManagerApprovalPin')?.value||'';
+          if(!managerPin||!await ProtectionController.verifyPin(managerPin))throw Error('أدخل كلمة سر المدير الصحيحة للموافقة على تعيين كلمة الموظف');
+          if(await ProtectionController.verifyPin(employeePassword))throw Error('يجب أن تختلف كلمة سر الموظف عن كلمة سر المدير');
+        }
+        employeeAuth={...await TiqanyEmployeeAuth.create(employeePassword),version:(Number(a.employeeAuth?.version)||0)+1};
+      }catch(e){return UI.toast(e.message||'تعذر إعداد كلمة سر الموظف','error');}
+    }
+    const original={name:a.name,vehicleName:a.vehicleName,allowedAccountIds:a.allowedAccountIds,permissions:a.permissions,employeeAuth:a.employeeAuth};
+    a.name=name;a.vehicleName=vehicleName||name;a.allowedAccountIds=allowedAccountIds;
+    a.permissions=this.readPermissions('editFieldPermissions');a.employeeAuth=employeeAuth;
+    try{await StorageEngine.saveState();this.open();UI.toast('حُفظ موظف البيع؛ ستنتقل كلمة سره الجديدة تلقائيًا عند أول مزامنة موثوقة','success');}
     catch(e){Object.assign(a,original);UI.toast('لم يُحفظ تعديل موظف البيع: '+e.message,'error');}
   },
   confirmRemoveAgent(id){
@@ -279,6 +307,7 @@ const FieldSync = {
   },
   async exportProvision(id){
     const a=this.data().agents.find(x=>x.id===id&&!x.disabled);if(!a)return UI.toast('موظف البيع غير موجود','error');
+    if(!TiqanyEmployeeAuth.valid(a.employeeAuth))return UI.toast('عيّن كلمة سر الموظف من صفحة تعديل الموظف قبل إصدار كشف التجهيز','warn');
     try {
       await StorageEngine.saveState();
       const envelope=await FieldProtocol.seal(this.catalog(a),a.key);

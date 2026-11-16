@@ -20,6 +20,25 @@ function snapshot(state){
  result.sharedSettings={};for(const k of SETTINGS)if(state.settings&&Object.prototype.hasOwnProperty.call(state.settings,k))result.sharedSettings[k]=clone(state.settings[k]);
  return result;
 }
+function emptyLedger(s){
+ if(!s||typeof s!=='object')return false;
+ const arrays=['categories','items','accounts','invoices','vouchers','transfers','expenses',
+   'fieldAgents','fieldImported','fieldEvents','fieldCashTransfers','fieldOperationHistory','fieldRevisionAudit'];
+ if(arrays.some(k=>Array.isArray(s[k])&&s[k].length>0))return false;
+ // The template contains wh_main; additional warehouses imply an established company.
+ if((s.warehouses||[]).some(w=>w?.id!=='wh_main'))return false;
+ return !Array.isArray(s.fieldCompany)||s.fieldCompany.length===0;
+}
+// A company UID is not a password. The independently protected QR key authenticates the link.
+// A populated ledger is NEVER joined by matching its visible company name.
+function companyJoin(localUid,remoteUid,opts={}){
+ const valid=v=>typeof v==='string'&&/^business_[a-f0-9]{32}$/.test(v);
+ if(!valid(remoteUid)||!valid(localUid))return {allowed:false,reason:'هوية الشركة غير صالحة؛ يجب تحديث التطبيقين'};
+ if(localUid===remoteUid)return {allowed:true,adopt:false};
+ if(opts.existingVerifiedLink===true)return {allowed:true,adopt:true,legacy:true};
+ if(opts.empty===true)return {allowed:true,adopt:true};
+ return {allowed:false,reason:'رفض الربط: الهاتف والكمبيوتر يتبعان لشركتين مختلفتين، حتى لو تشابه الاسم. لن تُنقل أي بيانات.'};
+}
 function ensureSnapshot(s){if(!s||typeof s!=='object'||Array.isArray(s))throw Error('نسخة مزامنة غير صالحة');for(const k of BASE_COLLECTIONS)if(!Array.isArray(s[k]))throw Error('سجل '+k+' غير صالح');for(const k of STAFF_COLLECTIONS)if(s[k]!==undefined&&!Array.isArray(s[k]))throw Error('سجل موظفي البيع '+k+' غير صالح');if(!s.sharedSettings||typeof s.sharedSettings!=='object'||Array.isArray(s.sharedSettings))throw Error('إعدادات المزامنة غير صالحة');}
 function recordKey(name,r){
  if(name==='categories'){if(typeof r!=='string')throw Error('اسم مجموعة غير صالح');return 'str:'+r;}
@@ -62,7 +81,7 @@ function equivalentImported(collection,a,b){
  return !!key&&key===fieldIdentity(collection,b)&&
    same(fieldBusinessVersion(collection,a),fieldBusinessVersion(collection,b));
 }
-function reconcileFieldDuplicates(out,local,remote,resolutions,conflicts,details,stats){
+function reconcileFieldDuplicates(out,local,remote,resolutions,history,conflicts,details,stats,resolved){
  const alias=new Map();
  for(const collection of DOCUMENT_COLLECTIONS){
    const groups=new Map();
@@ -83,12 +102,13 @@ function reconcileFieldDuplicates(out,local,remote,resolutions,conflicts,details
      const equal=validPair&&equivalentImported(collection,phone,computer);
      const detail=makeConflict('duplicate',collection,'field-origin:'+origin,null,phone||group[0],computer||group[group.length-1]);
      let chosen;
-     if(equal)chosen=computer; // Prefer the already printed Windows document number
+     const prior=historicalStatus(detail,history),approval=validPair?approvedChoice(detail,resolutions,prior.conflict?[]:history):null;
+     if(approval){chosen=approval==='phone'?phone:computer;resolved.push(resolutionReceipt(detail,approval));}
+     else if(prior.conflict){details.push(detail);conflicts.push(collection+': قرارات متناقضة لعملية الموظف '+origin);continue;}
+     else if(equal)chosen=computer; // Prefer the already printed Windows document number.
      else{
        details.push(detail);
-       const approval=validPair?approvedChoice(detail,resolutions):null;
-       if(approval)chosen=approval==='phone'?phone:computer;
-       else{conflicts.push(collection+': تطابق هوية عملية موظف مع اختلاف بياناتها '+origin);continue;}
+       conflicts.push(collection+': تطابق هوية عملية موظف مع اختلاف بياناتها '+origin);continue;
      }
      for(const doc of group){
        if(doc===chosen||doc.id===chosen.id)continue;
@@ -111,7 +131,66 @@ function makeConflict(kind,collection,key,base,phone,computer){
  const id=collection+'|'+key;
  return {id,kind,collection,recordId:key,signature:digest([base===undefined?{missing:true}:base,phone===undefined?{missing:true}:phone,computer===undefined?{missing:true}:computer]),hasBase:base!==undefined,hasPhone:phone!==undefined,hasComputer:computer!==undefined,base:clone(base),phone:clone(phone),computer:clone(computer)};
 }
-function approvedChoice(details,resolutions){const d=resolutions&&resolutions[details.id];return d&&d.signature===details.signature&&(d.side==='phone'||d.side==='computer')?d.side:null;}
+const MISSING={missing:true};
+function sideDigest(d,side){return digest(d['has'+(side==='phone'?'Phone':'Computer')]?d[side]:MISSING);}
+function resolutionReceipt(d,side,at=new Date().toISOString()){
+ if(!d||!['phone','computer'].includes(side)||d.kind==='inventory')return null;
+ return {id:d.id,kind:d.kind,collection:d.collection,recordId:d.recordId,signature:d.signature,chosen:side,
+   acceptedDigest:sideDigest(d,side),rejectedDigest:sideDigest(d,side==='phone'?'computer':'phone'),at};
+}
+function validReceipt(r){return !!r&&typeof r==='object'&&!Array.isArray(r)&&
+  typeof r.id==='string'&&r.id.length<=600&&typeof r.collection==='string'&&typeof r.recordId==='string'&&
+  r.id===r.collection+'|'+r.recordId&&['record','settings','duplicate'].includes(r.kind)&&
+  ['phone','computer'].includes(r.chosen)&&typeof r.acceptedDigest==='string'&&r.acceptedDigest.length<120&&
+  typeof r.rejectedDigest==='string'&&r.rejectedDigest.length<120&&r.acceptedDigest!==r.rejectedDigest&&
+  (r.linkId===undefined||(typeof r.linkId==='string'&&r.linkId.length<=280));}
+function combineReceipts(...sets){
+ const latest=new Map();
+ for(const set of sets)if(Array.isArray(set))for(const r of set){
+   if(!validReceipt(r))continue;
+   // Deduplicate the same approved winner, keeping its full provenance and link scope.
+   const key=JSON.stringify([r.linkId||'',r.id,r.kind,r.acceptedDigest,r.rejectedDigest]);
+   const previous=latest.get(key);
+   if(!previous||String(previous.at||'')<=String(r.at||''))latest.set(key,clone(r));
+ }
+ return [...latest.values()].sort((a,b)=>String(a.at||'').localeCompare(String(b.at||''))).slice(-2000);
+}
+function retireOppositeReceipts(history,explicitApprovals){
+ const approvals=Array.isArray(explicitApprovals)?explicitApprovals.filter(validReceipt):[];
+ if(!approvals.length)return combineReceipts(history);
+ return combineReceipts((Array.isArray(history)?history:[]).filter(old=>!approvals.some(next=>
+   old.id===next.id&&old.kind===next.kind&&
+   (!old.linkId||!next.linkId||old.linkId===next.linkId)&&
+   old.acceptedDigest===next.rejectedDigest&&old.rejectedDigest===next.acceptedDigest)));
+}
+function historicalStatus(detail,history){
+ if(!Array.isArray(history)||!history.length)return {side:null,conflict:false};
+ const phone=sideDigest(detail,'phone'),computer=sideDigest(detail,'computer');
+ if(phone===computer)return {side:null,conflict:false};
+ let side=null;
+ for(const receipt of history){
+  if(!validReceipt(receipt)||receipt.id!==detail.id||receipt.kind!==detail.kind)continue;
+  let candidate=null;
+  if(receipt.acceptedDigest===phone&&receipt.rejectedDigest===computer)candidate='phone';
+  else if(receipt.acceptedDigest===computer&&receipt.rejectedDigest===phone)candidate='computer';
+  if(candidate){if(side&&side!==candidate)return {side:null,conflict:true};side=candidate;}
+ }
+ return {side,conflict:false};
+}
+function historicalChoice(detail,history){return historicalStatus(detail,history).side;}
+function isTombstoneReplay(detail,history){
+ if(detail.kind!=='record'||!Array.isArray(history))return false;
+ const oneMissing=detail.hasPhone!==detail.hasComputer;
+ if(!oneMissing)return false;
+ const other=sideDigest(detail,detail.hasPhone?'phone':'computer');
+ return history.some(r=>validReceipt(r)&&r.kind==='record'&&r.id===detail.id&&
+   r.acceptedDigest===digest(MISSING)&&r.rejectedDigest!==other);
+}
+function approvedChoice(details,resolutions,history){
+ const d=resolutions&&resolutions[details.id];
+ if(d&&d.signature===details.signature&&(d.side==='phone'||d.side==='computer'))return d.side;
+ return historicalChoice(details,history);
+}
 // Reconstruct stock from the ledger, not editable displayed inventory fields.
 function itemStock(s,id,warehouse){
  const items=new Map(s.items.map(i=>[i.id,i]));const item=items.get(id);if(!item)return 0;
@@ -149,9 +228,9 @@ function negativeNewStock(local,remote,merged){
  }
  return issues;
 }
-function merge(base,local,remote,resolutions={}){
+function merge(base,local,remote,resolutions={},history=[]){
  ensureSnapshot(local);ensureSnapshot(remote);if(base)ensureSnapshot(base);
- const out={},conflicts=[],details=[],stats={added:0,updated:0,deleted:0,renumbered:0,deduplicated:0,settingsFromDesktop:0};
+ const out={},conflicts=[],details=[],resolved=[],stats={added:0,updated:0,deleted:0,renumbered:0,deduplicated:0,settingsFromDesktop:0};
  for(const type of COLLECTIONS){
   const b=keyed(type,base?.[type]||[]),a=keyed(type,local[type]||[]),r=keyed(type,remote[type]||[]);
   const order=[...r.keys(),...a.keys().filter(k=>!r.has(k)),...b.keys().filter(k=>!r.has(k)&&!a.has(k))];
@@ -160,16 +239,26 @@ function merge(base,local,remote,resolutions={}){
    const B=b.get(id),A=a.get(id),R=r.get(id);
    let choice;
    if(same(A,R))choice=A;
-   else if(equivalentImported(type,A,R))choice=R;
-   else if(same(A,B))choice=R;
-   else if(same(R,B))choice=A;
-   else {
+   else{
+    // Previously accepted versions win over stale merge bases and replayed old copies.
+    // A genuinely edited version cannot match both receipt digests, so it still conflicts.
     const detail=makeConflict('record',type,id,B,A,R);
-    details.push(detail);
-    const side=approvedChoice(detail,resolutions);
-    if(side==='phone')choice=A;
-    else if(side==='computer')choice=R;
-    else {conflicts.push(`${type}: ${id.slice(0,75)}`);continue;}
+    const prior=historicalStatus(detail,history),historical=prior.side;
+    if(historical){choice=historical==='phone'?A:R;resolved.push(resolutionReceipt(detail,historical));}
+    else if(prior.conflict||isTombstoneReplay(detail,history)){
+      details.push(detail);const side=approvedChoice(detail,resolutions,[]);
+      if(side){choice=side==='phone'?A:R;resolved.push(resolutionReceipt(detail,side));}
+      else{conflicts.push(type+': '+(prior.conflict?'قرارات سابقة متناقضة ':'نسخة جديدة بعد حذف محسوم ')+id.slice(0,75));continue;}
+    }
+    else if(equivalentImported(type,A,R))choice=R;
+    else if(same(A,B))choice=R;
+    else if(same(R,B))choice=A;
+    else{
+      details.push(detail);
+      const side=approvedChoice(detail,resolutions,history);
+      if(side){choice=side==='phone'?A:R;resolved.push(resolutionReceipt(detail,side));}
+      else {conflicts.push(`${type}: ${id.slice(0,75)}`);continue;}
+    }
    }
    if(choice!==undefined)merged.push(clone(choice));
    if(B===undefined&&choice!==undefined)stats.added++;
@@ -181,16 +270,36 @@ function merge(base,local,remote,resolutions={}){
  const settings={};
  for(const key of SETTINGS){
   const B=base?.sharedSettings?.[key],A=local.sharedSettings[key],R=remote.sharedSettings[key];
-  if(!base){settings[key]=clone(R===undefined?A:R);if(!same(A,R)&&R!==undefined)stats.settingsFromDesktop++;}
+  if(!base){
+   const d=makeConflict('settings','settings',key,undefined,A,R),prior=historicalStatus(d,history),historical=prior.side;
+   if(prior.conflict){details.push(d);const side=approvedChoice(d,resolutions,[]);
+     if(side){settings[key]=clone(side==='phone'?A:R);resolved.push(resolutionReceipt(d,side));}
+     else conflicts.push('settings: قرارات سابقة متناقضة '+key);
+   }else{
+     settings[key]=clone(historical==='phone'?A:(R===undefined?A:R));
+     if(historical)resolved.push(resolutionReceipt(d,historical));
+     if(!same(A,R)&&R!==undefined&&!historical)stats.settingsFromDesktop++;
+   }
+  }
   else if(same(A,R))settings[key]=clone(A);
-  else if(same(A,B))settings[key]=clone(R);
-  else if(same(R,B))settings[key]=clone(A);
-  else {const detail=makeConflict('settings','settings',key,B,A,R);details.push(detail);const side=approvedChoice(detail,resolutions);if(side)settings[key]=clone(side==='phone'?A:R);else{conflicts.push('settings: '+key);}}
+  else{
+   const detail=makeConflict('settings','settings',key,B,A,R),prior=historicalStatus(detail,history),historical=prior.side;
+   if(historical){settings[key]=clone(historical==='phone'?A:R);resolved.push(resolutionReceipt(detail,historical));}
+   else if(prior.conflict){details.push(detail);const side=approvedChoice(detail,resolutions,[]);
+     if(side){settings[key]=clone(side==='phone'?A:R);resolved.push(resolutionReceipt(detail,side));}
+     else conflicts.push('settings: قرارات سابقة متناقضة '+key);
+   }
+   else if(same(A,B))settings[key]=clone(R);
+   else if(same(R,B))settings[key]=clone(A);
+   else{details.push(detail);const side=approvedChoice(detail,resolutions,history);
+    if(side){settings[key]=clone(side==='phone'?A:R);resolved.push(resolutionReceipt(detail,side));}
+    else conflicts.push('settings: '+key);}
+  }
  }
  out.sharedSettings=settings;
  // Reconcile only authenticated field-origin identities, never coincidental
  // matches of time, customer and amount (two real transactions can be identical).
- reconcileFieldDuplicates(out,local,remote,resolutions,conflicts,details,stats);
+ reconcileFieldDuplicates(out,local,remote,resolutions,history,conflicts,details,stats,resolved);
  if(conflicts.length)return {ok:false,conflicts,details,stats};
  // Preserve the desktop's pre-existing visible document number on a first sync.
  // Adjust only number labels, not immutable IDs or accounting amounts.
@@ -215,7 +324,7 @@ function merge(base,local,remote,resolutions={}){
  }
  const stockIssues=negativeNewStock(local,remote,out);
  if(stockIssues.length)return {ok:false,conflicts:stockIssues,details:stockIssues.map((issue,i)=>({id:'inventory|'+i+'|'+issue,kind:'inventory',collection:'inventory',recordId:issue,signature:digest(issue),label:issue})),stats};
- return {ok:true,snapshot:out,stats,conflicts:[],details:[]};
+ return {ok:true,snapshot:out,stats,conflicts:[],details:[],resolvedReceipts:combineReceipts(resolved)};
 }
 function apply(state,data){
  ensureSnapshot(data);
@@ -228,5 +337,5 @@ function apply(state,data){
  if(company&&typeof company.companyId==='string'&&company.companyId)field.companyId=company.companyId;
  state.fieldSync=field;
 }
-return {COLLECTIONS,SETTINGS,snapshot,canonical,merge,apply,ensureSnapshot,itemStock,digest,fieldIdentity,fieldBusinessVersion,equivalentImported};
+return {COLLECTIONS,SETTINGS,snapshot,canonical,merge,apply,emptyLedger,companyJoin,ensureSnapshot,itemStock,digest,fieldIdentity,fieldBusinessVersion,equivalentImported,resolutionReceipt,validReceipt,combineReceipts,retireOppositeReceipts,historicalChoice};
 });

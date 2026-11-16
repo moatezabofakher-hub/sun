@@ -66,6 +66,7 @@
    const session=this.pairingRequests.get(id),agentId=document.getElementById('pairAgent_'+id)?.value;
    const cfg=this.data(),a=cfg.agents.find(x=>x.id===agentId&&!x.archived&&!x.disabled);
    if(!session||!a)return UI.toast('اختر موظف بيعاً مسجلاً أولاً','warn');
+   if(!TiqanyEmployeeAuth.valid(a.employeeAuth))return UI.toast('عيّن كلمة سر الموظف أولاً من تعديل الموظف قبل الموافقة على الربط','warn');
    if(Date.now()-session.createdAt>lifetime)return UI.toast('انتهت صلاحية الطلب، أعد الربط من جهاز موظف البيع','warn');
    if(session.status!=='pending')return;
    this.pairingBusy=true;
