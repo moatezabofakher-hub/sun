@@ -6,28 +6,56 @@
 if(typeof Agent==='undefined')return;
 const A=Agent;
 const snapshot=s=>({companyId:String(s?.companyId||''),exchangeRate:Number((s?.managerPublishedRate??s?.exchangeRate??0)),
-  items:JSON.stringify(s?.items||[]),accounts:JSON.stringify(s?.accounts||[]),
+  items:JSON.stringify(s?.items||[]),accounts:JSON.stringify(s?.accounts||[]),ops:JSON.stringify(s?.ops||[]),
   stock:JSON.stringify(s?.stock||{}),categories:JSON.stringify(s?.categories||[]),
   warehouseTransfers:JSON.stringify(s?.warehouseTransfers||[]),cashTransfers:JSON.stringify(s?.cashTransfers||[]),
   agentCash:JSON.stringify(s?.agentCash||null),accountLedgers:JSON.stringify(s?.accountLedgers||[]),
   permissions:JSON.stringify(s?.permissions||{}),pricing:String(s?.defaultPriceTier||''),
   company:JSON.stringify([s?.companyName,s?.companyPhone,s?.companyAddress,s?.footerNote])});
 const route={rate:'settings',items:'stock',accounts:'accounts',stock:'stock',transfers:'stock',cash:'cashbox',ledgers:'accounts',permissions:'settings',pricing:'settings',company:'home',categories:'stock'};
+const displayTime=stamp=>{
+  const d=new Date(stamp);if(!Number.isFinite(d.getTime()))return String(stamp||'');
+  const pad=n=>String(n).padStart(2,'0');
+  return [pad(d.getDate()),pad(d.getMonth()+1),d.getFullYear()].join('/')+' '+[pad(d.getHours()),pad(d.getMinutes()),pad(d.getSeconds())].join('.');
+};
 function messages(before,after){
   const out=[];
-  function add(field,title,detail){if(before[field]!==after[field])out.push({kind:field,title,detail,route:route[field]||'home'});}
-  add('exchangeRate','تعديل سعر الصرف',`أصبح سعر الصرف المعتمد لدى المسؤول ${after.exchangeRate}`);
-  add('items','تحديث المواد','أرسل المسؤول إضافة أو تعديلاً أو حذفاً في قائمة المواد');
-  add('stock','تغيير أرصدة المستودع','وصل تحديث لكميات المواد في مستودع الموظف');
-  add('accounts','تحديث حسابات العملاء','وصلت تغييرات على بيانات العملاء');
-  add('warehouseTransfers','مناقلة مواد','وصلت حركة مناقلة جديدة أو تحديث على مناقلة');
-  add('cashTransfers','حركة صندوق','وصلت دفعة نقدية أو تحديث على تحويلات الصندوق');
-  add('agentCash','تحديث صندوق الموظف','وصلت بيانات جديدة عن رصيد الصندوق');
-  add('accountLedgers','تحديث أرصدة الحسابات','وصلت حركات أو أرصدة محاسبية جديدة');
-  add('permissions','تحديث الصلاحيات','غيّر المسؤول صلاحية واحدة أو أكثر');
-  add('pricing','تحديث طريقة التسعير','غيّر المسؤول طريقة التسعير الافتراضية');
-  add('categories','تحديث مجموعات المواد','وصل تحديث لمجموعات المواد');
-  add('company','تحديث بيانات الشركة','وصل تعديل على بيانات الشركة من المسؤول');
+  const add=(kind,title,detail,routeName,targetId)=>out.push({kind,title,detail:detail.slice(0,450),route:routeName||route[kind]||'home',targetId:targetId||null});
+  const parse=value=>{try{const data=JSON.parse(value||'[]');return Array.isArray(data)?data:[];}catch(_){return [];}};
+  const desc=x=>{
+    const detail=[x.name||x.title||x.category||'',x.number!=null?'رقم '+x.number:'',
+       x.amount!=null?'المبلغ: '+x.amount+' '+(x.currency||''):'',
+       x.quantity!=null?'الكمية: '+x.quantity:'',x.date?'التاريخ: '+x.date:'',x.note||''].filter(Boolean).join(' · ');
+    return detail||'معرّف العملية: '+String(x.id||'').slice(0,90);
+  };
+  const compare=(field,title,where)=>{
+    if(before[field]===after[field])return;
+    const prev=parse(before[field]),next=parse(after[field]);
+    const old=new Map(prev.map((v,i)=>[String(v?.id??v?.name??i),v]));
+    const current=new Map(next.map((v,i)=>[String(v?.id??v?.name??i),v]));
+    let changed=0;
+    for(const id of new Set([...old.keys(),...current.keys()])){
+      const a=old.get(id),b=current.get(id);if(JSON.stringify(a)===JSON.stringify(b))continue;
+      changed++;
+      if(changed<=25){const action=a===undefined?'إضافة':b===undefined?'حذف':'تعديل';
+        add(field,action+' '+title,desc(b??a??{}),where,id);}
+    }
+    if(changed>25)add(field,'تحديث '+title,'وصلت '+(changed-25)+' تغييرات إضافية. افتح '+title+' لعرضها.',where);
+    if(changed===0)add(field,'تحديث '+title,'تغيّر محتوى '+title+'، راجع القائمة للاطلاع على التفاصيل.',where);
+  };
+  if(before.exchangeRate!==after.exchangeRate)add('exchangeRate','تعديل سعر الصرف','سعر الصرف الجديد: '+after.exchangeRate,'settings');
+  compare('items','المواد','stock');
+  compare('accounts','حساب العميل','accounts');
+  compare('warehouseTransfers','مناقلة المواد','stock');
+  compare('cashTransfers','حركة الصندوق','cashbox');
+  compare('accountLedgers','الحركة المحاسبية','accounts');
+  compare('ops','عملية موظف البيع','ops');
+  compare('categories','مجموعات المواد','stock');
+  if(before.stock!==after.stock)add('stock','تغيير أرصدة المستودع','وصل تعديل جديد على كميات المواد في مستودع الموظف','stock');
+  if(before.agentCash!==after.agentCash)add('agentCash','تغيير رصيد صندوق الموظف','وصل تحديث في صندوق الموظف','cashbox');
+  if(before.permissions!==after.permissions)add('permissions','تعديل صلاحيات الموظف','غيّر المدير صلاحيات الوصول؛ راجع صفحة الضبط','settings');
+  if(before.pricing!==after.pricing)add('pricing','تعديل التسعير','طريقة التسعير الجديدة: '+after.pricing,'settings');
+  if(before.company!==after.company)add('company','تحديث بيانات الشركة','وصلت بيانات شركة معدّلة من المدير','home');
   return out;
 }
 function noticeList(){return Array.isArray(A.state?.managerNotifications)?A.state.managerNotifications:[];}
@@ -41,7 +69,7 @@ A.managerNotificationDifferences=messages;
 A.refreshManagerNotificationBadge=badge;
 const original=A.onLocalSyncResult;
 A.onLocalSyncResult=async function(raw){
-  const before=snapshot(this.state),previousTime=String(this.state?.lastSyncAt||'');
+  const before=snapshot(this.state);
   await original.call(this,raw);
   if(!String(this.lanSyncMessage||'').startsWith('✅')||!this.state||String(this.state.companyId)!==before.companyId)return;
   const after=snapshot(this.state);
@@ -56,25 +84,44 @@ A.onLocalSyncResult=async function(raw){
   // Deliver device notifications only for newly committed, authenticated sync updates.
   // Never claim an update arrived when synchronization or local persistence failed.
   if(persisted && typeof window!=='undefined' && window.AndroidManagerNotifications?.postUpdates){
-    try{window.AndroidManagerNotifications.postUpdates(JSON.stringify(fresh.map(n=>({id:n.id,title:n.title,detail:n.detail}))));}catch(_){/* In-app notices remain available when system notifications are disabled. */}
+    try{window.AndroidManagerNotifications.postUpdates(JSON.stringify(fresh.map(n=>({id:n.id,title:n.title,detail:(n.detail.slice(0,176)+' · وقت الوصول '+displayTime(n.at).split(' ').pop()).slice(0,240)}))));}catch(_){/* In-app notices remain available when system notifications are disabled. */}
   }
   badge();
 };
 function render(){const history=noticeList();return `<section class="ta-manager-notification-panel" dir="rtl"><h2>🔔 إشعارات المسؤول</h2>
  <p class="tiny">تظهر التحديثات التي استُلمت عبر مزامنة موثَّقة، ولا تؤثر على أرصدة أو عمليات الموظف.</p>
- ${history.length?history.map(n=>`<button type="button" class="ta-manager-notification ${n.read?'':'unread'}" onclick="Agent.openManagerNotification('${A.escape(n.id)}')"><strong>${A.escape(n.title)}</strong><small>${A.escape(n.detail)} · ${A.escape(n.at?.slice(0,16)||'')}</small></button>`).join(''):'<p class="muted">لا توجد تحديثات واردة حتى الآن</p>'}
+ ${history.length?history.map(n=>`<button type="button" class="ta-manager-notification ${n.read?'':'unread'}" onclick="Agent.openManagerNotification('${A.escape(n.id)}')"><strong>${A.escape(n.title)}</strong><small>${A.escape(n.detail)} · ${A.escape(displayTime(n.at))}</small></button>`).join(''):'<p class="muted">لا توجد تحديثات واردة حتى الآن</p>'}
  <button class="secondary" onclick="Agent.show('home')">العودة إلى الرئيسية</button></section>`;}
 A.openManagerNotifications=async function(){
   if(!this.ready())return;
   this.screen='manager_notifications';
-  const list=noticeList();if(list.some(n=>!n.read)){this.state.managerNotifications=list.map(n=>({...n,read:true}));try{await this.save();}catch(_){} }
   document.getElementById('screen').innerHTML=render();
   document.getElementById('bottom')?.classList.remove('hide');
   badge();
 };
 A.openManagerNotification=async function(id){
   const hit=noticeList().find(n=>n.id===id);if(!hit)return;
-  const target=hit.route||'home';
+  if(!hit.read){hit.read=true;try{await this.save();}catch(error){hit.read=false;this.toast('تعذر حفظ قراءة الإشعار');}}
+  badge();
+  this.screen='manager_notifications';
+  document.getElementById('screen').innerHTML=`<section class="panel" dir="rtl"><h3>${A.escape(hit.title)}</h3>
+    <p>${A.escape(hit.detail)}</p><p class="tiny">وقت الاستلام: ${A.escape(displayTime(hit.at))}</p>
+    <button class="primary" onclick="Agent.openManagerNotificationRoute('${A.escape(hit.id)}')">الانتقال لعرض التفاصيل</button>
+    ${hit.kind==='ops'&&hit.targetId&&this.can?.('editOperations')&&this.state.ops?.some(o=>o.id===hit.targetId&&['sale','sale_return','receipt','payment'].includes(o.kind))?`<button class="secondary" onclick="Agent.editManagerNotificationOperation('${A.escape(hit.id)}')">تعديل العملية (حسب الصلاحية)</button>`:''}
+    <button class="secondary" onclick="Agent.openManagerNotifications()">الرجوع إلى الإشعارات</button></section>`;
+};
+A.editManagerNotificationOperation=async function(id){
+  const hit=noticeList().find(x=>x.id===id);if(!hit||hit.kind!=='ops'||!hit.targetId)return;
+  if(!this.can?.('editOperations'))return this.toast('ليس لديك صلاحية تعديل العمليات');
+  const documentOp=(this.state.ops||[]).find(x=>x.id===hit.targetId&&x.agentId===this.state.agentId);
+  if(!documentOp||!['sale','sale_return','receipt','payment'].includes(documentOp.kind))return this.toast('لا يمكن تعديل هذه العملية من هاتف الموظف');
+  return this.editDocument(hit.targetId);
+};
+A.openManagerNotificationRoute=async function(id){
+  const entry=noticeList().find(x=>x.id===id);if(!entry)return;
+  // Manager-originated catalog and warehouse events are read-only on the
+  // employee device. Never expose an edit action for another user's operation.
+  const target=entry.route||'home';
   if(typeof this.navigate==='function'&&target!=='home')await this.navigate(target);
   else await this.show(target);
 };

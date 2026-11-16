@@ -5,6 +5,12 @@
 const ManagerNotifications = {
   maxEntries: 3000,
   escape(value){return AppEscape.text(String(value??''));},
+  formatTime(value){
+    const date=new Date(value);
+    if(!Number.isFinite(date.getTime()))return String(value||'');
+    const two=n=>String(n).padStart(2,'0');
+    return [two(date.getDate()),two(date.getMonth()+1),date.getFullYear()].join('/')+' '+[two(date.getHours()),two(date.getMinutes()),two(date.getSeconds())].join('.');
+  },
   ensure(){
     if(!State.alertCenter || typeof State.alertCenter!=='object')State.alertCenter={entries:[],seenImportIds:null,stockLevels:null};
     const n=State.alertCenter;
@@ -151,7 +157,7 @@ const ManagerNotifications = {
       ${list.length?list.map(entry=>`<button type="button" class="ta-alert-item ${entry.read?'':'unread'} ${entry.type==='stock'?'stock-alert':''}" onclick="ManagerNotifications.open(${JSON.stringify(entry.id).replace(/"/g,'&quot;')})">
         <div class="flex items-center gap-2 justify-between"><strong class="text-sm text-slate-800">${entry.type==='stock'?'⚠️':'🔔'} ${this.escape(entry.title)}</strong>${entry.read?'':'<span class="rounded-full bg-rose-500 text-white text-[10px] px-2 py-0.5">جديد</span>'}</div>
         <p class="text-xs text-slate-600 mt-1">${this.escape(entry.detail)}</p>
-        <p class="text-[10px] text-slate-400 mt-2">${this.escape(String(entry.at||'').slice(0,19).replace('T',' '))} · اضغط لعرض المعاملة</p>
+        <p class="text-[10px] text-slate-400 mt-2">${this.escape(this.formatTime(entry.at))} · اضغط لعرض المعاملة</p>
       </button>`).join(''):'<div class="rounded-2xl bg-white border p-8 text-center text-sm text-slate-500">لا توجد إشعارات بعد. ستظهر هنا العمليات الجديدة بعد المزامنة وتنبيهات نفاد المخزون.</div>'}
     </div>`;
   },
@@ -174,6 +180,7 @@ const ManagerNotifications = {
       UI.toast('المادة: '+(State.items.find(x=>x.id===entry.itemId)?.name||entry.itemId),'warn');
       return;
     }
+    if(entry.type==='peer-operation')return this.showOperationDetails(entry);
     if(entry.action!=='حذف' && entry.target==='invoice'&&State.invoices.some(x=>x.id===entry.targetId))
       return AppNav.navigate('invoice_print',{id:entry.targetId});
     if(entry.action!=='حذف' && entry.target==='voucher'&&State.vouchers.some(x=>x.id===entry.targetId))
@@ -184,17 +191,41 @@ const ManagerNotifications = {
     // detail here even when no standalone editable form exists for that kind.
     const expense=entry.target==='expense'?(State.expenses||[]).find(x=>x.id===entry.targetId):null;
     const expenseInfo=expense?`<div class="rounded-xl bg-slate-50 p-3 text-sm"><b>نوع المصروف:</b> ${this.escape(expense.category||'أخرى')}<p><b>المبلغ:</b> ${this.escape(expense.amount)} ${this.escape(expense.currency)}</p><p><b>التاريخ:</b> ${this.escape(expense.date)}</p><p><b>البيان:</b> ${this.escape(expense.note||'—')}</p></div>`:'';
-    UI.openModal(`<div dir="rtl" class="text-right space-y-3"><h3 class="font-black text-base">${this.escape(entry.title)}</h3><p class="text-sm">${this.escape(entry.detail)}</p>${expenseInfo}<p class="text-xs text-slate-500">${this.escape(entry.at)}</p>
+    UI.openModal(`<div dir="rtl" class="text-right space-y-3"><h3 class="font-black text-base">${this.escape(entry.title)}</h3><p class="text-sm">${this.escape(entry.detail)}</p>${expenseInfo}<p class="text-xs text-slate-500">${this.escape(this.formatTime(entry.at))}</p>
       ${entry.agentId?`<button type="button" class="w-full rounded-xl p-3 bg-teal-700 text-white font-bold" onclick="UI.forceCloseModal();AppNav.navigate('agent_activity',{agentId:${JSON.stringify(entry.agentId).replace(/"/g,'&quot;')},view:'${entry.target==='expense'?'expenses':'all'}',period:'all'})">عرض سجل معاملات موظف البيع</button>`:''}
       <button type="button" class="w-full rounded-xl p-3 bg-slate-100 font-bold" onclick="UI.forceCloseModal()">إغلاق</button></div>`);
   },
+  showOperationDetails(entry){
+    const lists={invoice:State.invoices,voucher:State.vouchers,expense:State.expenses,transfer:State.transfers,item:State.items,customer:State.accounts};
+    const found=Array.isArray(lists[entry.target])&&lists[entry.target].some(x=>x.id===entry.targetId);
+    const canOpen=entry.action!=='حذف'&&found;
+    const ref=JSON.stringify(entry.id).replace(/"/g,'&quot;');
+    UI.openModal(`<div dir="rtl" class="text-right space-y-3"><h3 class="font-black">${this.escape(entry.title)}</h3><p class="text-sm">${this.escape(entry.detail)}</p><p class="text-xs text-slate-500">وقت وصول الإشعار: ${this.escape(this.formatTime(entry.at))}</p>
+      ${canOpen?`<button class="w-full p-3 rounded-xl bg-teal-700 text-white font-bold" onclick="ManagerNotifications.goToOperation(${ref})">عرض العملية</button>${['invoice','voucher','expense','transfer'].includes(entry.target)?`<button class="w-full p-3 rounded-xl bg-sky-700 text-white font-bold" onclick="ManagerNotifications.editOperation(${ref})">تعديل العملية</button>`:''}`:'<p class="text-xs text-amber-700">العملية محذوفة أو غير متوفرة للتعديل حاليًا</p>'}
+      <button class="w-full p-3 rounded-xl bg-slate-100 font-bold" onclick="UI.forceCloseModal()">إغلاق</button></div>`);
+  },
+  editOperation(id){
+    const entry=this.ensure().entries.find(e=>e.id===id);if(!entry||entry.action==='حذف')return;
+    UI.forceCloseModal();
+    if(entry.target==='invoice'&&State.invoices.some(x=>x.id===entry.targetId))return AppNav.navigate('invoice_form',{id:entry.targetId});
+    if(entry.target==='voucher'&&State.vouchers.some(x=>x.id===entry.targetId))return AppNav.navigate('voucher_form',{id:entry.targetId});
+    if(entry.target==='expense'&&State.expenses.some(x=>x.id===entry.targetId)){
+      AppNav.navigate('expenses');return ExpenseController.editExpense(entry.targetId);
+    }
+    if(entry.target==='transfer'){
+      AppNav.navigate('warehouses');
+      if(typeof WarehouseController!=='undefined'&&WarehouseController.transferDocuments?.().some(d=>d.id===entry.targetId))return WarehouseController.editTransferBatch(entry.targetId);
+      return UI.toast('افتح المناقلة المقصودة من قائمة المناقلات لتعديلها','info');
+    }
+    UI.toast('هذه العملية غير متوفرة للتعديل','warn');
+  },
   showDesktopDetails(entry){
-    const links={invoice:State.invoices,voucher:State.vouchers,customer:State.accounts,expense:State.expenses};
+    const links={invoice:State.invoices,voucher:State.vouchers,customer:State.accounts,expense:State.expenses,item:State.items,transfer:State.transfers};
     const found=Array.isArray(links[entry.target])&&links[entry.target].some(x=>x.id===entry.targetId);
     const canOpen=entry.action!=='حذف'&&!!found;
     const operationLabel=entry.target==='invoice'?'فتح الفاتورة':entry.target==='voucher'?'فتح السند':entry.target==='customer'?'فتح حساب الزبون':'عرض التفاصيل';
-    UI.openModal(`<div class="text-right space-y-3" dir="rtl"><h3 class="font-black">${this.escape(entry.title)}</h3><p class="text-sm">${this.escape(entry.detail)}</p><p class="text-xs text-slate-500">${this.escape(entry.at||'')}</p>
-      ${canOpen?`<button class="w-full p-3 rounded-xl bg-teal-700 text-white font-bold" onclick="ManagerNotifications.goToOperation(${JSON.stringify(entry.id).replace(/"/g,'&quot;')})">الانتقال إلى العملية — ${operationLabel}</button>`:''}
+    UI.openModal(`<div class="text-right space-y-3" dir="rtl"><h3 class="font-black">${this.escape(entry.title)}</h3><p class="text-sm">${this.escape(entry.detail)}</p><p class="text-xs text-slate-500">${this.escape(this.formatTime(entry.at))}</p>
+      ${canOpen?`<button class="w-full p-3 rounded-xl bg-teal-700 text-white font-bold" onclick="ManagerNotifications.goToOperation(${JSON.stringify(entry.id).replace(/"/g,'&quot;')})">الانتقال إلى العملية — ${operationLabel}</button>${['invoice','voucher','expense'].includes(entry.target)?`<button class="w-full p-3 rounded-xl bg-sky-700 text-white font-bold" onclick="ManagerNotifications.editOperation(${JSON.stringify(entry.id).replace(/"/g,'&quot;')})">تعديل العملية</button>`:''}`:''}
       ${entry.type==='peer'&&!canOpen?'<button class="w-full p-3 rounded-xl bg-teal-700 text-white font-bold" onclick="UI.forceCloseModal();AppNav.navigate(\'invoices_list\')">عرض قائمة العمليات والفواتير</button>':''}
       ${entry.type==='sync'?'<button class="w-full p-3 rounded-xl bg-teal-700 text-white font-bold" onclick="UI.forceCloseModal();TiqanyPeerSync.openSettingsFromHeader()">فتح المزامنة لمعرفة الحالة</button>':''}
       ${!canOpen&&entry.agentId?`<button class="w-full p-3 rounded-xl bg-teal-700 text-white font-bold" onclick="UI.forceCloseModal();AppNav.navigate('agent_activity',{agentId:${JSON.stringify(entry.agentId).replace(/"/g,'&quot;')},view:'all',period:'all'})">عرض سجل عمليات الموظف</button>`:''}
@@ -207,6 +238,8 @@ const ManagerNotifications = {
     if(entry.target==='voucher'&&State.vouchers.some(x=>x.id===entry.targetId))return AppNav.navigate('voucher_form',{id:entry.targetId});
     if(entry.target==='customer'&&State.accounts.some(x=>x.id===entry.targetId))return AppNav.navigate('account_statement',{id:entry.targetId,accountId:entry.targetId});
     if(entry.target==='expense'&&State.expenses.some(x=>x.id===entry.targetId))return AppNav.navigate('expenses');
+    if(entry.target==='transfer')return AppNav.navigate('warehouses');
+    if(entry.target==='item')return AppNav.navigate('items');
     if(entry.type==='stock')return AppNav.navigate('reports',{tab:'inventory',warehouseId:entry.warehouseId});
     if(entry.agentId)return AppNav.navigate('agent_activity',{agentId:entry.agentId,view:entry.target==='expense'?'expenses':'all',period:'all'});
     UI.toast('العملية لم تعد موجودة. راجع سجل الموظف أو التفاصيل المسجلة.','warn');
@@ -221,7 +254,7 @@ const ManagerNotifications = {
     this.updateBadge();
     if(created.length && AppNav.current().screen==='notifications')AppNav.refreshAfterSync?.();
     for(const entry of created){
-      try{window.AndroidAlerts?.show?.(entry.id,entry.title,entry.detail);}catch(e){console.warn('Android alert unavailable',e);}
+      try{window.AndroidAlerts?.show?.(entry.id,entry.title,(entry.detail.slice(0,180)+' · وقت الوصول '+this.formatTime(entry.at).split(' ').pop()).slice(0,240));}catch(e){console.warn('Android alert unavailable',e);}
     }
   }
 };

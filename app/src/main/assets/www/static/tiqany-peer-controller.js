@@ -149,7 +149,19 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
     }
   },
   snapshot(){return core.snapshot(State);},
-  blocked(){return !!(AppNav.isDirty||AppNav.isModalDirty||AppNav.activeOperationGuard||(typeof SettingsDraftController!=='undefined'&&SettingsDraftController.changed?.()));},
+  blockReason(){
+    const screen=AppNav.current?.()?.screen||'';
+    const editor=['invoice_form','voucher_form','pos','pos_form','transfer_form','transfer_editor'].includes(screen);
+    const modal=document.getElementById?.('dialogContainer');
+    const modalVisible=!!(modal&&!modal.classList?.contains('hidden')&&modal.getAttribute?.('aria-hidden')!=='true');
+    if(AppNav.isModalDirty&&modalVisible)return 'توجد نافذة تعديل غير محفوظة على '+(desktop?'الكمبيوتر':'الموبايل')+'؛ احفظها أو ألغها';
+    if(editor&&(AppNav.isDirty||AppNav.activeOperationGuard))return 'توجد فاتورة أو عملية غير محفوظة على '+(desktop?'الكمبيوتر':'الموبايل')+'؛ احفظها أو ألغها';
+    if(screen==='settings'&&typeof SettingsDraftController!=='undefined'&&SettingsDraftController.changed?.())
+      return 'توجد تعديلات غير محفوظة في إعدادات '+(desktop?'الكمبيوتر':'الموبايل');
+    // Guards left after leaving an editor must not prevent future sync from Home.
+    return '';
+  },
+  blocked(){return !!this.blockReason();},
   message(text,error=false){this.last=String(text);const el=document.getElementById('ta-peer-status');if(el)el.textContent=this.last;if(error)UI.toast(this.last,'error');},
   async base(){return (await ProfileManager.getRecord(this.key()))?.data||null;},
   async saveBase(serverId,serverProfileId,snapshot){await ProfileManager.putBatch([{id:this.key(),data:{serverId,serverProfileId,snapshot,profileId:ProfileManager.activeId,at:new Date().toISOString()}}]);},
@@ -328,7 +340,8 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
   });},
   async sync(silent=false){
     if(desktop)return this.message(t("يستقبل الكمبيوتر البيانات تلقائياً عند المزامنة من الهاتف.","Windows receives updates automatically when sync starts on the phone."));
-    if(this.busy||this.blocked())return silent?undefined:this.message(t("احفظ الفاتورة أو النافذة المفتوحة أولاً.","Save the open invoice or form before syncing."),true);
+    if(this.busy)return silent?undefined:this.message('المزامنة جارية بالفعل؛ انتظر اكتمال المحاولة الحالية.',false);
+    if(this.blocked())return silent?undefined:this.message(this.blockReason(),true);
     if(!window.AndroidPeerSync)return this.message(t("يلزم تثبيت APK الرئيسي الجديد لتشغيل الربط المحلي.","Install the updated main Android APK to enable local sync."),true);
     const info=JSON.parse(AndroidPeerSync.status()||'{}');if(!info.host||!info.port)return silent?undefined:this.message(t("اضبط عنوان الكمبيوتر ومفتاح الربط أولاً.","Set the computer IP and pairing key first."),true);
     if(silent&&!info.approved)return;
@@ -342,7 +355,7 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
       const fetched=await this.call({action:'fetch',profileName:State.settings.companyName,phoneProfileId:ProfileManager.activeId,
         phoneCompanyUid:outgoingUid,phoneEmpty,knownServerId:existingBase?.serverId||'',
         knownServerProfileId:existingBase?.serverProfileId||''});
-      if(!fetched.ok)throw Error(fetched.error||t("فشل قراءة بيانات الكمبيوتر","Could not read data from the computer"));
+      if(!fetched.ok){if(fetched.code==='SYNC_BUSY'){this.message('الكمبيوتر مشغول بمزامنة أخرى، ستجري إعادة المحاولة.',false);return false;}throw Error(fetched.error||t('فشل قراءة بيانات الكمبيوتر','Could not read data from the computer'));}
       if(!fetched.snapshot||!fetched.ticket||!fetched.serverId)throw Error(t("رد غير مكتمل من الكمبيوتر","Incomplete response from computer"));
       const saved=existingBase;
       if(!desktop&&window.AndroidPeerSync?.bindServerId&&!(AndroidPeerSync.bindServerId(fetched.serverId)))
@@ -417,15 +430,23 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
       if(bootstrap&&!provision.protection)throw Error('رمز الحماية غير صالح لنقله إلى الكمبيوتر');
       const committed=await this.call({action:'commit',ticket:fetched.ticket,serverId:fetched.serverId,profileId:fetched.profileId,phoneCompanyUid:outgoingUid,
         snapshot:merged.snapshot,resolvedReceipts:appliedReceipts,explicitApprovals,provision});
-      if(!committed.ok)throw Error(committed.error||t("رفض الكمبيوتر حفظ الدمج","Windows rejected the merged data"));
+      if(!committed.ok){if(committed.code==='SYNC_BUSY'){this.message('الكمبيوتر مشغول بمزامنة أخرى، ستتم إعادة المحاولة دون فقدان البيانات.',false);return false;}throw Error(committed.error||t("رفض الكمبيوتر حفظ الدمج","Windows rejected the merged data"));}
       if(this.blocked()||core.canonical(this.snapshot())!==origin)throw Error(t("حفظ الكمبيوتر الدمج لكن بيانات الهاتف تغيرت. أعد المزامنة قبل أي تعديل آخر.","Windows saved the merge, but phone data changed. Sync again before editing."));
       if(core.canonical(merged.snapshot)!==origin||companyMatch.adopt||(bootstrap&&State.fieldSync?.companyId!==fieldCompanyId)){
         await ProfileManager.makeCheckpoint('before-windows-peer-sync');
+        const notificationBefore=clone(State.alertCenter||{entries:[]});
+        const incoming=window.TiqanyPeerEvents?.records(stateBefore,merged.snapshot,'windows');
         core.apply(State,merged.snapshot);
         if(companyMatch.adopt)State.settings.companyUid=fetched.companyUid;
         if(bootstrap){State.fieldSync??={};State.fieldSync.companyId=fieldCompanyId;}
-        try{await StorageEngine.saveState();}catch(err){
-          core.apply(State,stateBefore);State.settings.companyUid=outgoingUid;throw err;
+        const eventEntries=incoming?.entries?.map((entry,i)=>({...entry,id:'peer:'+Date.now()+':'+i+':'+core.digest(merged.snapshot).slice(0,10)}))||[];
+        if(incoming?.truncated)eventEntries.push({id:'peer:'+Date.now()+':more',type:'peer-operation',title:'وصول عمليات إضافية',detail:'وصلت '+(incoming.count-incoming.entries.length)+' تغييرات أخرى؛ راجع سجلات العمليات.',at:new Date().toISOString(),read:false});
+        if(eventEntries.length){State.alertCenter??={entries:[]};State.alertCenter.entries??=[];
+          State.alertCenter.entries.unshift(...eventEntries);State.alertCenter.entries=State.alertCenter.entries.slice(0,3000);}
+        try{await StorageEngine.saveState();
+          if(eventEntries.length&&typeof ManagerNotifications!=='undefined')ManagerNotifications.saved(eventEntries.slice(0,12));
+        }catch(err){
+          core.apply(State,stateBefore);State.settings.companyUid=outgoingUid;State.alertCenter=notificationBefore;throw err;
         }
       }
       // Persist receipts BEFORE clearing pending conflict choices. Do not silently
@@ -449,7 +470,8 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
     const {requestId,data}=request;
     const reply=x=>WindowsPeerSync.reply(requestId,x);
     try{
-      if(this.busy||this.blocked())return reply({ok:false,error:t("يوجد تعديل مفتوح في الكمبيوتر؛ احفظه أولاً","A change is still open on Windows. Save it before syncing.")});
+      if(this.busy)return reply({ok:false,code:'SYNC_BUSY',error:'الكمبيوتر ينفذ مزامنة أخرى الآن، ستتم إعادة المحاولة تلقائيًا'});
+      if(this.blocked())return reply({ok:false,code:'UNSAVED_EDIT',error:this.blockReason()});
       if(data.action==='fetch'){
         const desktopUid=await this.ensureCompanyUid();
         const knownLink=data.knownServerId===this.server?.serverId &&

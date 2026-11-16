@@ -111,7 +111,10 @@ test('staff-origin duplicate conflict is accepted by desktop and resolved once, 
 });
 test('portable JSON backup exports and restore code retains only own-company decisions',()=>{
  for(const html of ['../app/src/main/assets/www/index.html','../../windows/web/index.html']){
-  const text=fs.readFileSync(path.join(__dirname,html),'utf8');
+  const file=path.join(__dirname,html);
+  // Android-only GitHub archives deliberately omit the separate Windows repository.
+  if(!fs.existsSync(file))continue;
+  const text=fs.readFileSync(file,'utf8');
   assert.match(text,/payload\.peerConflictResolutions/);
   assert.match(text,/sourceBackup\?\.profileId===this\.activeId/);
   assert.match(text,/async applyRestore\(d, sourceBackup=null\)/);
