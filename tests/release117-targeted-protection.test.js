@@ -121,7 +121,7 @@ if(isWindows){
   const src=source('tiqany-peer-controller.js');
   const methods=src.slice(src.indexOf('  scanPairing(){'),src.indexOf('  conflictsKey(){'));
   const scan=[],msg=[];let approval=null,configured=0;
-  const ctx={desktop:false,ProfileManager:{activeId:'company-a'},Date,t:s=>s,
+  const ctx={desktop:false,State:{settings:{appProtection:{protectDeviceAddition:true}}},ProfileManager:{activeId:'company-a'},Date,t:s=>s,
    window:{NativeBarcode:{scan:kind=>scan.push(kind)},AndroidPeerSync:{},confirm:()=>true},
    NativeBarcode:{scan:kind=>scan.push(kind)},AndroidPeerSync:{configure:()=>{configured++;return 'saved';},bindServerId:()=>true},
    document:{getElementById:()=>({value:''})}};

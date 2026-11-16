@@ -1,7 +1,28 @@
 /* Local QR pairing: uses existing ECDH, user-approved 6-digit code and encrypted provisioning. */
 (function(root){'use strict';
 const API={
-  async open(){
+  open(){
+    if(typeof FieldSync==='undefined')return;
+    const activeProfile = typeof ProfileManager !== 'undefined' ? ProfileManager.activeId : null;
+    // Backwards compatible: absent setting means protection OFF.
+    if(State.settings?.appProtection?.protectDeviceAddition === true){
+      const protection = typeof ProtectionController !== 'undefined' ? ProtectionController : null;
+      if(!protection?.requestPin){UI.toast('تعذر بدء التحقق الأمني','error');return;}
+      if(!State.settings.appProtection.pinHash || !State.settings.appProtection.pinSalt){
+        protection.promptPinSetup?.('حماية إضافة الأجهزة');return;
+      }
+      protection.requestPin('تحقق بالبصمة أو كلمة سر المدير لعرض باركود إضافة موظف البيع',()=>{
+        if(typeof ProfileManager !== 'undefined' && ProfileManager.activeId !== activeProfile){
+          UI.toast('تغيّرت الشركة، أعد التحقق','warn');return;
+        }
+        if(State.settings?.appProtection?.protectDeviceAddition !== true)return;
+        return this.openAuthorized();
+      });
+      return;
+    }
+    return this.openAuthorized();
+  },
+  async openAuthorized(){
     if(typeof FieldSync==='undefined')return;
     FieldSync.startLanReceiver(true);
     let info={};

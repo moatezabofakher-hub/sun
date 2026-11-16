@@ -1488,7 +1488,7 @@ body.ta-transfer-editor-open #mainContent{padding-bottom:calc(var(--ta-transfer-
                 itemQuantityDecimals: 2,
                 inventoryValuationCurrency: 'SYP', // Display currency for inventory cost valuation only
                 selectedWarehouseId: 'wh_main',
-                appProtection: { pinSalt: '', pinHash: '', pinAlgo: 'sha256-v1', securityQuestions: [], recoveryFailures: 0, recoveryLockedUntil: 0, lockApp: false, protectDeletion: false, fingerprintEnabled: false, fingerprintCredentialId: '' }
+                appProtection: { pinSalt: '', pinHash: '', pinAlgo: 'sha256-v1', securityQuestions: [], recoveryFailures: 0, recoveryLockedUntil: 0, lockApp: false, protectDeletion: false, protectDeviceAddition: false, fingerprintEnabled: false, fingerprintCredentialId: '' }
             },
             license: {
                 deviceId: '',
@@ -6143,6 +6143,10 @@ body.ta-transfer-editor-open #mainContent{padding-bottom:calc(var(--ta-transfer-
                             <span><span class="block text-xs font-extrabold text-slate-800">الحماية من حذف البيانات</span><span class="block text-[10px] text-slate-500">طلب الرمز أيضاً عند حذف السجلات الفردية. التصفير الكامل يتطلب الرمز دائماً.</span></span>
                             <input id="protectDeletion" type="checkbox" ${State.settings.appProtection?.protectDeletion ? 'checked' : ''} class="w-5 h-5 accent-emerald-600">
                         </label>
+                        <label class="flex items-center justify-between gap-3 p-3 rounded-xl bg-emerald-50 border border-emerald-200">
+                            <span><span class="block text-xs font-extrabold text-slate-800"><i class="fas fa-shield-halved text-emerald-700 ml-1"></i>حماية إضافة الأجهزة</span><span class="block text-[10px] text-slate-600">عند تفعيلها تُطلب البصمة المتاحة أو كلمة السر قبل فتح رمز QR لإضافة موظف أو ربط جهاز مدير.</span></span>
+                            <input id="protectDeviceAddition" type="checkbox" ${State.settings.appProtection?.protectDeviceAddition === true ? 'checked' : ''} class="w-5 h-5 accent-emerald-600" aria-label="حماية إضافة الأجهزة">
+                        </label>
                         <div class="flex flex-wrap gap-2">
                             <button onclick="ProtectionController.saveSettings()" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-xs">حفظ إعدادات الحماية</button>
                             <button onclick="ProtectionController.registerFingerprint()" class="flex-1 bg-slate-900 hover:bg-slate-800 text-white font-bold py-2.5 rounded-xl text-xs"><i class="fas fa-fingerprint ml-1"></i> إعداد بصمة الإصبع</button>
@@ -10054,10 +10058,11 @@ body.ta-transfer-editor-open #mainContent{padding-bottom:calc(var(--ta-transfer-
                     const hasQuestions = previousQuestions.length === 2;
                     const next = { ...old,
                         lockApp: !!document.getElementById('protectLockApp')?.checked,
-                        protectDeletion: !!document.getElementById('protectDeletion')?.checked
+                        protectDeletion: !!document.getElementById('protectDeletion')?.checked,
+                        protectDeviceAddition: !!document.getElementById('protectDeviceAddition')?.checked
                     };
                     const changingPin = !!(pin || confirm);
-                    const changingToggle = next.lockApp !== !!old.lockApp || next.protectDeletion !== !!old.protectDeletion;
+                    const changingToggle = next.lockApp !== !!old.lockApp || next.protectDeletion !== !!old.protectDeletion || next.protectDeviceAddition !== !!old.protectDeviceAddition;
                     const changingQuestions = !!(firstAnswer || secondAnswer) || (hasQuestions && (firstQuestionId !== previousQuestions[0].id || secondQuestionId !== previousQuestions[1].id));
                     const mustChangeQuestions = !!(!hasQuestions && (changingPin || firstAnswer || secondAnswer));
                     const sensitiveChange = changingPin || changingToggle || changingQuestions || mustChangeQuestions;
@@ -10085,7 +10090,7 @@ body.ta-transfer-editor-open #mainContent{padding-bottom:calc(var(--ta-transfer-
                         next.recoveryFailures = 0;
                         next.recoveryLockedUntil = 0;
                     }
-                    if ((next.lockApp || next.protectDeletion) && !next.pinHash) return UI.toast('عيّن كلمة سر أولاً قبل تفعيل خيارات الحماية', 'error');
+                    if ((next.lockApp || next.protectDeletion || next.protectDeviceAddition) && !next.pinHash) return UI.toast('عيّن كلمة سر أولاً قبل تفعيل خيارات الحماية', 'error');
                     if (changingPin && (!Array.isArray(next.securityQuestions) || next.securityQuestions.length !== 2)) return UI.toast('يجب إعداد سؤالَي الأمان لاستعادة كلمة السر الجديدة', 'error');
                     State.settings.appProtection = next;
                     await StorageEngine.saveState();

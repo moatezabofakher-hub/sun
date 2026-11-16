@@ -179,10 +179,13 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
     if(desktop)return;
     if(!window.NativeBarcode||typeof NativeBarcode.scan!=='function')return this.message(t('يلزم فتح تطبيق أندرويد الرئيسي لاستخدام الكاميرا','Open the main Android app to use the camera'),true);
     this.scanApproval=null;
-    this.authorizePairing('تحقق بالبصمة أو كلمة سر المدير قبل مسح رمز الكمبيوتر',()=>{
+    const beginScan=()=>{
       this.scanApproval={profileId:ProfileManager.activeId,expiresAt:Date.now()+120000};
       NativeBarcode.scan('peer');
-    });
+    };
+    if(State.settings?.appProtection?.protectDeviceAddition === true){
+      this.authorizePairing('تحقق بالبصمة أو كلمة سر المدير قبل مسح رمز الكمبيوتر',beginScan);
+    }else beginScan();
   },
   async acceptPairing(raw){
     if(desktop)return;
@@ -322,11 +325,14 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
   },
   async saveLink(){if(desktop)return;
     const host=document.getElementById('ta-peer-ip')?.value.trim(),port=Number(document.getElementById('ta-peer-port')?.value),key=document.getElementById('ta-peer-key')?.value.trim();
-    this.authorizePairing('تحقق بالبصمة أو كلمة سر المدير قبل حفظ ربط الكمبيوتر يدويًا',()=>{
+    const saveLinkAuthorized=()=>{
       if(!window.AndroidPeerSync||AndroidPeerSync.configure(host,port,key)!=='saved')return this.message(t("تأكد من عنوان Wi-Fi المحلي والمنفذ ورمز الربط الصحيح","Check the local Wi-Fi IP address, port and pairing key"),true);
       /* Reconfiguring an IP address must not discard the last common ancestor. */
       this.approved=false;this.renderConnection();this.message(t("حُفظ الربط. اضغط مزامنة الآن لتأكيد الشركة والبيانات.","Connection saved. Select Sync now to confirm the business and merge data."));
-    });
+    };
+    if(State.settings?.appProtection?.protectDeviceAddition === true){
+      this.authorizePairing('تحقق بالبصمة أو كلمة سر المدير قبل حفظ ربط الكمبيوتر يدويًا',saveLinkAuthorized);
+    }else saveLinkAuthorized();
   },
   async unlink(){if(desktop)return;if(!confirm(t("هل تريد إلغاء ربط هذا الهاتف بالكمبيوتر؟ لن تُحذف البيانات المحاسبية.","Disconnect the phone from the computer? Accounting data will not be deleted.")))return;
     AndroidPeerSync.reset();await ProfileManager.putBatch([{id:this.key(),data:null}]);await this.clearConflicts();this.approved=false;this.renderConnection();this.message(t("تم إلغاء الربط المحلي.","Local connection removed."));
