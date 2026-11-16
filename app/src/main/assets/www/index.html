@@ -1197,6 +1197,27 @@ html.ta-ime-open body.ta-3d-v3524 > main#mainContent.ta-main {padding-bottom:24p
 .ta-payment-cycle.ta-pay-credit{background:#ffe4e6;color:#9f1239;border-color:#fda4af}
 @media(max-width:360px){.ta-invoice-control-grid{grid-template-columns:minmax(0,1fr) minmax(0,.72fr);gap:4px}.ta-invoice-control-grid .ta-invoice-date-visible input[type=time]{width:73px!important}.ta-invoice-control-grid .ta-invoice-date-visible input{font-size:10px!important}#topAppBar.ta-operation-header #topBarRateButton{display:none!important}}
 </style>
+
+<style id="ta-invoice-footer-3596">
+/* 3.5.96: the regular dock is hidden only while editing an invoice / POS. */
+body.ta-workspace-screen nav.ta-bottom-nav{display:none!important}
+body.ta-invoice-editor-screen #mainContent{padding-bottom:calc(148px + env(safe-area-inset-bottom,0px))!important}
+body.ta-invoice-editor-screen .ta-invoice-save-footer{position:fixed;bottom:0;left:0;right:0;z-index:29;direction:rtl;display:flex;flex-direction:column;gap:7px;padding:8px max(10px,env(safe-area-inset-right,0px)) calc(9px + env(safe-area-inset-bottom,0px)) max(10px,env(safe-area-inset-left,0px));background:linear-gradient(180deg,#effaff,#fff);box-shadow:0 -5px 22px #0b47602b;border-top:2px solid #75cfe1;max-height:42vh;overflow-y:auto}
+.ta-invoice-save-footer .ta-footer-balances{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+.ta-invoice-save-footer .ta-balance-tile{min-width:0;background:white;border:1px solid #bae6fd;border-radius:10px;padding:5px;text-align:center;font-size:11px;color:#14536c}
+.ta-invoice-save-footer .ta-balance-tile strong{display:block;font-size:12px;color:#064e3b;overflow-wrap:anywhere}
+.ta-invoice-save-footer .ta-footer-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.ta-invoice-save-footer .ta-footer-actions button{min-width:0;border-radius:11px;min-height:39px;padding:7px 5px;font-weight:900;font-size:12px;color:#fff}
+.ta-invoice-save-footer .ta-footer-actions button:first-child{background:#047857}.ta-invoice-save-footer .ta-footer-actions button:last-child{background:#0e4260}
+.ta-invoice-control-grid>.ta-invoice-pricing-choice{grid-column:2;grid-row:3;margin:0!important;padding:7px!important}
+.ta-invoice-control-grid>.ta-invoice-pricing-choice select{font-size:12px!important;min-width:0}
+.ta-invoice-control-grid .ta-invoice-warehouse-field{grid-column:2;grid-row:2}
+.ta-invoice-control-grid .ta-invoice-date-field{grid-column:1;grid-row:2}
+.ta-invoice-currency-choice,.ta-invoice-currency-choice i{color:#0284c7!important;background:#e0f7ff!important;border-color:#7dd3fc!important}
+.ta-invoice-control-grid .ta-invoice-field label .fa-coins{color:#38bdf8!important}
+#topAppBar.ta-operation-header #headerSettingsBtn,#topAppBar.ta-operation-header #headerNotificationsBtn,body:not(.ta-dashboard-screen) #headerSettingsBtn{display:none!important}
+@media(max-width:420px){body.ta-invoice-editor-screen #mainContent{padding-bottom:157px!important}.ta-invoice-save-footer .ta-footer-actions button{font-size:11px}.ta-invoice-save-footer .ta-balance-tile strong{font-size:11px}}
+</style>
 </head>
 <body class="ta-premium-ui ta-3d-v3524 bg-slate-100 text-slate-800 min-h-screen flex flex-col w-full max-w-full overflow-x-hidden">
 
@@ -2769,6 +2790,9 @@ html.ta-ime-open body.ta-3d-v3524 > main#mainContent.ta-main {padding-bottom:24p
 
             renderCurrent() {
                 const { screen, params } = this.current();
+                document.body.classList.toggle('ta-dashboard-screen',screen==='dashboard');
+                document.body.classList.toggle('ta-workspace-screen',['invoice_form','pos','pos_form','invoice_print'].includes(screen));
+                document.body.classList.toggle('ta-invoice-editor-screen',screen==='invoice_form');
                 // A successful setting change may re-render this screen before the
                 // queued <details> toggle event has updated expandedSections.
                 // Remember the live panel and its scroll position, rather than
@@ -7427,8 +7451,14 @@ html.ta-ime-open body.ta-3d-v3524 > main#mainContent.ta-main {padding-bottom:24p
                   <div class="rounded-xl border border-emerald-200 bg-emerald-50 p-2 text-center"><div class="text-[11px] font-bold text-emerald-800">الرصيد النهائي المتوقع</div><strong id="draftBalanceAfter" class="block mt-1 text-xs font-extrabold text-emerald-800">${final}</strong></div></div>
                   <div id="draftBalanceHint" class="mt-2 text-[10px] text-slate-600">${note}</div></div>`;
             },
+            footerBalancesHTML() {
+                const p=this.draftBalancePreview(),c=this.draft.currency;
+                const before=p.available?this.draftBalanceLabel(p.before,c):'—';
+                const after=p.available?this.draftBalanceLabel(p.after,c):'—';
+                return `<div class="ta-balance-tile"><span>الرصيد السابق (${c})</span><strong id="draftBalanceBefore">${before}</strong></div><div class="ta-balance-tile"><span>الرصيد المتوقع (${c})</span><strong id="draftBalanceAfter">${after}</strong></div>`;
+            },
             refreshDraftBalanceDOM() {
-                const box=document.querySelector('[data-draft-balance]');
+                const box=document.querySelector('.ta-invoice-save-footer');
                 if(!box)return;
                 const p=this.draftBalancePreview(),c=this.draft.currency;
                 const before=document.getElementById('draftBalanceBefore');
@@ -8106,22 +8136,17 @@ html.ta-ime-open body.ta-3d-v3524 > main#mainContent.ta-main {padding-bottom:24p
                             <i class="fas fa-coins text-amber-600"></i><span>${cur === 'SYP' ? 'ليرة سورية' : 'دولار'}</span>
                           </button>
                         </div>
-                        <div class="ta-invoice-field"><label><i class="fas fa-calendar-days text-blue-600"></i> التاريخ والوقت</label>
+                        <div class="ta-invoice-field ta-invoice-date-field"><label><i class="fas fa-calendar-days text-blue-600"></i> التاريخ والوقت</label>
                           <div class="ta-invoice-date-visible" lang="en" dir="ltr">
                             <input aria-label="تاريخ الفاتورة" type="text" inputmode="numeric" autocomplete="off" value="${this.visibleInvoiceDate(d.date).day}" placeholder="YYYY-MM-DD" onchange="InvoiceController.changeInvoiceDatePart('day',this.value)" class="w-full border border-sky-300 rounded-lg px-1 py-2 text-center font-extrabold" />
                             <input aria-label="وقت الفاتورة" type="time" value="${this.visibleInvoiceDate(d.date).time}" onchange="InvoiceController.changeInvoiceDatePart('time',this.value)" class="border border-sky-300 rounded-lg px-1 py-2 font-bold" />
                           </div>
                         </div>
-                        <div class="ta-invoice-field"><label><i class="fas fa-building text-sky-700"></i> المستودع</label>
+                        <div class="ta-invoice-field ta-invoice-warehouse-field"><label><i class="fas fa-building text-sky-700"></i> ${AppEscape.text(((State.warehouses||[]).find(w=>w.id===(d.warehouseId||'wh_main'))||{}).name||'المستودع الرئيسي')}</label>
                           <select aria-label="المستودع" onchange="InvoiceController.changeWarehouse(this.value)" class="bg-white border border-sky-300 rounded-lg p-2">
                             ${WarehouseController.options(d.warehouseId || 'wh_main')}
                           </select>
                         </div>
-                      </div>
-                      <button type="button" aria-label="طريقة الدفع؛ اضغط للتبديل نقدي ثم دفعات ثم آجل" title="اضغط للتبديل: نقدي ← دفعات ← آجل" onclick="InvoiceController.cyclePaymentMethod()" class="ta-payment-cycle ta-pay-${d.paymentMethod}">
-                        <span><i class="fas ${d.paymentMethod==='cash'?'fa-money-bill-wave':d.paymentMethod==='partial'?'fa-hand-holding-dollar':'fa-clock'}"></i> طريقة الدفع: ${d.paymentMethod==='cash'?'نقدي':d.paymentMethod==='partial'?'دفعات':'آجل'}</span>
-                        <i class="fas fa-arrow-rotate-right" aria-hidden="true"></i>
-                      </button>
                         ${['sale','sale_return'].includes(d.type) ? `
                         <div class="ta-invoice-pricing-choice rounded-xl border border-cyan-400 bg-gradient-to-l from-sky-100 via-cyan-50 to-white px-2.5 py-2 shadow-sm">
                             <label for="invoicePricingTier" class="block text-xs font-black text-cyan-950 mb-1"><i class="fas fa-coins ml-1 text-sky-700"></i> طريقة التسعير لهذه الفاتورة</label>
@@ -8132,6 +8157,12 @@ html.ta-ime-open body.ta-3d-v3524 > main#mainContent.ta-main {padding-bottom:24p
                                 <option value="consumer" ${d.priceTierOverride==='consumer'?'selected':''}>سعر المستهلك</option>
                             </select>
                         </div>` : ''}
+                      </div>
+                      <button type="button" aria-label="طريقة الدفع؛ اضغط للتبديل نقدي ثم دفعات ثم آجل" title="اضغط للتبديل: نقدي ← دفعات ← آجل" onclick="InvoiceController.cyclePaymentMethod()" class="ta-payment-cycle ta-pay-${d.paymentMethod}">
+                        <span><i class="fas ${d.paymentMethod==='cash'?'fa-money-bill-wave':d.paymentMethod==='partial'?'fa-hand-holding-dollar':'fa-clock'}"></i> طريقة الدفع: ${d.paymentMethod==='cash'?'نقدي':d.paymentMethod==='partial'?'دفعات':'آجل'}</span>
+                        <i class="fas fa-arrow-rotate-right" aria-hidden="true"></i>
+                      </button>
+
 
                     </div>
 
@@ -8260,18 +8291,14 @@ html.ta-ime-open body.ta-3d-v3524 > main#mainContent.ta-main {padding-bottom:24p
                         </div>
                     </div>
 
-                    ${this.draftBalanceHTML()}
 
-                    <div class="grid grid-cols-2 gap-2">
-                        <!-- DEFAULT ACTION: Save & Print via Bluetooth Thermal Printer -->
-                        <button type="button" onclick="InvoiceController.saveInvoice(true)" class="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold py-3 px-2 rounded-2xl text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-sm">
-                            <i class="fab fa-bluetooth-b text-base"></i>
-                            <span>حفظ وطباعة بلوتوث</span>
-                        </button>
-                        <button type="button" onclick="InvoiceController.saveInvoice(false)" class="bg-slate-900 hover:bg-slate-800 text-white font-extrabold py-3 px-2 rounded-2xl text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-sm">
-                            <i class="fas fa-floppy-disk text-emerald-400"></i>
-                            <span>${d.isEditing ? 'حفظ التعديلات' : 'حفظ الفاتورة'}</span>
-                        </button>
+
+                    <div class="ta-invoice-save-footer" role="group" aria-label="حفظ الفاتورة وأرصدة الحساب">
+                      <div class="ta-footer-balances">${this.footerBalancesHTML()}</div>
+                      <div class="ta-footer-actions">
+                        <button type="button" onclick="InvoiceController.saveInvoice(true)"><i class="fas fa-print"></i> حفظ وطباعة</button>
+                        <button type="button" onclick="InvoiceController.saveInvoice(false)"><i class="fas fa-floppy-disk"></i> ${d.isEditing?'حفظ التعديلات':'حفظ الفاتورة'}</button>
+                      </div>
                     </div>
 
                     ${d.isEditing ? `

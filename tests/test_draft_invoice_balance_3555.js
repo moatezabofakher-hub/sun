@@ -22,7 +22,9 @@ assert.equal(h.project(40,{currency:'USD',type:'sale',netTotal:100,paidAmount:10
 // DOM wiring, checked on shipped sources in addition to the calculation tests.
 assert(html.includes('draftBalanceHTML()')&&html.includes('refreshDraftBalanceDOM()'));
 assert(html.includes('this.refreshDraftBalanceDOM()'));
-assert(html.includes('${this.draftBalanceHTML()}'));
+assert(html.includes('${this.footerBalancesHTML()}'));
+assert(!html.includes('${this.draftBalanceHTML()}'),'Moved from scrollable invoice body to fixed save footer');
+assert(html.includes('ta-invoice-save-footer'));
 assert(html.includes('static/draft-invoice-balance-preview.js'));
 if(fs.existsSync('field_agent/src/main/assets/www/index.html')){
  const agentHTML=fs.readFileSync('field_agent/src/main/assets/www/index.html','utf8');
