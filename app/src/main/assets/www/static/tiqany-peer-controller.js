@@ -8,7 +8,7 @@ const t=(ar)=>ar;
 const clone=x=>JSON.parse(JSON.stringify(x));
 const connectedDevicesIcon='<svg width="48" height="32" viewBox="0 0 74 46" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><rect x="3" y="6" width="38" height="27" rx="4" fill="#065e81"/><rect x="7" y="10" width="30" height="19" rx="2" fill="#bbf3f1"/><path d="M13 38h19m-10-5v5" fill="none" stroke="#065e81" stroke-width="4" stroke-linecap="round"/><path d="M43 16h8m-4-4 4 4-4 4m4 9h-8m4-4-4 4 4 4" fill="none" stroke="#0f766e" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><rect x="55" y="4" width="16" height="35" rx="4" fill="#076475"/><rect x="58" y="9" width="10" height="23" rx="1.8" fill="#bcf6f0"/><circle cx="63" cy="35" r="1.7" fill="#bcf6f0"/></svg>';
 const escape=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved:false,conflictLog:null,lastSuccessfulAt:0,lastPhoneSeenAt:0,
+const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved:false,conflictLog:null,lastSuccessfulAt:0,lastPhoneSeenAt:0,lastPublishedDigest:null,lastRemoteVersion:null,polling:false,probeFailures:0,nextProbeAt:0,
   authorizedSettingsSection:null,
   headerRequestedSettings:false,
   openSettingsFromHeader(){
@@ -275,7 +275,7 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
         try{if(JSON.stringify(merged.details).length<4500000)await this.call({action:'report-conflicts',ticket:fetched.ticket,serverId:fetched.serverId,profileId:fetched.profileId,phoneProfileId:ProfileManager.activeId,details:merged.details});}
         catch(reportErr){console.warn('Windows conflict log could not be updated',reportErr);}
         this.message(disagreements.length?'توجد اختيارات متعارضة بين الهاتف والكمبيوتر؛ يجب توحيدها في سجل التعارض.':'تعذّرت المزامنة بسبب '+merged.conflicts.length+' تعارض. افتح «سجل التعارض» لمراجعتها.',!silent);
-        return;
+        return false;
       }
       if(this.blocked()||core.canonical(this.snapshot())!==origin)throw Error(t("تغيرت بيانات الهاتف أثناء المزامنة. أعد المحاولة.","Phone data changed during sync. Try again."));
       const committed=await this.call({action:'commit',ticket:fetched.ticket,serverId:fetched.serverId,profileId:fetched.profileId,snapshot:merged.snapshot});
@@ -292,7 +292,8 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
       AndroidPeerSync.approve();this.approved=true;this.lastSuccessfulAt=Date.now();this.updatePresence();
       this.message(`اكتملت المزامنة: ${merged.stats.added} سجلات جديدة و${merged.stats.deduplicated||0} نسخ متكررة لعمليات موظفين دُمجت دون احتسابها مجدداً، و${merged.stats.renumbered} رقم مستند مُعدّل.`);
       if(AppNav.current()?.screen!=='settings')AppNav.renderCurrent();
-    }catch(e){this.lastSuccessfulAt=0;this.updatePresence();this.message(t("فشلت المزامنة دون حذف البيانات: ","Sync failed without deleting data: ")+String(e.message||e),!silent);}
+      return true;
+    }catch(e){this.lastSuccessfulAt=0;this.updatePresence();this.message(t("فشلت المزامنة دون حذف البيانات: ","Sync failed without deleting data: ")+String(e.message||e),!silent);return false;}
     finally{this.busy=false;this.renderConnection();}
   },
   async handleRequest(request){if(!desktop)return;
@@ -376,8 +377,32 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
     const status=window.AndroidPeerSync?JSON.parse(AndroidPeerSync.status()||'{}'):{};
     if(status.approved&&document.visibilityState==='visible')this.sync(true);
   },
-  async boot(){await this.loadConflicts();setInterval(()=>this.updatePresence(),3000);if(desktop){window.WindowsDesktop?.onPeerRequest(req=>this.handleRequest(req));await this.config();}
-    else {setInterval(()=>{if(document.visibilityState==='visible')this.sync(true);},3000);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')this.sync(true);});}
+  async probe(){
+    if(desktop||this.polling||this.busy||this.pending||this.blocked()||document.visibilityState!=='visible'||Date.now()<this.nextProbeAt)return;
+    if(!window.AndroidPeerSync)return;
+    let link={};try{link=JSON.parse(AndroidPeerSync.status()||'{}');}catch(_){}
+    if(!link.approved||!link.host)return;
+    this.polling=true;
+    try{
+      const reply=await this.call({action:'probe'});
+      if(!reply.ok||typeof reply.version!=='string'||reply.serverId!==link.serverId)throw Error('تعذر التحقق من هوية الكمبيوتر');
+      this.probeFailures=0;this.nextProbeAt=0;
+      if(reply.version!==this.lastRemoteVersion){this.lastRemoteVersion=reply.version;
+        if(await this.sync(true)!==true)this.lastRemoteVersion=null;
+      }
+    }catch(_){this.lastRemoteVersion=null;this.nextProbeAt=Date.now()+Math.min(30000,1500*2**Math.min(++this.probeFailures,5));}
+    finally{this.polling=false;}
+  },
+  async boot(){await this.loadConflicts();setInterval(()=>this.updatePresence(),3000);
+    if(desktop){window.WindowsDesktop?.onPeerRequest(req=>this.handleRequest(req));await this.config();
+      this.lastPublishedDigest=core.digest(this.snapshot());window.WindowsPeerSync?.changed?.(ProfileManager.activeId,false);
+    }else{
+      setInterval(()=>this.probe(),1200);
+      // Periodic full reconciliation catches legacy builds and lost wake-ups.
+      setInterval(()=>{if(document.visibilityState==='visible'&&!this.polling)this.sync(true);},30000);
+      document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')this.probe();});
+      setTimeout(()=>this.probe(),200);
+    }
   }
 };
 window.TiqanyPeerSync=peer;
@@ -391,7 +416,7 @@ const taWakeSync=()=>{
   if(!state.approved||!state.host)return;
   clearTimeout(taSaveSyncTimer);taSaveSyncRetry=0;
   const attempt=()=>{
-    if(peer.busy||peer.blocked()){
+    if(peer.busy||peer.pending||peer.blocked()){
       if(++taSaveSyncRetry<80)taSaveSyncTimer=setTimeout(attempt,250);
       return;
     }

@@ -102,7 +102,7 @@ A.renderInvoice=function(){
       <div class="agent-pos-grand"><strong>المبلغ المطلوب</strong><b id="invNetTotalTxt">${this.money(calc.netTotal,c)} ${curLabel}</b></div>
       <input type="hidden" id="invPaidInput" value="${calc.netTotal}"><input type="hidden" id="invRemainingTxt" value="0">
       <label class="agent-pos-note-label">ملاحظات<textarea id="fNote" rows="2" placeholder="ملاحظة اختيارية" oninput="Agent.invoiceMeta.note=this.value">${esc(m.note||'')}</textarea></label></div>
-    <div class="agent-pos-save"><button type="button" onclick="Agent.saveInvoice(true)">حفظ وطباعة</button><button type="button" onclick="Agent.saveInvoice()">حفظ البيع</button></div>
+    <div class="agent-pos-save" dir="rtl"><button type="button" onclick="Agent.saveInvoice()">حفظ البيع</button><button type="button" onclick="Agent.saveInvoice(true)">حفظ وطباعة</button></div>
     <div class="ta-agent-pos-footer" role="group" aria-label="المبلغ الإجمالي والحفظ في نقطة البيع">
       <div class="ta-agent-pos-total"><span>المبلغ الإجمالي المستحق</span><b id="agentPosFooterDue">${this.money(calc.netTotal,c)} ${curLabel}</b></div>
       <div class="ta-agent-pos-actions"><button type="button" onclick="Agent.saveInvoice()">حفظ</button><button type="button" onclick="Agent.saveInvoice(true)">حفظ وطباعة</button></div>

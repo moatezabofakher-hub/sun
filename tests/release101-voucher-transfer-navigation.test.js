@@ -17,7 +17,7 @@ test('voucher workspaces hide regular bottom navigation and retain guarded Save/
 test('transfer editor hides dock, offers Save and Cancel, never auto-opens search keyboard',()=>{
   assert.match(src,/body\.ta-transfer-editor-open nav\.ta-bottom-nav/);
   assert.match(src,/class="ta-transfer-form-actions"/);
-  assert.match(src,/id="transferSaveButton" onclick="WarehouseController\.saveTransfer\(\)"/);
+  assert.match(src,/id="transferSaveButton" onclick="WarehouseController\.saveTransfer\(false\)"/);
   assert.match(src,/class="ta-transfer-cancel-button" onclick="WarehouseController\.closeTransferForm\(\)"/);
   assert.doesNotMatch(src,/Views\.jumpToEntry\('warehouseTransferPanel','transferSearchInput'\)/);
   assert.match(src,/scrollToTransferPanel\(\)\s*\{[\s\S]*?scrollIntoView/);

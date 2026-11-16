@@ -1309,6 +1309,29 @@ body:has(#mainContent .ta-voucher-save-footer) #mainContent{padding-bottom:calc(
 .ta-voucher-save-footer .ta-voucher-cancel-action,.ta-voucher-cancel-button{background:#dc2626!important;background-color:#dc2626!important;background-image:none!important}
 </style>
 <link rel="stylesheet" href="static/tiqany-forms-35107.css">
+<script src="static/transfer-cost-35109.js"></script>
+
+<style id="ta-transfer-fixed-footer-35109">
+body.ta-transfer-editor-open nav.ta-bottom-nav{display:none!important}
+body.ta-transfer-editor-open #mainContent{padding-bottom:calc(var(--ta-transfer-footer-height,170px) + 28px + env(safe-area-inset-bottom,0px))!important;scroll-padding-bottom:calc(var(--ta-transfer-footer-height,170px) + 28px)!important}
+#warehouseTransferPanel .ta-transfer-form-actions[data-fixed-transfer-footer]{position:fixed!important;inset:auto 0 0 0!important;z-index:33;direction:rtl;display:flex!important;flex-direction:column;gap:8px;box-sizing:border-box;margin:0!important;padding:9px 12px calc(10px + env(safe-area-inset-bottom,0px));background:linear-gradient(180deg,#f0f9ff,#fff);border-top:2px solid #7dd3fc;box-shadow:0 -5px 20px #164e6333;max-height:55vh;overflow-y:auto}
+#warehouseTransferPanel .ta-transfer-summary{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:stretch}
+#warehouseTransferPanel .ta-transfer-summary-tile{padding:7px 5px;border:1px solid #bae6fd;border-radius:12px;background:#fff;min-width:0;text-align:center}
+#warehouseTransferPanel .ta-transfer-summary-tile span{display:block;color:#475569;font-size:11px;font-weight:800}
+#warehouseTransferPanel .ta-transfer-summary-tile strong{display:block;overflow-wrap:anywhere;color:#065f46;font-size:clamp(12px,3vw,16px);font-weight:900}
+#warehouseTransferPanel .ta-transfer-summary-note{font-size:10px;color:#64748b;font-weight:700;text-align:center}
+#warehouseTransferPanel .ta-transfer-footer-buttons{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;direction:rtl}
+#warehouseTransferPanel .ta-transfer-footer-buttons button{min-height:46px!important;width:100%!important;margin:0!important;padding:7px 4px!important;border-radius:13px!important;font-size:12px!important;font-weight:900!important;color:white!important;display:flex;align-items:center;justify-content:center;gap:6px}
+#warehouseTransferPanel #transferSaveButton,#warehouseTransferPanel #transferSaveAndPrintButton{background:linear-gradient(155deg,#48d896,#047857 72%,#065f46)!important;border:1px solid #065f46!important;box-shadow:inset 0 2px #ffffff85,0 4px 0 #064e3b,0 9px 15px #064e3b35!important}
+#warehouseTransferPanel .ta-transfer-summary .ta-transfer-cancel-button{background:linear-gradient(145deg,#ff6b76,#e11d48 65%,#9f1239)!important;border:1px solid #be123c!important;box-shadow:inset 0 2px #ffffff8c,0 4px 0 #9f1239,0 9px 12px #be123c36!important;color:white!important;font-weight:900;min-width:80px;max-width:110px;display:flex;align-items:center;justify-content:center;gap:5px;border-radius:12px;padding:6px}
+@media(max-width:385px){#warehouseTransferPanel .ta-transfer-summary{gap:5px}#warehouseTransferPanel .ta-transfer-summary-tile strong{font-size:12px}#warehouseTransferPanel .ta-transfer-summary .ta-transfer-cancel-button{min-width:65px;font-size:11px}}
+@media print{#taTransferPrintSheet{display:block!important;position:absolute;inset:0;background:#fff;color:#111;padding:20px;font-size:14px;direction:rtl}body:has(#taTransferPrintSheet) > :not(#taTransferPrintSheet){visibility:hidden!important}body:has(#taTransferPrintSheet) #taTransferPrintSheet,body:has(#taTransferPrintSheet) #taTransferPrintSheet *{visibility:visible!important}#taTransferPrintSheet table{width:100%;border-collapse:collapse}#taTransferPrintSheet th,#taTransferPrintSheet td{border:1px solid #777;padding:6px}}
+</style>
+
+<style id="ta-invoice-save-order-35109">
+.ta-invoice-save-footer .ta-footer-actions{direction:rtl!important}
+.ta-invoice-save-footer .ta-footer-actions button{background:linear-gradient(155deg,#48d896,#047857 72%,#065f46)!important;border:1px solid #065f46!important;box-shadow:inset 0 2px #ffffff85,0 4px 0 #064e3b,0 8px 16px #064e3b36!important;color:#fff!important}
+</style>
 </head>
 <body class="ta-premium-ui ta-3d-v3524 bg-slate-100 text-slate-800 min-h-screen flex flex-col w-full max-w-full overflow-x-hidden">
 
@@ -4707,7 +4730,7 @@ body:has(#mainContent .ta-voucher-save-footer) #mainContent{padding-bottom:calc(
                     <div id="warehouseTransferPanel" hidden class="ta-transfer-invoice-editor rounded-2xl p-3 mb-3 scroll-mt-4">
                         <div class="flex justify-between items-center border-b border-slate-200 pb-3 mb-3"><h3 class="ta-transfer-title"><i class="fas fa-file-invoice text-teal-700 ml-2"></i> <span id="transferFormTitle">فاتورة مناقلة جديدة</span></h3></div>
                         <div id="transferEditBanner" class="ta-transfer-edit-banner" hidden><div class="font-extrabold">تعديل فاتورة مناقلة محفوظة</div><div class="mt-1" id="transferEditingRef"></div><div class="mt-1">بعد الحفظ تُحدث الأرصدة وتبقى الفاتورة بنفس رقمها في سجل المناقلات.</div></div>
-                        <p class="ta-transfer-subtitle">فاتورة حركة مخزون وليست فاتورة بيع. لا أسعار أو دفعات؛ الكميات فقط تنتقل من المصدر إلى المستلم. انقر على أي صنف لزيادة وحداته واستخدم × للحذف.</p>
+                        <p class="ta-transfer-subtitle">فاتورة حركة مخزون وليست عملية بيع. الكميات تنتقل من المصدر إلى المستلم، والقيمة أسفل الشاشة تقديرية بآخر سعر تكلفة مسجل ولا تؤثر على الأرباح. انقر على الصنف لزيادة وحداته واستخدم × للحذف.</p>
                         <div class="grid grid-cols-2 gap-2 mb-2">
                             <div><label class="block text-xs font-bold mb-1" for="transferFrom">من المستودع</label>
                                 <select id="transferFrom" onchange="WarehouseController.refreshTransferAvailability()" class="w-full border rounded-xl p-2.5 text-xs">${WarehouseController.options(State.settings.selectedWarehouseId)}</select></div>
@@ -4738,13 +4761,17 @@ body:has(#mainContent .ta-voucher-save-footer) #mainContent{padding-bottom:calc(
                             <div><label class="block text-xs font-bold mb-1" for="transferDate">التاريخ</label><input id="transferDate" type="date" value="${new Date(Date.now()-new Date().getTimezoneOffset()*60000).toISOString().slice(0,10)}" class="w-full border rounded-xl p-2.5 text-sm"></div>
                             <div><label class="block text-xs font-bold mb-1" for="transferNote">ملاحظة المناقلة</label><input id="transferNote" maxlength="200" class="w-full border rounded-xl p-2.5 text-sm" placeholder="ملاحظة اختيارية لجميع الأصناف"></div>
                         </div>
-                        <div class="ta-transfer-form-actions" aria-label="إجراءات فاتورة المناقلة">
-                            <button type="button" id="transferSaveButton" onclick="WarehouseController.saveTransfer()" disabled>
-                                <i class="fas fa-check-circle" aria-hidden="true"></i><span id="transferSaveLabel">حفظ فاتورة المناقلة (<span id="transferSaveCount">0</span> صنف)</span>
-                            </button>
-                            <button type="button" class="ta-transfer-cancel-button" onclick="WarehouseController.closeTransferForm()" aria-label="إلغاء المناقلة">
-                                <i class="fas fa-times" aria-hidden="true"></i><span>إلغاء</span>
-                            </button>
+                        <div class="ta-transfer-form-actions" data-fixed-transfer-footer="true" aria-label="ملخص المناقلة والحفظ والطباعة">
+                            <div class="ta-transfer-summary">
+                                <div class="ta-transfer-summary-tile"><span>إجمالي المواد</span><strong id="transferSummaryCount">0 صنف</strong></div>
+                                <div class="ta-transfer-summary-tile"><span>القيمة بآخر سعر تكلفة</span><strong id="transferSummaryCost">—</strong></div>
+                                <button type="button" class="ta-transfer-cancel-button" onclick="WarehouseController.closeTransferForm()" aria-label="إلغاء المناقلة"><i class="fas fa-times" aria-hidden="true"></i> إلغاء</button>
+                            </div>
+                            <div class="ta-transfer-summary-note" id="transferSummaryNote">القيمة تقديرية للمخزون ولا تُرحَّل كمبيعات أو أرباح.</div>
+                            <div class="ta-transfer-footer-buttons">
+                                <button type="button" id="transferSaveButton" onclick="WarehouseController.saveTransfer(false)" disabled><i class="fas fa-floppy-disk" aria-hidden="true"></i><span id="transferSaveLabel">حفظ (<span id="transferSaveCount">0</span> صنف)</span></button>
+                                <button type="button" id="transferSaveAndPrintButton" onclick="WarehouseController.saveTransfer(true)" disabled><i class="fas fa-print" aria-hidden="true"></i> حفظ وطباعة</button>
+                            </div>
                         </div>
                         <button type="button" id="transferCancelEditButton" onclick="WarehouseController.cancelTransferEdit()" hidden class="mt-2 w-full rounded-xl bg-slate-100 border border-slate-300 text-slate-700 text-xs font-extrabold p-3">إلغاء التعديل والعودة لفاتورة جديدة</button>
                     </div>
@@ -7067,6 +7094,7 @@ body:has(#mainContent .ta-voucher-save-footer) #mainContent{padding-bottom:calc(
                 const panel=document.getElementById('warehouseTransferPanel');
                 if(!panel)return;
                 panel.hidden=false;
+                document.body?.classList?.add('ta-transfer-editor-open');
                 this.editingTransferBatchId=snapshot.editingTransferBatchId;
                 this.transferDraft=snapshot.draft.map(row=>({...row}));
                 for(const [id,value] of Object.entries(snapshot.fields)){
@@ -7120,6 +7148,7 @@ body:has(#mainContent .ta-voucher-save-footer) #mainContent{padding-bottom:calc(
                 this.transferDraft=[];this.editingTransferBatchId=null;
                 const panel=document.getElementById('warehouseTransferPanel');if(panel)panel.hidden=true;
                 document.body?.classList?.remove('ta-transfer-editor-open');
+                document.documentElement?.style?.removeProperty('--ta-transfer-footer-height');
                 this.updateTransferGridSelections();this.renderTransferDraft();
             },
             async addWarehouse() {
@@ -7249,12 +7278,71 @@ body:has(#mainContent .ta-voucher-save-footer) #mainContent{padding-bottom:calc(
             },
             updateTransferDraftQty(itemId, qty) {
                 const row=this.selectedTransferItem(itemId);
-                if(row){row.qty=String(qty);this.updateTransferGridSelections();}
+                if(row){row.qty=String(qty);this.updateTransferGridSelections();this.updateTransferSummary();}
             },
             updateTransferDraftUnit(itemId, factor) {
                 const row=this.selectedTransferItem(itemId);
                 if(row)row.factor=String(factor);
                 this.refreshTransferAvailability();
+                this.updateTransferSummary();
+            },
+            transferCostSummary(rows=this.transferDraft||[]){
+                const currency=CurrencyCatalog.primary();
+                return TiqanyTransferCost.summarize(rows,State.items,currency,Number(State.settings.exchangeRate),Accounting.convert.bind(Accounting));
+            },
+            updateTransferSummary(){
+                const panel=document.getElementById('warehouseTransferPanel');
+                if(!panel||panel.hidden)return;
+                const result=this.transferCostSummary();
+                const count=document.getElementById('transferSummaryCount');
+                const cost=document.getElementById('transferSummaryCost');
+                const note=document.getElementById('transferSummaryNote');
+                const print=document.getElementById('transferSaveAndPrintButton');
+                if(count)count.textContent=result.count+' صنف';
+                if(cost)cost.textContent=Accounting.format(result.total,result.currency);
+                if(note)note.textContent='القيمة تقديرية بآخر سعر تكلفة مسجل'+(result.missing||result.invalid?' — '+(result.missing+result.invalid)+' صنف بتكلفة/كمية غير مكتملة':'')+'؛ ولا تؤثر على الأرباح.';
+                if(print)print.disabled=!result.count||!!this.saving;
+                this.measureTransferFooter();
+            },
+            measureTransferFooter(){
+                const footer=document.querySelector?.('#warehouseTransferPanel:not([hidden]) .ta-transfer-form-actions[data-fixed-transfer-footer]');
+                if(footer){const height=Math.ceil(footer.getBoundingClientRect().height);if(height>0)document.documentElement?.style?.setProperty('--ta-transfer-footer-height',height+'px');}
+                else document.documentElement?.style?.removeProperty('--ta-transfer-footer-height');
+            },
+            transferPrintReport(doc){
+                const rows=(doc.lines||[]).map(t=>{
+                    const it=State.items.find(x=>x.id===t.itemId);
+                    return {itemId:t.itemId,qty:Number(t.quantity)||Number(t.quantityBase)||0,factor:Number(t.unitFactor)||1,itemName:it?.name||'مادة محذوفة',unitName:t.unitName||'وحدة كبرى'};
+                });
+                const s=this.transferCostSummary(rows);
+                return {
+                    title:'فاتورة مناقلة مواد #'+doc.id,
+                    range:'التاريخ: '+doc.date+' | من '+this.name(doc.fromWarehouseId)+' إلى '+this.name(doc.toWarehouseId)+' | '+s.count+' أصناف | قيمة التكلفة التقديرية: '+Accounting.format(s.total,s.currency)+(doc.note?' | '+doc.note:''),
+                    rows:rows.map((r,i)=>({name:(i+1)+'. '+r.itemName,detail:Accounting.formatItemQuantity(r.qty)+' '+r.unitName})),
+                    totals:{USD:s.currency==='USD'?s.total:0,SYP:s.currency==='SYP'?s.total:0},
+                    summary:s
+                };
+            },
+            async printTransferBatch(id){
+                const doc=this.transferDocuments().find(d=>d.id===id);
+                if(!doc){UI.toast('لم يتم العثور على المناقلة المحفوظة للطباعة','error');return false;}
+                const report=this.transferPrintReport(doc);
+                try{
+                    if(window.WindowsDevices?.settings && window.WindowsDevices?.printPage){
+                        const cfg=await window.WindowsDevices.settings();
+                        if(cfg.printMode==='system'){
+                            const sheet=document.createElement('section');sheet.id='taTransferPrintSheet';
+                            sheet.style.display='none';
+                            sheet.innerHTML='<h2>'+AppEscape.text(State.settings.companyName||'المحاسب التقني')+'</h2><h3>'+AppEscape.text(report.title)+'</h3><p>'+AppEscape.text(report.range)+'</p><table><thead><tr><th>#</th><th>المادة</th><th>الكمية</th></tr></thead><tbody>'+report.rows.map((r,i)=>'<tr><td>'+(i+1)+'</td><td>'+AppEscape.text(r.name.replace(/^\d+\. /,''))+'</td><td>'+AppEscape.text(r.detail)+'</td></tr>').join('')+'</tbody></table><p>عدد الأصناف: '+report.summary.count+' | القيمة التقديرية بآخر سعر تكلفة: '+AppEscape.text(Accounting.format(report.summary.total,report.summary.currency))+'</p>';
+                            document.body.appendChild(sheet);
+                            try{await window.WindowsDevices.printPage(false);return true;}
+                            finally{sheet.remove();}
+                        }
+                    }
+                    const result=await ThermalPrinter.printSummaryReport(report);
+                    if(result===false)return false;
+                    return true;
+                }catch(e){UI.toast('تعذرت طباعة المناقلة: '+e.message,'error');return false;}
             },
             renderTransferDraft() {
                 const rows=this.transferDraft||[];
@@ -7265,6 +7353,7 @@ body:has(#mainContent .ta-voucher-save-footer) #mainContent{padding-bottom:calc(
                 if(count)count.textContent=`${rows.length} صنف`;
                 if(saveCount)saveCount.textContent=String(rows.length);
                 if(save)save.disabled=!rows.length||!!this.saving;
+                this.updateTransferSummary();
                 if(!list)return;
                 list.innerHTML=rows.length?rows.map((row,index)=>{
                     const item=State.items.find(i=>i.id===row.itemId);
@@ -7363,11 +7452,13 @@ body:has(#mainContent .ta-voucher-save-footer) #mainContent{padding-bottom:calc(
                 }
                 return [...changes.values()];
             },
-            async saveTransfer() {
+            async saveTransfer(andPrint=false) {
                 if(this.saving)return;
                 this.saving=true;
                 const button=document.getElementById('transferSaveButton');
+                const printButton=document.getElementById('transferSaveAndPrintButton');
                 if(button)button.disabled=true;
+                if(printButton)printButton.disabled=true;
                 try {
                     const from=document.getElementById('transferFrom')?.value;
                     const to=document.getElementById('transferTo')?.value;
@@ -7444,11 +7535,15 @@ body:has(#mainContent .ta-voucher-save-footer) #mainContent{padding-bottom:calc(
                     // history without reopening an empty editor by accident.
                     const panel=document.getElementById('warehouseTransferPanel');
                     if(panel)panel.hidden=true;
+                    document.body?.classList?.remove('ta-transfer-editor-open');
+                    document.documentElement?.style?.removeProperty('--ta-transfer-footer-height');
                     UI.toast(originalDoc?'تم تعديل فاتورة المناقلة وحفظ جميع أصنافها وأرصدتها':'تم حفظ فاتورة المناقلة بنجاح','success');
                     AppNav.renderCurrent();
+                    if(andPrint)await this.printTransferBatch(batchId);
                 }finally{
                     this.saving=false;
                     if(button&&button.isConnected)button.disabled=!(this.transferDraft||[]).length;
+                    if(printButton&&printButton.isConnected)printButton.disabled=!(this.transferDraft||[]).length;
                 }
             },
             transferDocuments(){
@@ -7490,7 +7585,7 @@ body:has(#mainContent .ta-voucher-save-footer) #mainContent{padding-bottom:calc(
                       <div class="p-3 text-xs border-t border-slate-200"><div class="font-extrabold text-slate-700 mb-1">${AppEscape.text(State.settings.companyName||'المحاسب التقني')}</div><div class="text-[11px] text-slate-500">رقم الفاتورة: ${shortNo} | التاريخ: ${AppEscape.text(doc.date)}</div>${OriginBadge.html(doc.lines?.[0])}<div class="mt-1 text-[11px]">من: <b>${AppEscape.text(this.name(doc.fromWarehouseId))}</b> — إلى: <b>${AppEscape.text(this.name(doc.toWarehouseId))}</b></div></div>
                       <table class="ta-transfer-invoice-table"><thead><tr><th>#</th><th>الصنف</th><th>الكمية</th><th>الوحدة</th></tr></thead><tbody>${doc.lines.map((t,n)=>`<tr><td>${n+1}</td><td>${AppEscape.text(State.items.find(i=>i.id===t.itemId)?.name||'مادة محذوفة')}</td><td>${Accounting.formatItemQuantity(t.quantity&&t.unitName?t.quantity:t.quantityBase)}</td><td>${AppEscape.text(t.unitName||'وحدة كبرى')}</td></tr>`).join('')}</tbody></table>
                       ${doc.note?`<p class="p-3 text-[11px] text-slate-600">ملاحظة: ${AppEscape.text(doc.note)}</p>`:''}
-                      <div class="ta-transfer-invoice-actions"><button type="button" onclick="WarehouseController.editTransferBatch(${safeId})" class="ta-transfer-invoice-edit"><i class="fas fa-pen ml-1" aria-hidden="true"></i>تعديل الفاتورة</button><button type="button" onclick="WarehouseController.deleteTransferBatch(${safeId})" class="ta-transfer-invoice-cancel">إلغاء الفاتورة</button></div>
+                      <div class="ta-transfer-invoice-actions"><button type="button" onclick="WarehouseController.printTransferBatch(${safeId})" class="ta-transfer-invoice-edit"><i class="fas fa-print ml-1" aria-hidden="true"></i>طباعة المناقلة</button><button type="button" onclick="WarehouseController.editTransferBatch(${safeId})" class="ta-transfer-invoice-edit"><i class="fas fa-pen ml-1" aria-hidden="true"></i>تعديل الفاتورة</button><button type="button" onclick="WarehouseController.deleteTransferBatch(${safeId})" class="ta-transfer-invoice-cancel">إلغاء الفاتورة</button></div>
                     </details>`;
                 }).join('');
             },
@@ -8655,8 +8750,8 @@ body:has(#mainContent .ta-voucher-save-footer) #mainContent{padding-bottom:calc(
                     <div class="ta-invoice-save-footer" role="group" aria-label="حفظ الفاتورة وأرصدة الحساب">
                       <div class="ta-footer-balances">${this.footerBalancesHTML()}</div>
                       <div class="ta-footer-actions">
-                        <button type="button" onclick="InvoiceController.saveInvoice(true)"><i class="fas fa-print"></i> حفظ وطباعة</button>
                         <button type="button" onclick="InvoiceController.saveInvoice(false)"><i class="fas fa-floppy-disk"></i> ${d.isEditing?'حفظ التعديلات':'حفظ الفاتورة'}</button>
+                        <button type="button" onclick="InvoiceController.saveInvoice(true)"><i class="fas fa-print"></i> حفظ وطباعة</button>
                       </div>
                     </div>
 
@@ -8757,8 +8852,8 @@ body:has(#mainContent .ta-voucher-save-footer) #mainContent{padding-bottom:calc(
                         AppNav.navigate('dashboard');
                     }
                 } else {
-                    // Preserve the current preview behavior for the Save-only button.
-                    AppNav.navigate('invoice_print', { id: cleanDoc.id }, true);
+                    // Saving alone never opens the invoice preview or the print screen.
+                    AppNav.navigate('dashboard');
                 }
                 return true;
             },
@@ -10369,6 +10464,7 @@ body:has(#mainContent .ta-voucher-save-footer) #mainContent{padding-bottom:calc(
 <script src="static/settings-staging.js"></script>
 
 <script src="static/tiqany-peer-merge.js"></script>
+<script src="static/tiqany-peer-events.js"></script>
 <script src="static/tiqany-peer-controller.js"></script>
 <script src="static/tiqany-recovery.js"></script>
 <script src="static/tiqany-support.js"></script>

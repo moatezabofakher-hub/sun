@@ -209,7 +209,7 @@ const POSController = {
       </aside></div>
       ${this.readOnly?'':`<div class="ta-pos-fixed-footer" role="group" aria-label="إجمالي نقطة البيع والحفظ">
         <div class="ta-pos-footer-total"><span>المبلغ الإجمالي المستحق</span><strong id="taPosFooterDue" dir="auto">${money(d.netTotal)}</strong></div>
-        <div class="ta-pos-footer-actions"><button type="button" onclick="POSController.save(false)" ${!d.rows.length||this.saving?'disabled':''}><i class="fas fa-floppy-disk"></i> حفظ</button><button type="button" onclick="POSController.save(true)" ${!d.rows.length||this.saving?'disabled':''}><i class="fas fa-print"></i> حفظ وطباعة</button></div>
+        <div class="ta-pos-footer-actions" dir="rtl"><button type="button" onclick="POSController.save(false)" ${!d.rows.length||this.saving?'disabled':''}><i class="fas fa-floppy-disk"></i> حفظ</button><button type="button" onclick="POSController.save(true)" ${!d.rows.length||this.saving?'disabled':''}><i class="fas fa-print"></i> حفظ وطباعة</button></div>
       </div>`}</div>`;
     this.renderGrid();
   },

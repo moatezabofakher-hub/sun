@@ -51,7 +51,13 @@ A.onLocalSyncResult=async function(raw){
   const fresh=incoming.map((n,i)=>({...n,id:'manager-'+stamp+'-'+i,at:stamp,read:false}));
   const previous=noticeList();const all=[...fresh,...previous].slice(0,200);
   this.state.managerNotifications=all;
-  try{await this.save();}catch(error){this.state.managerNotifications=previous;this.toast('تعذر حفظ إشعارات المسؤول: '+(error?.message||''));}
+  let persisted=false;
+  try{await this.save();persisted=true;}catch(error){this.state.managerNotifications=previous;this.toast('تعذر حفظ إشعارات المسؤول: '+(error?.message||''));}
+  // Deliver device notifications only for newly committed, authenticated sync updates.
+  // Never claim an update arrived when synchronization or local persistence failed.
+  if(persisted && typeof window!=='undefined' && window.AndroidManagerNotifications?.postUpdates){
+    try{window.AndroidManagerNotifications.postUpdates(JSON.stringify(fresh.map(n=>({id:n.id,title:n.title,detail:n.detail}))));}catch(_){/* In-app notices remain available when system notifications are disabled. */}
+  }
   badge();
 };
 function render(){const history=noticeList();return `<section class="ta-manager-notification-panel" dir="rtl"><h2>🔔 إشعارات المسؤول</h2>

@@ -10,6 +10,7 @@ const htmlPath=fs.existsSync(path.join(folder,'web/index.html'))
     ?path.join(folder,'web/index.html')
     :path.join(folder,'app/src/main/assets/www/index.html');
 const html=fs.readFileSync(htmlPath,'utf8');
+const TiqanyTransferCost=require(path.join(folder,'app/src/main/assets/www/static/transfer-cost-35109.js'));
 const part=(a,b)=>{
     const from=html.indexOf(a);const to=html.indexOf(b,from+a.length);
     assert.ok(from>=0&&to>from,`Unable to locate source markers ${a} and ${b}`);
@@ -44,8 +45,8 @@ function makeFixture(){
           dom.get('transferCategory').value='all';
         }
     };
-    const document={getElementById:id=>dom.get(id)||null,querySelectorAll:()=>[]};
-    const ctx={console,Date,Math,Number,String,JSON,Map,Set,Array,Object,Promise,document,
+    const document={getElementById:id=>dom.get(id)||null,querySelectorAll:()=>[],querySelector:()=>null,documentElement:{style:{setProperty(){},removeProperty(){}}}};
+    const ctx={console,Date,Math,Number,String,JSON,Map,Set,Array,Object,Promise,document,TiqanyTransferCost,
         UI:{toast:(message)=>toasts.push(message),setHeader(){},openModal(){}},
         AppNav:{renderCurrent(){},markDirty(){},clearDirty(){}},
         StorageEngine:{async saveState(){}},
@@ -131,4 +132,23 @@ test('successful save closes editor and refresh cannot reopen a blank transfer',
     assert.equal(f.dom.get('warehouseTransferPanel').hidden,true);
     f.Views.renderWarehouses(f.main,p);
     assert.equal(f.dom.get('warehouseTransferPanel').hidden,true,'refresh after save should show history, not an empty editor');
+});
+
+test('save-and-print prints only after the transfer is saved, while plain Save does not print',async()=>{
+ const f=makeFixture();f.Views.renderWarehouses(f.main,{});
+ f.W.openTransferForm();f.W.toggleTransferItem('soap');
+ f.dom.get('transferDate').value='2026-11-16';
+ let printed=0,printedLines=0;
+ f.W.printTransferBatch=async id=>{
+   printed++;printedLines=f.State.transfers.filter(t=>String(t.batchId||t.id)===id).length;
+   return true;
+ };
+ await f.W.saveTransfer(true);
+ assert.equal(printed,1);
+ assert.equal(printedLines,1,'transfer must be persisted before printing');
+ f.Views.renderWarehouses(f.main,{});
+ f.W.openTransferForm();f.W.toggleTransferItem('soap');
+ f.dom.get('transferDate').value='2026-11-16';
+ await f.W.saveTransfer(false);
+ assert.equal(printed,1,'Save alone must not print');
 });

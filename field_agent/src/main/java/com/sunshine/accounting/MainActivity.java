@@ -1,6 +1,12 @@
 package com.sunshine.accounting;
 
 import android.app.Activity;
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
+import android.os.Build;
+
 import android.Manifest;
 import android.content.pm.PackageManager;
 import android.webkit.PermissionRequest;
@@ -62,6 +68,17 @@ import java.nio.charset.StandardCharsets;
 public final class MainActivity extends FragmentActivity {
     private static final String HOST = "appassets.androidplatform.net";
     private static final String APP_URL = "https://" + HOST + "/assets/www/index.html";
+    private static final String MANAGER_NOTICE_CHANNEL = "tiqany_manager_updates";
+    private static final String EXTRA_MANAGER_NOTICE = "tiqany_manager_notice";
+    private String pendingManagerNoticeId;
+    private boolean managerPermissionRequestedThisSession;
+    private final ActivityResultLauncher<String> managerNoticePermissionLauncher =
+            registerForActivityResult(new ActivityResultContracts.RequestPermission(), granted -> {
+                // An explicit denial is respected. The in-app bell still displays updates.
+                if (!Boolean.TRUE.equals(granted))
+                    Toast.makeText(this, "إشعارات الهاتف غير مفعلة؛ ستظهر التحديثات داخل التطبيق", Toast.LENGTH_LONG).show();
+            });
+
     private static final int PICK_IMPORT = 2401;
     private static final int SAVE_BACKUP = 2402;
     private static final int REQUEST_ITEM_CAMERA = 2404;
@@ -262,6 +279,11 @@ public final class MainActivity extends FragmentActivity {
                 pushSafeInsetsToPage();
                 trustedLocalMainFrame = url != null && url.startsWith("https://" + HOST + "/assets/www/");
                 if (nativeLocalSync != null) nativeLocalSync.onMainFrameUrlChanged(url);
+                if (trustedLocalMainFrame) {
+                    ensureManagerNotificationChannel();
+                    requestManagerNotificationPermission();
+                    deliverPendingManagerNotice();
+                }
             }
 
             @Override
@@ -329,6 +351,7 @@ public final class MainActivity extends FragmentActivity {
             }
         });
 
+        webView.addJavascriptInterface(new ManagerNotificationBridge(), "AndroidManagerNotifications");
         webView.addJavascriptInterface(new NativeBarcodeBridge(), "NativeBarcode");
         webView.addJavascriptInterface(new SecurityBridge(), "NativeSecurity");
         webView.addJavascriptInterface(new ExitBridge(), "Android");
@@ -371,7 +394,101 @@ public final class MainActivity extends FragmentActivity {
             }
         });
 
+        if (getIntent() != null)
+            pendingManagerNoticeId = getIntent().getStringExtra(EXTRA_MANAGER_NOTICE);
         webView.loadUrl(APP_URL);
+    }
+
+    private void ensureManagerNotificationChannel() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
+        NotificationManager manager = getSystemService(NotificationManager.class);
+        if (manager == null) return;
+        NotificationChannel channel = new NotificationChannel(MANAGER_NOTICE_CHANNEL,
+                "تحديثات المسؤول", NotificationManager.IMPORTANCE_DEFAULT);
+        channel.setDescription("تحديثات البيانات المستلمة عبر مزامنة موظف البيع مع المسؤول");
+        manager.createNotificationChannel(channel);
+    }
+
+    private void requestManagerNotificationPermission() {
+        if (managerPermissionRequestedThisSession || Build.VERSION.SDK_INT < 33) return;
+        managerPermissionRequestedThisSession = true;
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED)
+            managerNoticePermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS);
+    }
+
+    private void deliverPendingManagerNotice() {
+        deliverPendingManagerNotice(0);
+    }
+
+    private void deliverPendingManagerNotice(int attempt) {
+        if (pendingManagerNoticeId == null || webView == null || !isLocalPage()) return;
+        final String id = pendingManagerNoticeId;
+        // Defer until the app restores its IndexedDB state; no navigation to a stale account.
+        webView.postDelayed(() -> {
+            if (webView == null || !isLocalPage() || !id.equals(pendingManagerNoticeId)) return;
+            webView.evaluateJavascript("(function(){if(typeof Agent==='undefined'||!Agent.ready?.())return false;"
+                + "Agent.openManagerNotification(" + JSONObject.quote(id) + ");return true;})()", result -> {
+                if ("true".equals(result) && id.equals(pendingManagerNoticeId))
+                    pendingManagerNoticeId = null;
+                else if (attempt < 12 && id.equals(pendingManagerNoticeId))
+                    deliverPendingManagerNotice(attempt + 1);
+            });
+        }, attempt == 0 ? 700 : 500);
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        if (intent != null && intent.hasExtra(EXTRA_MANAGER_NOTICE)) {
+            pendingManagerNoticeId = intent.getStringExtra(EXTRA_MANAGER_NOTICE);
+            deliverPendingManagerNotice();
+        }
+    }
+
+    private final class ManagerNotificationBridge {
+        @JavascriptInterface public void postUpdates(String json) {
+            // JavascriptInterface methods execute off the UI thread: never call WebView.getUrl() here.
+            if (!trustedLocalMainFrame || json == null || json.length() > 16000) return;
+            runOnUiThread(() -> {
+                if (!isLocalPage()) return;
+                if (Build.VERSION.SDK_INT >= 33 &&
+                    ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.POST_NOTIFICATIONS)
+                        != PackageManager.PERMISSION_GRANTED) return;
+                NotificationManager manager = getSystemService(NotificationManager.class);
+                if (manager == null || !manager.areNotificationsEnabled()) return;
+                try {
+                    JSONArray notices = new JSONArray(json);
+                    if (notices.length() > 16) return;
+                    ensureManagerNotificationChannel();
+                    for (int i = 0; i < notices.length(); i++) {
+                        JSONObject n = notices.optJSONObject(i);
+                        if (n == null) continue;
+                        String id = n.optString("id", "");
+                        String title = n.optString("title", "");
+                        String detail = n.optString("detail", "");
+                        if (id.isEmpty() || id.length() > 130 || title.isEmpty() || title.length() > 100) continue;
+                        if (detail.length() > 240) detail = detail.substring(0, 240);
+                        Intent tap = new Intent(MainActivity.this, MainActivity.class);
+                        tap.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                        tap.putExtra(EXTRA_MANAGER_NOTICE, id);
+                        int flags = PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE;
+                        PendingIntent pending = PendingIntent.getActivity(MainActivity.this,
+                                id.hashCode(), tap, flags);
+                        Notification note = new Notification.Builder(MainActivity.this, MANAGER_NOTICE_CHANNEL)
+                                .setSmallIcon(R.mipmap.ic_launcher)
+                                .setContentTitle(title)
+                                .setContentText(detail)
+                                .setStyle(new Notification.BigTextStyle().bigText(detail))
+                                .setContentIntent(pending)
+                                .setAutoCancel(true)
+                                .build();
+                        manager.notify("ta-manager-" + id, 1, note);
+                    }
+                } catch (org.json.JSONException ignored) { /* Reject malformed payload. */ }
+            });
+        }
     }
 
     private void handleWebCameraPermission(PermissionRequest request) {
@@ -959,6 +1076,7 @@ public final class MainActivity extends FragmentActivity {
             webView.removeJavascriptInterface("AndroidPrinter");
             webView.removeJavascriptInterface("AndroidReports");
             webView.removeJavascriptInterface("AndroidLocalSync");
+            webView.removeJavascriptInterface("AndroidManagerNotifications");
             webView.destroy();
             webView = null;
         }

@@ -3,16 +3,16 @@
 'use strict';
 const BASE_COLLECTIONS=['categories','items','accounts','invoices','vouchers','warehouses','transfers','expenses'];
 // The field staff directory, pending imported IDs and cash hand-offs must travel with the ledger.
-const STAFF_COLLECTIONS=['fieldAgents','fieldImported','fieldEvents','fieldCashTransfers','fieldOperationHistory','fieldCompany'];
+const STAFF_COLLECTIONS=['fieldAgents','fieldImported','fieldEvents','fieldCashTransfers','fieldOperationHistory','fieldRevisionAudit','fieldCompany'];
 const COLLECTIONS=BASE_COLLECTIONS.concat(STAFF_COLLECTIONS);
-const SETTINGS=['companyName','companyPhone','companyAddress','exchangeRate','defaultCurrency','defaultItemCurrency','primaryCurrency','secondaryCurrency','primaryOnlyMode','defaultPriceTier','itemQuantityDecimals','inventoryValuationCurrency','allowNegativeStockSales'];
+const SETTINGS=['companyName','companyPhone','companyAddress','exchangeRate','defaultCurrency','defaultItemCurrency','primaryCurrency','secondaryCurrency','primaryOnlyMode','defaultPriceTier','itemQuantityDecimals','inventoryValuationCurrency','allowNegativeStockSales','companyLogo','footerNote','addedCurrencies','defaultInvoiceListType','defaultViewPeriod','defaultViewStart','defaultViewEnd','posAccountId','posPriceTier','posAutoNextOnFinish'];
 const clone=v=>v===undefined?undefined:JSON.parse(JSON.stringify(v));
 function sortDeep(x){if(Array.isArray(x))return x.map(sortDeep);if(x&&typeof x==='object'){const out={};for(const k of Object.keys(x).sort())out[k]=sortDeep(x[k]);return out;}return x;}
 function canonical(x){return JSON.stringify(sortDeep(x));}
 function snapshot(state){
  const result={};for(const name of BASE_COLLECTIONS)result[name]=clone(Array.isArray(state[name])?state[name]:[]);
  const field=(state.fieldSync&&typeof state.fieldSync==='object')?state.fieldSync:{};
- for(const [name,source] of [['fieldAgents','agents'],['fieldImported','imported'],['fieldEvents','events'],['fieldCashTransfers','cashTransfers'],['fieldOperationHistory','operationHistory']])
+ for(const [name,source] of [['fieldAgents','agents'],['fieldImported','imported'],['fieldEvents','events'],['fieldCashTransfers','cashTransfers'],['fieldOperationHistory','operationHistory'],['fieldRevisionAudit','revisionAudit']])
    result[name]=clone(Array.isArray(field[source])?field[source]:[]);
  // An unused installation has no bound field-company identity to overwrite on the other device.
  const hasFieldData=STAFF_COLLECTIONS.some(name=>name!=='fieldCompany'&&result[name].length>0);
@@ -222,7 +222,7 @@ function apply(state,data){
  for(const k of BASE_COLLECTIONS)state[k]=clone(data[k]);
  for(const k of SETTINGS)if(Object.hasOwn(data.sharedSettings,k))state.settings[k]=clone(data.sharedSettings[k]);
  const field=state.fieldSync&&typeof state.fieldSync==='object'?state.fieldSync:{};
- for(const [name,dest] of [['fieldAgents','agents'],['fieldImported','imported'],['fieldEvents','events'],['fieldCashTransfers','cashTransfers'],['fieldOperationHistory','operationHistory']])
+ for(const [name,dest] of [['fieldAgents','agents'],['fieldImported','imported'],['fieldEvents','events'],['fieldCashTransfers','cashTransfers'],['fieldOperationHistory','operationHistory'],['fieldRevisionAudit','revisionAudit']])
    if(Array.isArray(data[name]))field[dest]=clone(data[name]);
  const company=Array.isArray(data.fieldCompany)?data.fieldCompany[0]:null;
  if(company&&typeof company.companyId==='string'&&company.companyId)field.companyId=company.companyId;

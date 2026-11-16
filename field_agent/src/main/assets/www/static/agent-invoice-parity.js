@@ -330,7 +330,7 @@ A.renderInvoice=function(){
    <div class="ta-balance-tile"><span>الرصيد السابق (${c})</span><strong id="agentDraftBalanceBefore">${showBalance?esc(this.balanceLabel(preview.before,c)):'—'}</strong></div>
    <div class="ta-balance-tile"><span>الرصيد المتوقع (${c})</span><strong id="agentDraftBalanceAfter">${showBalance?esc(this.balanceLabel(preview.after,c)):'—'}</strong></div>
   </div>
-  <div class="ta-footer-actions"><button type="button" onclick="Agent.saveInvoiceAndPrint()"><i class="fas fa-print"></i> حفظ وطباعة بلوتوث</button><button type="button" onclick="Agent.saveInvoice()"><i class="fas fa-floppy-disk"></i> حفظ الفاتورة</button></div>
+  <div class="ta-footer-actions" dir="rtl"><button type="button" onclick="Agent.saveInvoice()"><i class="fas fa-floppy-disk"></i> حفظ الفاتورة</button><button type="button" onclick="Agent.saveInvoiceAndPrint()"><i class="fas fa-print"></i> حفظ وطباعة بلوتوث</button></div>
  </div>
  <p class="form-help">البيع يخص مخزون السيارة فقط. الفواتير المحفوظة تُرحّل دون تكرار ولا يمكن تعديلها بصمت بعد المزامنة.</p>
  </div>`;
