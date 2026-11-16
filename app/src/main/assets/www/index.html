@@ -1160,7 +1160,44 @@ html.ta-ime-open body.ta-3d-v3524 > main#mainContent.ta-main {padding-bottom:24p
 .ta-link-devices{display:inline-flex;align-items:center;gap:2px;direction:ltr;font-size:11px;line-height:1}.ta-link-devices .fa-mobile-screen{font-size:12px}.ta-link-status .ta-link-dot{width:6px;height:6px;flex:none}
 #topAppBar.dashboard-header .ta-header-connections .ta-staff-counter strong{padding:0 4px!important;min-width:17px!important}
 @media(max-width:380px){#topAppBar.dashboard-header #headerTitleWrap{width:calc(100% - 100px)!important}#topAppBar.dashboard-header .ta-header-connections{gap:3px!important}#topAppBar.dashboard-header .ta-header-connections .ta-staff-counter,#topAppBar.dashboard-header .ta-header-connections .ta-link-status{padding:2px 4px!important;font-size:9px!important}}
-</style></head>
+</style>
+<style id="ta-invoice-header-layout-3595">
+.ta-link-label{display:none!important} /* Connected devices only, color conveys live state. */
+#ta-desktop-phone-connection{padding:2px 5px!important;gap:2px!important;min-height:22px!important;min-width:37px!important}
+#ta-desktop-phone-connection .ta-link-devices{font-size:10px!important;gap:1px!important}
+#ta-desktop-phone-connection .ta-link-dot{width:5px!important;height:5px!important}
+#topAppBar.ta-operation-header{direction:rtl!important;display:flex!important;gap:5px!important;padding:6px 9px!important;min-height:49px!important}
+#topAppBar.ta-operation-header #headerSettingsBtn,#topAppBar.ta-operation-header #headerNotificationsBtn{display:none!important}
+#topAppBar.ta-operation-header #headerBackBtn{display:flex!important;order:-2!important;margin:0!important;min-width:36px!important;width:36px!important;height:36px!important;flex-shrink:0!important}
+#topAppBar.ta-operation-header > div:first-child{direction:rtl!important;display:flex!important;align-items:center!important;justify-content:flex-start!important;gap:5px!important;min-width:0!important;flex:1!important}
+#topAppBar.ta-operation-header #headerTitleWrap{position:static!important;transform:none!important;display:flex!important;flex:1!important;min-width:0!important;max-width:none!important;width:auto!important;align-items:flex-start!important;justify-content:center!important;gap:0!important;margin:0!important;pointer-events:auto!important}
+#topAppBar.ta-operation-header #screenTitle{font-size:clamp(13px,3.5vw,17px)!important;white-space:nowrap!important;max-width:100%!important;overflow:hidden!important;text-overflow:ellipsis!important;margin:0!important;justify-content:flex-start!important}
+#topAppBar.ta-operation-header #screenTitle>i{display:none!important}
+#topAppBar.ta-operation-header #screenSubtitle{display:none!important}
+#topAppBar.ta-operation-header .ta-header-connections{display:flex!important;gap:3px!important;align-items:center!important;width:auto!important;justify-content:flex-start!important}
+#topAppBar.ta-operation-header .ta-header-connections .ta-link-status{padding:2px 4px!important;margin:0!important;min-width:31px!important;min-height:20px!important;font-size:9px!important}
+#topAppBar.ta-operation-header .ta-header-connections .ta-staff-counter{display:none!important}
+#topAppBar.ta-operation-header #headerActionGroup{flex:0 0 auto!important;margin:0!important;gap:2px!important}
+#topAppBar.ta-operation-header #topBarRateButton{font-size:10px!important;padding:3px 4px!important}
+#topAppBar.ta-operation-header #unsavedGuardBadge{display:none!important}
+.ta-invoice-control-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,.8fr);gap:7px;direction:rtl;align-items:start}
+.ta-invoice-control-grid>.ta-invoice-field{min-width:0;background:#f0f9ff;border:1px solid #bae6fd;border-radius:12px;padding:8px}
+.ta-invoice-control-grid .ta-invoice-party-highlight{background:#e0f2fe!important;border:1px solid #7dd3fc!important;border-radius:10px!important;padding:7px!important}
+.ta-invoice-control-grid label{display:block;font-size:12px;font-weight:800;color:#164e63;margin-bottom:5px}
+.ta-invoice-control-grid select{width:100%;min-width:0;font-weight:700;font-size:12px;max-width:100%}
+.ta-invoice-control-grid .ta-invoice-currency-choice{width:100%;min-height:36px;justify-content:center;font-size:12px!important}
+.ta-invoice-control-grid .ta-invoice-currency-choice i{font-size:11px!important}
+.ta-invoice-control-grid .ta-invoice-date-visible{display:flex;flex-wrap:wrap;gap:4px;direction:ltr;min-width:0}
+.ta-invoice-control-grid .ta-invoice-date-visible input{min-width:0;font-size:12px!important;flex:1 1 100%;width:100%!important}
+.ta-invoice-control-grid .ta-invoice-date-visible input[type=time]{width:100%!important;flex-shrink:1}
+.ta-invoice-type-row{display:flex;align-items:center;gap:6px;justify-content:flex-start;padding-bottom:5px;border-bottom:1px solid #e2e8f0}
+.ta-payment-cycle{width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;border-radius:13px;padding:10px 13px;font-size:14px;font-weight:900;border:1px solid;box-shadow:0 3px 0 #64748b33;cursor:pointer}
+.ta-payment-cycle.ta-pay-cash{background:#dcfce7;color:#166534;border-color:#86efac}
+.ta-payment-cycle.ta-pay-partial{background:#dbeafe;color:#1e40af;border-color:#93c5fd}
+.ta-payment-cycle.ta-pay-credit{background:#ffe4e6;color:#9f1239;border-color:#fda4af}
+@media(max-width:360px){.ta-invoice-control-grid{grid-template-columns:minmax(0,1fr) minmax(0,.72fr);gap:4px}.ta-invoice-control-grid .ta-invoice-date-visible input[type=time]{width:73px!important}.ta-invoice-control-grid .ta-invoice-date-visible input{font-size:10px!important}#topAppBar.ta-operation-header #topBarRateButton{display:none!important}}
+</style>
+</head>
 <body class="ta-premium-ui ta-3d-v3524 bg-slate-100 text-slate-800 min-h-screen flex flex-col w-full max-w-full overflow-x-hidden">
 
     <!-- Top App Bar (Android Style) -->
@@ -1183,7 +1220,7 @@ html.ta-ime-open body.ta-3d-v3524 > main#mainContent.ta-main {padding-bottom:24p
                     </h1>
                     <p id="screenSubtitle" class="text-[10px] sm:text-[11px] text-slate-400 truncate">نظام محاسبة ومستودعات (Offline-First)</p>
                     <div class="ta-header-connections"><button id="salesStaffCounterButton" type="button" class="ta-staff-counter" onclick="AppNav.navigate('agent_hub')" title="موظفو البيع المتصلون" aria-label="عدد موظفي البيع المتصلين"><i class="fas fa-users" aria-hidden="true"></i><span class="ta-staff-counter-label">متصل</span><strong id="salesStaffConnectedCount" aria-live="polite">0</strong></button>
-                <span id="ta-desktop-phone-connection" class="ta-link-status ta-link-offline" role="status" aria-live="polite" title="غير متصل: الكمبيوتر والموبايل"><span class="ta-link-devices" aria-hidden="true"><svg width="14" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8m-4-4v4"/></svg><i class="fas fa-mobile-screen"></i></span><span class="ta-link-dot" aria-hidden="true"></span><span class="ta-link-label">متصل</span></span></div>
+                <span id="ta-desktop-phone-connection" class="ta-link-status ta-link-offline" role="status" aria-live="polite" title="غير متصل: الكمبيوتر والموبايل"><span class="ta-link-devices" aria-hidden="true"><svg width="14" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8m-4-4v4"/></svg><i class="fas fa-mobile-screen"></i></span><span class="ta-link-dot" aria-hidden="true"></span></span></div>
                 </div>
             </div>
 
@@ -2743,6 +2780,7 @@ html.ta-ime-open body.ta-3d-v3524 > main#mainContent.ta-main {padding-bottom:24p
                 if (backBtn) {
                     const topAppBar = document.getElementById('topAppBar');
                     if (topAppBar) topAppBar.classList.toggle('dashboard-header', screen === 'dashboard');
+                    if (topAppBar) topAppBar.classList.toggle('ta-operation-header', ['invoice_form', 'invoice_print', 'voucher_form'].includes(screen));
                     backBtn.classList.toggle('dashboard-settings-button', screen === 'dashboard');
                     backBtn.classList.toggle('hidden', screen === 'dashboard');
                     if (screen === 'dashboard') {
@@ -7878,8 +7916,15 @@ html.ta-ime-open body.ta-3d-v3524 > main#mainContent.ta-main {padding-bottom:24p
                 UI.toast(`تم تحديث أسعار جميع المواد في الفاتورة حسب سعر الصرف (${rate})`, 'success');
             },
 
+            cyclePaymentMethod() {
+                const methods = ['cash','partial','credit'];
+                const next = methods[(methods.indexOf(this.draft.paymentMethod) + 1) % methods.length];
+                this.changePaymentMethod(next);
+            },
             changePaymentMethod(method) {
+                const previousMethod = this.draft.paymentMethod;
                 this.draft.paymentMethod = method;
+                if (method === 'partial' && previousMethod !== 'partial') this.draft.paidAmount = 0;
                 if (method === 'cash') {
                     this.draft.paidAmount = this.draft.netTotal;
                 } else if (method === 'credit') {
@@ -8038,52 +8083,45 @@ html.ta-ime-open body.ta-3d-v3524 > main#mainContent.ta-main {padding-bottom:24p
 
                 main.innerHTML = `
                     <div class="invoice-entry-top rounded-2xl p-3 mb-3 space-y-2.5">
-                        <div class="flex flex-wrap items-center justify-between gap-1.5 border-b border-slate-100 pb-2">
-                            <div class="flex items-center gap-1">
-                                <span class="bg-slate-900 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-md">#${d.number}</span>
-                                <i class="fas fa-file-invoice text-emerald-600 text-[10px]" title="نوع الفاتورة"></i>
-                                <select onchange="InvoiceController.changeInvoiceType(this.value)" class="bg-slate-100 border border-slate-200 rounded-lg px-2 py-1 text-[10px] font-bold">
-                                    <option value="sale" ${d.type === 'sale' ? 'selected' : ''}>فاتورة مبيعات</option>
-                                    <option value="purchase" ${d.type === 'purchase' ? 'selected' : ''}>فاتورة مشتريات</option>
-                                    <option value="sale_return" ${d.type === 'sale_return' ? 'selected' : ''}>مردود مبيعات</option>
-                                    <option value="purchase_return" ${d.type === 'purchase_return' ? 'selected' : ''}>مردود مشتريات</option>
-                                </select>
-                            </div>
-
-                            <button type="button" ${State.settings.primaryOnlyMode ? 'disabled' : ''} onclick="InvoiceController.toggleInvoiceCurrency()" class="ta-invoice-currency-choice bg-sky-100 hover:bg-sky-200 border border-sky-300 text-sky-900 px-2 py-1 rounded-lg text-[10px] font-extrabold flex items-center gap-1 transition active:scale-95">
-                                <i class="fas fa-coins text-amber-600 text-[10px]"></i>
-                                <span>${cur === 'SYP' ? 'ليرة سورية' : 'دولار'}</span>
-                                ${State.settings.primaryOnlyMode ? '' : '<span class="text-[9px] bg-white px-1 py-0.5 rounded border">تبديل</span>'}
-                            </button>
+                      <div class="ta-invoice-type-row">
+                        <span class="bg-slate-900 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-md">#${d.number}</span>
+                        <select aria-label="نوع الفاتورة" onchange="InvoiceController.changeInvoiceType(this.value)" class="bg-slate-100 border border-slate-200 rounded-lg px-2 py-1 text-[11px] font-bold">
+                          <option value="sale" ${d.type === 'sale' ? 'selected' : ''}>فاتورة مبيعات</option>
+                          <option value="purchase" ${d.type === 'purchase' ? 'selected' : ''}>فاتورة مشتريات</option>
+                          <option value="sale_return" ${d.type === 'sale_return' ? 'selected' : ''}>مردود مبيعات</option>
+                          <option value="purchase_return" ${d.type === 'purchase_return' ? 'selected' : ''}>مردود مشتريات</option>
+                        </select>
+                      </div>
+                      <div class="ta-invoice-control-grid">
+                        <div class="ta-invoice-field ta-invoice-party-highlight">
+                          <div class="flex items-center justify-between gap-1 mb-1"><label><i class="fas fa-user text-emerald-600"></i> ${partyLabelAr}</label>
+                          <button type="button" onclick="AccountController.openAccountModal(null, true, '${targetAccountType}')" class="text-[10px] font-extrabold text-emerald-700">+ جديد</button></div>
+                          <select aria-label="${partyLabelAr}" onchange="InvoiceController.changeInvoiceAccount(this.value)" class="ta-invoice-party-select border border-slate-300 rounded-lg px-2 py-2 bg-white">
+                            <option value="">-- ${isPurchase ? 'مورد نقدي مباشر' : 'عميل نقدي مباشر'} --</option>
+                            ${State.accounts.filter(a => a.type === targetAccountType).map(a => `<option value="${a.id}" ${d.accountId === a.id ? 'selected' : ''}>${a.name}</option>`).join('')}
+                          </select>
                         </div>
-
-                        <div class="mb-1.5 rounded-lg bg-sky-50 border border-sky-200 px-2 py-1.5">
-                            <label class="block text-[10px] font-extrabold text-sky-900 mb-1">المستودع الذي تتأثر به هذه الفاتورة</label>
-                            <select onchange="InvoiceController.changeWarehouse(this.value)" class="w-full bg-white rounded-lg p-2 border border-sky-300 text-xs">
-                                ${WarehouseController.options(d.warehouseId || 'wh_main')}
-                            </select>
+                        <div class="ta-invoice-field"><label><i class="fas fa-coins text-amber-600"></i> العملة</label>
+                          <button type="button" ${State.settings.primaryOnlyMode ? 'disabled' : ''} onclick="InvoiceController.toggleInvoiceCurrency()" class="ta-invoice-currency-choice bg-sky-100 border border-sky-300 text-sky-900 px-2 py-1 rounded-lg font-extrabold flex items-center gap-1">
+                            <i class="fas fa-coins text-amber-600"></i><span>${cur === 'SYP' ? 'ليرة سورية' : 'دولار'}</span>
+                          </button>
                         </div>
-                        <div class="grid grid-cols-2 gap-1.5 text-[10px]">
-                            <div class="min-w-0 ta-invoice-party-highlight">
-                                <div class="flex items-center justify-between mb-0.5 gap-1">
-                                    <label class="font-bold text-slate-700 flex items-center gap-1"><i class="fas fa-user text-emerald-600 text-[9px]"></i>${partyLabelAr}</label>
-                                    <button type="button" onclick="AccountController.openAccountModal(null, true, '${targetAccountType}')" class="text-[9px] text-emerald-600 font-bold whitespace-nowrap">+ جديد</button>
-                                </div>
-                                <select aria-label="${partyLabelAr}" onchange="InvoiceController.changeInvoiceAccount(this.value)" class="ta-invoice-party-select w-full border border-slate-300 rounded-lg px-2 py-1.5 text-[11px] font-bold bg-slate-50">
-                                    <option value="">-- ${isPurchase ? 'مورد نقدي مباشر' : 'عميل نقدي مباشر'} --</option>
-                                    ${State.accounts.filter(a => a.type === targetAccountType).map(a => `<option value="${a.id}" ${d.accountId === a.id ? 'selected' : ''}>${a.name}</option>`).join('')}
-                                </select>
-                            </div>
-
-                            <div>
-                                <label class="flex items-center gap-1 font-bold text-slate-700 mb-0.5"><i class="fas fa-calendar-days text-blue-600 text-[9px]"></i>التاريخ</label>
-                                <div class="ta-invoice-date-visible flex items-center gap-1" dir="ltr" lang="en">
-                                    <input aria-label="تاريخ الفاتورة سنة-شهر-يوم" type="text" inputmode="numeric" autocomplete="off" value="${this.visibleInvoiceDate(d.date).day}" placeholder="YYYY-MM-DD" onchange="InvoiceController.changeInvoiceDatePart('day',this.value)" class="w-full min-w-0 bg-white border border-sky-300 rounded-lg px-1.5 py-1.5 text-[11px] font-extrabold text-slate-900 text-center" style="direction:ltr;min-width:0">
-                                    <input aria-label="وقت الفاتورة" type="time" value="${this.visibleInvoiceDate(d.date).time}" onchange="InvoiceController.changeInvoiceDatePart('time',this.value)" class="w-[84px] shrink-0 min-w-0 bg-white border border-sky-300 rounded-lg px-1 py-1.5 text-[10px] font-bold" style="direction:ltr">
-                                </div>
-                            </div>
+                        <div class="ta-invoice-field"><label><i class="fas fa-calendar-days text-blue-600"></i> التاريخ والوقت</label>
+                          <div class="ta-invoice-date-visible" lang="en" dir="ltr">
+                            <input aria-label="تاريخ الفاتورة" type="text" inputmode="numeric" autocomplete="off" value="${this.visibleInvoiceDate(d.date).day}" placeholder="YYYY-MM-DD" onchange="InvoiceController.changeInvoiceDatePart('day',this.value)" class="w-full border border-sky-300 rounded-lg px-1 py-2 text-center font-extrabold" />
+                            <input aria-label="وقت الفاتورة" type="time" value="${this.visibleInvoiceDate(d.date).time}" onchange="InvoiceController.changeInvoiceDatePart('time',this.value)" class="border border-sky-300 rounded-lg px-1 py-2 font-bold" />
+                          </div>
                         </div>
-
+                        <div class="ta-invoice-field"><label><i class="fas fa-building text-sky-700"></i> المستودع</label>
+                          <select aria-label="المستودع" onchange="InvoiceController.changeWarehouse(this.value)" class="bg-white border border-sky-300 rounded-lg p-2">
+                            ${WarehouseController.options(d.warehouseId || 'wh_main')}
+                          </select>
+                        </div>
+                      </div>
+                      <button type="button" aria-label="طريقة الدفع؛ اضغط للتبديل نقدي ثم دفعات ثم آجل" title="اضغط للتبديل: نقدي ← دفعات ← آجل" onclick="InvoiceController.cyclePaymentMethod()" class="ta-payment-cycle ta-pay-${d.paymentMethod}">
+                        <span><i class="fas ${d.paymentMethod==='cash'?'fa-money-bill-wave':d.paymentMethod==='partial'?'fa-hand-holding-dollar':'fa-clock'}"></i> طريقة الدفع: ${d.paymentMethod==='cash'?'نقدي':d.paymentMethod==='partial'?'دفعات':'آجل'}</span>
+                        <i class="fas fa-arrow-rotate-right" aria-hidden="true"></i>
+                      </button>
                         ${['sale','sale_return'].includes(d.type) ? `
                         <div class="ta-invoice-pricing-choice rounded-xl border border-cyan-400 bg-gradient-to-l from-sky-100 via-cyan-50 to-white px-2.5 py-2 shadow-sm">
                             <label for="invoicePricingTier" class="block text-xs font-black text-cyan-950 mb-1"><i class="fas fa-coins ml-1 text-sky-700"></i> طريقة التسعير لهذه الفاتورة</label>
@@ -8094,17 +8132,7 @@ html.ta-ime-open body.ta-3d-v3524 > main#mainContent.ta-main {padding-bottom:24p
                                 <option value="consumer" ${d.priceTierOverride==='consumer'?'selected':''}>سعر المستهلك</option>
                             </select>
                         </div>` : ''}
-                        <div class="grid grid-cols-3 gap-1.5 bg-slate-100 p-1 rounded-xl text-xs font-bold">
-                            <button type="button" onclick="InvoiceController.changePaymentMethod('cash')" class="py-2 rounded-lg transition ${d.paymentMethod === 'cash' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600'}">
-                                <i class="fas fa-money-bill-wave ml-1"></i> نقدي
-                            </button>
-                            <button type="button" onclick="InvoiceController.changePaymentMethod('credit')" class="py-2 rounded-lg transition ${d.paymentMethod === 'credit' ? 'bg-rose-600 text-white shadow-xs' : 'text-slate-600'}">
-                                <i class="fas fa-clock ml-1"></i> آجل (ذمم)
-                            </button>
-                            <button type="button" onclick="InvoiceController.changePaymentMethod('partial')" class="py-2 rounded-lg transition ${d.paymentMethod === 'partial' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600'}">
-                                <i class="fas fa-sliders ml-1"></i> دفع جزئي
-                            </button>
-                        </div>
+
                     </div>
 
                     <div class="bg-white rounded-2xl border border-slate-200 p-3 mb-3 shadow-xs space-y-2">

@@ -10,10 +10,8 @@ function enhanceInvoice(){
  const date=one('#fDate',top);if(date&&!one('.ta-ux-date-button',date.parentElement)){
   const b=document.createElement('button');b.type='button';b.className='ta-ux-date-button';b.innerHTML='<i class="fas fa-calendar-days" aria-hidden="true"></i>';b.setAttribute('aria-label','فتح تقويم تاريخ الفاتورة');b.onclick=()=>{try{date.showPicker();}catch(_){date.focus();date.click();}};date.parentElement.insertBefore(b,date);
  }
- const pay=one('button[onclick*="changeInvoicePayment"]',top);if(pay){
-  const group=pay.parentElement,mode=A.invoiceMeta?.paymentMode||'cash',chosen=modeInfo[mode]||modeInfo.cash;
-  group.outerHTML='<details class="ta-payment-selector ta-payment-'+mode+'" aria-label="طريقة الدفع"><summary><span><i class="fas '+chosen[1]+' ta-payment-icon" aria-hidden="true"></i> طريقة الدفع: '+chosen[0]+'</span><i class="fas fa-chevron-down"></i></summary><div class="ta-payment-options">'+Object.entries(modeInfo).map(([v,[label,icon]])=>'<button type="button" class="ta-pay-'+v+'" aria-current="'+(v===mode)+'" onclick="Agent.changeInvoicePayment(\''+v+'\')"><i class="fas '+icon+'"></i><span>'+label+'</span></button>').join('')+'</div></details>';
- }
+ // Payment cycles on a single button in v3.5.95; do not replace it with the older popup picker.
+
 }
 function removeLegacyPageExit(){one('#screen')?.querySelectorAll(':scope > .ta-page-exit-line').forEach(node=>node.remove());} // No X on regular employee screens.
 function addX(card,close){
@@ -47,7 +45,7 @@ const originalBack=A.goBack;A.goBack=async function(...args){
  return originalBack.apply(this,args);
 };
 const originalShow=A.show;
-A.show=async function(...args){const val=await originalShow.apply(this,args);enhanceInvoice();removeLegacyPageExit();popX();return val;};
+A.show=async function(...args){const val=await originalShow.apply(this,args);enhanceInvoice();removeLegacyPageExit();popX();document.body.classList.toggle('ta-agent-operation',['invoice','voucher','receipt','payment'].includes(String(args[0]||this.screen||'')));return val;};
 const originalOpenGrid=A.openInvoiceItemGrid;
 if(typeof originalOpenGrid==='function')A.openInvoiceItemGrid=function(...args){const val=originalOpenGrid.apply(this,args);popX();return val;};
 const pair=window.AgentPairing;

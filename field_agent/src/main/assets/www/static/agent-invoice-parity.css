@@ -25,3 +25,25 @@
 .agent-main-invoice .grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}
 .agent-main-invoice .grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}
 @media(max-width:360px){.agent-main-invoice .grid-cols-4{gap:3px}.agent-main-invoice .invoice-added-row{padding:10px 4px}}
+
+
+/* v3.5.95: Compact invoice controls and operation header. */
+.ta-invoice-control-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,.8fr);gap:7px;direction:rtl}
+.ta-invoice-control-grid .ta-invoice-field{background:#f0f9ff;border:1px solid #bae6fd;border-radius:12px;padding:7px;min-width:0}
+.ta-invoice-control-grid .ta-invoice-party-highlight{background:#e0f2fe!important;border-color:#7dd3fc!important}
+.ta-invoice-control-grid label{display:block;font-size:12px;font-weight:800;color:#164e63;margin-bottom:6px}
+.ta-invoice-control-grid select,.ta-invoice-control-grid input{width:100%;min-width:0;max-width:100%;font-size:12px}
+.ta-invoice-control-grid .ta-invoice-currency-choice{width:100%;min-height:36px;font-size:12px;display:flex;align-items:center;justify-content:center;gap:3px}
+.ta-invoice-type-row{display:flex;align-items:center;gap:6px;padding-bottom:6px;border-bottom:1px solid #e2e8f0}
+.ta-payment-cycle{display:flex;justify-content:space-between;align-items:center;width:100%;padding:10px 13px;border:1px solid;border-radius:13px;font-size:14px;font-weight:900;cursor:pointer}
+.ta-payment-cycle.ta-pay-cash{background:#dcfce7;color:#166534;border-color:#86efac}
+.ta-payment-cycle.ta-pay-partial{background:#dbeafe;color:#1e40af;border-color:#93c5fd}
+.ta-payment-cycle.ta-pay-credit{background:#ffe4e6;color:#9f1239;border-color:#fda4af}
+body.ta-agent-operation #agentHeader .brand{direction:rtl;display:flex;align-items:center;gap:5px}
+body.ta-agent-operation #agentBack{order:-3;display:flex!important;position:static!important;flex:none}
+body.ta-agent-operation #agentHeader .mark,body.ta-agent-operation #agentPrinterQuick{display:none!important}
+body.ta-agent-operation #agentHeader .brandcopy{order:-2;flex:1;min-width:0;text-align:right}
+body.ta-agent-operation #agentHeader .brandcopy h1{font-size:15px!important;white-space:nowrap;text-overflow:ellipsis;overflow:hidden}
+body.ta-agent-operation #agentHeader .brandcopy p{display:none}
+body.ta-agent-operation #agentHeader .headerbottom{padding:3px 7px;gap:4px}
+body.ta-agent-operation #agentSyncConnection{font-size:9px;padding:3px 5px}

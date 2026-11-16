@@ -128,7 +128,7 @@ Agent.renderInvoice=function(){
   ${this.draft.length?this.draft.map((r,i)=>`<div class="itemrow"><div class="itemhead"><b>${i+1}. ${this.escape(r.itemName)}</b><button type="button" class="mini-btn" aria-label="إنقاص وحدة" onclick="Agent.decrementRow(${i})">×</button></div><div class="itemhead"><span class="tiny">${this.money(r.qty,cur)} ${this.escape(r.unitName)} × ${this.money(r.price,cur)}</span><b>${this.money(r.total,cur)} ${cur}</b></div></div>`).join(''):'<p class="muted">لم تُضف أصناف بعد</p>'}
   </div>
   <div class="money-total"><span>إجمالي الفاتورة</span><span>${this.money(net,cur)} ${cur}</span></div>
-  <label class="label">طريقة الدفع</label><select class="field" id="fPaymentMethod" onchange="Agent.modeChanged(this.value)"><option value="cash" ${mode==='cash'?'selected':''}>نقدي</option><option value="credit" ${mode==='credit'?'selected':''}>آجل</option><option value="partial" ${mode==='partial'?'selected':''}>جزئي</option></select>
+  <button type="button" class="ta-payment-cycle ta-pay-${mode}" onclick="Agent.cycleInvoicePayment()"><span>طريقة الدفع: ${mode==='cash'?'نقدي':mode==='partial'?'دفعات':'آجل'}</span><span>↻</span></button><input type="hidden" id="fPaymentMethod" value="${mode}">
   <div id="paidAmountBox" class="${mode==='cash'||mode==='credit'?'hide':''}"><label class="label">المبلغ المقبوض / المعاد</label><input type="number" id="fPaid" class="field ltr" min="0" step="any" value="${payment}" oninput="Agent.captureInvoiceMeta()"></div>
   <label class="label">ملاحظة</label><textarea id="fNote" class="field" rows="2" oninput="Agent.captureInvoiceMeta()">${this.escape(meta.note)}</textarea>
   <button class="primary" onclick="Agent.saveInvoice()">✓ حفظ الفاتورة</button>
