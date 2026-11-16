@@ -18,7 +18,7 @@ A.editDocument=function(id){
    const d=new Date(op.date);const date=Number.isFinite(d.getTime())?new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16):this.defaultDate();
    this.invoiceMeta={accountId:op.accountId||'',currency:op.currency,paymentMode:mode,paid:String(paid),date,
       note:op.note||'',discountValue:op.discountValue||0,discountType:op.discountType||'amount',
-      taxValue:op.taxValue||0,taxType:op.taxType||'percent'};
+      taxValue:op.taxValue||0,taxType:op.taxType||'percent',priceTierOverride:op.priceTierOverride||'account'};
    this.navigate('invoice');
  }else{
    this.voucherKind=op.kind;this.navigate('voucher');

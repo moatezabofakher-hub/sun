@@ -9,7 +9,7 @@ const esc=v=>A.escape(v);
 const round=(n,c)=>c==='SYP'?Math.round(n):Math.round((n+Number.EPSILON)*100)/100;
 const value=id=>document.getElementById(id)?.value;
 const money=(n,c)=>A.money(n,c);
-const initialMeta=()=>({accountId:'',currency:'USD',paymentMode:'cash',paid:'',date:A.defaultDate(),note:'',discountValue:0,discountType:'amount',taxValue:0,taxType:'percent'});
+const initialMeta=()=>({accountId:'',currency:'USD',paymentMode:'cash',paid:'',priceTierOverride:'account',date:A.defaultDate(),note:'',discountValue:0,discountType:'amount',taxValue:0,taxType:'percent'});
 A.balanceQuery='';
 A.balanceFor=function(accountId){
  const acc=(this.state.accounts||[]).find(a=>String(a.id)===String(accountId));
@@ -61,6 +61,11 @@ A.draftBalanceHTML=function(){
 };
 A.paintDraftBalance=function(){
  const box=document.querySelector('[data-agent-draft-balance]');if(box)box.outerHTML=this.draftBalanceHTML();
+ const footer=document.querySelector('.ta-agent-invoice-save-footer');if(!footer)return;
+ const p=this.draftAccountBalance(),c=this.currency||'USD';
+ const before=footer.querySelector('#agentDraftBalanceBefore'),after=footer.querySelector('#agentDraftBalanceAfter');
+ if(before)before.textContent=p.available?this.balanceLabel(p.before,c):'—';
+ if(after)after.textContent=p.available?this.balanceLabel(p.after,c):'—';
 };
 A.balanceLabel=function(n,c){const v=Number(n||0);return (v>0.001?'عليه':v<-.001?'له':'مسدد')+' · '+money(Math.abs(v),c)+' '+c;};
 A.accountBalanceHTML=function(id){
@@ -135,10 +140,31 @@ A.changeRowUnit=function(i,unitName){
 };
 A.unitPrice=function(it,u,c){
  const acc=this.state.accounts.find(a=>a.id===(document.getElementById('fAccount')?.value||this.invoiceMeta?.accountId));
- const tier=['wholesale','center','consumer'].includes(acc?.priceTier) ? acc.priceTier : (['wholesale','center','consumer'].includes(this.state.defaultPriceTier)?this.state.defaultPriceTier:'wholesale');
+ const override=this.posMode?'account':this.invoiceMeta?.priceTierOverride;
+ const tier=(this.can?.('priceTier')&&['wholesale','center','consumer'].includes(override))?override:(['wholesale','center','consumer'].includes(acc?.priceTier)?acc.priceTier: (['wholesale','center','consumer'].includes(this.state.defaultPriceTier)?this.state.defaultPriceTier:'wholesale'));
  const price=tier==='consumer'?(u.consumerPrice??u.centerPrice??u.salePrice):(tier==='center'?(u.centerPrice??u.salePrice):(u.wholesalePrice??u.salePrice));
  const raw=Number(price||0),rate=Number(this.state.exchangeRate)||1;
  return round(it.currency===c?raw:it.currency==='USD'?raw*rate:raw/rate,c);
+};
+A.changeInvoicePricingTier=function(tier){
+ if(!['account','wholesale','center','consumer'].includes(tier))return;
+ if(!this.can?.('priceTier'))return this.requireRight?.('priceTier');
+ this.captureInvoiceMeta();this.invoiceMeta.priceTierOverride=tier;
+ for(const row of this.draft){
+   if(row.manuallyPriced)continue;
+   const it=this.state.items.find(item=>item.id===row.itemId),unit=it?.units?.find(u=>u.name===row.unitName);
+   if(!it||!unit)continue;
+   row.price=this.unitPrice(it,unit,this.currency);row.total=round(row.price*row.qty,this.currency);
+ }
+ this.show('invoice');
+};
+A.updateInvoiceDateParts=function(){
+ const date=value('agentInvoiceDate'),time=value('agentInvoiceTime');
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(date||'')||!/^\d{2}:\d{2}$/.test(time||''))return;
+ const stamp=date+'T'+time;
+ if(!Number.isFinite(new Date(stamp).getTime()))return this.toast('تاريخ غير صالح');
+ const original=document.getElementById('fDate');if(original)original.value=stamp;
+ if(this.invoiceMeta)this.invoiceMeta.date=stamp;
 };
 A.accountPricingChanged=function(id){this.captureInvoiceMeta();this.invoiceMeta.accountId=id;for(const row of this.draft){if(row.manuallyPriced)continue;const it=this.state.items.find(x=>x.id===row.itemId);const u=it?.units?.find(x=>x.name===row.unitName);if(!it||!u)continue;row.price=this.unitPrice(it,u,this.currency);row.total=round(row.price*row.qty,this.currency);}this.show('invoice');};
 A.changeRowValue=function(i,key,v){
@@ -266,18 +292,20 @@ A.renderInvoice=function(){
  const meta=this.invoiceMeta||initialMeta(),c=this.currency||'USD',kind=this.draftKind||'sale',calc=this.invoiceCalc();
  const items=this.state.items||[];
  const mode=meta.paymentMode||'cash';
+ const dateValue=String(meta.date||this.defaultDate()),selectedTier=this.can?.('priceTier')?(meta.priceTierOverride||'account'):'account';
+ const preview=this.draftAccountBalance(),showBalance=preview.available;
  return `<div class="agent-main-invoice">
  <div class="invoice-entry-top rounded-2xl p-3 mb-3 space-y-2.5">
   <div class="ta-invoice-type-row"><span class="bg-slate-900 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-md">#F-${this.state.ops.length+1}</span>
   <select class="bg-slate-100 border border-slate-200 rounded-lg px-2 py-1 text-[10px] font-bold" onchange="Agent.captureInvoiceMeta();Agent.switchInvoiceKind(this.value)"><option value="sale" ${kind==='sale'?'selected':''}>فاتورة مبيعات</option><option value="sale_return" ${kind==='sale_return'?'selected':''}>مردود مبيعات</option></select></div>
  <div class="ta-invoice-control-grid">
   <div class="ta-invoice-field ta-invoice-party-highlight"><label><i class="fas fa-user text-emerald-600"></i> العميل</label><select id="fAccount" aria-label="العميل" class="ta-invoice-party-select w-full border border-slate-300 rounded-lg px-2 py-2 font-bold bg-white" onchange="Agent.accountPricingChanged(this.value)"><option value="">-- عميل نقدي مباشر --</option>${this.state.accounts.map(a=>`<option value="${esc(a.id)}" ${meta.accountId===a.id?'selected':''}>${esc(a.name)}</option>`).join('')}</select><button type="button" class="mt-1 w-full bg-emerald-50 border border-emerald-300 text-emerald-800 font-extrabold text-[10px] p-1.5 rounded-lg" onclick="Agent.openCustomerForm('invoice')">+ إضافة زبون جديد</button></div>
-  <div class="ta-invoice-field"><label><i class="fas fa-coins text-amber-600"></i> العملة</label><button type="button" onclick="Agent.changeInvoiceCurrency()" class="ta-invoice-currency-choice bg-sky-100 border border-sky-300 text-sky-900 px-2 py-1 rounded-lg font-extrabold"><i class="fas fa-coins text-amber-600"></i> ${c==='SYP'?'ليرة سورية':'دولار'}</button></div>
-  <div class="ta-invoice-field"><label><i class="fas fa-calendar-days text-blue-600"></i> التاريخ والوقت</label><input id="fDate" aria-label="التاريخ والوقت" class="w-full min-w-0 border border-slate-300 rounded-lg px-1.5 py-2 text-[12px] font-bold" type="datetime-local" value="${esc(meta.date||this.defaultDate())}" onchange="Agent.captureInvoiceMeta()"></div>
-  <div class="ta-invoice-field"><label><i class="fas fa-building text-sky-700"></i> المستودع</label><div class="bg-white rounded-lg p-2 border border-sky-300 text-[11px] font-bold">${esc(this.state.vehicleName||'مستودع موظف البيع')} — محدد من الإدارة</div></div>
+  <div class="ta-invoice-field ta-invoice-currency-field"><label><i class="fas fa-coins"></i> العملة</label><button type="button" onclick="Agent.changeInvoiceCurrency()" class="ta-invoice-currency-choice bg-sky-100 border border-sky-300 text-sky-900 px-2 py-1 rounded-lg font-extrabold"><i class="fas fa-coins"></i> ${c==='SYP'?'ليرة سورية':'دولار'}</button></div>
+  <div class="ta-invoice-field ta-invoice-date-field"><label><i class="fas fa-calendar-days text-blue-600"></i> التاريخ والوقت</label><div class="ta-invoice-date-visible" dir="ltr"><input id="agentInvoiceDate" aria-label="تاريخ الفاتورة" type="date" value="${esc(dateValue.slice(0,10))}" onchange="Agent.updateInvoiceDateParts()"><input id="agentInvoiceTime" aria-label="وقت الفاتورة" type="time" value="${esc(dateValue.slice(11,16))}" onchange="Agent.updateInvoiceDateParts()"></div><input id="fDate" type="hidden" value="${esc(dateValue)}"></div>
+  <div class="ta-invoice-field ta-invoice-warehouse-field"><label><i class="fas fa-warehouse text-sky-700"></i> ${esc(this.state.vehicleName||'مستودع موظف البيع')}</label><div class="ta-quick-picker ta-readonly-warehouse" aria-label="مستودع الموظف المحدد من الإدارة"><span class="ta-quick-picker__face"><i class="fas fa-warehouse"></i><span>${esc(this.state.vehicleName||'مستودع موظف البيع')}</span></span></div></div>
+  <div class="ta-invoice-pricing-choice"><div class="ta-quick-picker" title="طريقة تسعير الفاتورة"><span class="ta-quick-picker__face"><i class="fas fa-tags"></i><span>${({account:'حسب إعدادات الحساب',wholesale:'سعر الجملة',center:'سعر المركز',consumer:'سعر المستهلك'})[selectedTier]||'حسب إعدادات الحساب'}</span></span><select id="invoicePricingTier" aria-label="اختيار طريقة تسعير الفاتورة" onchange="Agent.changeInvoicePricingTier(this.value)" ${this.can?.('priceTier')?'':'disabled title="الصلاحية تحددها الإدارة"'}><option value="account" ${selectedTier==='account'?'selected':''}>حسب إعدادات الحساب</option><option value="wholesale" ${selectedTier==='wholesale'?'selected':''}>سعر الجملة</option><option value="center" ${selectedTier==='center'?'selected':''}>سعر المركز</option><option value="consumer" ${selectedTier==='consumer'?'selected':''}>سعر المستهلك</option></select></div></div>
  </div>
- <button type="button" class="ta-payment-cycle ta-pay-${mode}" onclick="Agent.cycleInvoicePayment()" title="نقدي ثم دفعات ثم آجل" aria-label="تغيير طريقة الدفع: نقدي ثم دفعات ثم آجل"><span><i class="fas ${mode==='cash'?'fa-money-bill-wave':mode==='partial'?'fa-hand-holding-dollar':'fa-clock'}"></i> طريقة الدفع: ${mode==='cash'?'نقدي':mode==='partial'?'دفعات':'آجل'}</span><i class="fas fa-arrow-rotate-right" aria-hidden="true"></i></button>
- <div id="invoiceAccountBalance" class="bg-sky-50 border border-sky-200 rounded-lg p-2 text-xs">${this.accountBalanceHTML(meta.accountId)}</div>
+ <button type="button" class="ta-payment-cycle ta-pay-${mode}" onclick="Agent.cycleInvoicePayment()" title="نقدي ثم دفعات ثم آجل" aria-label="تغيير طريقة الدفع: نقدي ثم دفعات ثم آجل"><span class="ta-payment-method-value"><i class="fas ${mode==='cash'?'fa-money-bill-wave':mode==='partial'?'fa-hand-holding-dollar':'fa-clock'}" aria-hidden="true"></i> طريقة الدفع: ${mode==='cash'?'نقدي':mode==='partial'?'دفعات':'آجل'}</span><i class="fas fa-arrow-rotate-right" aria-hidden="true"></i></button>
  </div>
   <input type="hidden" id="fCurrency" value="${esc(c)}">
  <div class="bg-white rounded-2xl border border-slate-200 p-3 mb-3 shadow-xs space-y-2"><div class="flex items-center justify-between"><span class="font-bold text-xs text-slate-700"><i class="fas fa-grip text-emerald-600 ml-1"></i> إضافة أصناف إلى الفاتورة:</span></div>
@@ -296,9 +324,14 @@ A.renderInvoice=function(){
   <div><label class="block text-[11px] font-bold text-slate-600 mb-1">الضريبة / الإضافات</label><div class="flex"><input type="number" id="invoiceTax" min="0" step="any" value="${esc(meta.taxValue||0)}" oninput="Agent.changeInvoiceAdjustment()" class="w-full border border-slate-300 rounded-r-xl px-2.5 py-1.5 font-bold text-center"><select id="invoiceTaxType" onchange="Agent.changeInvoiceAdjustment()" class="bg-slate-100 border border-r-0 border-slate-300 rounded-l-xl px-2 font-bold"><option value="percent" ${meta.taxType!=='amount'?'selected':''}>%</option><option value="amount" ${meta.taxType==='amount'?'selected':''}>${c}</option></select></div></div>
  </div><div class="bg-slate-900 text-white p-3 rounded-xl flex items-center justify-between"><span class="font-bold text-xs">الصافي النهائي المطلوب:</span><span id="invNetTotalTxt" class="font-extrabold text-base text-emerald-400">${money(calc.netTotal,c)} ${c}</span></div>
  <div class="grid grid-cols-2 gap-2 pt-1"><div><label class="block text-[11px] font-bold text-emerald-700 mb-1">المبلغ المدفوع (دفعة الفاتورة)</label><input id="invPaidInput" type="number" step="any" min="0" value="${mode==='partial'?esc(meta.paid):calc.paidAmount}" ${mode==='partial'?'':'readonly'} oninput="Agent.invoiceMeta.paid=this.value;Agent.refreshInvoiceTotals()" class="w-full border ${mode==='partial'?'border-emerald-500 bg-white':'border-slate-200 bg-slate-100'} rounded-xl px-3 py-2 font-extrabold text-center text-sm"></div><div><label class="block text-[11px] font-bold text-rose-700 mb-1">المبلغ المتبقي (ذمم على الحساب)</label><div id="invRemainingTxt" class="w-full border border-slate-200 bg-rose-50 text-rose-700 rounded-xl px-3 py-2 font-extrabold text-center text-sm">${money(calc.remainingAmount,c)} ${c}</div></div></div>
- ${this.draftBalanceHTML()}
  <input type="hidden" id="fPaid" value="${esc(meta.paid||'')}"><label class="block text-[11px] text-slate-500">البيان / ملاحظة</label><textarea id="fNote" class="w-full border border-slate-300 rounded-xl p-2" rows="2" oninput="Agent.invoiceMeta.note=this.value">${esc(meta.note||'')}</textarea></div>
- <div class="grid grid-cols-2 gap-2"><button type="button" onclick="Agent.saveInvoiceAndPrint()" class="bg-emerald-600 text-white font-extrabold py-3 px-2 rounded-2xl text-xs flex items-center justify-center gap-1.5 shadow-sm"><i class="fab fa-bluetooth-b text-base"></i>حفظ وطباعة بلوتوث</button><button type="button" onclick="Agent.saveInvoice()" class="bg-slate-900 text-white font-extrabold py-3 px-2 rounded-2xl text-xs flex items-center justify-center gap-1.5 shadow-sm"><i class="fas fa-floppy-disk text-emerald-400"></i>حفظ الفاتورة</button></div>
+ <div class="ta-invoice-save-footer ta-agent-invoice-save-footer" role="group" aria-label="حفظ الفاتورة وأرصدة الحساب">
+  <div class="ta-footer-balances">
+   <div class="ta-balance-tile"><span>الرصيد السابق (${c})</span><strong id="agentDraftBalanceBefore">${showBalance?esc(this.balanceLabel(preview.before,c)):'—'}</strong></div>
+   <div class="ta-balance-tile"><span>الرصيد المتوقع (${c})</span><strong id="agentDraftBalanceAfter">${showBalance?esc(this.balanceLabel(preview.after,c)):'—'}</strong></div>
+  </div>
+  <div class="ta-footer-actions"><button type="button" onclick="Agent.saveInvoiceAndPrint()"><i class="fas fa-print"></i> حفظ وطباعة بلوتوث</button><button type="button" onclick="Agent.saveInvoice()"><i class="fas fa-floppy-disk"></i> حفظ الفاتورة</button></div>
+ </div>
  <p class="form-help">البيع يخص مخزون السيارة فقط. الفواتير المحفوظة تُرحّل دون تكرار ولا يمكن تعديلها بصمت بعد المزامنة.</p>
  </div>`;
 };
@@ -332,7 +365,7 @@ A.saveInvoice=async function(andPrint=false){if(this.busy)return;this.busy=true;
   const op={id:'op_'+FieldProtocol.uuid(),kind:this.draftKind,companyId:this.state.companyId,agentId:this.state.agentId,warehouseId:this.state.warehouseId,
    localNumber:'F-'+(this.state.ops.length+1),date:new Date(m.date||Date.now()).toISOString(),currency:c,exchangeRate:Number(this.state.exchangeRate),accountId:m.accountId||'',paidAmount:calc.paidAmount,
    subTotal:calc.subTotal,discountValue:Number(m.discountValue||0),discountType:m.discountType||'amount',taxValue:Number(m.taxValue||0),taxType:m.taxType||'percent',netTotal:calc.netTotal,
-   rows:JSON.parse(JSON.stringify(this.draft)),note:String(m.note||'').slice(0,200),
+   rows:JSON.parse(JSON.stringify(this.draft)),note:String(m.note||'').slice(0,200),priceTierOverride:this.can?.('priceTier')?(m.priceTierOverride||'account'):'account',
    accountBalanceBefore:before,accountBalanceAfter:after,
    accountBalanceBeforeByCurrency:balances.before,accountBalanceAfterByCurrency:balances.after};
   FieldProtocol.validateOps([op],this.state.agentId,this.state.companyId,this.state.warehouseId,this.state.items,this.state.accounts);

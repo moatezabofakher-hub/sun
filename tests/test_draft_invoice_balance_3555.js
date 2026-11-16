@@ -31,6 +31,8 @@ if(fs.existsSync('field_agent/src/main/assets/www/index.html')){
  const agent=fs.readFileSync('field_agent/src/main/assets/www/static/agent-invoice-parity.js','utf8');
  assert(agentHTML.includes('static/draft-invoice-balance-preview.js'));
  assert(agent.includes('A.draftAccountBalance=function')&&agent.includes('this.paintDraftBalance()'));
- assert(agent.includes('${this.draftBalanceHTML()}'));
+ assert(!agent.includes('${this.draftBalanceHTML()}'),'Employee draft balances moved out of the scrollable invoice body');
+ assert(agent.includes('ta-agent-invoice-save-footer')&&agent.includes('agentDraftBalanceBefore')&&agent.includes('agentDraftBalanceAfter'));
+ assert(agent.includes('this.paintDraftBalance()'),'Live balance change updates the fixed footer');
 }
 console.log('PASS: live draft balances by currency, payment method, supplier/customer sign and UI event wiring');

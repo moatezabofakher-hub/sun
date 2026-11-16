@@ -7,7 +7,7 @@ function enhanceInvoice(){
  const cur=one('.ta-invoice-currency-choice',top);if(cur&&!cur.dataset.ux388){cur.dataset.ux388='1';cur.innerHTML='<i class="fas fa-coins" aria-hidden="true"></i><span class="ta-ux-currency-label">العملة</span><strong class="ta-ux-currency-value">'+(A.currency==='SYP'?'الليرة السورية':'الدولار الأمريكي')+'</strong><i class="fas fa-rotate" aria-hidden="true"></i>';}
  const wh=Array.from(top.querySelectorAll('label')).find(x=>/المستودع الذي تتأثر به/.test(x.textContent||''));if(wh){wh.parentElement?.classList.add('ta-ux-warehouse');wh.innerHTML='<i class="fas fa-warehouse" aria-hidden="true"></i> المستودع';}
  const party=one('#fAccount',top);party?.closest('.ta-invoice-party-highlight')?.classList.add('ta-ux-client-dark');
- const date=one('#fDate',top);if(date&&!one('.ta-ux-date-button',date.parentElement)){
+ const date=one('#agentInvoiceDate',top)||one('#fDate:not([type=hidden])',top);if(date&&!one('.ta-ux-date-button',date.parentElement)){
   const b=document.createElement('button');b.type='button';b.className='ta-ux-date-button';b.innerHTML='<i class="fas fa-calendar-days" aria-hidden="true"></i>';b.setAttribute('aria-label','فتح تقويم تاريخ الفاتورة');b.onclick=()=>{try{date.showPicker();}catch(_){date.focus();date.click();}};date.parentElement.insertBefore(b,date);
  }
  // Payment cycles on a single button in v3.5.95; do not replace it with the older popup picker.

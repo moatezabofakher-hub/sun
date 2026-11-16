@@ -1,0 +1,34 @@
+/* 3.5.102: match the manager invoice layout while retaining employee-only rules. */
+.ta-invoice-control-grid{grid-template-columns:minmax(0,1fr) minmax(0,.8fr);align-items:stretch}
+.ta-invoice-control-grid .ta-invoice-party-highlight{grid-column:1;grid-row:1}
+.ta-invoice-control-grid .ta-invoice-currency-field{grid-column:2;grid-row:1}
+.ta-invoice-control-grid .ta-invoice-date-field{grid-column:1;grid-row:2 / span 2}
+.ta-invoice-control-grid .ta-invoice-warehouse-field{grid-column:2;grid-row:2}
+.ta-invoice-control-grid .ta-invoice-pricing-choice{grid-column:2;grid-row:3;min-width:0}
+.ta-invoice-date-visible{display:flex;flex-direction:column;gap:5px;direction:ltr}
+.ta-invoice-date-visible input{display:block;width:100%!important;min-height:38px;min-width:0;border:1px solid #93c5fd;border-radius:9px;background:white;text-align:center;font-weight:800;color:#15364b;font-size:13px!important}
+.ta-invoice-control-grid .ta-quick-picker{position:relative;display:flex;align-items:center;justify-content:center;min-height:52px;width:100%;padding:8px 6px;overflow:hidden;border-radius:12px;background:linear-gradient(145deg,#f1fdff,#d6f4ff);border:1.5px solid #67cde5;color:#084b65;box-shadow:0 2px 0 #0891b230}
+.ta-invoice-control-grid .ta-quick-picker__face{display:flex;align-items:center;justify-content:center;gap:5px;text-align:center;direction:rtl;font-size:clamp(10px,3vw,14px);font-weight:900;overflow-wrap:anywhere;pointer-events:none;line-height:1.35}
+.ta-invoice-control-grid .ta-quick-picker__face i{color:#0369a1;font-size:15px;flex-shrink:0}
+.ta-invoice-control-grid .ta-quick-picker select{position:absolute;inset:0;opacity:0;width:100%!important;height:100%!important;cursor:pointer;appearance:none!important;font-size:16px!important;z-index:1}
+.ta-invoice-control-grid .ta-quick-picker select:disabled{cursor:not-allowed}
+.ta-invoice-pricing-choice .ta-quick-picker{background:linear-gradient(145deg,#eff6ff,#dbeafe);border-color:#93c5fd;color:#1e40af}
+.ta-invoice-pricing-choice .ta-quick-picker__face i{color:#2563eb}
+.ta-invoice-currency-choice,.ta-invoice-currency-choice i,.ta-invoice-currency-field label i{color:#0284c7!important;background:#e0f7ff!important;border-color:#7dd3fc!important}
+.ta-payment-cycle .ta-payment-method-value{display:inline-flex;gap:9px;align-items:center}
+.ta-payment-cycle .ta-payment-method-value>i{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;min-width:32px;border-radius:10px;color:white;box-shadow:0 3px 7px #0002,inset 0 1px 2px #fff6;font-size:15px}
+.ta-payment-cycle.ta-pay-cash .ta-payment-method-value>i{background:linear-gradient(155deg,#34d399,#059669,#047857)}
+.ta-payment-cycle.ta-pay-partial .ta-payment-method-value>i{background:linear-gradient(155deg,#60a5fa,#2563eb,#1d4ed8)}
+.ta-payment-cycle.ta-pay-credit .ta-payment-method-value>i{background:linear-gradient(155deg,#fda4af,#f472b6,#db2777)}
+/* The normal bottom dock is removed ONLY for an open standard invoice. */
+body.ta-agent-invoice-workspace nav#bottom{display:none!important}
+body.ta-agent-invoice-workspace main#screen{padding-bottom:calc(var(--ta-agent-invoice-footer-height,134px) + 26px + env(safe-area-inset-bottom,0px))!important;scroll-padding-bottom:calc(var(--ta-agent-invoice-footer-height,134px) + 26px)}
+body.ta-agent-invoice-workspace .ta-agent-invoice-save-footer{position:fixed;bottom:0;left:0;right:0;z-index:31;direction:rtl;display:flex;flex-direction:column;gap:7px;padding:8px max(10px,env(safe-area-inset-right,0px)) calc(8px + env(safe-area-inset-bottom,0px)) max(10px,env(safe-area-inset-left,0px));background:linear-gradient(180deg,#effaff,#fff);box-shadow:0 -5px 22px #0b47602b;border-top:2px solid #75cfe1;box-sizing:border-box}
+.ta-agent-invoice-save-footer .ta-footer-balances{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.ta-agent-invoice-save-footer .ta-balance-tile{min-width:0;background:white;border:1px solid #bae6fd;border-radius:10px;padding:5px 6px;text-align:center;font-size:11px;color:#14536c}
+.ta-agent-invoice-save-footer .ta-balance-tile span{display:block;font-size:11px}
+.ta-agent-invoice-save-footer .ta-balance-tile strong{display:block;font-size:clamp(11px,2.8vw,15px);line-height:1.35;color:#064e3b;overflow-wrap:anywhere}
+.ta-agent-invoice-save-footer .ta-footer-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+.ta-agent-invoice-save-footer .ta-footer-actions button{min-width:0;border-radius:11px;min-height:40px;padding:7px 4px;font-weight:900;font-size:11px;color:#fff;box-shadow:0 3px 0 #0002}
+.ta-agent-invoice-save-footer .ta-footer-actions button:first-child{background:#047857}.ta-agent-invoice-save-footer .ta-footer-actions button:last-child{background:#0e4260}
+@media(max-width:360px){.ta-invoice-control-grid{gap:4px}.ta-agent-invoice-save-footer .ta-footer-actions button{font-size:10px}.ta-invoice-date-visible input{font-size:11px!important}}
