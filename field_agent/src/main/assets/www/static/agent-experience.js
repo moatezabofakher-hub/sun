@@ -209,7 +209,7 @@ Agent.saveInvoice=async function(){if(this.busy)return;this.busy=true;
   if(paid>net)throw Error('المقبوض أكبر من قيمة الفاتورة');
   if(paid<net&&!meta.accountId)throw Error('اختر العميل للفاتورة الآجلة أو الجزئية');
   const op={id:'op_'+FieldProtocol.uuid(),kind:this.draftKind,companyId:this.state.companyId,agentId:this.state.agentId,warehouseId:this.state.warehouseId,
-   localNumber:'F-'+(this.state.ops.length+1),date:new Date(meta.date||Date.now()).toISOString(),currency,exchangeRate:Number(this.state.exchangeRate),accountId:meta.accountId||'',paidAmount:paid,
+   localNumber:this.nextLocalNumber('F'),date:new Date(meta.date||Date.now()).toISOString(),currency,exchangeRate:Number(this.state.exchangeRate),accountId:meta.accountId||'',paidAmount:paid,
    rows:JSON.parse(JSON.stringify(this.draft)),note:String(meta.note||'').slice(0,200)};
   FieldProtocol.validateOps([op],this.state.agentId,this.state.companyId,this.state.warehouseId,this.state.items,this.state.accounts);
   await this.appendOperation(op);this.draft=[];this.invoiceMeta={accountId:'',currency:'USD',paymentMode:'cash',paid:'',date:'',note:''};
@@ -221,7 +221,7 @@ Agent.saveVoucher=async function(){if(this.busy)return;this.busy=true;
    amount=FieldProtocol.money(document.getElementById('vAmount')?.value,currency),kind=this.voucherKind;
   if(!accountId||amount<=0)throw Error('اختر العميل وأدخل مبلغًا صحيحًا');
   const op={id:'op_'+FieldProtocol.uuid(),kind,companyId:this.state.companyId,agentId:this.state.agentId,warehouseId:this.state.warehouseId,
-   localNumber:'V-'+(this.state.ops.length+1),date:new Date(document.getElementById('vDate')?.value||Date.now()).toISOString(),currency,exchangeRate:Number(this.state.exchangeRate),accountId,amount,note:String(document.getElementById('vNote')?.value||'').slice(0,200)};
+   localNumber:this.nextLocalNumber('V'),date:new Date(document.getElementById('vDate')?.value||Date.now()).toISOString(),currency,exchangeRate:Number(this.state.exchangeRate),accountId,amount,note:String(document.getElementById('vNote')?.value||'').slice(0,200)};
   FieldProtocol.validateOps([op],this.state.agentId,this.state.companyId,this.state.warehouseId,this.state.items,this.state.accounts);
   await this.appendOperation(op);this.toast('حُفظ السند محليًا');this.stack=['home','ops'];await this.show('ops');
  }catch(e){this.toast('لم يُحفظ السند: '+e.message);}finally{this.busy=false;}};
@@ -253,7 +253,7 @@ Agent.saveInvoicePayment=async function(){if(this.busy)return;this.busy=true;
   if(!await this.active())throw Error('الترخيص غير مفعل');const remaining=this.invoiceRemaining(inv);const amount=FieldProtocol.money(document.getElementById('fieldPaymentAmount').value,inv.currency);
   if(amount<=0||amount>remaining)throw Error('الدفعة غير صحيحة أو تتجاوز الرصيد المتبقي');
   const op={id:'op_'+FieldProtocol.uuid(),kind:'receipt',companyId:this.state.companyId,agentId:this.state.agentId,warehouseId:this.state.warehouseId,
-   localNumber:'V-'+(this.state.ops.length+1),date:new Date().toISOString(),currency:inv.currency,exchangeRate:inv.exchangeRate,
+   localNumber:this.nextLocalNumber('V'),date:new Date().toISOString(),currency:inv.currency,exchangeRate:inv.exchangeRate,
    accountId:inv.accountId,amount,linkedInvoiceOpId:inv.id,note:String(document.getElementById('fieldPaymentNote')?.value||'').slice(0,200)};
   FieldProtocol.validateOps([op],this.state.agentId,this.state.companyId,this.state.warehouseId,this.state.items,this.state.accounts);
   await this.appendOperation(op);this.stack=['home','ops'];await this.show('ops');this.toast('تم حفظ سند القبض وربطه بالفاتورة');

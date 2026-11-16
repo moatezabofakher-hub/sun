@@ -30,7 +30,7 @@ const AgentHub = {
       add(x.type==='receipt'?'سند قبض':'سند دفع',x.fieldOrigin.localNumber||x.number,x.date,Accounting.format(Number(x.amount||0),x.currency),x.note||'سند زبون',x.id);
     if(['all','expenses'].includes(view))for(const x of (State.expenses||[]))if(x.fieldOrigin?.agentId===a.id)
       add('مصروف',x.fieldOrigin.localNumber||x.id,x.date,Accounting.format(Number(x.amount||0),x.currency),(x.category||'أخرى')+' · '+(x.note||''),x.id);
-    if(['all','transfers'].includes(view))for(const x of FieldCash.warehouseDocuments(a.warehouseId))
+    if(['all','transfers'].includes(view))for(const x of FieldCash.employeeWarehouseDocuments(a))
       add('مناقلة مواد',x.id,x.date,x.lines.length+' أصناف',x.fromName+' ← '+x.toName,x.id);
     if(view==='all')for(const x of (State.fieldSync?.cashTransfers||[]))if(x.agentId===a.id)
       add(x.direction==='toAgent'?'دفعة للموظف بيع':'دفعة من موظف البيع',x.id,x.date,Accounting.format(Number(x.amount||0),x.currency),x.note||'حركة نقدية',x.id);

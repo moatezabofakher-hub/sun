@@ -5,7 +5,7 @@ const Agent={
   // Extension modules provide paginated restorers; these defaults keep older standalone integrations compatible.
   mergeHistoryPage(page,old=this.state){return {ops:old.ops||[],cursor:Number(old.historyCursor||0),restoredIds:[]};},
   mergeTransferPage(page,old=this.state){return {docs:old.warehouseTransfers||[],cursor:Number(old.warehouseHistoryCursor||0),revision:old.warehouseTransferRevision||''};},
-  get blank(){return {deviceId:'TD-'+FieldProtocol.uuid().toUpperCase(),companyId:'',companyName:'',companyPhone:'',companyAddress:'',companyLogo:'',footerNote:'',printerWidth:80,printFontScale:0.75,itemQuantityDecimals:2,agentId:'',agentName:'',vehicleName:'',warehouseId:'',key:'',items:[],categories:[],accounts:[],stock:{},knownIds:[],snapshotIds:[],ops:[],agentCash:null,cashTransfers:[],warehouseTransfers:[],historyCursor:0,warehouseHistoryCursor:0,warehouseTransferRevision:'',license:'',issuedAt:'',lastSyncAt:'',lastSyncSummary:null,exchangeRate:15000,defaultPriceTier:'wholesale',permissions:null,accountLedgers:[],exchangeRateOverride:null,employeeAuth:null,backupRecovery:null};},
+  get blank(){return {deviceId:'TD-'+FieldProtocol.uuid().toUpperCase(),companyId:'',companyName:'',companyPhone:'',companyAddress:'',companyLogo:'',footerNote:'',printerWidth:80,printFontScale:0.75,itemQuantityDecimals:2,agentId:'',agentName:'',vehicleName:'',warehouseId:'',warehouseName:'',key:'',items:[],categories:[],accounts:[],stock:{},knownIds:[],snapshotIds:[],ops:[],localSequence:0,warehouseSwitchAt:'',agentCash:null,cashTransfers:[],warehouseTransfers:[],historyCursor:0,warehouseHistoryCursor:0,warehouseTransferRevision:'',license:'',issuedAt:'',lastSyncAt:'',lastSyncSummary:null,exchangeRate:15000,defaultPriceTier:'wholesale',permissions:null,accountLedgers:[],exchangeRateOverride:null,employeeAuth:null,backupRecovery:null};},
   async init(){
     if(!globalThis.crypto?.subtle){document.getElementById('screen').textContent='هذا الجهاز لا يدعم البيئة الآمنة اللازمة لتشغيل المزامنة.';return;}
     try{
@@ -31,6 +31,7 @@ const Agent={
   async active(){return this.ready() && await FieldProtocol.verifyLicense(this.state.license,AGENT_LICENSE_PUBLIC_KEY,this.state.deviceId,this.state.companyId,this.state.agentId);},
   get pending(){return this.state.ops.filter(o=>!this.state.knownIds.includes(o.id)).sort((a,b)=>Number(['customer_create','item_create'].includes(b.kind))-Number(['customer_create','item_create'].includes(a.kind)));},
   get stock(){return FieldProtocol.applyStock(this.state.stock,this.state.ops,this.state.snapshotIds||[],this.state.items||[]);},
+  nextLocalNumber(prefix){const last=Math.max(Number(this.state.localSequence)||0,...(this.state.ops||[]).map(x=>Number(String(x.localNumber||'').match(/-(\d+)$/)?.[1]||0)));this.state.localSequence=last+1;return prefix+'-'+this.state.localSequence;},
   async show(where){
     this.screen=where;
     const active=await this.active();
@@ -114,7 +115,7 @@ const Agent={
       const accountId=document.getElementById('fAccount')?.value||'';
       if(paid>net)throw Error('المبلغ المقبوض أكبر من قيمة الفاتورة');
       if(paid<net && !accountId)throw Error('اختر العميل للفاتورة التي تتضمن رصيدًا آجلًا');
-      const op={id:'op_'+FieldProtocol.uuid(),kind:this.draftKind,companyId:this.state.companyId,agentId:this.state.agentId,warehouseId:this.state.warehouseId,localNumber:'F-'+(this.state.ops.length+1),date:new Date().toISOString(),currency,exchangeRate:Number(this.state.exchangeRate),accountId,paidAmount:paid,rows:JSON.parse(JSON.stringify(this.draft)),note:document.getElementById('fNote')?.value.trim().slice(0,200)||''};
+      const op={id:'op_'+FieldProtocol.uuid(),kind:this.draftKind,companyId:this.state.companyId,agentId:this.state.agentId,warehouseId:this.state.warehouseId,localNumber:this.nextLocalNumber('F'),date:new Date().toISOString(),currency,exchangeRate:Number(this.state.exchangeRate),accountId,paidAmount:paid,rows:JSON.parse(JSON.stringify(this.draft)),note:document.getElementById('fNote')?.value.trim().slice(0,200)||''};
       FieldProtocol.validateOps([op],this.state.agentId,this.state.companyId,this.state.warehouseId,this.state.items,this.state.accounts);
       this.state.ops.push(op);
       await this.save();this.draft=[];this.toast('حُفظت الفاتورة. لن تُرحّل إلا عند المزامنة');await this.show('ops');
@@ -146,12 +147,12 @@ const Agent={
       const currency=document.getElementById('vCurrency').value,accountId=document.getElementById('vAcc').value,
         amount=FieldProtocol.money(document.getElementById('vAmount').value,currency);
       if(amount<=0||!accountId)throw Error('أدخل المبلغ واختر العميل');
-      const op={id:'op_'+FieldProtocol.uuid(),kind:document.getElementById('vKind').value,companyId:this.state.companyId,agentId:this.state.agentId,warehouseId:this.state.warehouseId,localNumber:'V-'+(this.state.ops.length+1),date:new Date().toISOString(),currency,exchangeRate:Number(this.state.exchangeRate),accountId,amount,note:document.getElementById('vNote').value.trim().slice(0,200)};
+      const op={id:'op_'+FieldProtocol.uuid(),kind:document.getElementById('vKind').value,companyId:this.state.companyId,agentId:this.state.agentId,warehouseId:this.state.warehouseId,localNumber:this.nextLocalNumber('V'),date:new Date().toISOString(),currency,exchangeRate:Number(this.state.exchangeRate),accountId,amount,note:document.getElementById('vNote').value.trim().slice(0,200)};
       FieldProtocol.validateOps([op],this.state.agentId,this.state.companyId,this.state.warehouseId,this.state.items,this.state.accounts);
       this.state.ops.push(op);await this.save();this.toast('حُفظ السند محليًا');await this.show('ops');
     }catch(e){this.toast('لم يُحفظ السند: '+e.message);}finally{this.busy=false;}
   },
-  renderStock(){const stock=this.stock;return `<div class="hero"><h2>جرد سيارة موظف البيع</h2><p>الرصيد محسوب من آخر كشف من الشركة بعد خصم/إضافة الحركات المحلية غير المشمولة فيه</p></div><div class="panel">
+  renderStock(){const stock=this.stock;return `<div class="hero"><h2>جرد مستودع: ${this.escape(this.state.warehouseName||this.state.vehicleName||'موظف البيع')}</h2><p>الرصيد محسوب من آخر كشف من الشركة بعد خصم/إضافة الحركات المحلية غير المشمولة فيه</p></div><div class="panel">
     ${this.state.items.map(it=>`<div class="itemrow"><div class="itemhead"><span>${this.escape(it.name)}</span><b>${Number(stock[it.id]||0).toFixed(3)}</b></div><small class="muted">رصيد بالوحدة الأساسية</small></div>`).join('')}</div>
     <button class="secondary" onclick="Agent.show('home')">رجوع</button>`;},
   renderOps(){return `<div class="hero"><h2>سجل العمليات الميدانية</h2><p>لا يتم حذف العملية أو تعديلها بعد حفظها؛ تصحيح العمليات المرحّلة يكون في الإدارة المركزية.</p></div><div class="panel">
@@ -181,7 +182,7 @@ const Agent={
         const previous=this.state;
         const localNewItems=(previous.ops||[]).filter(x=>x.kind==='item_create'&&!(previous.knownIds||[]).includes(x.id)&&!(payload.knownIds||[]).includes(x.id)).map(x=>x.item);
         const provisionedItems=payload.items.slice();for(const item of localNewItems)if(!provisionedItems.some(x=>x.id===item.id))provisionedItems.push(item);
-        this.state={...this.state,companyId:payload.companyId,companyName:payload.companyName,companyPhone:payload.companyPhone||'',companyAddress:payload.companyAddress||'',companyLogo:payload.companyLogo||'',footerNote:payload.footerNote||'',printerWidth:payload.printerWidth===58?58:80,printFontScale:Number(payload.printFontScale)||0.75,itemQuantityDecimals:Number.isInteger(Number(payload.itemQuantityDecimals))?Math.min(4,Math.max(0,Number(payload.itemQuantityDecimals))):2,agentId:payload.agentId,agentName:payload.agentName,vehicleName:payload.vehicleName,warehouseId:payload.warehouseId,key:payload.key,items:provisionedItems,categories:payload.categories||[],accounts:this.mergeCustomerCatalog?.(payload.accounts,this.state)||payload.accounts,stock:payload.stock,
+        this.state={...this.state,companyId:payload.companyId,companyName:payload.companyName,companyPhone:payload.companyPhone||'',companyAddress:payload.companyAddress||'',companyLogo:payload.companyLogo||'',footerNote:payload.footerNote||'',printerWidth:payload.printerWidth===58?58:80,printFontScale:Number(payload.printFontScale)||0.75,itemQuantityDecimals:Number.isInteger(Number(payload.itemQuantityDecimals))?Math.min(4,Math.max(0,Number(payload.itemQuantityDecimals))):2,agentId:payload.agentId,agentName:payload.agentName,vehicleName:payload.vehicleName,warehouseId:payload.warehouseId,warehouseName:payload.warehouseName||payload.vehicleName,key:payload.key,items:provisionedItems,categories:payload.categories||[],accounts:this.mergeCustomerCatalog?.(payload.accounts,this.state)||payload.accounts,stock:payload.stock,
           agentCash:payload.agentCash||null,cashTransfers:payload.cashTransfers||[],warehouseTransfers:this.mergeTransferPage(payload.warehouseHistoryPage,{...this.state,companyId:payload.companyId,agentId:payload.agentId,warehouseId:payload.warehouseId}).docs,warehouseHistoryCursor:this.mergeTransferPage(payload.warehouseHistoryPage,{...this.state,companyId:payload.companyId,agentId:payload.agentId,warehouseId:payload.warehouseId}).cursor,warehouseTransferRevision:payload.warehouseHistoryPage?.revision||'',
           ops:this.mergeHistoryPage(payload.historyPage,{...this.state,companyId:payload.companyId,agentId:payload.agentId,warehouseId:payload.warehouseId}).ops,
           historyCursor:this.mergeHistoryPage(payload.historyPage,{...this.state,companyId:payload.companyId,agentId:payload.agentId,warehouseId:payload.warehouseId}).cursor,
@@ -213,7 +214,7 @@ const Agent={
       this.lanSentCount=ops.length;
       const nonce=FieldProtocol.uuid();this.lanRequestNonce=nonce;
       const msg={kind:'operations',nonce,companyId:this.state.companyId,agentId:this.state.agentId,
-        warehouseId:this.state.warehouseId,issuedAt:new Date().toISOString(),operations:ops,historyCursor:Number(this.state.historyCursor||0),warehouseHistoryCursor:Number(this.state.warehouseHistoryCursor||0)};
+        warehouseId:this.state.warehouseId,issuedAt:new Date().toISOString(),operations:ops,pendingTotal:this.pending.length,historyCursor:Number(this.state.historyCursor||0),warehouseHistoryCursor:Number(this.state.warehouseHistoryCursor||0)};
       const packet=await FieldLanCrypto.pack(msg,this.state.key,this.state.companyId,this.state.agentId);
       const raw=JSON.stringify(packet);
       if(window.TiqanyCloudAgent?.ready()){
@@ -260,8 +261,18 @@ const Agent={
       for(let tries=0;this.busy&&tries<80;tries++)await new Promise(r=>setTimeout(r,100));
       if(this.busy)throw Error('البيانات المحلية مشغولة بالحفظ؛ ستتم إعادة المحاولة');
       const old=this.state;
-      if(catalog.warehouseId!==old.warehouseId||!Array.isArray(catalog.categories||[])||
-        !Array.isArray(catalog.knownIds)||!Number.isFinite(Number(catalog.exchangeRate))||Number(catalog.exchangeRate)<=0)
+      const proposedSwitch=catalog.warehouseSwitch;
+      const changingWarehouse=catalog.warehouseId!==old.warehouseId;
+      if(changingWarehouse){
+        if(!proposedSwitch||proposedSwitch.from!==old.warehouseId||proposedSwitch.to!==catalog.warehouseId||
+          !/^whs_[a-zA-Z0-9_-]{8,}$/.test(String(proposedSwitch.id||'')))throw Error('طلب تبديل مستودع غير موثّق');
+        if(['invoice','voucher','pos','pos_form','expense','customer','item'].includes(this.screen)||this.draft?.length)
+          throw Error('أكمل حفظ أو إلغاء العملية المفتوحة أولًا قبل تبديل المستودع');
+        if((old.ops||[]).some(op=>!ack.knownIds.includes(op.id)))
+          throw Error('لا يمكن تغيير المستودع قبل تأكيد حفظ كل العمليات القديمة لدى المدير');
+      }
+      if(!Array.isArray(catalog.categories||[])||!Array.isArray(catalog.knownIds)||
+        !Number.isFinite(Number(catalog.exchangeRate))||Number(catalog.exchangeRate)<=0)
         throw Error('بيانات تحديث الشركة غير مكتملة أو تخص مستودعًا آخر');
       // Compare the new server snapshot to the last locally committed one. Do not overwrite
       // the append-only local operations, activation credential, or unsent invoices.
@@ -284,8 +295,11 @@ const Agent={
       const confirmed=ack.knownIds.filter(id=>owned.has(id));
       const knownIds=Array.from(new Set([...(old.knownIds||[]),...confirmed]));
       const newlyConfirmed=confirmed.filter(id=>!(old.knownIds||[]).includes(id)).length;
-      const historyResult=this.mergeHistoryPage(catalog.historyPage,old);
-      const transfersResult=this.mergeTransferPage(catalog.warehouseHistoryPage,old);
+      // Old posted invoices remain on the manager; never download them back into the new
+      // phone journal after switching warehouses. Skip to the manager's durable archive tail.
+      const historyResult=changingWarehouse?{ops:[],cursor:Math.max(0,Number(proposedSwitch.historyCursor)||0),restoredIds:[]}:this.mergeHistoryPage(catalog.historyPage,old);
+      const transfersResult=this.mergeTransferPage(catalog.warehouseHistoryPage,changingWarehouse?
+        {...old,warehouseId:catalog.warehouseId,warehouseTransfers:[],warehouseHistoryCursor:0,warehouseTransferRevision:''}:old);
       const metadataChanged=Number(old.managerPublishedRate??old.exchangeRate)!==Number(catalog.exchangeRate)||old.companyName!==catalog.companyName||old.agentName!==catalog.agentName||
         old.vehicleName!==catalog.vehicleName||Number(old.exchangeRate)!==Number(catalog.exchangeRate)||
         (old.defaultPriceTier||'wholesale')!==(catalog.defaultPriceTier||'wholesale')||
@@ -304,13 +318,13 @@ const Agent={
         JSON.stringify(old.snapshotIds||[])!==JSON.stringify(catalog.knownIds||[]);
       // Persist real changes promptly; checkpoint a no-op heartbeat at most once per minute.
       const checkpointDue=!old.lastSyncAt||Date.now()-Date.parse(old.lastSyncAt)>=60000;
-      const mustSave=!!(itemsChanged||accountsChanged||stockChanged||newlyConfirmed||metadataChanged||checkpointDue||historyResult.cursor!==Number(old.historyCursor||0));
+      const mustSave=!!(changingWarehouse||itemsChanged||accountsChanged||stockChanged||newlyConfirmed||metadataChanged||checkpointDue||historyResult.cursor!==Number(old.historyCursor||0));
       const summary={sent:Number(this.lanSentCount||0),
         confirmed:newlyConfirmed,itemsChanged,accountsChanged,stockChanged,
         materials:catalog.items.length,customers:catalog.accounts.length,serverAt:ack.serverAt||''};
       if(mustSave){
         this.state={...old,cloud:Object.prototype.hasOwnProperty.call(catalog,'cloud')?catalog.cloud:(old.cloud||null),companyName:catalog.companyName,agentName:catalog.agentName,
-          vehicleName:catalog.vehicleName,warehouseId:catalog.warehouseId,issuedAt:catalog.issuedAt,
+          vehicleName:catalog.vehicleName,warehouseId:catalog.warehouseId,warehouseName:catalog.warehouseName||catalog.vehicleName,issuedAt:catalog.issuedAt,
           companyPhone:catalog.companyPhone||'',companyAddress:catalog.companyAddress||'',
           companyLogo:catalog.companyLogo||'',footerNote:catalog.footerNote||'',
           printerWidth:catalog.printerWidth===58?58:80,printFontScale:Number(catalog.printFontScale)||0.75,
@@ -326,6 +340,8 @@ const Agent={
           agentCash:catalog.agentCash||null,cashTransfers:catalog.cashTransfers||[],
           warehouseTransfers:transfersResult.docs,warehouseHistoryCursor:transfersResult.cursor,warehouseTransferRevision:transfersResult.revision,
           ops:historyResult.ops,historyCursor:historyResult.cursor,knownIds:Array.from(new Set([...knownIds,...historyResult.restoredIds])),
+          localSequence:changingWarehouse?Math.max(Number(old.localSequence)||0,(old.ops||[]).length,...(old.ops||[]).map(o=>Number(String(o.localNumber||'').match(/-(\d+)$/)?.[1]||0))):Number(old.localSequence)||0,
+          warehouseSwitchAt:changingWarehouse?new Date().toISOString():(old.warehouseSwitchAt||''),
           lastSyncAt:new Date().toISOString(),lastSyncSummary:summary};
         try {await this.save();}catch(e){this.state=old;throw e;}
       } else {
@@ -336,11 +352,12 @@ const Agent={
       // Cloud ACKs must never mark an unrelated, previously probed LAN IP as verified.
       if(result.transport!=='cloud')window.AndroidLocalSync?.confirmVerifiedSync?.(this.state.companyId);
       const newCount=newlyConfirmed;
-      this.lanSyncMessage='✅ تمت المزامنة بالاتجاهين: '+newCount+' عملية مؤكدة، وتحديث '+itemsChanged+' مادة و'+accountsChanged+' عميل و'+stockChanged+' رصيد. المتبقي '+this.pending.length+'.';
+      this.lanSyncMessage=changingWarehouse?'✅ تم تبديل المستودع واستلام جرد المستودع الجديد؛ بقي رصيد الصندوق محفوظًا وسُجلت العمليات القديمة لدى المدير.':
+        '✅ تمت المزامنة بالاتجاهين: '+newCount+' عملية مؤكدة، وتحديث '+itemsChanged+' مادة و'+accountsChanged+' عميل و'+stockChanged+' رصيد. المتبقي '+this.pending.length+'.';
       if(!this.lanSyncQuiet)this.toast(this.lanSyncMessage);
       // Never erase an invoice, voucher, or payment form being edited.
       if(['home','ops','stock','sync','accounts','cashbox','invoices'].includes(this.screen) &&
-          (newCount||itemsChanged||accountsChanged||stockChanged||(!this.lanSyncQuiet&&this.screen==='sync')))await this.show(this.screen);
+          (newCount||itemsChanged||accountsChanged||stockChanged||(!this.lanSyncQuiet&&this.screen==='sync')||changingWarehouse))await this.show(this.screen);
       success=true;
     }catch(e){this.lanSyncMessage='لم تكتمل المزامنة: '+e.message;if(!this.lanSyncQuiet)this.toast(this.lanSyncMessage);}
     finally{this.lanSyncBusy=false;this.lanRequestNonce=null;this.lanSentCount=0;this.syncPaint();this.finishAutoSync?.(success);}

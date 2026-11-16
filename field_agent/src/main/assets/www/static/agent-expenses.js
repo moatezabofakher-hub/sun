@@ -30,7 +30,7 @@ A.saveExpense=async function(){
    if(amount>balance+0.001)throw Error('رصيد صندوق موظف البيع لا يكفي لهذا المصروف');
   }
   const op={id:'op_'+FieldProtocol.uuid(),kind:'expense',companyId:this.state.companyId,agentId:this.state.agentId,warehouseId:this.state.warehouseId,
-   localNumber:'E-'+(this.state.ops.length+1),date:new Date(date+'T12:00:00').toISOString(),currency,exchangeRate:Number(this.state.exchangeRate),
+   localNumber:this.nextLocalNumber('E'),date:new Date(date+'T12:00:00').toISOString(),currency,exchangeRate:Number(this.state.exchangeRate),
    category,amount,note};
   const validated=FieldProtocol.validateOps([op],this.state.agentId,this.state.companyId,this.state.warehouseId,this.state.items,this.state.accounts);
   await this.appendOperation(validated[0]);

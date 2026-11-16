@@ -151,7 +151,7 @@ const FieldSync = {
     const warehouseId=document.getElementById('fieldNewWarehouse')?.value;
     if(!name||name.length<2||!warehouseId)return UI.toast('اكتب اسم موظف البيع واختر المستودع','warn');
     let allowedAccountIds;try{allowedAccountIds=this.readAccountPicker('fieldNewAccounts');}catch(e){return UI.toast(e.message,'warn');}
-    if(this.data().agents.some(a=>a.warehouseId===warehouseId && !a.disabled))return UI.toast('المستودع مربوط بموظف بيع آخر؛ خصص مستودع سيارة مستقلًا','warn');
+    if(this.data().agents.some(a=>(a.warehouseId===warehouseId||a.pendingWarehouseId===warehouseId)&&!a.disabled&&!a.archived))return UI.toast('المستودع مربوط بموظف بيع آخر؛ خصص مستودع سيارة مستقلًا','warn');
     const permissions=this.readPermissions('newFieldPermissions');
     const key=new Uint8Array(32);crypto.getRandomValues(key);
     const a={id:'agent_'+FieldProtocol.uuid(),name,vehicleName:vehicleName||name,warehouseId,key:FieldProtocol.b64u(key),allowedAccountIds,permissions,createdAt:new Date().toISOString(),createdOnDevice:'main_phone',disabled:false};
@@ -164,7 +164,7 @@ const FieldSync = {
     const known=config.imported.filter(i=>i.agentId===a.id).map(i=>i.id);
     // Limit optional image payloads to keep periodic encrypted sync reliable on LAN.
     let imageBudget=650000,ledgerBudget=4600;
-    return {kind:'provision',format:FieldProtocol.FORMAT,companyId:config.companyId,companyName:State.settings.companyName,agentId:a.id,agentName:a.name,vehicleName:a.vehicleName,warehouseId:a.warehouseId,key:a.key,
+    return {kind:'provision',format:FieldProtocol.FORMAT,companyId:config.companyId,companyName:State.settings.companyName,agentId:a.id,agentName:a.name,vehicleName:a.vehicleName,warehouseId:a.warehouseId,warehouseName:WarehouseController.name(a.warehouseId),key:a.key,
       issuedAt:new Date().toISOString(),permissions:TiqanyAgentPermissions.normalize(a.permissions),employeeAuth:a.employeeAuth||null,exchangeRate:Number(State.settings.exchangeRate),
       defaultPriceTier:['wholesale','center','consumer'].includes(State.settings.defaultPriceTier)?State.settings.defaultPriceTier:'wholesale',
       // Company branding is an authenticated part of each refreshed catalog; never copied from agent edits.
@@ -228,9 +228,15 @@ const FieldSync = {
         ${State.settings.appProtection?.pinHash?'<label class="block text-sm font-black text-slate-900" for="editFieldManagerApprovalPin">كلمة سر المدير للسماح بتغيير كلمة الموظف</label><input id="editFieldManagerApprovalPin" type="password" autocomplete="current-password" class="w-full border-2 border-slate-300 rounded-xl p-3 bg-white" placeholder="تُطلب عند تغيير كلمة الموظف فقط"/>':''}
         <p class="text-xs text-teal-900 font-bold">لا تُخزن كلمة السر كما أُدخلت ولا تُرسل نصًا؛ يُنقل رمز تحقق مشفّر مشتق منها. وتُستخدم كلمة الموظف لاستعادة نسخه الاحتياطية الجديدة.</p>
       </section>
-      <div class="bg-slate-100 rounded-xl p-2 text-xs">مستودع السيارة: ${this.escape(WarehouseController.name(a.warehouseId))} — ثابت لحماية جرد العمليات</div>
-      <button type="button" class="ta-primary-3d w-full p-3 rounded-xl" onclick="FieldSync.saveAgentEdit('${a.id}')">حفظ التعديل</button>
-      <button type="button" class="rounded-xl p-2 w-full bg-slate-100" onclick="FieldSync.open()">رجوع</button>
+      <section class="rounded-2xl border-2 border-sky-200 bg-sky-50 p-3 space-y-2" dir="rtl">
+        <label class="block font-black text-sm text-slate-900" for="editFieldAgentWarehouse"><i class="fas fa-warehouse text-teal-700 ml-1"></i> تبديل مستودع موظف البيع</label>
+        ${a.pendingWarehouseId?`<p class="text-xs font-extrabold text-amber-800">طلب انتقال قيد المزامنة: ${this.escape(WarehouseController.name(a.warehouseId))} ← ${this.escape(WarehouseController.name(a.pendingWarehouseId))}. لا يتغير جرد الهاتف قبل إتمام الترحيل.</p>`:
+          `<select id="editFieldAgentWarehouse" class="w-full border-2 border-teal-500 rounded-xl p-3 text-sm font-black" style="color:#103e27;background:linear-gradient(155deg,#e5fff0,#b7e9ce);box-shadow:inset 0 2px 0 #fff,0 3px 0 #3f9970,0 6px 12px #103d2c29" ${this.connectedAt[id]&&Date.now()-this.connectedAt[id]<this.presenceTTL?'':'disabled'}>
+             ${(State.warehouses||[]).filter(w=>w.id!=='wh_main'&&(w.id===a.warehouseId||!this.data().agents.some(x=>x.id!==a.id&&!x.archived&&!x.disabled&&(x.warehouseId===w.id||x.pendingWarehouseId===w.id)))).map(w=>`<option value="${this.escape(w.id)}" ${w.id===a.warehouseId?'selected':''}>${this.escape(w.name)}</option>`).join('')}
+           </select><p class="text-[11px] font-bold text-slate-700">${this.connectedAt[id]&&Date.now()-this.connectedAt[id]<this.presenceTTL?'اختر المستودع الجديد أثناء الاتصال الموثّق. تُنقل الحركات غير المُرحّلة أولًا؛ ويبقى رصيد الصندوق مستقلًا عن المستودع.':'اتصل بهاتف الموظف أولًا كي يتاح تبديل المستودع بأمان.'}</p>`}
+      </section>
+      <button type="button" class="ta-primary-3d ta-modal-action-primary w-full p-3 rounded-xl font-black" onclick="FieldSync.saveAgentEdit('${a.id}')">حفظ التعديل</button>
+      <button type="button" class="ta-modal-action-secondary rounded-xl p-3 w-full bg-slate-100 font-black" onclick="FieldSync.open()">رجوع</button>
     </div>`);
   },
   async saveAgentEdit(id){
@@ -239,6 +245,15 @@ const FieldSync = {
     const vehicleName=String(document.getElementById('editFieldAgentVehicle')?.value||'').trim();
     if(name.length<2||name.length>70||vehicleName.length>70)return UI.toast('اسم موظف البيع يجب أن يكون بين حرفين و70 حرفًا','warn');
     let allowedAccountIds;try{allowedAccountIds=this.readAccountPicker('fieldEditAccounts');}catch(e){return UI.toast(e.message,'warn');}
+    const warehouseControl=document.getElementById('editFieldAgentWarehouse');
+    const requestedWarehouseId=warehouseControl&&!warehouseControl.disabled&&warehouseControl.value?warehouseControl.value:a.warehouseId;
+    const warehouseChanged=requestedWarehouseId!==a.warehouseId;
+    if(warehouseChanged){
+      if(a.pendingWarehouseId)return UI.toast('هناك تبديل مستودع قيد التنفيذ؛ أكمله قبل طلب تغيير آخر','warn');
+      if(!this.connectedAt[id]||Date.now()-this.connectedAt[id]>=this.presenceTTL)return UI.toast('يجب أن يكون الموظف متصلًا بمزامنة موثوقة أثناء تغيير مستودعه','warn');
+      if(requestedWarehouseId==='wh_main'||!(State.warehouses||[]).some(w=>w.id===requestedWarehouseId))return UI.toast('المستودع الجديد غير صالح','warn');
+      if(this.data().agents.some(x=>x.id!==id&&!x.disabled&&!x.archived&&(x.warehouseId===requestedWarehouseId||x.pendingWarehouseId===requestedWarehouseId)))return UI.toast('المستودع الجديد مخصص لموظف آخر','warn');
+    }
     const employeePassword=document.getElementById('editFieldEmployeePassword')?.value||'';
     const employeeConfirm=document.getElementById('editFieldEmployeeConfirm')?.value||'';
     const managerPin=document.getElementById('editFieldManagerApprovalPin')?.value||'';
@@ -267,13 +282,16 @@ const FieldSync = {
         }catch(e){return UI.toast(e.message||'تعذر إعداد كلمة سر الموظف','error');}
       }
       if(employeeAuth?.hash && (lockChanged||employeePassword)) employeeAuth={...employeeAuth,lockApp:employeeLockEnabled,version:(Number(employeeAuth.version)||0)+(employeePassword?0:1),updatedAt:new Date().toISOString()};
-      const original={name:a.name,vehicleName:a.vehicleName,allowedAccountIds:a.allowedAccountIds,permissions:a.permissions,employeeAuth:a.employeeAuth};
+      if(warehouseChanged&&(!this.connectedAt[id]||Date.now()-this.connectedAt[id]>=this.presenceTTL))return UI.toast('انقطع الاتصال بالموظف؛ أعد طلب التبديل عند عودة الاتصال','warn');
+      if(warehouseChanged&&this.data().agents.some(x=>x.id!==id&&!x.disabled&&!x.archived&&(x.warehouseId===requestedWarehouseId||x.pendingWarehouseId===requestedWarehouseId)))return UI.toast('المستودع أصبح مخصصًا لموظف آخر','warn');
+      const original={name:a.name,vehicleName:a.vehicleName,allowedAccountIds:a.allowedAccountIds,permissions:a.permissions,employeeAuth:a.employeeAuth,pendingWarehouseId:a.pendingWarehouseId,warehouseSwitchId:a.warehouseSwitchId,warehouseSwitchRequestedAt:a.warehouseSwitchRequestedAt};
       a.name=name;a.vehicleName=vehicleName||name;a.allowedAccountIds=allowedAccountIds;
       a.permissions=permissions;a.employeeAuth=employeeAuth;
-      try{await StorageEngine.saveState();this.open();UI.toast('حُفظ موظف البيع؛ ستنتقل التعديلات عند أول مزامنة موثوقة','success');}
+      if(warehouseChanged){a.pendingWarehouseId=requestedWarehouseId;a.warehouseSwitchId='whs_'+FieldProtocol.uuid();a.warehouseSwitchRequestedAt=new Date().toISOString();}
+      try{await StorageEngine.saveState();this.open();UI.toast(warehouseChanged?'تم حفظ طلب تبديل المستودع؛ سيبدأ بعد تأكيد كل عمليات الهاتف القديمة':'حُفظ موظف البيع؛ ستنتقل التعديلات عند أول مزامنة موثوقة','success');}
       catch(e){Object.assign(a,original);UI.toast('لم يُحفظ تعديل موظف البيع: '+e.message,'error');}
     };
-    if(permissionsChanged||lockChanged){
+    if(permissionsChanged||lockChanged||warehouseChanged){
       if(typeof ProtectionController==='undefined'||typeof ProtectionController.requestPin!=='function')return UI.toast('التحقق الأمني غير متاح','error');
       if(!State.settings.appProtection?.pinHash||!State.settings.appProtection?.pinSalt)return ProtectionController.promptPinSetup?.('تعديل صلاحيات الموظف');
       // The edit modal is replaced by the PIN/Biometric modal; all values above
@@ -319,7 +337,7 @@ const FieldSync = {
   },
   async restoreAgent(id){
     const a=this.data().agents.find(x=>x.id===id&&x.archived);if(!a)return;
-    if(this.data().agents.some(x=>!x.archived&&!x.disabled&&x.warehouseId===a.warehouseId))return UI.toast('مستودع السيارة مرتبط بموظف بيع آخر','warn');
+    if(this.data().agents.some(x=>x.id!==a.id&&!x.archived&&!x.disabled&&(x.warehouseId===a.warehouseId||x.pendingWarehouseId===a.warehouseId)))return UI.toast('مستودع السيارة مرتبط بموظف بيع آخر','warn');
     const old={archived:a.archived,disabled:a.disabled,deletedAt:a.deletedAt};a.archived=false;a.disabled=false;a.deletedAt=null;
     try{await StorageEngine.saveState();this.open();UI.toast('تمت استعادة موظف البيع','success');}
     catch(e){Object.assign(a,old);UI.toast('فشلت استعادة موظف البيع','error');}
@@ -438,14 +456,33 @@ const FieldSync = {
       agent=config.agents.find(a=>a.id===packet.agentId&&!a.disabled&&!a.archived);
       if(!agent)throw Error('موظف البيع غير مسجل أو موقوف');
       const payload=await FieldLanCrypto.open(packet,agent.key,config.companyId,agent.id);
-      if(payload.kind!=='operations'||payload.companyId!==config.companyId||payload.agentId!==agent.id||payload.warehouseId!==agent.warehouseId||typeof payload.nonce!=='string'||!/^[a-zA-Z0-9_-]{8,90}$/.test(payload.nonce))throw Error('بيانات موظف البيع غير مطابقة');
-      const all=FieldProtocol.validateOps(payload.operations,agent.id,config.companyId,agent.warehouseId,State.items,State.accounts,(this.historyFor?.(agent)||this.data().operationHistory||[]));
+      if(agent.pendingWarehouseId&&config.agents.some(x=>x.id!==agent.id&&!x.archived&&!x.disabled&&(x.warehouseId===agent.pendingWarehouseId||x.pendingWarehouseId===agent.pendingWarehouseId)))
+        throw Error('المستودع الجديد محجوز لموظف آخر؛ ألغِ التعارض أولًا');
+      const confirmingSwitch=!!agent.pendingWarehouseId&&payload.warehouseId===agent.pendingWarehouseId;
+      if(payload.kind!=='operations'||payload.companyId!==config.companyId||payload.agentId!==agent.id||
+         (payload.warehouseId!==agent.warehouseId&&!confirmingSwitch)||typeof payload.nonce!=='string'||!/^[a-zA-Z0-9_-]{8,90}$/.test(payload.nonce))throw Error('بيانات موظف البيع غير مطابقة');
+      // Keep the previous warehouse active until the PHONE confirms it saved the new inventory.
+      const effectiveAgent=confirmingSwitch?{...agent,warehouseId:agent.pendingWarehouseId}:agent;
+      const all=FieldProtocol.validateOps(payload.operations,agent.id,config.companyId,payload.warehouseId,State.items,State.accounts,(this.historyFor?.(agent)||this.data().operationHistory||[]));
       this.assertAuthorizedOps(all,agent);
       const known=new Set(config.imported.map(x=>x.id));
       const fresh=all.filter(x=>!known.has(x.id));
-      const count=await this.commitLanOperations(agent,fresh);
-      // Response generated only after the app database reports successful commit.
-      const snapshot=this.catalog(agent,Math.max(0,Number(payload.historyCursor)||0),Math.max(0,Number(payload.warehouseHistoryCursor)||0));
+      const count=await this.commitLanOperations(effectiveAgent,fresh);
+      if(confirmingSwitch){
+        const previousWarehouseId=agent.warehouseId;
+        const previous={warehouseId:agent.warehouseId,pendingWarehouseId:agent.pendingWarehouseId,warehouseSwitchId:agent.warehouseSwitchId,warehouseSwitchRequestedAt:agent.warehouseSwitchRequestedAt,warehouseSwitchHistory:agent.warehouseSwitchHistory};
+        agent.warehouseId=agent.pendingWarehouseId;delete agent.pendingWarehouseId;delete agent.warehouseSwitchId;delete agent.warehouseSwitchRequestedAt;
+        agent.warehouseSwitchHistory=[...(agent.warehouseSwitchHistory||[]),{from:previousWarehouseId,to:agent.warehouseId,startedAt:previous.warehouseSwitchRequestedAt,at:new Date().toISOString()}];
+        try{await StorageEngine.saveState();}catch(error){Object.assign(agent,previous);throw error;}
+      }
+      // Handover occurs only after the FINAL outbox chunk is durably committed.
+      const pendingSwitch=!!agent.pendingWarehouseId&&!confirmingSwitch&&Number(payload.pendingTotal)===payload.operations.length;
+      const snapshot=pendingSwitch?this.catalog({...agent,warehouseId:agent.pendingWarehouseId},0,0):
+        this.catalog(agent,Math.max(0,Number(payload.historyCursor)||0),Math.max(0,Number(payload.warehouseHistoryCursor)||0));
+      if(pendingSwitch){
+        snapshot.warehouseSwitch={from:agent.warehouseId,to:agent.pendingWarehouseId,id:agent.warehouseSwitchId,requestedAt:agent.warehouseSwitchRequestedAt,historyCursor:0};
+        snapshot.historyPage={ops:[],nextCursor:0,total:0};
+      }
       const ack={kind:'sync_result',companyId:config.companyId,agentId:agent.id,accepted:count,
         knownIds:config.imported.filter(x=>x.agentId===agent.id).map(x=>x.id),catalog:snapshot,requestNonce:payload.nonce,serverAt:new Date().toISOString()};
       answer=await FieldLanCrypto.pack(ack,agent.key,config.companyId,agent.id);

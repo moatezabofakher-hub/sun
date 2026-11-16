@@ -48,6 +48,20 @@ const FieldCash={
     movements.sort((a,b)=>String(b.date).localeCompare(String(a.date)));
     return {sypCash,usdCash,movements};
   },
+  employeeWarehouseDocuments(agent){
+    if(!agent)return [];
+    const shifts=Array.isArray(agent.warehouseSwitchHistory)?agent.warehouseSwitchHistory:[];
+    if(!shifts.length)return this.warehouseDocuments(agent.warehouseId);
+    const periods=[];let since='';
+    for(const change of shifts){periods.push({warehouseId:change.from,since,until:change.at||''});since=change.at||'';}
+    periods.push({warehouseId:agent.warehouseId,since,until:''});
+    const matched=new Map();
+    for(const period of periods)for(const doc of this.warehouseDocuments(period.warehouseId)){
+      const stamp=String(doc.date||'');
+      if((!period.since||stamp>=period.since)&&(!period.until||stamp<=period.until))matched.set(doc.id,doc);
+    }
+    return [...matched.values()].sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+  },
   warehouseDocuments(warehouseId){
     const groups=new Map();
     for(const tr of (State.transfers||[])){
@@ -103,7 +117,7 @@ F.historyFor=function(a){
   for(const invoice of (State.invoices||[])){
     const x=invoice.fieldOrigin;
     if(x?.agentId!==a.id||!x.operationId||archive.has(x.operationId))continue;
-    archive.set(x.operationId,{id:x.operationId,kind:invoice.type,companyId:cfg().companyId,agentId:a.id,warehouseId:a.warehouseId,
+    archive.set(x.operationId,{id:x.operationId,kind:invoice.type,companyId:cfg().companyId,agentId:a.id,warehouseId:invoice.warehouseId||a.warehouseId,
       localNumber:x.localNumber||'F-'+(invoice.number||''),date:invoice.date,currency:invoice.currency,exchangeRate:invoice.exchangeRate,
       accountId:invoice.accountId,rows:(invoice.rows||[]).map(r=>({itemId:r.itemId,itemName:r.itemName||'',unitName:r.unitName,unitFactor:r.unitFactor,qty:r.qty,price:r.price,total:r.total})),
       netTotal:invoice.netTotal,paidAmount:invoice.paidAmount,discountValue:invoice.discountValue||0,discountType:invoice.discountType||'amount',
@@ -126,7 +140,14 @@ F.historyFor=function(a){
   return [...archive.values()].sort((x,y)=>String(x.date||'').localeCompare(String(y.date||''))||x.id.localeCompare(y.id));
 };
 F.historyPage=function(a,start=0){
-  const history=this.historyFor(a);let offset=Math.min(Math.max(0,Math.trunc(Number(start)||0)),history.length);
+  let history=this.historyFor(a);
+  const changes=Array.isArray(a.warehouseSwitchHistory)?a.warehouseSwitchHistory:[];
+  if(changes.length){
+    const latest=changes[changes.length-1],cutoff=latest.startedAt||latest.at||'';
+    const received=new Map(cfg().imported.filter(x=>x.agentId===a.id).map(x=>[x.id,x.receivedAt||'']));
+    history=history.filter(x=>x.warehouseId===a.warehouseId&&received.has(x.id)&&received.get(x.id)>=cutoff);
+  }
+  let offset=Math.min(Math.max(0,Math.trunc(Number(start)||0)),history.length);
   const page=[],max=350000;
   let bytes=0;
   while(offset<history.length&&page.length<35){
@@ -216,7 +237,7 @@ F.showOperations=function(agentId='all'){
  ...(State.expenses||[]).filter(e=>e.fieldOrigin?.agentId).map(x=>({kind:'إيصال مصروف · '+x.category,id:x.id,agentId:x.fieldOrigin.agentId,number:x.fieldOrigin.localNumber||x.id,date:x.date,display:`${x.amount} ${x.currency}`})),
  ...(State.vouchers||[]).filter(v=>v.fieldOrigin?.agentId).map(x=>({kind:'سند عميل',id:x.id,agentId:x.fieldOrigin.agentId,number:x.fieldOrigin.localNumber||x.number,date:x.date,display:`${x.amount} ${x.currency}`})),
  ...c.cashTransfers.map(x=>({kind:x.direction==='fromAgent'?'دفعة من موظف البيع':'دفعة للموظف بيع',id:x.id,agentId:x.agentId,number:x.id.slice(-8),date:x.date,display:`${x.amount} ${x.currency}`})),
- ...c.agents.flatMap(a=>FieldCash.warehouseDocuments(a.warehouseId).map(x=>({kind:'مناقلة مستودع',id:x.id+'_'+a.id,agentId:a.id,number:x.id,date:x.date,display:x.lines.length+' صنف'})))].sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+ ...c.agents.flatMap(a=>FieldCash.employeeWarehouseDocuments(a).map(x=>({kind:'مناقلة مستودع',id:x.id+'_'+a.id,agentId:a.id,number:x.id,date:x.date,display:x.lines.length+' صنف'})))].sort((a,b)=>String(b.date).localeCompare(String(a.date)));
  const all=agentId==='all',list=records.filter(r=>all||r.agentId===agentId);
  UI.openModal(`<div dir="rtl" class="ta-field-panel text-right space-y-3"><h3 class="font-black text-lg">عمليات موظف البيع</h3>
  <select class="w-full border rounded-xl p-3" onchange="FieldSync.historyViewLimit=100;FieldSync.showOperations(this.value)"><option value="all">كل العمليات (${records.length})</option>${c.agents.map(a=>`<option value="${a.id}" ${a.id===agentId?'selected':''}>${esc(a.name)}</option>`).join('')}</select>

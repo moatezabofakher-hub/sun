@@ -107,7 +107,7 @@ A.saveNewItem=async function(){if(!this.requireRight('createItems')||this.busy)r
   const price=Number(document.getElementById('employeeItemPrice')?.value),cost=Number(document.getElementById('employeeItemCost')?.value||0);
   if(name.length<2||name.length>120||!unitName||unitName.length>60||!['USD','SYP'].includes(currency)||!Number.isFinite(price)||price<=0||!Number.isFinite(cost)||cost<0)throw Error('أدخل بيانات المادة والسعر بشكل صحيح');
   const op={id:'op_'+FieldProtocol.uuid(),kind:'item_create',date:new Date().toISOString(),companyId:this.state.companyId,agentId:this.state.agentId,warehouseId:this.state.warehouseId,
-    localNumber:'I-'+(this.state.ops.length+1),currency,exchangeRate:Number(this.state.exchangeRate),item:{id:'itm_field_'+FieldProtocol.uuid(),name,category:'',currency,unitName,salePrice:price,costPrice:cost}};
+    localNumber:this.nextLocalNumber('I'),currency,exchangeRate:Number(this.state.exchangeRate),item:{id:'itm_field_'+FieldProtocol.uuid(),name,category:'',currency,unitName,salePrice:price,costPrice:cost}};
   const verified=FieldProtocol.validateOps([op],this.state.agentId,this.state.companyId,this.state.warehouseId,this.state.items,this.state.accounts)[0];
   const before=this.state;this.state={...before,ops:[...before.ops,verified],items:[...before.items,verified.item]};
   try{await this.save();}catch(e){this.state=before;throw e;}

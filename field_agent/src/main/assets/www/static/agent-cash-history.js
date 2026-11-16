@@ -58,7 +58,7 @@ A.cashSummary=function(){
   if(op.currency==='SYP')syp+=positive?amount:-amount;else if(op.currency==='USD')usd+=positive?amount:-amount;
   pending.push({id:op.id,date:op.date,currency:op.currency,amount:positive?amount:-amount,desc:this.kindName(op.kind)+' · '+(op.kind==='expense'?op.category+' · ':'')+String(op.localNumber||''),pending:true});
  }
- const transfers=(this.state.cashTransfers||[]).map(t=>({id:t.id,date:t.date,currency:t.currency,amount:t.direction==='toAgent'?Number(t.amount):-Number(t.amount),desc:t.direction==='toAgent'?'استلام دفعة من الرئيسي':'تسليم دفعة للرئيسي',pending:false}));
+ const transfers=(this.state.cashTransfers||[]).filter(t=>!this.state.warehouseSwitchAt||String(t.date||'')>=this.state.warehouseSwitchAt).map(t=>({id:t.id,date:t.date,currency:t.currency,amount:t.direction==='toAgent'?Number(t.amount):-Number(t.amount),desc:t.direction==='toAgent'?'استلام دفعة من الرئيسي':'تسليم دفعة للرئيسي',pending:false}));
  const local=(this.state.ops||[]).filter(op=>op.kind!=='customer_create').map(op=>{
    const amount=['sale','sale_return'].includes(op.kind)?Number(op.paidAmount||0):Number(op.amount||0);
    return {id:op.id,date:op.date,currency:op.currency,amount:['sale','receipt'].includes(op.kind)?amount:-amount,

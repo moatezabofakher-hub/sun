@@ -296,7 +296,7 @@ A.renderInvoice=function(){
  const preview=this.draftAccountBalance(),showBalance=preview.available;
  return `<div class="agent-main-invoice">
  <div class="invoice-entry-top rounded-2xl p-3 mb-3 space-y-2.5">
-  <div class="ta-invoice-type-row"><span class="bg-slate-900 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-md">#F-${this.state.ops.length+1}</span>
+  <div class="ta-invoice-type-row"><span class="bg-slate-900 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-md">#F-${(Math.max(Number(this.state.localSequence)||0,this.state.ops.length)+1)}</span>
   <select class="bg-slate-100 border border-slate-200 rounded-lg px-2 py-1 text-[10px] font-bold" onchange="Agent.captureInvoiceMeta();Agent.switchInvoiceKind(this.value)"><option value="sale" ${kind==='sale'?'selected':''}>فاتورة مبيعات</option><option value="sale_return" ${kind==='sale_return'?'selected':''}>مردود مبيعات</option></select></div>
  <div class="ta-invoice-control-grid">
   <div class="ta-invoice-field ta-invoice-party-highlight"><label><i class="fas fa-user text-emerald-600"></i> العميل</label><select id="fAccount" aria-label="العميل" class="ta-invoice-party-select w-full border border-slate-300 rounded-lg px-2 py-2 font-bold bg-white" onchange="Agent.accountPricingChanged(this.value)"><option value="">-- عميل نقدي مباشر --</option>${this.state.accounts.map(a=>`<option value="${esc(a.id)}" ${meta.accountId===a.id?'selected':''}>${esc(a.name)}</option>`).join('')}</select><button type="button" class="mt-1 w-full bg-emerald-50 border border-emerald-300 text-emerald-800 font-extrabold text-[10px] p-1.5 rounded-lg" onclick="Agent.openCustomerForm('invoice')">+ إضافة زبون جديد</button></div>
@@ -363,7 +363,7 @@ A.saveInvoice=async function(andPrint=false){if(this.busy)return;this.busy=true;
     {before:{SYP:null,USD:null},after:{SYP:null,USD:null}};
   const before=balances.before[c],after=balances.after[c];
   const op={id:'op_'+FieldProtocol.uuid(),kind:this.draftKind,companyId:this.state.companyId,agentId:this.state.agentId,warehouseId:this.state.warehouseId,
-   localNumber:'F-'+(this.state.ops.length+1),date:new Date(m.date||Date.now()).toISOString(),currency:c,exchangeRate:Number(this.state.exchangeRate),accountId:m.accountId||'',paidAmount:calc.paidAmount,
+   localNumber:this.nextLocalNumber('F'),date:new Date(m.date||Date.now()).toISOString(),currency:c,exchangeRate:Number(this.state.exchangeRate),accountId:m.accountId||'',paidAmount:calc.paidAmount,
    subTotal:calc.subTotal,discountValue:Number(m.discountValue||0),discountType:m.discountType||'amount',taxValue:Number(m.taxValue||0),taxType:m.taxType||'percent',netTotal:calc.netTotal,
    rows:JSON.parse(JSON.stringify(this.draft)),note:String(m.note||'').slice(0,200),priceTierOverride:this.can?.('priceTier')?(m.priceTierOverride||'account'):'account',
    accountBalanceBefore:before,accountBalanceAfter:after,
