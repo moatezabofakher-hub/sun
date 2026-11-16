@@ -36,8 +36,28 @@ function companyJoin(localUid,remoteUid,opts={}){
  if(!valid(remoteUid)||!valid(localUid))return {allowed:false,reason:'هوية الشركة غير صالحة؛ يجب تحديث التطبيقين'};
  if(localUid===remoteUid)return {allowed:true,adopt:false};
  if(opts.existingVerifiedLink===true)return {allowed:true,adopt:true,legacy:true};
+ // A never-provisioned Windows ledger can receive its identity FROM a populated
+ // manager phone. This is not a general cross-company merge permission.
  if(opts.empty===true)return {allowed:true,adopt:true};
+ if(opts.remoteEmpty===true)return {allowed:true,adopt:false,adoptRemote:true};
  return {allowed:false,reason:'رفض الربط: الهاتف والكمبيوتر يتبعان لشركتين مختلفتين، حتى لو تشابه الاسم. لن تُنقل أي بيانات.'};
+}
+
+// A first-use desktop receives only a portable password verifier, never a
+// plaintext password, Android biometric token, activation code or device key.
+function bootstrapProtection(cfg){
+ if(!cfg||typeof cfg!=='object')return null;
+ const algo=cfg.pinAlgo||'sha256-v1';
+ if(!['sha256-v1','pbkdf2-sha256-v1'].includes(algo))return null;
+ const validSalt=v=>typeof v==='string'&&/^[A-Za-z0-9+/]{22}==$/.test(v);
+ const validHash=v=>typeof v==='string'&&/^[A-Za-z0-9+/]{43}=$/.test(v);
+ if(!validSalt(cfg.pinSalt)||!validHash(cfg.pinHash))return null;
+ const questions=Array.isArray(cfg.securityQuestions)?cfg.securityQuestions:[];
+ const validQuestions=questions.length===2&&questions.every(q=>q&&typeof q.id==='string'&&/^[a-zA-Z0-9_-]{1,50}$/.test(q.id)&&validSalt(q.salt)&&validHash(q.hash));
+ return {pinSalt:cfg.pinSalt,pinHash:cfg.pinHash,pinAlgo:algo,
+   securityQuestions:validQuestions?questions.map(q=>({id:q.id,salt:q.salt,hash:q.hash})):[],
+   recoveryFailures:0,recoveryLockedUntil:0,lockApp:true,protectDeletion:!!cfg.protectDeletion,
+   fingerprintEnabled:false,fingerprintCredentialId:''};
 }
 function ensureSnapshot(s){if(!s||typeof s!=='object'||Array.isArray(s))throw Error('نسخة مزامنة غير صالحة');for(const k of BASE_COLLECTIONS)if(!Array.isArray(s[k]))throw Error('سجل '+k+' غير صالح');for(const k of STAFF_COLLECTIONS)if(s[k]!==undefined&&!Array.isArray(s[k]))throw Error('سجل موظفي البيع '+k+' غير صالح');if(!s.sharedSettings||typeof s.sharedSettings!=='object'||Array.isArray(s.sharedSettings))throw Error('إعدادات المزامنة غير صالحة');}
 function recordKey(name,r){
@@ -337,5 +357,5 @@ function apply(state,data){
  if(company&&typeof company.companyId==='string'&&company.companyId)field.companyId=company.companyId;
  state.fieldSync=field;
 }
-return {COLLECTIONS,SETTINGS,snapshot,canonical,merge,apply,emptyLedger,companyJoin,ensureSnapshot,itemStock,digest,fieldIdentity,fieldBusinessVersion,equivalentImported,resolutionReceipt,validReceipt,combineReceipts,retireOppositeReceipts,historicalChoice};
+return {COLLECTIONS,SETTINGS,snapshot,canonical,merge,apply,emptyLedger,companyJoin,bootstrapProtection,ensureSnapshot,itemStock,digest,fieldIdentity,fieldBusinessVersion,equivalentImported,resolutionReceipt,validReceipt,combineReceipts,retireOppositeReceipts,historicalChoice};
 });

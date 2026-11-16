@@ -11,7 +11,7 @@ const escape=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>'
 const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved:false,conflictLog:null,resolvedHistory:[],lastSuccessfulAt:0,lastPhoneSeenAt:0,lastPublishedDigest:null,lastRemoteVersion:null,polling:false,probeFailures:0,nextProbeAt:0,
   authorizedSettingsSection:null,
   headerRequestedSettings:false,
-  qrRevealExpiresAt:0,qrRevealProfile:null,qrRevealTimer:null,scanApproval:null,
+  qrRevealExpiresAt:0,qrRevealProfile:null,qrRevealTimer:null,scanApproval:null,bootstrapApproval:null,
   openSettingsFromHeader(){
     if(AppNav.current()?.screen==='settings'){this.requestHeaderAccess();return;}
     this.headerRequestedSettings=true;
@@ -57,7 +57,7 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
     const profile=ProfileManager.activeId;
     ProtectionController.requestPin(message,()=>{
       if(ProfileManager.activeId!==profile){UI.toast('تغيّرت الشركة، أعد التحقق','warn');return;}
-      action();
+      return action();
     } );
     return true;
   },
@@ -102,6 +102,25 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
   // Only an old authenticated pairing may migrate an existing nonempty ledger.
   priorLinkMatches(saved,serverId,serverProfileId){return !!saved?.snapshot&&
     saved.serverId===serverId&&saved.serverProfileId===serverProfileId&&saved.profileId===ProfileManager.activeId;},
+  // The first phone-to-empty-desktop transfer is approved on the owning
+  // phone, never based on matching the displayed company name or QR alone.
+  requestBootstrapApproval(server,desktopSnapshot,phoneSnapshot){
+    const protection=core.bootstrapProtection(State.settings?.appProtection);
+    if(!protection){
+      this.message('يجب إعداد كلمة سر المدير على الموبايل قبل نقل الشركة إلى كمبيوتر فارغ.',true);
+      return;
+    }
+    const approvedProfile=ProfileManager.activeId;
+    const phoneDigest=core.digest(phoneSnapshot),desktopDigest=core.digest(desktopSnapshot);
+    const message='الموافقة على نسخ كامل بيانات الشركة وهوية الشركة وكلمة سر المدير المشفّرة إلى الكمبيوتر الجديد. بعد النقل سيطلب الكمبيوتر كلمة سر المدير الموجودة على الهاتف.';
+    if(!window.confirm('الكمبيوتر الحالي فارغ؛ هل تريد نقل شركة الموبايل وجميع عملياتها إليه؟\nستُحفظ نقطة استرجاع على الكمبيوتر، ولن تُنقل بصمة الجهاز.'))return;
+    this.authorizePairing(message,()=>{
+      if(ProfileManager.activeId!==approvedProfile||core.digest(this.snapshot())!==phoneDigest)return this.message('تغيرت بيانات الهاتف؛ أعد الموافقة من البداية.',true);
+      this.bootstrapApproval={profileId:approvedProfile,serverId:server.serverId,serverProfileId:server.profileId,
+        phoneUid:this.companyUid(),phoneDigest,desktopDigest,expiresAt:Date.now()+90000};
+      this.sync(false);
+    });
+  },
   linkOutageNotified:false,lastOutageReason:'',outageKind:'',
   async outage(reason,kind='transport'){
     const message=String(reason||'تعذّر الوصول إلى الجهاز المقترن').slice(0,240);
@@ -331,12 +350,25 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
       if(saved?.snapshot&&saved.serverId!==fetched.serverId)throw Error(t("الربط يخص كمبيوتراً مختلفاً. ألغ الربط القديم أولاً.","This pairing belongs to another computer. Disconnect first."));
       if(saved?.snapshot&&saved.profileId!==ProfileManager.activeId)throw Error(t("تغيرت الشركة الحالية، تحقق من الربط","The selected business changed. Check the pairing."));
       if(saved?.snapshot&&saved.serverProfileId!==fetched.profileId)throw Error(t("تم تبديل الشركة المفتوحة على الكمبيوتر. افتح الشركة المرتبطة أولاً.","A different business is open on Windows. Switch back to the paired business."));
-      const companyMatch=core.companyJoin(outgoingUid,fetched.companyUid,{empty:phoneEmpty,existingVerifiedLink:this.priorLinkMatches(saved,fetched.serverId,fetched.profileId)});
+      const companyMatch=core.companyJoin(outgoingUid,fetched.companyUid,{empty:phoneEmpty,remoteEmpty:fetched.desktopEmpty===true,existingVerifiedLink:this.priorLinkMatches(saved,fetched.serverId,fetched.profileId)});
       if(!companyMatch.allowed)throw Error(companyMatch.reason);
       const localName=String(State.settings.companyName||'').trim();
+      const bootstrap=fetched.desktopEmpty===true&&!phoneEmpty&&!saved?.snapshot;
+      if(bootstrap){
+        if(silent)return; // Never provision a new manager via background sync.
+        const approval=this.bootstrapApproval;
+        const valid=approval&&approval.profileId===ProfileManager.activeId&&approval.serverId===fetched.serverId&&
+          approval.serverProfileId===fetched.profileId&&approval.phoneUid===outgoingUid&&
+          approval.phoneDigest===core.digest(stateBefore)&&approval.desktopDigest===core.digest(fetched.snapshot)&&
+          Date.now()<approval.expiresAt;
+        if(!valid){this.bootstrapApproval=null;this.requestBootstrapApproval(fetched,fetched.snapshot,stateBefore);return false;}
+        // Single-use proof. An interrupted transfer requires a fresh manager approval.
+        this.bootstrapApproval=null;
+      }
+
       if(companyMatch.adopt && silent && !companyMatch.legacy)return; // A truly new empty phone requires explicit approval; an authenticated old link migrates safely.
 
-      if(!saved?.snapshot){
+      if(!saved?.snapshot&&!bootstrap){
         if(silent)return;
         const message=`ربط الشركة «${localName}» مع الكمبيوتر لأول مرة.
 هوية الشركة لدى الكمبيوتر ستُعتمد فقط إذا كان الهاتف فارغاً أو سبق ربطه بالكمبيوتر نفسه.\nفواتير الهاتف: ${stateBefore.invoices.length}، فواتير الكمبيوتر: ${fetched.snapshot.invoices.length}.\nستُدمج السجلات، وستُعتمد إعدادات العملة وسعر الصرف من الكمبيوتر، مع حفظ نقاط استرجاع محلية. هل تؤكد؟`;
@@ -362,7 +394,9 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
       const remoteReceipts=Array.isArray(fetched.resolvedReceipts)?fetched.resolvedReceipts:[];
       const validRemote=remoteReceipts.filter(r=>core.validReceipt(r)&&(!r.linkId||r.linkId===linkId));
       const history=core.combineReceipts(localReceipts,validRemote);
-      const merged=core.merge(saved?.snapshot||null,stateBefore,fetched.snapshot,decisions,history);
+      const merged=bootstrap
+        ?{ok:true,snapshot:stateBefore,stats:{added:0,deduplicated:0,renumbered:0},conflicts:[],resolvedReceipts:[]}
+        :core.merge(saved?.snapshot||null,stateBefore,fetched.snapshot,decisions,history);
       if(!merged.ok){
         await this.recordConflicts(merged.details,{serverId:fetched.serverId,serverProfileId:fetched.profileId});
         try{if(JSON.stringify(merged.details).length<4500000)await this.call({action:'report-conflicts',ticket:fetched.ticket,serverId:fetched.serverId,profileId:fetched.profileId,phoneProfileId:ProfileManager.activeId,phoneCompanyUid:outgoingUid,details:merged.details});}
@@ -378,14 +412,18 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
         decisions[r.id]?.signature===r.signature&&decisions[r.id]?.side===r.chosen).map(r=>({...r,linkId}));
       const appliedReceipts=core.combineReceipts(core.retireOppositeReceipts(history,explicitApprovals),
         merged.resolvedReceipts.map(r=>({...r,linkId})));
+      const fieldCompanyId=String(State.fieldSync?.companyId||'company_'+outgoingUid.slice('business_'.length));
+      const provision=bootstrap?{companyUid:outgoingUid,fieldCompanyId,protection:core.bootstrapProtection(State.settings?.appProtection)}:undefined;
+      if(bootstrap&&!provision.protection)throw Error('رمز الحماية غير صالح لنقله إلى الكمبيوتر');
       const committed=await this.call({action:'commit',ticket:fetched.ticket,serverId:fetched.serverId,profileId:fetched.profileId,phoneCompanyUid:outgoingUid,
-        snapshot:merged.snapshot,resolvedReceipts:appliedReceipts,explicitApprovals});
+        snapshot:merged.snapshot,resolvedReceipts:appliedReceipts,explicitApprovals,provision});
       if(!committed.ok)throw Error(committed.error||t("رفض الكمبيوتر حفظ الدمج","Windows rejected the merged data"));
       if(this.blocked()||core.canonical(this.snapshot())!==origin)throw Error(t("حفظ الكمبيوتر الدمج لكن بيانات الهاتف تغيرت. أعد المزامنة قبل أي تعديل آخر.","Windows saved the merge, but phone data changed. Sync again before editing."));
-      if(core.canonical(merged.snapshot)!==origin||companyMatch.adopt){
+      if(core.canonical(merged.snapshot)!==origin||companyMatch.adopt||(bootstrap&&State.fieldSync?.companyId!==fieldCompanyId)){
         await ProfileManager.makeCheckpoint('before-windows-peer-sync');
         core.apply(State,merged.snapshot);
         if(companyMatch.adopt)State.settings.companyUid=fetched.companyUid;
+        if(bootstrap){State.fieldSync??={};State.fieldSync.companyId=fieldCompanyId;}
         try{await StorageEngine.saveState();}catch(err){
           core.apply(State,stateBefore);State.settings.companyUid=outgoingUid;throw err;
         }
@@ -396,7 +434,8 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
       await this.saveBase(fetched.serverId,fetched.profileId,merged.snapshot);
       await this.clearConflicts();
       AndroidPeerSync.approve();this.approved=true;this.lastSuccessfulAt=Date.now();this.recovered();this.updatePresence();
-      this.message(`اكتملت المزامنة: ${merged.stats.added} سجلات جديدة و${merged.stats.deduplicated||0} نسخ متكررة لعمليات موظفين دُمجت دون احتسابها مجدداً، و${merged.stats.renumbered} رقم مستند مُعدّل.`);
+      if(bootstrap)this.message('نُقلت بيانات الشركة إلى الكمبيوتر. أدخل كلمة سر المدير على الكمبيوتر لفتح الحساب.');
+      else this.message(`اكتملت المزامنة: ${merged.stats.added} سجلات جديدة و${merged.stats.deduplicated||0} نسخ متكررة لعمليات موظفين دُمجت دون احتسابها مجدداً، و${merged.stats.renumbered} رقم مستند مُعدّل.`);
       if(AppNav.current()?.screen!=='settings')AppNav.renderCurrent();
       return true;
     }catch(e){
@@ -416,16 +455,20 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
         const knownLink=data.knownServerId===this.server?.serverId &&
           data.knownServerProfileId===ProfileManager.activeId &&
           typeof data.knownServerId==='string'&&data.knownServerId.length>0;
-        const identity=core.companyJoin(data.phoneCompanyUid,desktopUid,{empty:data.phoneEmpty===true,existingVerifiedLink:knownLink});
+        const snapshot=this.snapshot();
+        const desktopEmpty=core.emptyLedger(snapshot)&&!State.settings?.peerBootstrapSourceUid;
+        const identity=core.companyJoin(data.phoneCompanyUid,desktopUid,{empty:data.phoneEmpty===true,remoteEmpty:desktopEmpty,existingVerifiedLink:knownLink});
         if(!identity.allowed)return reply({ok:false,error:identity.reason});
+        if(identity.adoptRemote&&data.phoneEmpty!==false)return reply({ok:false,error:'حدّث تطبيق الموبايل قبل نقل شركة إلى كمبيوتر جديد'});
         this.lastPhoneSeenAt=Date.now();this.recovered('transport');this.updatePresence();
-        const snapshot=this.snapshot(),ticket=String(Date.now())+'-'+Math.random().toString(36).slice(2);
+        const ticket=String(Date.now())+'-'+Math.random().toString(36).slice(2);
         const conflictResolutions=this.conflictLog?.confirmed&&this.conflictLog.profileId===ProfileManager.activeId&&this.conflictLog.phoneProfileId===data.phoneProfileId?this.conflictLog.decisions:{};
         const linkId=this.linkId(this.server?.serverId,ProfileManager.activeId,data.phoneProfileId);
         const resolvedReceipts=await this.receiptsFor(linkId);
-        this.locks.set(ticket,{snapshot:core.canonical(snapshot),profileId:ProfileManager.activeId,phoneProfileId:data.phoneProfileId,phoneCompanyUid:data.phoneCompanyUid,companyUid:desktopUid,resolutionSnapshot:core.canonical(conflictResolutions),resolvedSnapshot:core.canonical(resolvedReceipts),linkId,created:Date.now()});
+        this.locks.set(ticket,{snapshot:core.canonical(snapshot),desktopEmpty,adoptDesktop:desktopEmpty&&data.phoneEmpty===false&&!knownLink,phoneEmptyClaim:data.phoneEmpty===true,
+          profileId:ProfileManager.activeId,phoneProfileId:data.phoneProfileId,phoneCompanyUid:data.phoneCompanyUid,companyUid:desktopUid,resolutionSnapshot:core.canonical(conflictResolutions),resolvedSnapshot:core.canonical(resolvedReceipts),linkId,created:Date.now()});
         for(const [k,v] of this.locks)if(Date.now()-v.created>60000)this.locks.delete(k);
-        return reply({ok:true,ticket,snapshot,companyName:State.settings.companyName,companyUid:desktopUid,profileId:ProfileManager.activeId,serverId:this.server?.serverId,conflictResolutions,resolvedReceipts});
+        return reply({ok:true,ticket,snapshot,desktopEmpty,companyName:State.settings.companyName,companyUid:desktopUid,profileId:ProfileManager.activeId,serverId:this.server?.serverId,conflictResolutions,resolvedReceipts});
       }
       if(data.action==='report-conflicts'){
         const lock=this.locks.get(data.ticket);
