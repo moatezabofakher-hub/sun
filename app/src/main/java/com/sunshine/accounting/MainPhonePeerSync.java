@@ -76,9 +76,27 @@ public final class MainPhonePeerSync {
         if(!allowed()||!safeAddress(host)||port<1024||port>65535||key==null||!key.matches("[A-Za-z0-9_-]{43}"))return "invalid";
         try {byte[] bytes=Base64.getUrlDecoder().decode(key);if(bytes.length!=32)return "invalid";}
         catch(Exception ex){return "invalid";}
-        prefs.edit().putString("host",host).putInt("port",port).putString("key",key).remove("serverId").putBoolean("approved",false).apply();
+        try {
+            // The QR pairing secret must never be persisted as readable Base64.
+            String protectedKey = DeviceVault.protectSecret(activity, "peer-link", key);
+            if (!prefs.edit().putString("host",host).putInt("port",port).putString("key",protectedKey)
+                    .remove("serverId").putBoolean("approved",false).commit()) return "error";
+        } catch (Exception ex) { return "error"; }
         networkChanged=true;
         return "saved";
+    }
+    private String pairedKey() throws Exception {
+        String stored = prefs.getString("key", "");
+        if (stored.startsWith("vault1:"))
+            return DeviceVault.revealSecret(activity, "peer-link", stored);
+        // One-way migration preserves the existing Windows pairing identity and key.
+        if (stored.matches("[A-Za-z0-9_-]{43}")) {
+            String protectedKey = DeviceVault.protectSecret(activity, "peer-link", stored);
+            if (!prefs.edit().putString("key", protectedKey).commit())
+                throw new java.io.IOException("تعذر تأمين مفتاح الاقتران");
+            return stored;
+        }
+        throw new java.io.IOException("مفتاح الاقتران غير موجود");
     }
     @JavascriptInterface public String status(){
         if(!allowed())return "{}";
@@ -152,7 +170,7 @@ public final class MainPhonePeerSync {
         if(!allowed()||raw==null||raw.length()>9000000)return;
         if(!busy.compareAndSet(false,true)){sendReply("{\"ok\":false,\"error\":\"المزامنة قيد التنفيذ\"}");return;}
         io.execute(()->{try{
-            String host=prefs.getString("host","");int port=prefs.getInt("port",0);String keyText=prefs.getString("key","");
+            String host=prefs.getString("host","");int port=prefs.getInt("port",0);String keyText=pairedKey();
             if(!safeAddress(host)||port<1024||keyText.isEmpty())throw new Exception("اضبط الاتصال بالكمبيوتر أولاً");
             byte[] key=Base64.getUrlDecoder().decode(keyText);
             if(key.length!=32)throw new Exception("مفتاح الاقتران غير صحيح");

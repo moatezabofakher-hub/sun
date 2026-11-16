@@ -76,8 +76,10 @@ public final class AutoBackupManager {
                     !(data.opt("items") instanceof org.json.JSONArray) ||
                     !(data.opt("accounts") instanceof org.json.JSONArray))
                     throw new IOException("Incomplete accounting data");
+                // The private checkpoint is device-bound; user-exported recovery files stay portable.
+                byte[] sealed = DeviceVault.seal(app, "accounting-snapshot", bytes);
                 out = atomic.startWrite();
-                out.write(bytes);
+                out.write(sealed);
                 atomic.finishWrite(out);
                 prefs(app).edit().putLong("snapshotAt", System.currentTimeMillis())
                     .putLong("snapshotBytes", bytes.length).remove("snapshotError").apply();

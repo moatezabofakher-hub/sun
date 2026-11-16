@@ -210,6 +210,9 @@ public final class MainActivity extends FragmentActivity {
         root.setBackgroundColor(Color.WHITE);
         getWindow().setNavigationBarColor(Color.WHITE);
         webView = new WebView(this);
+        // Android WebView remote debugging exposes the ledger; never enable on release builds.
+        WebView.setWebContentsDebuggingEnabled(
+            (getApplicationInfo().flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0);
         FrameLayout.LayoutParams webParams = new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT);
         root.addView(webView, webParams);

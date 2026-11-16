@@ -55,7 +55,14 @@ public final class BackupWorker extends Worker {
             // AtomicFile avoids reading a partially written snapshot.
             AtomicFile atomic = new AtomicFile(AutoBackupManager.snapshotFile(context));
             byte[] bytes;
-            try (InputStream in = atomic.openRead()) { bytes = readLimited(in, 25_000_000); }
+            try (InputStream in = atomic.openRead()) { bytes = readLimited(in, 25_000_064); }
+            if (DeviceVault.isSealed(bytes)) {
+                // Restore the portable JSON only in memory. Never write a decrypted snapshot to disk.
+                bytes = DeviceVault.open(context, "accounting-snapshot", bytes);
+            } else if (bytes.length == 0 || bytes[0] != '{') {
+                // Fail closed on corrupted or unknown files; do not export gibberish.
+                throw new IOException("Unknown snapshot format");
+            }
             JSONObject payload = new JSONObject(new String(bytes, StandardCharsets.UTF_8));
             JSONObject data = payload.getJSONObject("data");
             if (!(data.opt("invoices") instanceof JSONArray) ||
