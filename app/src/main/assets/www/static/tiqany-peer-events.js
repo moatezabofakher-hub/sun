@@ -62,7 +62,9 @@ function records(before,after,source='computer'){
    }
  }
  const oldSettings=before?.sharedSettings||{},newSettings=after?.sharedSettings||{};
- for(const [key,label] of Object.entries(settingsLabels))if(stable(oldSettings[key])!==stable(newSettings[key])){
+ for(const key of new Set([...Object.keys(oldSettings),...Object.keys(newSettings)])){
+  const label=settingsLabels[key]||(key==='managerSecurity'?'الحماية وكلمة السر':key);
+  if(stable(oldSettings[key])===stable(newSettings[key]))continue;
    count++;if(changes.length<120)changes.push({id:eventKey(source,'settings',key,'تعديل',newSettings[key]),eventKey:eventKey(source,'settings',key,'تعديل',newSettings[key]),
      collection:'settings',recordId:key,type:'peer-operation',action:'تعديل',source,
      title:'تعديل إعدادات الشركة - '+label,detail:'تم تحديث '+label+' من الجهاز المقترن',target:null,targetId:null,at:new Date().toISOString(),read:false});
@@ -72,7 +74,7 @@ function records(before,after,source='computer'){
 function summarize(before,after){
  const result=records(before,after);const byKind=new Map();
  for(const entry of result.entries)byKind.set(entry.collection,(byKind.get(entry.collection)||0)+1);
- const parts=[...byKind].map(([k,n])=>k==='settings'?Object.keys(settingsLabels).filter(key=>stable(before?.sharedSettings?.[key])!==stable(after?.sharedSettings?.[key])).map(key=>settingsLabels[key]).join('، ') : (labels[k]||'الإعدادات')+' ('+n+')');
+ const parts=[...byKind].map(([k,n])=>k==='settings'?Array.from(new Set([...Object.keys(before?.sharedSettings||{}),...Object.keys(after?.sharedSettings||{})])).filter(key=>stable(before?.sharedSettings?.[key])!==stable(after?.sharedSettings?.[key])).map(key=>settingsLabels[key]||(key==='managerSecurity'?'الحماية وكلمة السر':key)).join('، ') : (labels[k]||'الإعدادات')+' ('+n+')');
  const only=result.count===1?result.entries[0]:null;
  return {count:result.count,changes:[...byKind].map(([type,count])=>({type,count})),
    target:only?.target||null,targetId:only?.targetId||null,action:only?.action||null,

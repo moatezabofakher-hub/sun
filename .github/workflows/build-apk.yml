@@ -3,7 +3,7 @@ name: Tiqany Acc - Main Signed Release
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, 'feat/manager-phone-pair-3.5.130']
 
 permissions:
   contents: read
@@ -57,6 +57,8 @@ jobs:
         run: node --test tests/release128-company-lifecycle.test.js
       - name: Verify first-link direction, complete settings and source-only protection
         run: node --test tests/peer-first-link-source-only-129.test.js tests/peer-first-phone-to-empty-desktop-35118.test.js
+      - name: Verify encrypted two-manager sync, paired settings and connection badges
+        run: node --test tests/release130-manager-two-phones.test.js
       - name: Build, sign, and verify app release APK
         shell: bash
         env:
@@ -90,14 +92,14 @@ jobs:
             exit 1
           fi
           mkdir -p output
-          cp "$apk" "output/Tiqany-Acc-Main-3.5.129-RELEASE.apk"
-          (cd output && sha256sum "Tiqany-Acc-Main-3.5.129-RELEASE.apk" > "Tiqany-Acc-Main-3.5.129-RELEASE.apk.sha256")
+          cp "$apk" "output/Tiqany-Acc-Main-3.5.130-RELEASE.apk"
+          (cd output && sha256sum "Tiqany-Acc-Main-3.5.130-RELEASE.apk" > "Tiqany-Acc-Main-3.5.130-RELEASE.apk.sha256")
       - name: Upload signed app APK and checksum
         uses: actions/upload-artifact@v4
         with:
-          name: Tiqany-Acc-Main-3.5.129-RELEASE
+          name: Tiqany-Acc-Main-3.5.130-RELEASE
           path: |
-            output/Tiqany-Acc-Main-3.5.129-RELEASE.apk
-            output/Tiqany-Acc-Main-3.5.129-RELEASE.apk.sha256
+            output/Tiqany-Acc-Main-3.5.130-RELEASE.apk
+            output/Tiqany-Acc-Main-3.5.130-RELEASE.apk.sha256
           if-no-files-found: error
           retention-days: 30
