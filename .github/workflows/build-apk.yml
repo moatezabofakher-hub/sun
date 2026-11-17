@@ -58,8 +58,11 @@ jobs:
       - name: Verify first-link direction, complete settings and source-only protection
         run: node --test tests/peer-first-link-source-only-129.test.js tests/peer-first-phone-to-empty-desktop-35118.test.js
       - name: Verify encrypted two-manager sync, paired settings and connection badges
-        run: node --test tests/release130-manager-two-phones.test.js
+        run: |
+          node --test tests/release130-manager-two-phones.test.js
           node --test tests/shareholders-integration-133.test.js
+          node --check app/src/main/assets/www/static/shareholders-integrated-133.js
+          node --check app/src/main/assets/www/static/settings-revision-clock-133.js
       - name: Build, sign, and verify app release APK
         shell: bash
         env:
