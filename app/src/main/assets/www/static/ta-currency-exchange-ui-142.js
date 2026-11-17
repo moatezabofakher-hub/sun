@@ -75,79 +75,120 @@ function input(id,title,required=true){
 }
 function newForm(editId=''){
  const old=editId?rows().find(x=>x.id===editId):null;
- if(editId&&(!old||old.agentId))return UI.toast('لا يمكن تعديل عملية موظف البيع المرحّلة من تطبيق المدير؛ يجب الحفاظ على سلامة المزامنة','warn');
- const available=currencies();
- if(available.length<2)return UI.toast('فعّل عملتين على الأقل من الإعدادات أولاً','warn');
+ if(editId&&(!old||old.agentId))return UI.toast('لا يمكن تعديل عملية موظف البيع المرحّلة من المدير','warn');
+ const active=currencies();
+ if(active.length<2)return UI.toast('فعّل عملتين أولاً','warn');
  UI.openModal('<div dir="rtl" class="text-right space-y-2">'+
  '<h3 class="text-lg font-black text-slate-900">'+(old?'تعديل عملية التصريف':'تصريف عملة')+'</h3>'+
  '<input type="hidden" id="taFxEditId" value="'+esc(old?.id||'')+'">'+
- '<p class="text-xs text-slate-600">تخرج القيمة من صندوق العملة المدفوعة وتدخل إلى صندوق العملة المشتراة في قيد واحد.</p>'+
- '<label class="block text-xs font-bold">العملة التي ندفع بها</label>'+choose(available,'taFxFrom')+
- '<label class="block text-xs font-bold">العملة التي نشتريها</label>'+choose(available,'taFxTo')+
- input('taFxSpent','المبلغ المدفوع')+input('taFxReceived','المبلغ المستلم')+
+ '<p class="text-xs text-slate-600">يمكن تغيير سعر شراء ومبيع العملة من هذه العملية. تتأثر العملية الحالية، ويُحفظ السعر الجديد للعمليات التالية بعد تأكيد الحفظ.</p>'+
+ '<label class="block text-xs font-bold">العملة التي ندفع بها</label>'+choose(active,'taFxFrom')+
+ '<label class="block text-xs font-bold">العملة التي نشتريها</label>'+choose(active,'taFxTo')+
+ input('taFxSpent','المبلغ المدفوع')+
+ '<div id="taFxRatePane" class="rounded-xl p-3 border border-indigo-200 bg-indigo-50 space-y-2" data-changed="0">'+
+ '<div id="taFxSellRateBlock"><label class="block text-xs font-bold" id="taFxSellRateLabel">سعر مبيع العملة المدفوعة مقابل الليرة</label>'+
+ '<input type="number" min="0.000001" step="any" id="taFxSellRate" inputmode="decimal" autocomplete="off" class="w-full border rounded-lg p-3"></div>'+
+ '<div id="taFxBuyRateBlock"><label class="block text-xs font-bold" id="taFxBuyRateLabel">سعر شراء العملة المستلمة مقابل الليرة</label>'+
+ '<input type="number" min="0.000001" step="any" id="taFxBuyRate" inputmode="decimal" autocomplete="off" class="w-full border rounded-lg p-3"></div></div>'+
+ input('taFxReceived','المبلغ المستلم')+
  '<p id="taFxQuoteHint" class="text-xs text-teal-800 bg-teal-50 p-2 rounded-lg"></p>'+
- '<div id="taFxSypEquiv">'+input('taFxEquivalent','القيمة المكافئة بالليرة السورية (للمحاسبة)')+'</div>'+
+ '<div id="taFxSypEquiv">'+input('taFxEquivalent','القيمة المكافئة بالليرة السورية')+'</div>'+
  '<label class="block text-xs font-bold">بيان (اختياري)</label><input id="taFxNote" maxlength="200" class="w-full border rounded-xl p-3">'+
  '<p id="taFxBalance" class="text-xs font-bold rounded-xl bg-sky-50 text-sky-900 p-3"></p>'+
  '<p id="taFxCostPreview" class="text-xs font-bold rounded-xl bg-emerald-50 text-emerald-900 p-3"></p>'+
  '<button type="button" class="ta-primary-3d w-full rounded-xl p-3 bg-emerald-700 text-white font-black" onclick="TiqanyFxUI.save()">'+(old?'حفظ تعديل التصريف':'حفظ عملية التصريف')+'</button>'+
  '<button type="button" class="w-full rounded-xl p-3 bg-slate-100" onclick="UI.forceCloseModal()">إلغاء</button></div>');
- const from=document.getElementById('taFxFrom'),to=document.getElementById('taFxTo');
- if(old){
-  from.value=old.fromCurrency;to.value=old.toCurrency;
-  document.getElementById('taFxSpent').value=old.fromAmount;
-  document.getElementById('taFxReceived').value=old.toAmount;
-  document.getElementById('taFxEquivalent').value=old.equivalentSyp;
-  document.getElementById('taFxNote').value=old.note||'';
- }else if(to&&to.options.length>1)to.selectedIndex=1;
-
- const receivedInput=document.getElementById('taFxReceived');
- const equivalentInput=document.getElementById('taFxEquivalent');
- const paidInput=document.getElementById('taFxSpent');
- const quoteHint=document.getElementById('taFxQuoteHint');
- const applyCurrentRates=()=>{
-  // Existing exchanges are not repriced on opening an edit dialog.
+ const el=id=>document.getElementById(id);
+ const from=el('taFxFrom'),to=el('taFxTo'),paid=el('taFxSpent');
+ const received=el('taFxReceived'),equivalent=el('taFxEquivalent');
+ const quoteHint=el('taFxQuoteHint'),ratePane=el('taFxRatePane');
+ const sellRate=el('taFxSellRate'),buyRate=el('taFxBuyRate');
+ const rateValue=(c,side)=>{
+  const stored=Number(exchangeRates()?.[c]?.[side]);
+  const prior=old?.fxRatesUsed||{};
+  if(old?.fromCurrency===c&&side==='sell'){
+   const recorded=Number(prior.fromSell);
+   if(recorded>0)return recorded;
+   if(old.toCurrency==='SYP')return old.equivalentSyp/old.fromAmount;
+  }
+  if(old?.toCurrency===c&&side==='buy'){
+   const recorded=Number(prior.toBuy);
+   if(recorded>0)return recorded;
+   if(old.fromCurrency==='SYP')return old.equivalentSyp/old.toAmount;
+  }
+  return stored>0?stored:'';
+ };
+ const refreshRateControls=()=>{
+  const c=from.value,d=to.value;
+  el('taFxSellRateBlock').hidden=c==='SYP';
+  el('taFxBuyRateBlock').hidden=d==='SYP';
+  el('taFxSellRateLabel').textContent='سعر مبيع '+c+' مقابل الليرة السورية';
+  el('taFxBuyRateLabel').textContent='سعر شراء '+d+' مقابل الليرة السورية';
+  sellRate.value=c==='SYP'?'':rateValue(c,'sell');
+  buyRate.value=d==='SYP'?'':rateValue(d,'buy');
+  ratePane.dataset.changed='0';
+ };
+ const effectiveRates=()=>{
+  const c=from.value,d=to.value,r={...exchangeRates()};
+  if(c!=='SYP'){
+   const n=Number(sellRate.value);
+   if(!(n>0&&Number.isFinite(n)))throw Error('سعر مبيع '+c+' غير صالح');
+   r[c]={...(r[c]||{}),sell:n};
+  }
+  if(d!=='SYP'){
+   const n=Number(buyRate.value);
+   if(!(n>0&&Number.isFinite(n)))throw Error('سعر شراء '+d+' غير صالح');
+   r[d]={...(r[d]||{}),buy:n};
+  }
+  return r;
+ };
+ const update=()=>{
+  const c=from.value,d=to.value;
+  el('taFxSypEquiv').hidden=c==='SYP'||d==='SYP';
+  const availableCash=cashAvailable(c)+(old?.fromCurrency===c?old.fromAmount:0)-(old?.toCurrency===c?old.toAmount:0);
+  el('taFxBalance').textContent='رصيد الصندوق المتاح بعد عكس العملية السابقة: '+fmt(availableCash,c);
+  const p=el('taFxCostPreview');
+  const fromAmount=Number(paid.value),toAmount=Number(received.value);
+  const equivalentSyp=c==='SYP'?fromAmount:d==='SYP'?toAmount:Number(equivalent.value);
+  if(!(fromAmount>0&&toAmount>0&&equivalentSyp>0)){p.textContent='أدخل المبالغ لعرض التكلفة والربح.';return;}
   try{
-   const paid=Number(paidInput.value),fromCurrency=from.value,toCurrency=to.value;
-   if(!(paid>0)||fromCurrency===toCurrency)throw Error('اختر عملتين وأدخل المبلغ المدفوع');
-   const q=E.quote(fromCurrency,toCurrency,paid,exchangeRates());
-   receivedInput.value=q.toAmount;
-   equivalentInput.value=q.equivalentSyp;
-   receivedInput.readOnly=true;equivalentInput.readOnly=true;
-   quoteHint.textContent='السعر المعتمد: '+fmt(paid,fromCurrency)+' = '+fmt(q.toAmount,toCurrency)+' وفق أسعار الشراء والمبيع المحفوظة.';
+   const id=old?.id||'fx_preview_00000000';
+   const preview=E.prepare({id,date:old?.date||new Date().toISOString(),fromCurrency:c,toCurrency:d,fromAmount,toAmount,equivalentSyp},active);
+   const candidate=old?rows().map(e=>e.id===id?preview:e):[...rows(),preview];
+   const result=E.analyze(candidate).byId.get(id);
+   p.textContent='المغطى: '+fmt(result.coveredAmount,c)+' | المعلّق: '+fmt(result.pendingAmount,c)+
+     ' | الربح الحالي: '+(result.gainSyp===null?'0 SYP (تكلفة مؤجلة)':fmt(result.gainSyp,'SYP'));
+  }catch(err){p.textContent='تعذّر حساب المعاينة: '+err.message;}
+ };
+ const quote=()=>{
+  try{
+   const q=E.quote(from.value,to.value,Number(paid.value),effectiveRates());
+   received.value=q.toAmount;equivalent.value=q.equivalentSyp;
+   received.readOnly=true;equivalent.readOnly=true;
+   quoteHint.textContent='السعر المعتمد للعملية: '+fmt(q.fromAmount,from.value)+' = '+fmt(q.toAmount,to.value);
   }catch(err){
-   receivedInput.readOnly=false;equivalentInput.readOnly=false;
-   quoteHint.textContent='لا يوجد سعر صرف مكتمل لهذه العملية. أدخل المبلغ المستلم يدوياً أو اضبط الأسعار من أيقونة سعر الصرف.';
+   received.readOnly=false;equivalent.readOnly=false;
+   quoteHint.textContent='أدخل سعر شراء/مبيع صالحاً لحساب المبالغ تلقائياً، أو أدخل المبلغ المستلم يدوياً.';
   }
   update();
  };
- const update=()=>{
-   const c=from.value,d=to.value;
-   document.getElementById('taFxSypEquiv').hidden=c==='SYP'||d==='SYP';
-   const availableCash=cashAvailable(c)+(old?.fromCurrency===c?old.fromAmount:0)-(old?.toCurrency===c?old.toAmount:0);
-   document.getElementById('taFxBalance').textContent='رصيد الصندوق المتاح بعد عكس العملية السابقة: '+fmt(availableCash,c);
-   const p=document.getElementById('taFxCostPreview');
-   const fromAmount=Number(document.getElementById('taFxSpent').value),toAmount=Number(document.getElementById('taFxReceived').value);
-   const equivalentSyp=c==='SYP'?fromAmount:d==='SYP'?toAmount:Number(document.getElementById('taFxEquivalent').value);
-   if(!(fromAmount>0&&toAmount>0&&equivalentSyp>0)){p.textContent='أدخل المبالغ لعرض تكلفة الجزء المتاح وأرباحه قبل الحفظ.';return;}
-   try{
-     const id=old?.id||'fx_preview_00000000';
-     const preview=E.prepare({id,date:old?.date||new Date().toISOString(),fromCurrency:c,toCurrency:d,fromAmount,toAmount,equivalentSyp},available);
-     const candidate=old?rows().map(e=>e.id===old.id?preview:e):[...rows(),preview];
-     const result=E.analyze(candidate).byId.get(id);
-     p.textContent='تكلفة الجزء المباع: '+(result.costOfSoldSyp===null?'غير معروفة':fmt(result.costOfSoldSyp,'SYP'))+
-       ' | المغطى: '+fmt(result.coveredAmount,c)+
-       ' | بلا تكلفة: '+fmt(result.uncoveredAmount,c)+
-       ' | المعلق حالياً: '+fmt(result.pendingAmount,c)+' | أرباح محسوبة: '+(result.gainSyp===null?'0 SYP (تكلفة مؤجلة)':fmt(result.gainSyp,'SYP'));
-   }catch(err){p.textContent='تعذّر حساب المعاينة: '+err.message;}
- };
- for(const el of [from,to])el.addEventListener('change',applyCurrentRates);
- paidInput.addEventListener('input',applyCurrentRates);
- receivedInput.addEventListener('input',update);
- equivalentInput.addEventListener('input',update);
- if(old){quoteHint.textContent='تُحفظ أسعار العملية السابقة كما هي حتى تغيّر العملة أو المبلغ المدفوع.';update();}
- else applyCurrentRates();
+ from.addEventListener('change',()=>{refreshRateControls();quote();});
+ to.addEventListener('change',()=>{refreshRateControls();quote();});
+ paid.addEventListener('input',quote);
+ for(const rate of [sellRate,buyRate])rate.addEventListener('input',()=>{ratePane.dataset.changed='1';quote();});
+ received.addEventListener('input',update);equivalent.addEventListener('input',update);
+ if(old){
+  from.value=old.fromCurrency;to.value=old.toCurrency;
+  paid.value=old.fromAmount;received.value=old.toAmount;equivalent.value=old.equivalentSyp;
+  el('taFxNote').value=old.note||'';
+ }else if(to.options.length>1)to.selectedIndex=1;
+ refreshRateControls();
+ if(old){
+  quoteHint.textContent='أسعار العملية السابقة محفوظة؛ تعديل السعر هنا يعيد حساب العملية فقط بعد الحفظ.';
+  update();
+ }else quote();
 }
+
 let saving=false;
 async function save(){
  if(saving)return;
@@ -162,6 +203,24 @@ async function save(){
   const id=old?.id||'fx_'+(typeof FieldProtocol!=='undefined'?FieldProtocol.uuid():crypto.randomUUID().replace(/-/g,''));
   const e=E.prepare({id,fromCurrency,toCurrency,fromAmount,toAmount,equivalentSyp,
     date:old?.date||new Date().toISOString(),agentId:'',source:old?.source||'manager',note:val('taFxNote')||''},currencies());
+  const ratesBefore=exchangeRates(),newRates={...ratesBefore};
+  const rateChanged=document.getElementById('taFxRatePane')?.dataset.changed==='1';
+  const sellRate=fromCurrency==='SYP'?null:Number(val('taFxSellRate'));
+  const buyRate=toCurrency==='SYP'?null:Number(val('taFxBuyRate'));
+  if(rateChanged){
+   if(fromCurrency!=='SYP'&&!(Number.isFinite(sellRate)&&sellRate>0&&sellRate<1e12))
+    throw Error('سعر المبيع غير صالح');
+   if(toCurrency!=='SYP'&&!(Number.isFinite(buyRate)&&buyRate>0&&buyRate<1e12))
+    throw Error('سعر الشراء غير صالح');
+   const changed={...ratesBefore};
+   if(fromCurrency!=='SYP')changed[fromCurrency]={...(changed[fromCurrency]||{}),sell:sellRate};
+   if(toCurrency!=='SYP')changed[toCurrency]={...(changed[toCurrency]||{}),buy:buyRate};
+   const quote=E.quote(fromCurrency,toCurrency,fromAmount,changed);
+   if(Math.abs(quote.toAmount-toAmount)>1/E.scale(toCurrency)+1e-6||Math.abs(quote.equivalentSyp-equivalentSyp)>1)
+    throw Error('المبالغ لا تطابق سعر الصرف المعدل');
+   Object.assign(newRates,changed);
+  }
+  e.fxRatesUsed={fromSell:sellRate>0?sellRate:null,toBuy:buyRate>0?buyRate:null};
   if(!old&&rows().some(x=>x.id===e.id))throw Error('العملية مكررة');
   // Reverse the previous legs before applying edited legs, atomically.
   // Validate ALL impacted currencies, not just the newly-paid currency.
@@ -174,8 +233,9 @@ async function save(){
   const candidate=old?previous.map(x=>x.id===old.id?e:x):[...previous,e];
   E.analyze(candidate);
   saving=true;State.currencyExchanges=candidate;
+  if(rateChanged)State.settings.currencyExchangeRatesSyp=newRates;
   try{await StorageEngine.saveState();}
-  catch(err){State.currencyExchanges=previous;throw err;}
+  catch(err){State.currencyExchanges=previous;if(rateChanged)State.settings.currencyExchangeRatesSyp=ratesBefore;throw err;}
   UI.toast(old?'تم تحديث التصريف وأرصدة الصناديق والأرباح':'تم حفظ التصريف في الصندوقين','success');
   if(old)list();else UI.forceCloseModal();
   AppNav.renderCurrent();
@@ -240,8 +300,8 @@ function list(){
 const oldDash=Views.renderDashboard;
 if(typeof oldDash==='function')Views.renderDashboard=function(main,...args){
  const result=oldDash.call(this,main,...args),grid=main.querySelector('.ta-action-grid');
- if(grid)grid.insertAdjacentHTML('beforeend','<button type="button" class="ta-action-card ta-quick-exchange" onclick="TiqanyFxUI.newForm()" style="background:linear-gradient(135deg,#e0f7ff,#bcf7d2);border:2px solid #28a682"><span class="ta-icon-box ta-tone-teal"><i class="fas fa-dollar-sign"></i><i class="fas fa-euro-sign"></i></span><span class="ta-card-footer"><strong>تصريف عملة</strong></span></button>');
- if(grid)grid.insertAdjacentHTML('beforeend','<button type="button" class="ta-action-card ta-quick-fx-rates" onclick="TiqanyFxUI.ratesForm()" style="background:linear-gradient(135deg,#e0edff,#d5e5ff);border:2px solid #507cdb"><span class="ta-icon-box ta-tone-blue"><i class="fas fa-money-bill-trend-up"></i></span><span class="ta-card-footer"><strong>سعر الصرف</strong></span></button>');
+ if(grid)grid.insertAdjacentHTML('beforeend','<button type="button" class="ta-action-card ta-quick-exchange" onclick="TiqanyFxUI.newForm()" style="background:linear-gradient(135deg,#e0f7ff,#bcf7d2);border:2px solid #28a682"><span class="ta-icon-box ta-tone-teal"><img src="static/ta-fx-exchange-146.svg" alt="" width="70" height="70" style="width:70px;height:70px;max-width:100%;object-fit:contain;filter:drop-shadow(0 3px 3px #12496255)" /></span><span class="ta-card-footer"><strong>تصريف عملة</strong></span></button>');
+ if(grid)grid.insertAdjacentHTML('beforeend','<button type="button" class="ta-action-card ta-quick-fx-rates" onclick="TiqanyFxUI.ratesForm()" style="background:linear-gradient(135deg,#e0edff,#d5e5ff);border:2px solid #507cdb"><span class="ta-icon-box ta-tone-blue"><img src="static/ta-fx-rates-146.svg" alt="" width="70" height="70" style="width:70px;height:70px;max-width:100%;object-fit:contain;filter:drop-shadow(0 3px 3px #294d8355)" /></span><span class="ta-card-footer"><strong>سعر الصرف</strong></span></button>');
  return result;
 };
 const oldList=Views.renderInvoicesList;
