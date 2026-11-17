@@ -3,7 +3,7 @@ name: Tiqany Acc - Agent Signed Release
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, 'feat/currency-exchange-142']
     paths:
       - 'field_agent/**'
       - 'tests/release138-no-outside-dismiss.test.js'
@@ -53,6 +53,12 @@ jobs:
         run: node --test tests/release139-no-autokeyboard.test.js
       - name: Verify step-by-step employee Back and page scroll
         run: node --test tests/release140-navigation-profit.test.js
+      - name: Verify employee currency exchange and cashbox
+        run: |
+          node --test tests/currency-exchange-142.test.cjs
+          node --check field_agent/src/main/assets/www/static/ta-currency-exchange-agent-142.js
+          node --check field_agent/src/main/assets/www/static/agent-cash-history.js
+          node --check field_agent/src/main/assets/www/static/field-protocol.js
       - name: Build, sign, and verify field_agent release APK
         shell: bash
         env:
@@ -86,14 +92,14 @@ jobs:
             exit 1
           fi
           mkdir -p output
-          cp "$apk" "output/Tiqany-Acc-Agent-3.5.140-RELEASE.apk"
-          (cd output && sha256sum "Tiqany-Acc-Agent-3.5.140-RELEASE.apk" > "Tiqany-Acc-Agent-3.5.140-RELEASE.apk.sha256")
+          cp "$apk" "output/Tiqany-Acc-Agent-3.5.142-RELEASE.apk"
+          (cd output && sha256sum "Tiqany-Acc-Agent-3.5.142-RELEASE.apk" > "Tiqany-Acc-Agent-3.5.142-RELEASE.apk.sha256")
       - name: Upload signed field_agent APK and checksum
         uses: actions/upload-artifact@v4
         with:
-          name: Tiqany-Acc-Agent-3.5.140-RELEASE
+          name: Tiqany-Acc-Agent-3.5.142-RELEASE
           path: |
-            output/Tiqany-Acc-Agent-3.5.140-RELEASE.apk
-            output/Tiqany-Acc-Agent-3.5.140-RELEASE.apk.sha256
+            output/Tiqany-Acc-Agent-3.5.142-RELEASE.apk
+            output/Tiqany-Acc-Agent-3.5.142-RELEASE.apk.sha256
           if-no-files-found: error
           retention-days: 30
