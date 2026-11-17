@@ -1615,7 +1615,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
             transfers: [],
             expenses: [],
             capitalMovements: [],
-            shareholderOwners: [], shareholderMovements: [],
+            shareholderOwners: [], shareholderMovements: [], currencyExchanges: [],
             fieldSync: {companyId:'',agents:[],imported:[],events:[]},
             alertCenter: { entries: [], seenImportIds: null, stockLevels: null }
         };
@@ -1739,6 +1739,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                             State.capitalMovements = Array.isArray(d.capitalMovements) ? d.capitalMovements : [];
                             State.shareholderOwners = Array.isArray(d.shareholderOwners) ? d.shareholderOwners : [];
                             State.shareholderMovements = Array.isArray(d.shareholderMovements) ? d.shareholderMovements : [];
+                            State.currencyExchanges = Array.isArray(d.currencyExchanges) ? d.currencyExchanges : [];
                             State.alertCenter = d.alertCenter || {entries:[],seenImportIds:null,stockLevels:null};
                             if (!State.warehouses.some(w => w.id === State.settings.selectedWarehouseId))
                                 State.settings.selectedWarehouseId = 'wh_main';
@@ -1785,6 +1786,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                             capitalMovements: State.capitalMovements,
                             shareholderOwners: State.shareholderOwners,
                             shareholderMovements: State.shareholderMovements,
+                            currencyExchanges: State.currencyExchanges,
                             alertCenter: State.alertCenter
                         }
                     });
@@ -1815,7 +1817,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 State.transfers = [];
                 State.expenses = [];
                 State.capitalMovements = [];
-                State.shareholderOwners = []; State.shareholderMovements = [];
+                State.shareholderOwners = []; State.shareholderMovements = []; State.currencyExchanges = [];
                 State.settings.shareholderDistribution = {values:{}};
                 State.alertCenter = {entries:[],seenImportIds:null,stockLevels:null};
                 State.settings.selectedWarehouseId = 'wh_main';
@@ -10823,5 +10825,6 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
 <script defer src="static/ta-date-view-35107.js"></script>
 <script src="static/company-lifecycle-128.js"></script>
 <script src="static/ta-settings-order-security-138.js"></script>
+<script defer src="static/ta-currency-exchange-core-142.js"></script><script defer src="static/ta-currency-exchange-ui-142.js"></script>
 </body>
 </html>
