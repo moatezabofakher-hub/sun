@@ -73,6 +73,10 @@ jobs:
         run: node --test tests/release139-no-autokeyboard.test.js
       - name: Verify opening at top, stepwise Back and visible profits
         run: node --test tests/release140-navigation-profit.test.js
+      - name: Verify restored protected shareholder edit, Back, and account persistence
+        run: |
+          node --test tests/release141-shareholder-edit-back.test.js
+          node --test tests/shareholders-integration-133.test.js
       - name: Build, sign, and verify app release APK
         shell: bash
         env:
@@ -113,14 +117,14 @@ jobs:
             exit 1
           fi
           mkdir -p output
-          cp "$apk" "output/Tiqany-Acc-Main-3.5.140-RELEASE.apk"
-          (cd output && sha256sum "Tiqany-Acc-Main-3.5.140-RELEASE.apk" > "Tiqany-Acc-Main-3.5.140-RELEASE.apk.sha256")
+          cp "$apk" "output/Tiqany-Acc-Main-3.5.141-RELEASE.apk"
+          (cd output && sha256sum "Tiqany-Acc-Main-3.5.141-RELEASE.apk" > "Tiqany-Acc-Main-3.5.141-RELEASE.apk.sha256")
       - name: Upload signed app APK and checksum
         uses: actions/upload-artifact@v4
         with:
-          name: Tiqany-Acc-Main-3.5.140-RELEASE
+          name: Tiqany-Acc-Main-3.5.141-RELEASE
           path: |
-            output/Tiqany-Acc-Main-3.5.140-RELEASE.apk
-            output/Tiqany-Acc-Main-3.5.140-RELEASE.apk.sha256
+            output/Tiqany-Acc-Main-3.5.141-RELEASE.apk
+            output/Tiqany-Acc-Main-3.5.141-RELEASE.apk.sha256
           if-no-files-found: error
           retention-days: 30
