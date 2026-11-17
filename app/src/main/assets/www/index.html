@@ -3134,6 +3134,12 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
 
             navigate(screen, params = {}, replace = false) {
                 const executeNavigation = () => {
+                    const before=this.current();
+                    const enteringDifferentView=before.screen!==screen ||
+                        String(before.params?.id||'')!==String(params?.id||'') ||
+                        String(before.params?.action||'')!==String(params?.action||'') ||
+                        String(before.params?.tab||'')!==String(params?.tab||'');
+                    if(enteringDifferentView)this._resetScrollOnNextRender=true;
                     if (this.current().screen === 'settings' && screen !== 'settings') {
                         SettingsController.closeAllSections();
                     }
@@ -3225,11 +3231,20 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                     return;
                 }
 
+                // The physical Android Back button dismisses the topmost popup first.
+                for(const popupId of ['itmCurrencyPopup','soloDefaultCurrencyPopup']){
+                    const popup=document.getElementById(popupId);
+                    if(popup){popup.remove();return;}
+                }
                 const modal = document.getElementById('modalContainer');
                 if (!modal.classList.contains('hidden')) {
                     UI.requestCloseModal();
                     return;
                 }
+
+                // Close one expanded native menu per Back press before leaving its page.
+                const openDetails=Array.from(document.querySelectorAll('#mainContent details[open]'));
+                if(openDetails.length){openDetails[openDetails.length-1].open=false;return;}
 
                 // An open stock transfer is a sub-editor. Back must never leave it
                 // silently; closeTransferForm asks before discarding selected items.
@@ -3295,13 +3310,13 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                     return;
                 }
 
-                if (['invoices_list','items','accounts','reports','settings','notifications'].includes(this.current().screen)) {
-                    this.stack = [{ screen: 'dashboard', params: {} }];
-                    this.renderCurrent();
-                } else if (this.stack.length > 1) {
+                // The stack represents nested screens. Pop one level at a time;
+                // when the section's root is reached, return straight to dashboard.
+                if (this.stack.length > 1) {
                     this.popScreen();
                 } else {
                     this.stack = [{ screen: 'dashboard', params: {} }];
+                    this._resetScrollOnNextRender=true;
                     this.renderCurrent();
                 }
             },
@@ -3313,6 +3328,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 } else {
                     this.stack = [{ screen: 'dashboard', params: {} }];
                 }
+                this._resetScrollOnNextRender=true;
                 this.renderCurrent();
             },
 
@@ -3325,7 +3341,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 // queued <details> toggle event has updated expandedSections.
                 // Remember the live panel and its scroll position, rather than
                 // treating a notification as navigation away from the settings form.
-                const settingsView = screen === 'settings'
+                const settingsView = screen === 'settings' && !this._resetScrollOnNextRender
                     ? SettingsController.captureVisibleSettingsView() : null;
                 const backBtn = document.getElementById('headerBackBtn');
                 const backIcon = document.getElementById('headerBackIcon');
@@ -3370,7 +3386,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                     }
                 });
 
-                if (!settingsView) window.scrollTo({ top: 0, behavior: 'instant' });
+                // Preserve position on in-place updates; reset only on page navigation.
                 try {
                     Views.render(screen, params);
                     if (settingsView) SettingsController.restoreVisibleSettingsView(settingsView);
@@ -3380,6 +3396,20 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                     const main = document.getElementById('mainContent');
                     if (main) {
                         main.innerHTML = `<div class="m-3 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-right"><div class="font-bold text-rose-700 mb-2">تعذر عرض هذه الصفحة</div><div class="text-xs text-rose-600">حدث خطأ أثناء تجهيز التقرير. ارجع خطوة ثم حاول مرة أخرى.</div><button type="button" onclick="AppNav.navigate('reports',{tab:'pnl',view:'invoices'},true)" class="mt-3 rounded-xl bg-rose-600 px-4 py-2 text-white text-sm font-bold">إعادة فتح تقرير الأرباح</button></div>`;
+                    }
+                } finally {
+                    const shouldReset=!!this._resetScrollOnNextRender;
+                    this._resetScrollOnNextRender=false;
+                    if(shouldReset){
+                        const resetPageScroll=()=>{
+                            const main=document.getElementById('mainContent');
+                            if(main)main.scrollTop=0;
+                            const scrolling=document.scrollingElement;
+                            if(scrolling)scrolling.scrollTop=0;
+                            window.scrollTo({top:0,behavior:'instant'});
+                        };
+                        resetPageScroll();
+                        requestAnimationFrame(resetPageScroll);
                     }
                 }
             }
@@ -5809,7 +5839,8 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 const inventoryWarehouseId = params.warehouseId || State.settings.selectedWarehouseId || 'wh_main';
                 const inventoryValuationCurrency = ['SYP', 'USD'].includes(State.settings.inventoryValuationCurrency) ? State.settings.inventoryValuationCurrency : 'SYP';
                 const inventoryValuation = tab === 'inventory' ? InventoryValuation.calculate(inventoryWarehouseId, inventoryValuationCurrency) : null;
-                const revealProfits = params.reveal === true || params.reveal === 'true';
+                // Profit figures are always displayed in manager-authorized reports.
+                const revealProfits = true;
                 const asLocalDate = d => { const x = new Date(d.getTime() - d.getTimezoneOffset() * 60000); return x.toISOString().slice(0, 10); };
                 const today = asLocalDate(new Date());
                 const yesterdayDate = new Date(); yesterdayDate.setDate(yesterdayDate.getDate() - 1);
@@ -5957,10 +5988,6 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                         <div class="bg-white border border-slate-200 rounded-2xl p-3 mb-3 space-y-3">
                             <div class="flex items-center justify-between gap-2">
                                 <div class="font-extrabold text-sm">فترة تقرير الأرباح</div>
-                                <button type="button" onclick="AppNav.navigate('reports',{tab:'pnl',period:'${period}',date:'${selectedDate}',end:'${endDate}',agentId:${agentArg},view:'${profitView}',reveal:${!revealProfits}},true)" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-extrabold ${revealProfits ? 'bg-slate-100 text-slate-800 border border-slate-200' : 'bg-emerald-600 text-white'}" title="${revealProfits ? 'إخفاء الأرباح' : 'إظهار الأرباح'}" aria-label="${revealProfits ? 'إخفاء الأرباح' : 'إظهار الأرباح'}">
-                                    <i class="fas ${revealProfits ? 'fa-eye-slash' : 'fa-eye'}"></i>
-                                    <span>${revealProfits ? 'إخفاء الأرباح' : 'إظهار الأرباح'}</span>
-                                </button>
                             </div>
                             <div class="grid grid-cols-4 gap-1.5 text-xs">
                                 <button onclick="AppNav.navigate('reports',{tab:'pnl',period:'today',agentId:${agentArg},view:'${profitView}',reveal:${revealProfits}},true)" class="py-2 rounded-lg ${period==='today'?'bg-emerald-600 text-white':'bg-slate-100'}">اليوم</button>
