@@ -314,10 +314,17 @@ const oldReport=Views.renderReports;
 if(typeof oldReport==='function')Views.renderReports=function(main,params,...args){
  const result=oldReport.call(this,main,params,...args);
  const netBoxes=baseCash?.summary?.('all')||{sypCash:0,usdCash:0,otherCurrencies:{}};
- const extra=Object.entries(netBoxes.otherCurrencies||{}).filter(([code])=>!['USD','SYP'].includes(code)).map(([code,n])=>fmt(n,code)).join(' · ');
- main.insertAdjacentHTML('afterbegin','<div class="space-y-2 mb-3">'+
-  CapitalLedger.card()+
-  '<button type="button" onclick="AppNav.navigate(\'reports\',{tab:\'cashbox\'},true)" class="w-full p-3 rounded-xl border bg-slate-900 text-white font-black text-right"><i class="fas fa-landmark ml-2"></i> صافي الصناديق <span class="block text-xs font-medium mt-2">'+fmt(netBoxes.sypCash,'SYP')+' · '+fmt(netBoxes.usdCash,'USD')+(extra?' · '+esc(extra):'')+'</span></button></div>');
+ const balances=netBoxes.otherCurrencies||{};
+ const tradedCodes=currencies().filter(c=>c!=='SYP'&&c!=='USD'&&
+   rows().some(e=>e.fromCurrency===c||e.toCurrency===c));
+ const cards=['SYP','USD',...new Set(tradedCodes)].map((code,index)=>{
+   const label=code==='SYP'?'الرصيد ل.س':code==='USD'?'الرصيد دولار':'رصيد '+code;
+   const value=code==='SYP'?netBoxes.sypCash:code==='USD'?netBoxes.usdCash:balances[code];
+   const background=index===0?'bg-emerald-700':index===1?'bg-slate-900':'bg-blue-900';
+   return '<div class="'+background+' text-white p-3 rounded-2xl"><span class="block text-xs font-bold mb-1">'+esc(label)+'</span><strong class="block text-base sm:text-lg font-extrabold" dir="auto">'+esc(fmt(value||0,code))+'</strong></div>';
+ }).join('');
+ main.insertAdjacentHTML('afterbegin','<div class="space-y-2 mb-3">'+CapitalLedger.card()+
+   '<div class="grid grid-cols-2 gap-2.5">'+cards+'</div></div>');
 
  if((params?.tab||'cashbox')==='pnl'){
    // Realized profit is computed from persisted FX events, including deferred
