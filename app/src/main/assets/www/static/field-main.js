@@ -255,6 +255,7 @@ const FieldSync = {
         }):[],
       knownIds:known,
       // A cashbox is a separate physical till, not a customer's receivable.
+      enabledCurrencies:(typeof TiqanyFxLedger!=='undefined'?TiqanyFxLedger.activeCurrencies(State):['USD','SYP']),
       agentCash:(typeof FieldCash!=='undefined'?((x)=>({sypCash:x.sypCash,usdCash:x.usdCash}))(FieldCash.summary(a.id)):{sypCash:0,usdCash:0}),
       cashTransfers:config.cashTransfers.filter(x=>x.agentId===a.id),
       warehouseTransfers:[],
