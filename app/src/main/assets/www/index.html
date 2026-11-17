@@ -5923,7 +5923,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                         ? Number(exp.exchangeRate) : (Number(State.settings.exchangeRate) || 1);
                     return total + (exp.currency === 'USD' ? amount : amount / originalRate);
                 }, 0);
-                const fxProfitUsd = typeof TiqanyFxLedger!=='undefined' ? TiqanyFxLedger.profit(State,t=>TimeFilter.matches(t.date,period,selectedDate,endDate)) : 0;
+                const fxProfitUsd = typeof TiqanyFxLedger!=='undefined' ? TiqanyFxLedger.profit(State,t=>TimeFilter.matches(t.date,period,selectedDate,endDate)&&ReportAgentFilter.matches(t,agentId)) : 0;
                 const netProfitUsd = estimatedProfitUsd - expenseTotalUsd + fxProfitUsd;
                 // Equity distributions are reported separately, never as operating expenses.
                 const shareholderDrawsInPeriod=(Array.isArray(State.shareholderMovements)?State.shareholderMovements:[])
