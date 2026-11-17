@@ -108,7 +108,7 @@ test('populated Windows is read-only during its first link to empty phone',async
  assert.equal(core.canonical(core.snapshot(h.State)),sourceBefore);
  assert.equal(h.windowsCalls.includes('save'),false);
 });
-test('new empty phone receives desktop's operations, company identity and all portable settings',async()=>{
+test('new empty phone receives desktop operations, company identity and all portable settings',async()=>{
  const src=harness({desktop:true,filled:true,uid:UID_PC});
  const p=await src.peer.firstLinkProvision(UID_PC),snap=core.snapshot(src.State);
  const h=harness({desktop:false,filled:false,uid:UID_PHONE});
