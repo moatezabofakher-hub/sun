@@ -1,7 +1,7 @@
 /* Tiqany Acc employee currency exchange v142: signed append-only operation. */
 (function(){
 'use strict';
-const A=window.Agent, E=window.TiqanyCurrencyExchangeCore;
+const A=typeof Agent!=='undefined'?Agent:window.Agent, E=window.TiqanyCurrencyExchangeCore;
 if(!A||!E)return;
 const esc=v=>A.escape(String(v??''));
 const allowed=()=>[...new Set((Array.isArray(A.state?.allowedCurrencies)?A.state.allowedCurrencies:['USD','SYP']).filter(v=>/^[A-Z]{3}$/.test(v)))];
