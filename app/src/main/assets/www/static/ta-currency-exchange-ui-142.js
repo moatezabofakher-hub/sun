@@ -11,6 +11,44 @@ const currencies=()=>{
   const extra=(State.settings.addedCurrencies||[]).map(c=>String(c.code||'').toUpperCase()).filter(c=>/^[A-Z]{3}$/.test(c));
   return [...new Set([...standard,...extra])];
 };
+
+const exchangeRates=()=>State.settings?.currencyExchangeRatesSyp||{};
+function ratesForm(){
+ const list=currencies().filter(c=>c!=='SYP');
+ if(!list.length)return UI.toast('فعّل عملة أجنبية أولاً','warn');
+ const current=exchangeRates();
+ const cards=list.map(c=>'<div class="rounded-xl bg-white border border-sky-200 p-3">'+
+  '<h4 class="font-black text-slate-900">'+esc(c)+' مقابل الليرة السورية</h4>'+
+  '<label class="block text-xs font-bold mt-2">سعر الشراء (الليرات المدفوعة لشراء وحدة '+esc(c)+')</label>'+
+  '<input id="taFxRateBuy_'+c+'" type="number" min="0" step="any" inputmode="decimal" autocomplete="off" class="w-full border rounded-lg p-2" placeholder="سعر الشراء" value="'+esc(current[c]?.buy??'')+'">'+
+  '<label class="block text-xs font-bold mt-2">سعر المبيع (الليرات المقبوضة عند بيع وحدة '+esc(c)+')</label>'+
+  '<input id="taFxRateSell_'+c+'" type="number" min="0" step="any" inputmode="decimal" autocomplete="off" class="w-full border rounded-lg p-2" placeholder="سعر المبيع" value="'+esc(current[c]?.sell??'')+'"></div>').join('');
+ UI.openModal('<div dir="rtl" class="text-right space-y-3"><h3 class="text-lg font-black">سعر الصرف</h3>'+
+  '<p class="text-xs text-slate-600">سعر شراء ومبيع كل عملة مقابل الليرة السورية. تُطبق الأسعار عند إنشاء تصريف جديد، وتبقى العمليات السابقة بقيمها المحفوظة.</p>'+
+  '<div class="max-h-[55vh] overflow-y-auto space-y-2">'+cards+'</div>'+
+  '<button type="button" class="ta-primary-3d w-full rounded-xl p-3 bg-emerald-700 text-white font-black" onclick="TiqanyFxUI.saveRates()">حفظ أسعار الصرف</button>'+
+  '<button type="button" class="w-full rounded-xl p-3 bg-slate-100" onclick="UI.forceCloseModal()">إلغاء</button></div>');
+}
+async function saveRates(){
+ const existing=exchangeRates(),next={...existing};let count=0;
+ try{
+  for(const c of currencies().filter(c=>c!=='SYP')){
+   const buyText=document.getElementById('taFxRateBuy_'+c)?.value.trim()||'';
+   const sellText=document.getElementById('taFxRateSell_'+c)?.value.trim()||'';
+   if(!buyText&&!sellText){delete next[c];continue;}
+   const buy=Number(buyText),sell=Number(sellText);
+   if(!(Number.isFinite(buy)&&buy>0&&Number.isFinite(sell)&&sell>0&&buy<1e12&&sell<1e12))
+     throw Error('أدخل سعر شراء ومبيع صالحين للعملة '+c);
+   next[c]={buy,sell};count++;
+  }
+  if(!count)throw Error('أدخل أسعار عملة واحدة على الأقل');
+  State.settings.currencyExchangeRatesSyp=next;
+  try{await StorageEngine.saveState();}
+  catch(err){State.settings.currencyExchangeRatesSyp=existing;throw err;}
+  UI.toast('تم حفظ أسعار الشراء والمبيع','success');UI.forceCloseModal();
+ }catch(err){UI.toast('تعذر حفظ سعر الصرف: '+err.message,'error');}
+}
+
 const baseCash=typeof FieldCash!=='undefined'?FieldCash:(typeof SoloCashbox!=='undefined'?SoloCashbox:(window.FieldCash||window.SoloCashbox));
 let rawSummary=null;
 if(baseCash&&typeof baseCash.summary==='function'){
@@ -47,6 +85,7 @@ function newForm(editId=''){
  '<label class="block text-xs font-bold">العملة التي ندفع بها</label>'+choose(available,'taFxFrom')+
  '<label class="block text-xs font-bold">العملة التي نشتريها</label>'+choose(available,'taFxTo')+
  input('taFxSpent','المبلغ المدفوع')+input('taFxReceived','المبلغ المستلم')+
+ '<p id="taFxQuoteHint" class="text-xs text-teal-800 bg-teal-50 p-2 rounded-lg"></p>'+
  '<div id="taFxSypEquiv">'+input('taFxEquivalent','القيمة المكافئة بالليرة السورية (للمحاسبة)')+'</div>'+
  '<label class="block text-xs font-bold">بيان (اختياري)</label><input id="taFxNote" maxlength="200" class="w-full border rounded-xl p-3">'+
  '<p id="taFxBalance" class="text-xs font-bold rounded-xl bg-sky-50 text-sky-900 p-3"></p>'+
@@ -61,6 +100,27 @@ function newForm(editId=''){
   document.getElementById('taFxEquivalent').value=old.equivalentSyp;
   document.getElementById('taFxNote').value=old.note||'';
  }else if(to&&to.options.length>1)to.selectedIndex=1;
+
+ const receivedInput=document.getElementById('taFxReceived');
+ const equivalentInput=document.getElementById('taFxEquivalent');
+ const paidInput=document.getElementById('taFxSpent');
+ const quoteHint=document.getElementById('taFxQuoteHint');
+ const applyCurrentRates=()=>{
+  // Existing exchanges are not repriced on opening an edit dialog.
+  try{
+   const paid=Number(paidInput.value),fromCurrency=from.value,toCurrency=to.value;
+   if(!(paid>0)||fromCurrency===toCurrency)throw Error('اختر عملتين وأدخل المبلغ المدفوع');
+   const q=E.quote(fromCurrency,toCurrency,paid,exchangeRates());
+   receivedInput.value=q.toAmount;
+   equivalentInput.value=q.equivalentSyp;
+   receivedInput.readOnly=true;equivalentInput.readOnly=true;
+   quoteHint.textContent='السعر المعتمد: '+fmt(paid,fromCurrency)+' = '+fmt(q.toAmount,toCurrency)+' وفق أسعار الشراء والمبيع المحفوظة.';
+  }catch(err){
+   receivedInput.readOnly=false;equivalentInput.readOnly=false;
+   quoteHint.textContent='لا يوجد سعر صرف مكتمل لهذه العملية. أدخل المبلغ المستلم يدوياً أو اضبط الأسعار من أيقونة سعر الصرف.';
+  }
+  update();
+ };
  const update=()=>{
    const c=from.value,d=to.value;
    document.getElementById('taFxSypEquiv').hidden=c==='SYP'||d==='SYP';
@@ -78,13 +138,15 @@ function newForm(editId=''){
      p.textContent='تكلفة الجزء المباع: '+(result.costOfSoldSyp===null?'غير معروفة':fmt(result.costOfSoldSyp,'SYP'))+
        ' | المغطى: '+fmt(result.coveredAmount,c)+
        ' | بلا تكلفة: '+fmt(result.uncoveredAmount,c)+
-       ' | أرباح محسوبة: '+(result.gainSyp===null?'لا يوجد رصيد ذو تكلفة معروفة':fmt(result.gainSyp,'SYP'));
+       ' | المعلق حالياً: '+fmt(result.pendingAmount,c)+' | أرباح محسوبة: '+(result.gainSyp===null?'0 SYP (تكلفة مؤجلة)':fmt(result.gainSyp,'SYP'));
    }catch(err){p.textContent='تعذّر حساب المعاينة: '+err.message;}
  };
- for(const el of [from,to])el.addEventListener('change',update);
- for(const id of ['taFxSpent','taFxReceived','taFxEquivalent'])
-  document.getElementById(id)?.addEventListener('input',update);
- update();
+ for(const el of [from,to])el.addEventListener('change',applyCurrentRates);
+ paidInput.addEventListener('input',applyCurrentRates);
+ receivedInput.addEventListener('input',update);
+ equivalentInput.addEventListener('input',update);
+ if(old){quoteHint.textContent='تُحفظ أسعار العملية السابقة كما هي حتى تغيّر العملة أو المبلغ المدفوع.';update();}
+ else applyCurrentRates();
 }
 let saving=false;
 async function save(){
@@ -120,6 +182,27 @@ async function save(){
  }catch(err){UI.toast('تعذر حفظ التصريف: '+err.message,'error');}
  finally{saving=false;}
 }
+
+async function removeExchange(id){
+ if(saving)return;
+ const old=rows().find(x=>x.id===id);
+ if(!old||old.agentId)return UI.toast('عملية موظف البيع المرحّلة لا تُحذف من المدير حفاظاً على المزامنة','warn');
+ if(!window.confirm('حذف عملية التصريف نهائياً؟ ستُعكس حركتا الصندوق ويُعاد حساب أرباح التصريف والتكاليف المؤجلة.'))return;
+ try{
+  // Removal reverses BOTH cash legs; reject if later spending needs the received money.
+  if(cashAvailable(old.toCurrency)-old.toAmount < -1e-6)
+   throw Error('لا يمكن حذف العملية: رصيد '+old.toCurrency+' غير كافٍ لعكس المبلغ المستلم');
+  const before=rows(),next=before.filter(e=>e.id!==id);
+  E.analyze(next);
+  saving=true;State.currencyExchanges=next;
+  try{await StorageEngine.saveState();}
+  catch(err){State.currencyExchanges=before;throw err;}
+  UI.toast('تم حذف التصريف وعكس القيود وإعادة حساب الأرباح','success');
+  list();AppNav.renderCurrent();
+ }catch(err){UI.toast('تعذر حذف التصريف: '+err.message,'error');}
+ finally{saving=false;}
+}
+
 function list(){
  const history=E.analyze(rows());
  const entries=[...history.byId.values()].reverse(),totals=new Map();
@@ -144,10 +227,13 @@ function list(){
  (e.agentId?'<div>موظف البيع: '+esc((State.fieldSync?.agents||[]).find(a=>a.id===e.agentId)?.name||e.agentId)+'</div>':'')+
  '<div>تكلفة الجزء المباع: '+(e.costOfSoldSyp===null?'غير محددة':fmt(e.costOfSoldSyp,'SYP'))+'</div>'+
  (e.fromCurrency!=='SYP'?'<div>المغطى بتكلفة معروفة: '+fmt(e.coveredAmount,e.fromCurrency)+' · غير المغطى: '+fmt(e.uncoveredAmount,e.fromCurrency)+'</div>':'')+
- '<div class="font-bold">أرباح التصريف: '+(e.gainSyp===null?'تكلفة الشراء غير محددة':fmt(e.gainSyp,'SYP'))+'</div>'+
+ (e.pendingAmount>0?'<div class="text-amber-700">ربح كمية معلقة: 0 SYP · بانتظار شراء '+fmt(e.pendingAmount,e.fromCurrency)+'</div>':'')+
+ (e.deferredCoveredAmount>0?'<div class="text-emerald-700">تسوية مبيعات سابقة: '+fmt(e.deferredCoveredAmount,e.toCurrency)+' · ربح/خسارة التسوية: '+fmt(e.deferredGainSyp,'SYP')+'</div>':'')+
+ '<div class="font-bold">أرباح التصريف: '+(e.gainSyp===null?'0 SYP (لم تُعرف تكلفة الشراء بعد)':fmt(e.gainSyp,'SYP'))+'</div>'+
  '<div class="text-slate-500">'+esc(e.note||'')+'</div>'+
  (e.agentId?'<div class="text-amber-700">عملية موظف البيع مرحّلة للمدير (للقراءة فقط)</div>':
- '<button type="button" class="mt-2 w-full rounded-lg border p-2 bg-blue-700 text-white" onclick="TiqanyFxUI.edit(\''+esc(e.id)+'\')">تعديل العملية</button>')+
+ '<div class="flex gap-2 mt-2"><button type="button" class="flex-1 rounded-lg border p-2 bg-blue-700 text-white" onclick="TiqanyFxUI.edit(\''+esc(e.id)+'\')">تعديل العملية</button>'+
+ '<button type="button" class="flex-1 rounded-lg border p-2 bg-red-700 text-white font-black" onclick="TiqanyFxUI.remove(\''+esc(e.id)+'\')">حذف العملية</button></div>')+
  '</div>').join(''):'<p class="text-slate-500">لا توجد عمليات تصريف مسجلة</p>')+'</div>'+
  '<button type="button" class="w-full bg-slate-100 p-3 rounded-xl" onclick="UI.forceCloseModal()">رجوع</button></div>');
 }
@@ -155,6 +241,7 @@ const oldDash=Views.renderDashboard;
 if(typeof oldDash==='function')Views.renderDashboard=function(main,...args){
  const result=oldDash.call(this,main,...args),grid=main.querySelector('.ta-action-grid');
  if(grid)grid.insertAdjacentHTML('beforeend','<button type="button" class="ta-action-card ta-quick-exchange" onclick="TiqanyFxUI.newForm()" style="background:linear-gradient(135deg,#e0f7ff,#bcf7d2);border:2px solid #28a682"><span class="ta-icon-box ta-tone-teal"><i class="fas fa-dollar-sign"></i><i class="fas fa-euro-sign"></i></span><span class="ta-card-footer"><strong>تصريف عملة</strong></span></button>');
+ if(grid)grid.insertAdjacentHTML('beforeend','<button type="button" class="ta-action-card ta-quick-fx-rates" onclick="TiqanyFxUI.ratesForm()" style="background:linear-gradient(135deg,#e0edff,#d5e5ff);border:2px solid #507cdb"><span class="ta-icon-box ta-tone-blue"><i class="fas fa-money-bill-trend-up"></i></span><span class="ta-card-footer"><strong>سعر الصرف</strong></span></button>');
  return result;
 };
 const oldList=Views.renderInvoicesList;
@@ -218,5 +305,5 @@ if(!document.getElementById('taFxCapitalGreen142')){
  st.textContent='.ta-capital-card{background:linear-gradient(145deg,#198c51,#07572f)!important;color:#fff!important;border-color:#38ac77!important;box-shadow:0 6px 0 #04452a,0 10px 18px #023e2633!important}.ta-capital-card .ta-capital-card-text strong,.ta-capital-card .ta-capital-card-text small,.ta-capital-card .ta-capital-amount,.ta-capital-card .ta-capital-divider,.ta-capital-card>i{color:#fff!important}.ta-capital-card .ta-capital-icon{background:linear-gradient(145deg,#157e49,#07552e)!important;color:#fff!important;border-color:#35ac78!important}';
  document.head.appendChild(st);
 }
-window.TiqanyFxUI={newForm,edit:newForm,save,list,stageAgentExchanges,core:E};
+window.TiqanyFxUI={newForm,edit:newForm,save,list,remove:removeExchange,ratesForm,saveRates,stageAgentExchanges,core:E};
 })();
