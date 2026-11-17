@@ -1344,6 +1344,15 @@ button.ta-profile-delete-button i{color:#fff!important;-webkit-text-fill-color:#
 button.ta-profile-delete-button:active{transform:translateY(3px);box-shadow:inset 0 1px 0 rgba(255,255,255,.5),0 2px 0 #0369a1!important;}
 button.ta-profile-delete-button:focus-visible{outline:3px solid #0c4a6e!important;outline-offset:3px;}
 </style>
+<style id="ta-home-only-dock-137">
+/* Only the dashboard owns the bottom tab bar. Subpages use the existing Back button. */
+html body.ta-3d-v3524:not(.ta-dashboard-screen) nav.ta-bottom-nav{display:none!important}
+/* Give non-editor pages their full scroll height without the hidden dock's padding. */
+html body.ta-3d-v3524:not(.ta-dashboard-screen):not(.ta-workspace-screen):not(.ta-transfer-editor-open) > main#mainContent.ta-main{
+  padding-bottom:calc(56px + var(--ta-native-bottom-inset,0px))!important;
+  scroll-padding-bottom:calc(56px + var(--ta-native-bottom-inset,0px))!important;
+}
+</style>
 </head>
 <body class="ta-premium-ui ta-3d-v3524 bg-slate-100 text-slate-800 min-h-screen flex flex-col w-full max-w-full overflow-x-hidden">
 

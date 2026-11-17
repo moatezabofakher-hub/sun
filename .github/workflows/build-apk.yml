@@ -3,7 +3,7 @@ name: Tiqany Acc - Main Signed Release
 on:
   workflow_dispatch:
   push:
-    branches: [main, 'feat/integrated-shareholders-3.5.136']
+    branches: [main, 'feat/integrated-shareholders-3.5.137']
 
 permissions:
   contents: read
@@ -63,6 +63,8 @@ jobs:
           node --test tests/shareholders-integration-133.test.js
           node --check app/src/main/assets/www/static/shareholders-integrated-133.js
           node --check app/src/main/assets/www/static/settings-revision-clock-133.js
+      - name: Verify router rediscovery and dashboard-only navigation
+        run: node --test tests/release137-manager-discovery.test.js tests/release137-home-only-dock.test.js
       - name: Build, sign, and verify app release APK
         shell: bash
         env:
@@ -91,7 +93,7 @@ jobs:
           "$verifier" verify --verbose --print-certs "$apk"
           cert_digest=$("$verifier" verify --print-certs "$apk" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -n 1)
           [[ "$cert_digest" =~ ^[0-9a-fA-F]{64}$ ]] || { echo '::error::Could not read signing certificate SHA-256'; exit 1; }
-          # Public SHA-256 fingerprint from verified 3.5.133 / 3.5.136 signed releases.
+          # Public SHA-256 fingerprint from verified 3.5.133 / 3.5.137 signed releases.
           # Reject accidental signing-key rotation: Android will refuse in-place updates.
           PINNED_CERT_SHA256="94d9512302e262c8a526651a6bc4c24e1797482dcdcb6f32a0638a8f958aaf9f"
           if [[ "${cert_digest,,}" != "$PINNED_CERT_SHA256" ]]; then
@@ -103,14 +105,14 @@ jobs:
             exit 1
           fi
           mkdir -p output
-          cp "$apk" "output/Tiqany-Acc-Main-3.5.136-RELEASE.apk"
-          (cd output && sha256sum "Tiqany-Acc-Main-3.5.136-RELEASE.apk" > "Tiqany-Acc-Main-3.5.136-RELEASE.apk.sha256")
+          cp "$apk" "output/Tiqany-Acc-Main-3.5.137-RELEASE.apk"
+          (cd output && sha256sum "Tiqany-Acc-Main-3.5.137-RELEASE.apk" > "Tiqany-Acc-Main-3.5.137-RELEASE.apk.sha256")
       - name: Upload signed app APK and checksum
         uses: actions/upload-artifact@v4
         with:
-          name: Tiqany-Acc-Main-3.5.136-RELEASE
+          name: Tiqany-Acc-Main-3.5.137-RELEASE
           path: |
-            output/Tiqany-Acc-Main-3.5.136-RELEASE.apk
-            output/Tiqany-Acc-Main-3.5.136-RELEASE.apk.sha256
+            output/Tiqany-Acc-Main-3.5.137-RELEASE.apk
+            output/Tiqany-Acc-Main-3.5.137-RELEASE.apk.sha256
           if-no-files-found: error
           retention-days: 30
