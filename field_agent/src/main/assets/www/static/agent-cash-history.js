@@ -10,7 +10,7 @@ A.mergeHistoryPage=function(page,old=this.state){
  if(!page||!Array.isArray(page.ops))return {ops,cursor,restoredIds};
  const current=new Set(ops.map(o=>o.id));
  for(const op of page.ops){
-  if(!op||typeof op.id!=='string'||!op.id.startsWith('op_')||op.agentId!==old.agentId||op.companyId!==old.companyId||!['sale','sale_return','receipt','payment','expense','customer_create','document_edit'].includes(op.kind))continue;
+  if(!op||typeof op.id!=='string'||!op.id.startsWith('op_')||op.agentId!==old.agentId||op.companyId!==old.companyId||!['sale','sale_return','receipt','payment','expense','customer_create','document_edit','currency_exchange'].includes(op.kind))continue;
   if(op.kind==='document_edit'){
     const i=ops.findIndex(x=>x.id===op.targetOperationId);
     if(i>=0&&op.replacement&&Number(op.revision||0)>Number(ops[i].revision||0))ops[i]=op.replacement;
