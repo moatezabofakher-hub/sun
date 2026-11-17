@@ -48,7 +48,7 @@
       const render = AppNav.renderCurrent;
       AppNav.renderCurrent = function (...args) {
         const next = this.current()?.screen;
-        if (next === 'reports' && lastScreen !== 'reports') resetShareholders();
+        if (next === 'dashboard' && lastScreen !== 'dashboard') resetShareholders();
         lastScreen = next;
         return render.apply(this, args);
       };
