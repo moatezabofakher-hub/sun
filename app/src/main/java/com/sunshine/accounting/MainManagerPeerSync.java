@@ -54,6 +54,16 @@ public final class MainManagerPeerSync {
     private volatile boolean trusted=false,closed=false;
     private volatile long lastServerRequest=0,lastClientSuccess=0;
     private final Object serverLock=new Object();
+    // Pairing secrets are isolated for EACH independent business profile.
+    // Switching the active business never exposes its ledger through another company's QR.
+    private volatile String activeProfile="default";
+    private String k(String field){return "profile:"+activeProfile+":"+field;}
+    @JavascriptInterface public String selectProfile(String profileId){
+        if(!allowed()||profileId==null||!profileId.matches("[A-Za-z0-9_-]{1,120}"))return "invalid";
+        activeProfile=profileId;
+        lastClientSuccess=0;lastServerRequest=0;
+        return "selected";
+    }
     public MainManagerPeerSync(Activity activity,WebView page){
         this.activity=activity;this.page=page;
         this.prefs=activity.getSharedPreferences("tiqany_manager_manager_pair",Context.MODE_PRIVATE);
@@ -61,23 +71,23 @@ public final class MainManagerPeerSync {
     public void onMainFrameUrlChanged(String url){trusted=url!=null&&url.startsWith(ORIGIN);}
     private boolean allowed(){return trusted&&!closed;}
     private String getServerId(){
-        String id=prefs.getString("server_id","");
+        String id=prefs.getString(k("server_id"),"");
         if(id.matches("[a-f0-9]{32}"))return id;
         byte[] idBytes=new byte[16];new SecureRandom().nextBytes(idBytes);
         StringBuilder b=new StringBuilder();for(byte x:idBytes)b.append(String.format(java.util.Locale.ROOT,"%02x",x&255));
-        id=b.toString();prefs.edit().putString("server_id",id).commit();return id;
+        id=b.toString();prefs.edit().putString(k("server_id"),id).commit();return id;
     }
     private String getServerKey()throws Exception {
-        String raw=prefs.getString("server_key","");
+        String raw=prefs.getString(k("server_key"),"");
         if(raw.startsWith("vault1:"))return DeviceVault.revealSecret(activity,"manager-peer-server",raw);
         byte[] bytes=new byte[32];new SecureRandom().nextBytes(bytes);
         String key=Base64.encodeToString(bytes,Base64.URL_SAFE|Base64.NO_WRAP|Base64.NO_PADDING);
-        if(!prefs.edit().putString("server_key",DeviceVault.protectSecret(activity,"manager-peer-server",key)).commit())
+        if(!prefs.edit().putString(k("server_key"),DeviceVault.protectSecret(activity,"manager-peer-server",key)).commit())
             throw new Exception("تعذر حفظ مفتاح أجهزة المدير");
         return key;
     }
     private String getClientKey()throws Exception{
-        String raw=prefs.getString("client_key","");
+        String raw=prefs.getString(k("client_key"),"");
         if(!raw.startsWith("vault1:"))throw new Exception("لم يتم اقتران جهاز مدير");
         return DeviceVault.revealSecret(activity,"manager-peer-client",raw);
     }
@@ -191,8 +201,8 @@ public final class MainManagerPeerSync {
             JSONObject c=new JSONObject(serverConfig());
             if(!c.optBoolean("ready")||!privateIP(c.optString("host")))return "";
             JSONObject qr=new JSONObject();
-            qr.put("type","tiqany-manager-main");qr.put("v",1);qr.put("host",c.getString("host"));
-            qr.put("port",c.getInt("port"));qr.put("key",c.getString("key"));qr.put("serverId",c.getString("serverId"));
+            qr.put("type","tiqany-manager-main");qr.put("v",1);qr.put("host",c.getString(k("host")));
+            qr.put("port",c.getInt(k("port")));qr.put("key",c.getString("key"));qr.put("serverId",c.getString("serverId"));
             BitMatrix bits=new MultiFormatWriter().encode(qr.toString(),BarcodeFormat.QR_CODE,490,490);
             Bitmap bitmap=Bitmap.createBitmap(490,490,Bitmap.Config.ARGB_8888);
             for(int y=0;y<490;y++)for(int x=0;x<490;x++)bitmap.setPixel(x,y,bits.get(x,y)?0xff102b43:0xffffffff);
@@ -211,8 +221,8 @@ public final class MainManagerPeerSync {
         try{
             keyBytes(key);
             String sealed=DeviceVault.protectSecret(activity,"manager-peer-client",key);
-            if(!prefs.edit().putString("host",host).putInt("port",port)
-                .putString("client_key",sealed).putString("client_id",id).putBoolean("approved",false).commit())return "error";
+            if(!prefs.edit().putString(k("host"),host).putInt(k("port"),port)
+                .putString(k("client_key"),sealed).putString(k("client_id"),id).putBoolean(k("approved"),false).commit())return "error";
             return "saved";
         }catch(Exception e){return "error";}
     }
@@ -220,26 +230,26 @@ public final class MainManagerPeerSync {
         if(!allowed())return "{}";
         try{
             JSONObject o=new JSONObject();
-            o.put("host",prefs.getString("host",""));
-            o.put("port",prefs.getInt("port",0));
-            o.put("serverId",prefs.getString("client_id",""));
-            o.put("approved",prefs.getBoolean("approved",false));
+            o.put("host",prefs.getString(k("host"),""));
+            o.put("port",prefs.getInt(k("port"),0));
+            o.put("serverId",prefs.getString(k("client_id"),""));
+            o.put("approved",prefs.getBoolean(k("approved"),false));
             o.put("lastClientSuccess",lastClientSuccess);
             o.put("lastInbound",lastServerRequest);
             return o.toString();
         }catch(Exception e){return "{}";}
     }
-    @JavascriptInterface public void clientApprove(){if(allowed())prefs.edit().putBoolean("approved",true).apply();}
+    @JavascriptInterface public void clientApprove(){if(allowed())prefs.edit().putBoolean(k("approved"),true).apply();}
     @JavascriptInterface public void clientUnlink(){
-        if(allowed())prefs.edit().remove("host").remove("port").remove("client_key").remove("client_id").remove("approved").apply();
+        if(allowed())prefs.edit().remove(k("host")).remove(k("port")).remove(k("client_key")).remove(k("client_id")).remove(k("approved")).apply();
     }
     @JavascriptInterface public void clientRequest(String raw){
         if(!allowed()||raw==null||raw.length()>9000000)return;
         if(!connecting.compareAndSet(false,true)){sendClientReply("{\"ok\":false,\"error\":\"مزامنة أخرى قيد التنفيذ\"}");return;}
         io.execute(()->{
             try{
-                String host=prefs.getString("host",""),key=getClientKey();
-                int port=prefs.getInt("port",0);
+                String host=prefs.getString(k("host"),""),key=getClientKey();
+                int port=prefs.getInt(k("port"),0);
                 if(!privateIP(host)||port<1024)throw new Exception("لم يتم إعداد جهاز المدير");
                 byte[] request=crypt(keyBytes(key),raw);
                 try(Socket sock=new Socket()){
