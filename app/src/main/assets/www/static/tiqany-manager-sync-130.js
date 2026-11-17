@@ -368,7 +368,7 @@ const manager={
   },
   async acceptPairing(raw){
     let code;try{code=JSON.parse(String(raw||''));}catch(_){return this.info('رمز QR غير صالح',true);}
-    if(code?.type!=='tiqany-manager-main'||code.v!==1||!/^([0-9]{1,3}\\.){3}[0-9]{1,3}$/.test(code.host)||
+    if(code?.type!=='tiqany-manager-main'||code.v!==1||!/^([0-9]{1,3}\.){3}[0-9]{1,3}$/.test(code.host)||
       !Number.isInteger(code.port)||!/^[A-Za-z0-9_-]{43}$/.test(code.key)||!/^[a-f0-9]{32}$/.test(code.serverId))
       return this.info('رمز ربط أجهزة المدير غير صالح',true);
     if(code.serverId===this.serverStatus().serverId)return this.info('لا يمكن ربط الجهاز بنفسه',true);
@@ -389,13 +389,29 @@ const manager={
   },
   qr(){
     const show=()=>{
-      const src=native.pairingQr();
+      // The listener can be stopped by Android while the UI remains open.
+      // Retry before declaring an address unavailable; do not manufacture a QR
+      // with an unreachable host or fall back to loopback/mobile data/VPN.
+      let state=this.serverStatus();
+      if(!state.ready){
+        const result=native.start();
+        state=this.serverStatus();
+        if(result!=='ready'&&!state.ready)this.info('تعذر تشغيل استقبال أجهزة المدير: '+String(result),true);
+      }
+      const src=state.ready&&state.host?native.pairingQr():'';
       const panel=document.getElementById('ta-manager-qr');
       if(!panel)return;
-      panel.innerHTML=src?'<img src="'+src+'" alt="رمز QR لاقتران موبايلَي المدير" style="max-width:238px;width:100%;margin:auto">':
-        '<span>لا يوجد عنوان Wi-Fi صالح أو الاستقبال غير جاهز</span>';
+      if(src){
+        panel.innerHTML='<img src="'+src+'" alt="رمز QR لاقتران موبايلَي المدير" style="max-width:238px;width:100%;margin:auto">';
+        this.info('رمز QR جاهز. افتح «مسح رمز QR» على موبايل المدير الآخر.');
+      }else{
+        const reason=!state.ready?'استقبال مزامنة المدير غير جاهز على المنفذ '+(state.port||49379):
+          !state.host?'لا يوجد عنوان IP محلي صالح لهذا الموبايل':'تعذر تكوين رمز الاقتران';
+        panel.textContent=reason+'. وصّل الجهازين بشبكة Wi-Fi واحدة أو نقطة اتصال محلية، وأوقف VPN مؤقتاً إن كان يمنع الاتصال، ثم اضغط «إظهار رمز QR» مجدداً.';
+        this.info(reason,true);
+      }
       if(this.qrTimer)clearTimeout(this.qrTimer);
-      this.qrTimer=setTimeout(()=>{if(panel)panel.textContent='انتهت مدة عرض رمز الاقتران، اضغط إظهار مجدداً';},60000);
+      if(src)this.qrTimer=setTimeout(()=>{if(panel)panel.textContent='انتهت مدة عرض رمز الاقتران، اضغط إظهار مجدداً';},60000);
     };
     if(State.settings?.appProtection?.protectDeviceAddition&&State.settings?.appProtection?.pinHash)
       ProtectionController.requestPin('تأكيد عرض رمز اقتران موبايل مدير',show);
