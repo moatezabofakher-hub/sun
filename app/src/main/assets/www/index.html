@@ -1650,6 +1650,7 @@ button.ta-profile-delete-button:focus-visible{outline:3px solid #0c4a6e!importan
                                 State.settings.selectedWarehouseId = 'wh_main';
                         }
                         await ProfileManager.initialize();
+                        if(typeof SettingsRevisionClock!=='undefined')SettingsRevisionClock.remember(State.settings);
                         if (typeof PurchaseCostEngine !== 'undefined') PurchaseCostEngine.refresh(State.items, State.invoices);
                         await LicenseManager.syncFallbackStorage();
                         ThermalPrinter.updateStatusUI();
@@ -1666,6 +1667,7 @@ button.ta-profile-delete-button:focus-visible{outline:3px solid #0c4a6e!importan
                 // Re-evaluate latest purchase net cost before the atomic state snapshot.
                 // Invoice deletion, editing, currency, discount and additions share this path.
                 if (typeof PurchaseCostEngine !== 'undefined') PurchaseCostEngine.refresh(State.items, State.invoices);
+                if(typeof SettingsRevisionClock!=='undefined')SettingsRevisionClock.touch(State.settings);
                 LicenseManager.persistFallbackStorage();
                 if (!this.db) return;
                 return new Promise((resolve, reject) => {
@@ -1704,6 +1706,7 @@ button.ta-profile-delete-button:focus-visible{outline:3px solid #0c4a6e!importan
                         // Only snapshot successful IndexedDB commits; background workers never
                         // touch the live accounting database or read an unfinished invoice.
                         try { BackupController.stageLatest(); } catch (_) {}
+                        if(typeof SettingsRevisionClock!=='undefined')SettingsRevisionClock.remember(State.settings);
                         resolve();
                     };
                 });
@@ -1918,6 +1921,7 @@ button.ta-profile-delete-button:focus-visible{outline:3px solid #0c4a6e!importan
                     for(const key of ['settings','categories','items','accounts','invoices','vouchers','warehouses','transfers','expenses','capitalMovements','shareholderOwners','shareholderMovements','fieldSync','alertCenter'])
                         State[key]=JSON.parse(JSON.stringify(newState[key]??DEFAULT_PROFILE[key]));
                     State.license=commonLicense;
+                    if(typeof SettingsRevisionClock!=='undefined')SettingsRevisionClock.remember(State.settings);
                     AppNav.clearDirty();AppNav.clearModalDirty();UI.forceCloseModal();
                     SettingsController.closeAllSections();
                     AppNav.stack=[{screen:'dashboard',params:{}}];
@@ -2000,6 +2004,7 @@ button.ta-profile-delete-button:focus-visible{outline:3px solid #0c4a6e!importan
                     for(const key of ['settings','categories','items','accounts','invoices','vouchers','warehouses','transfers','expenses','capitalMovements','shareholderOwners','shareholderMovements','fieldSync','alertCenter'])
                         State[key]=JSON.parse(JSON.stringify(newData[key]??DEFAULT_PROFILE[key]));
                     State.license=license;
+                    if(typeof SettingsRevisionClock!=='undefined')SettingsRevisionClock.remember(State.settings);
                     AppNav.clearDirty();AppNav.clearModalDirty();UI.forceCloseModal();
                     SettingsController.closeAllSections();AppNav.stack=[{screen:'dashboard',params:{}}];AppNav.renderCurrent();
                     UI.toast('تمت أرشفة '+oldName+'؛ لاستعادته اضغط إنشاء حساب مستقل جديد','success');
@@ -2177,7 +2182,8 @@ button.ta-profile-delete-button:focus-visible{outline:3px solid #0c4a6e!importan
                 const fresh=this.newState(d.settings?.companyName||this.currentName());
                 for(const key of ['settings','categories','items','accounts','invoices','vouchers','warehouses','transfers','expenses','capitalMovements','shareholderOwners','shareholderMovements','fieldSync','alertCenter'])
                     State[key]=JSON.parse(JSON.stringify(d[key]??fresh[key]??(['capitalMovements','shareholderOwners','shareholderMovements'].includes(key)?[]:null)));
-                State.license=license; // Activation cannot be imported from another device/business.
+                State.license=license;
+                    if(typeof SettingsRevisionClock!=='undefined')SettingsRevisionClock.remember(State.settings); // Activation cannot be imported from another device/business.
                 // Keep the approved account's security identity on this device.
                 // On a fresh device, carry forward the authenticated backup PIN but
                 // never assume a biometric credential from a different installation.
@@ -10626,7 +10632,8 @@ button.ta-profile-delete-button:focus-visible{outline:3px solid #0c4a6e!importan
 <script src="static/mobile-barcode-hid.js"></script>
 <script src="static/settings-staging.js"></script>
 
-<script src="static/tiqany-peer-merge.js"></script>
+<script defer src="static/settings-revision-clock-133.js"></script>
+    <script src="static/tiqany-peer-merge.js"></script>
 <script src="static/tiqany-peer-events.js"></script>
 <script src="static/tiqany-peer-controller.js"></script>
 <script src="static/tiqany-manager-sync-130.js"></script>
