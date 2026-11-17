@@ -6435,17 +6435,17 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                         <select id="catalogPopularCurrency" class="w-full border border-slate-300 rounded-xl p-2.5 text-xs font-bold">
                             ${CurrencyCatalog.options('', false)}
                         </select>
-                        <button type="button" class="w-full bg-indigo-700 text-white rounded-xl p-2.5 text-xs font-bold" onclick="SettingsController.addPopularCurrency()">إضافة العملة المختارة إلى القائمة</button>
+                        <button type="button" class="ta-currency-add-149 w-full rounded-xl p-2.5 text-xs font-black" style="background:#17263e!important;color:#fff!important;border:2px solid #0c1728!important;box-shadow:0 3px 0 #09121f!important" onclick="SettingsController.addPopularCurrency()">إضافة العملة المختارة إلى القائمة</button>
                         <div class="grid grid-cols-2 gap-2">
                             <div><label class="text-[11px] font-bold">رمز ISO من 3 أحرف</label><input id="customCurrencyCode" maxlength="3" dir="ltr" placeholder="مثال: SEK" class="w-full border border-slate-300 rounded-xl p-2 text-xs"></div>
                             <div><label class="text-[11px] font-bold">اسم العملة</label><input id="customCurrencyName" maxlength="60" placeholder="اسم العملة" class="w-full border border-slate-300 rounded-xl p-2 text-xs"></div>
                         </div>
-                        <button type="button" class="w-full bg-slate-800 text-white rounded-xl p-2.5 text-xs font-bold" onclick="SettingsController.addCustomCurrency()">إضافة عملة مخصصة</button>
+                        <button type="button" class="ta-currency-add-149 w-full rounded-xl p-2.5 text-xs font-black" style="background:#17263e!important;color:#fff!important;border:2px solid #0c1728!important;box-shadow:0 3px 0 #09121f!important" onclick="SettingsController.addCustomCurrency()">إضافة عملة مخصصة</button>
                         <div class="border-t border-slate-200 pt-2">${CurrencyCatalog.renderAdditional()}</div>
                     </div>
                     <div class="bg-white border border-slate-200 rounded-xl p-3 space-y-2">
                         <div class="text-xs font-bold text-slate-800">سعر صرف الدولار الحالي: <span dir="ltr" class="font-mono">${Number(State.settings.exchangeRate||0).toLocaleString('en-US')}</span> ل.س</div>
-                        <button type="button" onclick="UI.openRateModal()" class="bg-slate-900 text-white text-xs font-bold rounded-xl px-4 py-2.5"><i class="fas fa-coins ml-1"></i> تعديل سعر الصرف</button>
+                        <button type="button" onclick="TiqanyFx147.generalInvoiceRateModal()" class="bg-slate-900 text-white text-xs font-bold rounded-xl px-4 py-2.5"><i class="fas fa-coins ml-1"></i> تعديل سعر الصرف</button>
                     </div>
                         </div>
                     </details>
@@ -10552,10 +10552,10 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                         const current = State.settings.appProtection || {};
                         current.fingerprintEnabled = true;
                         current.fingerprintCredentialId = ''; // WebAuthn credential no longer used.
-                        current.lockApp = true;
+                        // Enrollment only adds biometric verification; keep the user-selected app-lock setting unchanged.
                         State.settings.appProtection = current;
                         await StorageEngine.saveState();
-                        UI.toast('تم تفعيل البصمة الأصلية وقفل التطبيق بنجاح', 'success');
+                        UI.toast('تم حفظ البصمة بنجاح؛ لم تتغير حالة قفل التطبيق', 'success');
                         AppNav.renderCurrent();
                     } catch (e) { UI.toast(e.message || 'تعذر إعداد البصمة', 'error'); }
                 });

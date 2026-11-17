@@ -41,7 +41,7 @@ function chooser(){
    '<h2 class="text-xl font-black">تصريف عملة — شراء ومبيع</h2>'+
    '<p class="text-xs text-slate-700">اختر شراء أو مبيع للعملة المطلوبة. تُستخدم أسعار الصرف المحفوظة ويمكن تعديل سعر العملية.</p>'+
    cells+
-   '<button type="button" onclick="TiqanyFx147.editRates()" class="w-full bg-sky-800 text-white rounded-xl p-3 font-bold"><i class="fas fa-chart-line ml-2"></i> إعداد أسعار الصرف</button>'+
+   '<button type="button" onclick="TiqanyFx147.editRates()" class="ta-fx-rates-btn-149 w-full rounded-xl p-3 font-black" style="background:#047857!important;color:#fff!important;border:2px solid #065f46!important;box-shadow:0 4px 0 #064e3b!important"><i class="fas fa-chart-line ml-2"></i> إعداد أسعار الصرف</button>'+
    '<button type="button" onclick="UI.forceCloseModal()" class="w-full bg-slate-100 rounded-xl p-3 font-bold">رجوع</button></div>');
 }
 function trade(code,side){
@@ -138,17 +138,14 @@ function unifiedRates(){
  UI.openModal('<div dir="rtl" class="text-right space-y-3">'+
   '<h2 class="font-black text-lg">أسعار شراء ومبيع العملات</h2>'+
   '<p class="text-xs text-slate-700">سعر الدولار الظاهر أعلى الشاشة يبقى هو السعر العام للفواتير. أسعار الشراء والمبيع تُستخدم في تصريف العملات فقط.</p>'+
-  '<div class="bg-slate-800 rounded-xl p-3 text-white">'+
-  '<label class="block text-xs font-bold mb-1">سعر الدولار العام الظاهر في الشريط العلوي (ل.س)</label>'+
-  '<input id="ta147GeneralUsd" type="number" min="0.000001" step="any" class="w-full rounded-lg p-2 text-slate-900 font-black bg-white" value="'+esc(State.settings.exchangeRate||'')+'"></div>'+
+  '<p class="rounded-xl bg-slate-100 border border-slate-300 p-3 text-xs text-slate-700">تظهر هنا أسعار شراء ومبيع العملات الأجنبية، بما فيها الدولار. يبقى سعر الدولار العام معروضاً في الشريط العلوي ولا يتغير عند حفظ هذه الأسعار.</p>'+
   '<div class="max-h-[55vh] overflow-y-auto space-y-2">'+options+'</div>'+
   '<button type="button" onclick="TiqanyFx147.saveRates()" class="w-full rounded-xl bg-emerald-700 p-3 text-white font-black">حفظ أسعار الصرف</button>'+
   '<button type="button" onclick="UI.forceCloseModal()" class="w-full rounded-xl bg-slate-100 p-3">إلغاء</button></div>');
 }
 async function saveRates(){
- const next={...rates()},general=Number(document.getElementById('ta147GeneralUsd')?.value),oldGeneral=State.settings.exchangeRate,prior=rates();
+ const next={...rates()},prior=rates();
  try{
-  if(!validPrice(general))throw Error('سعر الدولار العام غير صالح');
   for(const c of codes()){
    const buyText=document.getElementById('ta147Buy_'+c)?.value.trim()||'';
    const sellText=document.getElementById('ta147Sell_'+c)?.value.trim()||'';
@@ -158,18 +155,12 @@ async function saveRates(){
    if(!validPrice(buy)||!validPrice(sell))throw Error('سعر غير صالح للعملة '+c);
    next[c]={buy,sell};
   }
-  State.settings.exchangeRate=general;State.settings.currencyExchangeRatesSyp=next;
+  State.settings.currencyExchangeRatesSyp=next;
   try{await StorageEngine.saveState();}
-  catch(e){State.settings.exchangeRate=oldGeneral;State.settings.currencyExchangeRatesSyp=prior;throw e;}
-  const heading=document.getElementById('topBarRate');
-  if(heading)heading.textContent=general.toLocaleString('en-US');
+  catch(e){State.settings.currencyExchangeRatesSyp=prior;throw e;}
   UI.forceCloseModal();
   UI.toast('تم حفظ أسعار الصرف لجميع العملات','success');
-  if(typeof AppNav!=='undefined'){
-   if(AppNav.current()?.screen==='invoice_form'&&typeof InvoiceController!=='undefined'&&InvoiceController.draft)
-    InvoiceController.updateExchangeRate(general,true);
-   else AppNav.renderCurrent();
-  }
+  if(typeof AppNav!=='undefined')AppNav.renderCurrent();
  }catch(e){UI.toast('تعذر حفظ الأسعار: '+e.message,'error');}
 }
 function profitDetails(){
@@ -221,7 +212,11 @@ if(typeof FieldSync!=='undefined'&&typeof FieldSync.catalog==='function'){
 const originalEdit=U.newForm;
 U.newForm=function(editId=''){return editId?originalEdit(editId):chooser();};
 U.ratesForm=unifiedRates;
-if(UI.openRateModal)UI.openRateModal=unifiedRates;
+// Keep a separate, explicit settings action for the GENERAL invoice exchange
+// rate, without displaying it when the user clicks the top-bar FX quotation.
+const originalInvoiceRateModal=typeof UI.openRateModal==='function'?UI.openRateModal.bind(UI):null;
+if(originalInvoiceRateModal)U.openGeneralRateModal=originalInvoiceRateModal;
+UI.openRateModal=unifiedRates;
 if(typeof Views!=='undefined'&&typeof Views.renderReports==='function'){
  const previous=Views.renderReports;
  Views.renderReports=function(main,params,...args){
@@ -230,5 +225,5 @@ if(typeof Views!=='undefined'&&typeof Views.renderReports==='function'){
   return out;
  };
 }
-root.TiqanyFx147={chooser,trade,saveTrade,editRates:unifiedRates,saveRates,profitDetails,codes,current};
+root.TiqanyFx147={chooser,trade,saveTrade,editRates:unifiedRates,saveRates,profitDetails,codes,current,generalInvoiceRateModal:originalInvoiceRateModal};
 })(typeof window==='object'?window:globalThis);

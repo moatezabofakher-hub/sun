@@ -64,15 +64,23 @@ test('A foreign currency is synchronized with its name, code and quotation table
  assert.equal(payload.currencyExchangeRatesSyp.EUR.buy,18000);
  assert.match(app.CurrencyCatalog.renderAdditional(),/سعر الصرف/);
 });
-test('Header still displays the USD general FX rate while editable buy/sell rates are distinct',async()=>{
- const {app,state,fields}=sandbox();
+test('Top-bar USD rate stays unchanged while all foreign buy/sell rates are saved',async()=>{
+ const {app,state,fields,logs}=sandbox();
  app.UI.openRateModal();
- fields({ta147GeneralUsd:15500,ta147Buy_USD:15400,ta147Sell_USD:16600,ta147Buy_EUR:19000,ta147Sell_EUR:19900});
+ const html=logs[logs.length-1];
+ assert.match(html,/أسعار شراء ومبيع العملات/);
+ assert.match(html,/ta147Buy_USD/);
+ assert.match(html,/ta147Sell_USD/);
+ assert.match(html,/ta147Buy_EUR/);
+ assert.doesNotMatch(html,/id="ta147GeneralUsd"/,'Top-bar rate is not edited in foreign currency panel');
+ fields({ta147Buy_USD:15400,ta147Sell_USD:16600,ta147Buy_EUR:19000,ta147Sell_EUR:19900});
  await app.TiqanyFx147.saveRates();
- assert.equal(state.settings.exchangeRate,15500);
+ assert.equal(state.settings.exchangeRate,15000);
  assert.equal(state.settings.currencyExchangeRatesSyp.USD.buy,15400);
  assert.equal(state.settings.currencyExchangeRatesSyp.EUR.sell,19900);
+ assert.match(script,/ta-fx-rates-btn-149/);
 });
+
 test('FX profit remains separate from principal, with a dedicated report shortcut',()=>{
  const {app,logs}=sandbox();
  app.TiqanyFx147.profitDetails();

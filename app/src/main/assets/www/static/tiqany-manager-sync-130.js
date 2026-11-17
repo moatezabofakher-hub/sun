@@ -57,7 +57,7 @@ const manager={
     const cfg=State.settings?.appProtection||{};
     const verifier=core.bootstrapProtection(cfg);
     if(!verifier)return null;
-    return {...verifier,lockApp:true,protectDeletion:cfg.protectDeletion===true,
+    return {...verifier,lockApp:cfg.lockApp===true,protectDeletion:cfg.protectDeletion===true,
       protectDeviceAddition:cfg.protectDeviceAddition===true,
       fingerprintEnabled:false,fingerprintCredentialId:''};
   },
