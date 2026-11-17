@@ -41,6 +41,8 @@ jobs:
           node tests/test_lan_sync_3528.js
           node tests/test_lan_agent_3528.js
           node --check field_agent/src/main/assets/www/static/agent.js
+      - name: Verify employee popup backdrops
+        run: node --test tests/release138-no-outside-dismiss.test.js
       - name: Build, sign, and verify field_agent release APK
         shell: bash
         env:
@@ -74,14 +76,14 @@ jobs:
             exit 1
           fi
           mkdir -p output
-          cp "$apk" "output/Tiqany-Acc-Agent-3.5.125-RELEASE.apk"
-          (cd output && sha256sum "Tiqany-Acc-Agent-3.5.125-RELEASE.apk" > "Tiqany-Acc-Agent-3.5.125-RELEASE.apk.sha256")
+          cp "$apk" "output/Tiqany-Acc-Agent-3.5.138-RELEASE.apk"
+          (cd output && sha256sum "Tiqany-Acc-Agent-3.5.138-RELEASE.apk" > "Tiqany-Acc-Agent-3.5.138-RELEASE.apk.sha256")
       - name: Upload signed field_agent APK and checksum
         uses: actions/upload-artifact@v4
         with:
-          name: Tiqany-Acc-Agent-3.5.125-RELEASE
+          name: Tiqany-Acc-Agent-3.5.138-RELEASE
           path: |
-            output/Tiqany-Acc-Agent-3.5.125-RELEASE.apk
-            output/Tiqany-Acc-Agent-3.5.125-RELEASE.apk.sha256
+            output/Tiqany-Acc-Agent-3.5.138-RELEASE.apk
+            output/Tiqany-Acc-Agent-3.5.138-RELEASE.apk.sha256
           if-no-files-found: error
           retention-days: 30
