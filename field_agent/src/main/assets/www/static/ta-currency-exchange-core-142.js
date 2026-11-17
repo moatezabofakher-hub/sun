@@ -53,7 +53,7 @@
       if(e.fromCurrency==='SYP')gain=0;
       else {
         const avg=selling.quantity>1e-9?selling.costSyp/selling.quantity:selling.lastAverageSyp;
-        if(avg>0&&Number.isFinite(avg)){
+        if(avg>0&&Number.isFinite(avg)&&selling.quantity+1e-8>=e.fromAmount){
           averageCost=avg;gain=Math.round((e.equivalentSyp-e.fromAmount*avg)*100)/100;
           const sold=Math.min(e.fromAmount,selling.quantity);
           selling.quantity=Math.max(0,selling.quantity-sold);
