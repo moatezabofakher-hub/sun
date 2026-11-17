@@ -1,7 +1,7 @@
 /* مدير manager / Android main local ledger synchronization; offline and encrypted. */
 (function(){
 'use strict';
-const core=window.TiqanyPeerMerge;
+const core=window.TiqanyManagerPeerMerge;
 if(!core||typeof State==='undefined'||typeof Views==='undefined')return;
 const desktop=true;
 const t=(ar)=>ar;
