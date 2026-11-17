@@ -92,3 +92,14 @@ test('Both source scripts parse and Windows/Android invoice profit integration i
   assert.match(post,/ta-fx-buy-sell-147/);
  }
 });
+
+test('Gross and net profits both include realized FX gains exactly once',()=>{
+ const html=fs.readFileSync(path.join(root,'app/src/main/assets/www/index.html'),'utf8');
+ const start=html.indexOf('renderReports(main, params = {})');
+ const end=html.indexOf('SETTINGS',start);
+ const source=html.slice(start,end);
+ assert.match(source,/grossProfitUsd = estimatedProfitUsd \+ exchangeProfitSyp/);
+ assert.match(source,/netProfitUsd = grossProfitUsd - expenseTotalUsd/);
+ assert.match(source,/Accounting\.format\(grossProfitUsd,'USD'\)/);
+ assert.match(source,/invoiceProfits\.push\(\{id:'fx_profit_'/);
+});
