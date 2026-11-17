@@ -119,3 +119,17 @@ test('FX user interface contains editable operation and per-currency trading tot
  assert.match(ui,/costOfSoldSyp/);
  assert.doesNotThrow(()=>new Function(ui));
 });
+
+
+test('employee and manager use the same partial-cost algorithm for overdrawn FX lots',()=>{
+ const mobileCore=require(path.join(root,'field_agent/src/main/assets/www/static/ta-currency-exchange-core-142.js'));
+ const rows=[
+   fx('fx_staff_buy_01','SYP','USD',1500000,100,1500000,'2026-11-13T00:00:00Z'),
+   fx('fx_staff_sell_01','USD','SYP',150,2550000,2550000,'2026-11-14T00:00:00Z')
+ ];
+ const a=core.analyze(rows).byId.get('fx_staff_sell_01');
+ const b=mobileCore.analyze(rows).byId.get('fx_staff_sell_01');
+ assert.equal(a.gainSyp,200000);
+ assert.deepEqual([b.gainSyp,b.coveredAmount,b.uncoveredAmount,b.costOfSoldSyp],
+                  [a.gainSyp,a.coveredAmount,a.uncoveredAmount,a.costOfSoldSyp]);
+});
