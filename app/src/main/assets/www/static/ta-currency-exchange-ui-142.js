@@ -293,7 +293,7 @@ function list(){
  '<div class="text-slate-500">'+esc(e.note||'')+'</div>'+
  (e.agentId?'<div class="text-amber-700">عملية موظف البيع مرحّلة للمدير (للقراءة فقط)</div>':
  '<div class="flex gap-2 mt-2"><button type="button" class="flex-1 rounded-lg border p-2 bg-blue-700 text-white" onclick="TiqanyFxUI.edit(\''+esc(e.id)+'\')">تعديل العملية</button>'+
- '<button type="button" class="flex-1 rounded-lg border p-2 bg-red-700 text-white font-black" onclick="TiqanyFxUI.remove(\''+esc(e.id)+'\')">حذف العملية</button></div>')+
+ '<button type="button" class="ta-fx-delete-149 flex-1 rounded-lg border p-2 font-black" style="background:#b91c1c!important;color:#fff!important;border:2px solid #991b1b!important;box-shadow:0 4px 0 #7f1d1d!important" onclick="TiqanyFxUI.remove(\''+esc(e.id)+'\')"><i class="fas fa-trash-alt ml-2" aria-hidden="true"></i> حذف العملية</button></div>')+
  '</div>').join(''):'<p class="text-slate-500">لا توجد عمليات تصريف مسجلة</p>')+'</div>'+
  '<button type="button" class="w-full bg-slate-100 p-3 rounded-xl" onclick="UI.forceCloseModal()">رجوع</button></div>');
 }
