@@ -682,6 +682,9 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
           if(!data.provision.protection)return reply({ok:false,error:'يجب إعداد كلمة سر المدير على هاتف المصدر'});
         }
         const original=this.snapshot();
+        const incomingEvents=(!lock.adoptDesktop&&core.canonical(data.snapshot)!==lock.snapshot)?
+          (window.TiqanyPeerEvents?.records(original,data.snapshot,'موبايل المدير')?.entries||[]):[];
+        let notificationsToDeliver=[];
         if(core.canonical(data.snapshot)!==lock.snapshot){
           this.busy=true;
           try{
@@ -697,7 +700,18 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
               State.fieldSync??={};if(p.fieldCompanyId)State.fieldSync.companyId=p.fieldCompanyId;
               State.alertCenter=clone(p.alertCenter||{entries:[]});
             }
+            if(incomingEvents.length&&!lock.adoptDesktop&&typeof ManagerNotifications!=='undefined'){
+              const fresh=ManagerNotifications.filterPeerEvents(incomingEvents);
+              if(fresh.length){
+                State.alertCenter??={entries:[]};
+                State.alertCenter.entries??=[];
+                State.alertCenter.entries.unshift(...fresh);
+                State.alertCenter.entries=State.alertCenter.entries.slice(0,3000);
+                notificationsToDeliver=fresh;
+              }
+            }
             await StorageEngine.saveState();
+            if(notificationsToDeliver.length)ManagerNotifications.saved(notificationsToDeliver);
           }
           catch(err){core.apply(State,original);throw err;}
           finally{this.busy=false;}
