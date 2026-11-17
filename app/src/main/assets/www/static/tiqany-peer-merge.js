@@ -72,7 +72,7 @@ function bootstrapProtection(cfg){
  const validQuestions=questions.length===2&&questions.every(q=>q&&typeof q.id==='string'&&/^[a-zA-Z0-9_-]{1,50}$/.test(q.id)&&validSalt(q.salt)&&validHash(q.hash));
  return {pinSalt:cfg.pinSalt,pinHash:cfg.pinHash,pinAlgo:algo,
    securityQuestions:validQuestions?questions.map(q=>({id:q.id,salt:q.salt,hash:q.hash})):[],
-   recoveryFailures:0,recoveryLockedUntil:0,lockApp:true,protectDeletion:!!cfg.protectDeletion,
+   recoveryFailures:0,recoveryLockedUntil:0,lockApp:cfg.lockApp===true,protectDeletion:!!cfg.protectDeletion,
    fingerprintEnabled:false,fingerprintCredentialId:''};
 }
 function ensureSnapshot(s){if(!s||typeof s!=='object'||Array.isArray(s))throw Error('نسخة مزامنة غير صالحة');for(const k of BASE_COLLECTIONS)if(!Array.isArray(s[k])&&(!['capitalMovements','shareholderOwners','shareholderMovements','currencyExchanges'].includes(k)||s[k]!==undefined))throw Error('سجل '+k+' غير صالح');for(const k of STAFF_COLLECTIONS)if(s[k]!==undefined&&!Array.isArray(s[k]))throw Error('سجل موظفي البيع '+k+' غير صالح');if(!s.sharedSettings||typeof s.sharedSettings!=='object'||Array.isArray(s.sharedSettings))throw Error('إعدادات المزامنة غير صالحة');
