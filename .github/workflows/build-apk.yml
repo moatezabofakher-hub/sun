@@ -3,7 +3,7 @@ name: Tiqany Acc - Main Signed Release
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, 'fix/profile-archive-entry-3.5.127']
 
 permissions:
   contents: read
