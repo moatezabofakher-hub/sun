@@ -3,7 +3,7 @@ name: Tiqany Acc - Main Signed Release
 on:
   workflow_dispatch:
   push:
-    branches: [main, 'feat/first-link-source-only-3.5.129']
+    branches: [main]
 
 permissions:
   contents: read
