@@ -5938,8 +5938,10 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                         date:e.date,party:e.deferredGainSyp?'تسوية تكلفة تصريف سابق':'أرباح التصريف',
                         currency:'SYP',profit:e.gainSyp/(Number(State.settings.exchangeRate)||1)});
                 }
-                const netProfitUsd = estimatedProfitUsd - expenseTotalUsd
-                  + exchangeProfitSyp/(Number(State.settings.exchangeRate)||1);
+                // FX gains are part of gross realized business profit, but remain
+                // separately identifiable in the exchange-profit report.
+                const grossProfitUsd = estimatedProfitUsd + exchangeProfitSyp/(Number(State.settings.exchangeRate)||1);
+                const netProfitUsd = grossProfitUsd - expenseTotalUsd;
                 // Equity distributions are reported separately, never as operating expenses.
                 const shareholderDrawsInPeriod=(Array.isArray(State.shareholderMovements)?State.shareholderMovements:[])
                   .filter(e=>e?.type==='profitDraw'&&TimeFilter.matches(e.date,period,selectedDate,endDate));
@@ -6041,7 +6043,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                         <div class="grid grid-cols-3 gap-1.5 mb-3">${active('invoices','أرباح الفواتير')}${active('groups','أرباح المجموعات')}${active('items','أرباح المواد')}</div>
                         <div class="grid grid-cols-2 gap-2 mb-3">
                             <div class="bg-white p-3 rounded-2xl border"><div class="text-[11px] text-slate-500">إجمالي المبيعات</div><div class="font-extrabold text-emerald-700">${Accounting.format(salesUsd,'USD')}</div><div class="text-[10px] text-slate-500">${Accounting.format(salesSyp,'SYP')}</div></div>
-                            <div class="bg-slate-900 text-white p-3 rounded-2xl"><div class="text-[11px] text-slate-300">إجمالي الربح التقديري</div>${revealProfits ? `<div class="font-extrabold text-amber-300">${Accounting.format(estimatedProfitUsd,'USD')}</div><div class="text-[10px] text-emerald-300">${Accounting.format(estimatedProfitUsd * (Number(State.settings && State.settings.exchangeRate)||1),'SYP')}</div>` : `<div class="font-extrabold text-amber-300/80 mt-1 tracking-widest">••••••</div><div class="text-[10px] text-slate-300 mt-1">اضغط إظهار الأرباح</div>`}</div>
+                            <div class="bg-slate-900 text-white p-3 rounded-2xl"><div class="text-[11px] text-slate-300">إجمالي الربح شاملاً التصريف</div>${revealProfits ? `<div class="font-extrabold text-amber-300">${Accounting.format(grossProfitUsd,'USD')}</div><div class="text-[10px] text-emerald-300">${Accounting.format(grossProfitUsd * (Number(State.settings && State.settings.exchangeRate)||1),'SYP')}</div>` : `<div class="font-extrabold text-amber-300/80 mt-1 tracking-widest">••••••</div><div class="text-[10px] text-slate-300 mt-1">اضغط إظهار الأرباح</div>`}</div>
                         </div>
                         <div class="grid grid-cols-2 gap-2 mb-3">
                             <div class="bg-orange-50 border border-orange-200 rounded-2xl p-3">
