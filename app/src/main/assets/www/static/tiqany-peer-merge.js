@@ -379,7 +379,10 @@ function apply(state,data){
  if(Object.hasOwn(data.sharedSettings,'managerSecurity')&&data.sharedSettings.managerSecurity){
    const cfg=portableSecurity(data.sharedSettings.managerSecurity);
    if(!cfg)throw Error('تم رفض إعدادات الحماية غير الصالحة');
-   state.settings.appProtection={...cfg,fingerprintEnabled:false,fingerprintCredentialId:''};
+   // Fingerprint enrollment is device-bound. Keep it when the portable PIN
+   // verifier is unchanged; invalidate only when the remote PIN has changed.
+   if(canonical(portableSecurity(state.settings?.appProtection))!==canonical(cfg))
+     state.settings.appProtection={...cfg,fingerprintEnabled:false,fingerprintCredentialId:''};
  }
  const field=state.fieldSync&&typeof state.fieldSync==='object'?state.fieldSync:{};
  for(const [name,dest] of [['fieldAgents','agents'],['fieldImported','imported'],['fieldEvents','events'],['fieldCashTransfers','cashTransfers'],['fieldOperationHistory','operationHistory'],['fieldRevisionAudit','revisionAudit']])
