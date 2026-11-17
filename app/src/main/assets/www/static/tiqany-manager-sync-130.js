@@ -73,7 +73,7 @@ const manager={
     for(const [k,v] of Object.entries(input||{}))
       if(!['__proto__','constructor','prototype'].includes(k)&&!deviceOnly(k))output[k]=copy(v);
     return output;},
-  protectedSettingsMerge(base,left,right){
+  protectedSettingsMerge(base,left,right,decisions={},prefix='setting:'){
     const result={},conflicts=[],keys=new Set([...Object.keys(base||{}),...Object.keys(left||{}),...Object.keys(right||{})]);
     for(const key of keys){
       const B=base?.[key],A=left?.[key],R=right?.[key],a=core.canonical(A),b=core.canonical(B),r=core.canonical(R);
@@ -81,7 +81,15 @@ const manager={
       if(a===r)value=A;
       else if(a===b)value=R;
       else if(r===b)value=A;
-      else{conflicts.push({key,local:A,remote:R,signature:core.digest([B,A,R])});continue;}
+      else{
+        const signature=core.digest([B,A,R]);
+        const answer=decisions[prefix+key];
+        if(answer?.signature===signature&&['phone','computer'].includes(answer.side)){
+          value=answer.side==='phone'?A:R;
+        }else{
+          conflicts.push({id:prefix+key,key,local:A,remote:R,signature});continue;
+        }
+      }
       if(value!==undefined)result[key]=copy(value);
     }
     return {ok:!conflicts.length,settings:result,conflicts};
@@ -126,7 +134,7 @@ const manager={
         State.settings.appProtection={...copy(protection),fingerprintEnabled:false,fingerprintCredentialId:''};
       }
       State.license=oldLicense; // neither installation may activate or deactivate the other
-      const notes=await this.notifyReceived(oldLedger,core.snapshot(State),oldSettings,this.portableSettings(),'موبايل المدير');
+      const notes=opts.first?[]:await this.notifyReceived(oldLedger,core.snapshot(State),oldSettings,this.portableSettings(),'موبايل المدير');
       await StorageEngine.saveState();
       if(notes.length&&typeof ManagerNotifications!=='undefined')ManagerNotifications.saved(notes.slice(0,12));
       if(opts.first){
@@ -229,7 +237,7 @@ const manager={
         await this.applyIncoming(data.snapshot,data.settings,pin);
       }else return {ok:false,error:'اتجاه نقل غير مسموح'};
       const now=stamp();
-      await this.write(this.clientKey(lock.clientId),{clientId:lock.clientId,clientUid:data.companyUid,
+      await this.write(this.clientKey(lock.clientId),{clientId:lock.clientId,clientUid:this.currentUid(),
         companyUid:this.currentUid(),at:now,profileId:this.profile()});
       this.lastServer=Date.now();this.updateHeader();
       return {ok:true,sourceOnly:!lock.empty&&!lock.known&&lock.clientEmpty};
@@ -286,29 +294,37 @@ const manager={
       const srcEmpty=core.emptyLedger(local),remoteEmpty=fetched.empty===true;
       const mySettings=this.portableSettings(),myPin=this.portablePin();
       if(first&&srcEmpty)this.validateMeta(fetched.provision,fetched.companyUid);
+      const oldChoices=this.conflicts?.decisions||{};
       const incoming=first?(srcEmpty?fetched.snapshot:local):
-        core.merge(base.ledger,local,fetched.snapshot,this.conflicts?.decisions||{},[]);
+        core.merge(base.ledger,local,fetched.snapshot,oldChoices,[]);
       if(!first&&!incoming.ok){
         const details=incoming.details||[];
-        this.conflicts={serverId:link.serverId,at:stamp(),details,decisions:{}};
+        this.conflicts={serverId:link.serverId,at:stamp(),details,decisions:oldChoices};
         await this.write(this.conflictKey(link.serverId),this.conflicts);
         this.showConflicts();this.info('المزامنة بحاجة لحل '+details.length+' تعارضاً',true);
         return false;
       }
       const snapshot=first?incoming:incoming.snapshot;
+      if(!first&&this.conflicts?.details?.length){
+        // Prior decisions are single-use and bound to exact conflicting versions.
+        const unresolved=this.conflicts.details.some(d=>!oldChoices[d.id]||
+          oldChoices[d.id].signature!==d.signature);
+        if(unresolved&&this.conflicts.details.some(d=>d.collection==='fullSettings'||d.collection==='protection'))
+          return false;
+      }
       let settings,protection;
       if(first){
         if(srcEmpty){settings=fetched.provision.settings;protection=fetched.provision.protection;}
         else {settings=mySettings;protection=myPin;}
       }else{
-        const combined=this.protectedSettingsMerge(base.settings||{},mySettings,fetched.settings||{});
+        const combined=this.protectedSettingsMerge(base.settings||{},mySettings,fetched.settings||{},oldChoices,'setting:');
         const protecting=this.protectedSettingsMerge({pin:base.protection||null},
-          {pin:myPin},{pin:fetched.protection||null});
+          {pin:myPin},{pin:fetched.protection||null},oldChoices,'protection:');
         if(!combined.ok||!protecting.ok){
           this.conflicts={serverId:link.serverId,at:stamp(),details:[
             ...combined.conflicts.map(x=>({...x,collection:'fullSettings'})),
-            ...protecting.conflicts.map(x=>({...x,key:'appProtection',collection:'protection'}))
-          ],decisions:this.conflicts?.decisions||{}};
+            ...protecting.conflicts.map(x=>({...x,collection:'protection'}))
+          ],decisions:oldChoices};
           await this.write(this.conflictKey(link.serverId),this.conflicts);
           this.showConflicts();return false;
         }
@@ -402,8 +418,7 @@ const manager={
     const d=log.details.find(x=>x.id===id||(x.key===id&&!x.id));
     if(!d)return;
     log.decisions??={};
-    if(d.id)log.decisions[d.id]={signature:d.signature,side:side==='local'?'phone':'computer'};
-    else log.decisions[d.key]={signature:d.signature,side:side==='local'?'phone':'computer'};
+    log.decisions[id]={signature:d.signature,side:side==='local'?'phone':'computer'};
     this.write(this.conflictKey(log.serverId),log).then(()=>this.showConflicts());
   },
   showConflicts(){
