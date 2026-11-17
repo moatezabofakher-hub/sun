@@ -8,15 +8,10 @@ const allowed=()=>[...new Set((Array.isArray(A.state?.allowedCurrencies)?A.state
 const ops=()=>A.state?.ops||[];
 const fmt=(n,c)=>Number(n||0).toLocaleString('en-US',{maximumFractionDigits:c==='SYP'?0:2})+' '+c;
 function sources(){
- const base=A.cashSummary(),out={SYP:Number(base.syp)||0,USD:Number(base.usd)||0,...(A.state.agentCash?.otherCurrencies||{})};
- // Pending exchanges are not yet in the server-issued cashbox snapshot.
- for(const op of ops()){
-  if(op.kind!=='currency_exchange'||(A.state.snapshotIds||[]).includes(op.id))continue;
-  out[op.fromCurrency]=(Number(out[op.fromCurrency])||0)-Number(op.fromAmount);
-  out[op.toCurrency]=(Number(out[op.toCurrency])||0)+Number(op.toAmount);
- }
- return out;
+ const base=A.cashSummary();
+ return {SYP:Number(base.syp)||0,USD:Number(base.usd)||0,...(base.otherCurrencies||{})};
 }
+
 A.renderCurrencyExchange= function(){
  const choices=allowed();
  if(choices.length<2)return '<div class="panel">يجب تفعيل عملتين على الأقل في التطبيق الرئيسي.</div>';
