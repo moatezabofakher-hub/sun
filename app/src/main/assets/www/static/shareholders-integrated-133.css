@@ -1,0 +1,32 @@
+/* Integrated shareholders in the existing main Android/Windows UI. */
+#modalBox .ta-share-modal{direction:rtl;text-align:right;color:#142b48;max-height:min(82vh,790px);overflow:auto;padding:4px 2px}
+.ta-share-heading{font-size:20px;font-weight:950;color:#102d58;line-height:1.6;margin:0 0 14px}
+.ta-share-note{color:#49667d;font-size:12px;line-height:1.8;margin:10px 0 16px}
+.ta-share-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.ta-share-metric{padding:12px 11px;border:1px solid #9fc8ed;background:linear-gradient(150deg,#eff9ff,#d8ebff);border-radius:14px;box-shadow:0 4px 0 #bed7ee,0 8px 12px #123b6115}
+.ta-share-metric>span{display:block;color:#284866;font-size:11px;font-weight:800;line-height:1.6}
+.ta-share-metric>strong{display:block;font-size:15px;color:#10345e;overflow-wrap:anywhere;margin-top:6px}
+.ta-share-subheading{font-weight:900;font-size:15px;color:#123960;margin:19px 0 10px}
+.ta-share-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:12px 0}
+#modalBox .ta-share-modal button.ta-share-btn{min-height:46px!important;padding:9px 11px!important;background:linear-gradient(150deg,#358fcd 0%,#145b9a 65%,#104477 100%)!important;background-color:#1766a5!important;
+ border:1px solid #87b6db!important;border-radius:13px!important;color:#fff!important;-webkit-text-fill-color:#fff!important;font-size:13px!important;font-weight:900!important;box-shadow:0 5px 0 #073c6a,0 8px 13px #14365525,inset 0 2px 3px #ffffff55!important;white-space:normal;line-height:1.45}
+#modalBox .ta-share-modal button.ta-share-btn:active{transform:translateY(3px);box-shadow:0 2px 0 #073c6a!important}
+.ta-share-owners{display:grid;grid-template-columns:repeat(auto-fit,minmax(225px,1fr));gap:11px}
+.ta-share-owner{display:flex;flex-direction:column;gap:7px;border:1px solid #7aa2d1;border-radius:18px;padding:14px;color:#fff;background:linear-gradient(140deg,#326fb7 0%,#114477 70%,#0a2e5c 100%);box-shadow:0 5px 0 #0d3666,0 10px 18px #113b6140}
+.ta-share-owner>strong{font-weight:950;font-size:18px;color:#fff}
+.ta-share-owner>small{font-size:11px;color:#d2e9fa;line-height:1.6}
+.ta-share-owner>div{font-size:12px;background:#174e82;border-radius:9px;padding:7px 9px;display:flex;justify-content:space-between;gap:10px;align-items:center}
+.ta-share-owner>div>strong{font-size:12px}
+#modalBox .ta-share-owner button.ta-share-btn{background:linear-gradient(#eff7ff,#cee7ff)!important;color:#123a6b!important;-webkit-text-fill-color:#123a6b!important;border-color:#fff!important;box-shadow:0 3px 0 #a3c5e8!important;margin-top:5px}
+.ta-share-history{display:flex;flex-direction:column;gap:8px}
+.ta-share-entry{display:flex;flex-wrap:wrap;align-items:center;gap:9px;justify-content:space-between;padding:11px;border-radius:13px;border:1px solid #cedfea;background:#f7fbff}
+.ta-share-entry>span{font-size:12px;font-weight:800;flex:1;min-width:125px}
+.ta-share-entry small{display:block;font-size:10px;font-weight:500;color:#678095;margin-top:4px}
+.ta-share-entry>b{font-size:12px;direction:ltr}
+.ta-share-entry-actions{display:flex;gap:6px;width:100%;justify-content:flex-end}
+#modalBox .ta-share-entry-actions button.ta-share-btn{min-height:33px!important;font-size:11px!important;padding:5px 10px!important}
+#modalBox .ta-share-entry-actions button[data-ta-action="delete"]{background:linear-gradient(#e45f75,#ac233f)!important;box-shadow:0 3px 0 #831b36!important}
+.ta-share-modal label{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:800;margin:10px 0;color:#243c57}
+.ta-share-modal label>input,.ta-share-modal label>select{min-height:46px;background:#fff;border:1px solid #bfd3e4;border-radius:10px;color:#133856;font-size:16px;padding:10px;width:100%}
+.ta-share-modal input:focus,.ta-share-modal select:focus{outline:2px solid #3286c1}
+@media(max-width:360px){.ta-share-metrics{grid-template-columns:1fr}.ta-share-actions{grid-template-columns:1fr}}
