@@ -1590,7 +1590,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 addedCurrencies: [], // Other ISO codes are catalogued, not silently posted to a two-currency ledger
                 defaultInvoiceListType: 'sale',
                 defaultPriceTier: 'wholesale', // Default sale tier only for accounts set to follow invoice settings
-                posAutoNextOnFinish: true, // After saving or confirming discard of a nonempty POS draft
+                posAutoNextOnFinish: false, // After saving or confirming discard of a nonempty POS draft
                 defaultViewPeriod: 'today', // Shared initial filter for invoices, vouchers and period-based reports
                 defaultViewStart: '',
                 defaultViewEnd: '',
@@ -3312,7 +3312,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                             const repeatPOS=this.current()?.screen==='pos' &&
                               InvoiceController.draft?.rows?.length>0 &&
                               !InvoiceController.draft.isEditing &&
-                              State.settings.posAutoNextOnFinish!==false;
+                              State.settings.posAutoNextOnFinish===true;
                             this.clearDirty();
                             if(repeatPOS)this.navigate('pos',{},true);
                             else this.popScreen();
@@ -6119,7 +6119,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                                 <option value="center" ${State.settings.posPriceTier==='center'?'selected':''}>المركز</option>
                                 <option value="consumer" ${State.settings.posPriceTier==='consumer'?'selected':''}>المستهلك</option>
                             </select>
-                            <label class="ta-pos-next-toggle"><input type="checkbox" id="posAutoNextSetting" ${State.settings.posAutoNextOnFinish!==false?'checked':''} onchange="POSController.saveSettings()"><span>فتح نقطة بيع جديدة تلقائياً بعد الحفظ أو الخروج من عملية غير مكتملة</span></label>
+                            <label class="ta-pos-next-toggle"><input type="checkbox" id="posAutoNextSetting" ${State.settings.posAutoNextOnFinish===true?'checked':''} onchange="POSController.saveSettings()"><span>فتح نقطة بيع جديدة تلقائياً بعد الحفظ أو الخروج من عملية غير مكتملة</span></label>
                             <label class="flex items-center gap-2 text-xs font-bold">
                                 <input type="checkbox" id="posScanFromHomeSetting" ${State.settings.posScanFromHome===true?'checked':''} onchange="POSController.saveSettings()"> فتح نقطة بيع عند قراءة باركود من الرئيسية
                             </label>
