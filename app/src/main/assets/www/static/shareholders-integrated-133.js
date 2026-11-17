@@ -282,7 +282,7 @@
    if(type==='percentages')return this.percentagesForm();
    if(type==='owner')return this.ownerForm(id);
    if(type==='editOwner')return this.authorizeEditOwner(id);
-   if(type==='capitalTransfer')return CapitalLedger.open();
+   if(type==='capitalTransfer'){CapitalLedger._fromShareholders=true;return CapitalLedger.open();}
    if(type==='edit'){const e=S.movements(State).find(x=>x.id===id);return e&&this.operationForm(e.ownerId,e.type,e);}
    if(type==='print')return this.print(id);
    if(type==='delete')return this.remove(id);
@@ -421,9 +421,15 @@
     if(!id){id=S.uuid();localStorage.setItem(k,id)}return id;}catch(_){return S.uuid()}}
  // Escape follows the same hierarchy as the shareholder's visible Back button.
  document.addEventListener('keydown',e=>{
-  if((e.key==='Escape'||e.key==='BrowserBack')&&
-       document.querySelector('#modalContainer:not(.hidden) .ta-share-modal')){
+  if(e.key!=='Escape'&&e.key!=='BrowserBack')return;
+  if(document.querySelector('#modalContainer:not(.hidden) .ta-share-modal')){
    e.preventDefault();e.stopImmediatePropagation();UIShareholders.back();
+  }else if(document.querySelector('#modalContainer:not(.hidden) .ta-capital-modal')){
+   e.preventDefault();e.stopImmediatePropagation();
+   if(document.getElementById('capitalAmount'))CapitalLedger.open();
+   else if(CapitalLedger._fromShareholders){
+    CapitalLedger._fromShareholders=false;UIShareholders.open();
+   }else UI.requestCloseModal();
   }
  },true);
  root.ShareholdersUI=UIShareholders;
