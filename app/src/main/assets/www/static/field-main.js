@@ -11,6 +11,7 @@ const TiqanyAgentPermissions=(function(){'use strict';
      if(o.kind==='document_edit'&&!p.editOperations)throw Error('ليس لدى الموظف صلاحية تعديل العمليات');
      if(o.kind==='document_delete'&&!p.deleteOperations)throw Error('ليس لدى الموظف صلاحية حذف العمليات');
      if(o.kind==='item_create'&&!p.createItems)throw Error('ليس لدى الموظف صلاحية إضافة مواد');
+     if((o.kind==='fx_rate_change'||(o.kind==='currency_exchange'&&o.fxRateChanged===true))&&!p.fxSharedRate)throw Error('لا يملك الموظف صلاحية تعديل سعر صرف التصريف المزامن');
    }
    return true;
  }
@@ -580,7 +581,7 @@ const FieldSync = {
     if(!ops.length)return 0;
     this.assertAuthorizedOps(ops,agent);
     if(ops.some(op=>op.kind==='document_edit'))return this.commitOperationsWithRevisions(agent,ops);
-    const config=this.data(),old={items:State.items,accounts:State.accounts,invoices:State.invoices,vouchers:State.vouchers,expenses:Array.isArray(State.expenses)?State.expenses:[],imported:config.imported,events:config.events,history:config.operationHistory,exchanges:State.currencyExchanges,used:State.license.opsUsedCount};
+    const config=this.data(),old={items:State.items,accounts:State.accounts,invoices:State.invoices,vouchers:State.vouchers,expenses:Array.isArray(State.expenses)?State.expenses:[],imported:config.imported,events:config.events,history:config.operationHistory,exchanges:State.currencyExchanges,fxRates:JSON.parse(JSON.stringify(State.settings.currencyExchangeRatesSyp||{})),used:State.license.opsUsedCount};
     const existing=new Set(config.imported.map(x=>x.id));
     const fresh=ops.filter(x=>!existing.has(x.id));
     if(!fresh.length)return 0;
@@ -614,7 +615,7 @@ const FieldSync = {
       if(!State.license.isActivated)State.license.opsUsedCount+=fresh.length;
       await StorageEngine.saveState();
       return fresh.length;
-    }catch(e){State.items=old.items;State.accounts=old.accounts;State.invoices=old.invoices;State.vouchers=old.vouchers;State.expenses=old.expenses;config.imported=old.imported;config.events=old.events;config.operationHistory=old.history;State.currencyExchanges=old.exchanges;State.license.opsUsedCount=old.used;throw e;}
+    }catch(e){State.items=old.items;State.accounts=old.accounts;State.invoices=old.invoices;State.vouchers=old.vouchers;State.expenses=old.expenses;config.imported=old.imported;config.events=old.events;config.operationHistory=old.history;State.currencyExchanges=old.exchanges;State.settings.currencyExchangeRatesSyp=old.fxRates;State.license.opsUsedCount=old.used;throw e;}
   },
   async previewFile(input){
     const file=input.files?.[0];if(!file)return;
@@ -656,7 +657,7 @@ const FieldSync = {
     if(this.busy||this.lanBusy||!this.staged?.ops?.length)return;
     this.busy=true;
     const {agent,ops}=this.staged,c=this.data();
-    const old={items:State.items,accounts:State.accounts,invoices:State.invoices,vouchers:State.vouchers,expenses:Array.isArray(State.expenses)?State.expenses:[],imported:c.imported,events:c.events,history:c.operationHistory,exchanges:State.currencyExchanges,opsUsedCount:State.license.opsUsedCount};
+    const old={items:State.items,accounts:State.accounts,invoices:State.invoices,vouchers:State.vouchers,expenses:Array.isArray(State.expenses)?State.expenses:[],imported:c.imported,events:c.events,history:c.operationHistory,exchanges:State.currencyExchanges,fxRates:JSON.parse(JSON.stringify(State.settings.currencyExchangeRatesSyp||{})),opsUsedCount:State.license.opsUsedCount};
     try {
       if(ops.some(op=>op.kind==='document_edit')){
         const count=await this.commitLanOperations(agent,ops);
@@ -697,7 +698,7 @@ const FieldSync = {
       if(typeof AppNav!=='undefined')AppNav.refreshAfterSync?.();
       // Let owner transfer ACK back to agent through Quick Share / Bluetooth.
       await this.exportAck(agent.id);
-    }catch(e){State.items=old.items;State.accounts=old.accounts;State.invoices=old.invoices;State.vouchers=old.vouchers;State.expenses=old.expenses;c.imported=old.imported;c.events=old.events;c.operationHistory=old.history;State.currencyExchanges=old.exchanges;State.license.opsUsedCount=old.opsUsedCount;UI.toast('لم يتم ترحيل البيانات: '+e.message,'error');}
+    }catch(e){State.items=old.items;State.accounts=old.accounts;State.invoices=old.invoices;State.vouchers=old.vouchers;State.expenses=old.expenses;c.imported=old.imported;c.events=old.events;c.operationHistory=old.history;State.currencyExchanges=old.exchanges;State.settings.currencyExchangeRatesSyp=old.fxRates;State.license.opsUsedCount=old.opsUsedCount;UI.toast('لم يتم ترحيل البيانات: '+e.message,'error');}
     finally{this.busy=false;}
   }
 };
