@@ -99,7 +99,7 @@ const manager={
     const extras=[];
     for(const key of new Set([...Object.keys(oldSettings||{}),...Object.keys(newSettings||{})])){
       if(core.canonical(oldSettings?.[key])===core.canonical(newSettings?.[key]))continue;
-      if(core.SETTINGS.includes(key))continue; // already included by peer events
+      if(Object.hasOwn(before?.sharedSettings||{},key)||Object.hasOwn(after?.sharedSettings||{},key))continue; // core now includes every portable setting
       const id=events?.eventKey?.(origin,'setting',key,'تعديل',newSettings?.[key])||'manager:setting:'+core.digest([origin,key,newSettings?.[key]]);
       extras.push({id,eventKey:id,type:'peer-operation',collection:'settings',action:'تعديل',source:origin,
         title:'تعديل الضبط — '+key,detail:'تم تعديل '+key+' من جهاز المدير المتصل',at:stamp(),read:false});
