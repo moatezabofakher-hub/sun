@@ -13,49 +13,77 @@ function sources(){
 }
 
 
-const localRates=()=>A.state.currencyExchangeRatesSyp||{};
+const localRates=()=>A.state?.currencyExchangeRatesSyp||{};
+const canEditRate=()=>A.can?.('fxSharedRate')===true;
+const validatedRate=(n)=>Number.isFinite(Number(n))&&Number(n)>0&&Number(n)<1e12;
+function rateOperation(changes){
+ return {id:'op_'+FieldProtocol.uuid(),kind:'fx_rate_change',date:new Date().toISOString(),
+  agentId:A.state.agentId,companyId:A.state.companyId,warehouseId:A.state.warehouseId,
+  currency:'SYP',exchangeRate:Number(A.state.exchangeRate),
+  rates:changes,localNumber:A.nextLocalNumber('XR')};
+}
+function storeFxChanges(changes){
+ const out={...localRates()};
+ for(const [currency,change] of Object.entries(changes))out[currency]={...(out[currency]||{}),...change};
+ return out;
+}
 A.renderFxRates=function(){
- const list=allowed().filter(c=>c!=='SYP'),current=localRates();
- return '<div class="hero"><h2>سعر الصرف</h2><p>أسعار الشراء والمبيع مقابل الليرة السورية، تُستخدم في عمليات التصريف الجديدة على هذا الجهاز.</p></div>'+
- '<section class="panel">'+list.map(c=>'<div style="padding:12px;margin-bottom:12px;border:1px solid #9fbad0;border-radius:12px;background:#f1f7ff">'+
+ const list=allowed().filter(c=>c!=='SYP'),current=localRates(),edit=canEditRate();
+ return '<div class="hero"><h2>سعر الصرف</h2><p>أسعار الشراء والمبيع مقابل الليرة السورية، المستلمة بمزامنة تطبيق المدير.</p></div>'+
+ '<section class="panel">'+
+ (!edit?'<p class="tiny" style="color:#9f1239">تعديل هذه الأسعار مقفل بصلاحيات المدير؛ يمكنك الاطلاع عليها فقط.</p>':
+ '<p class="tiny">يمكنك تعديل الأسعار وسيُرسل التعديل إلى المدير عند المزامنة التالية.</p>')+
+ list.map(c=>'<div style="padding:12px;margin-bottom:12px;border:1px solid #9fbad0;border-radius:12px;background:#f1f7ff">'+
  '<strong>'+esc(c)+' مقابل الليرة السورية</strong>'+
- '<label class="label">سعر الشراء (نشتري '+esc(c)+' بالليرة)</label><input id="agentFxBuy_'+c+'" class="field" type="number" min="0" step="any" value="'+esc(current[c]?.buy??'')+'">'+
- '<label class="label">سعر المبيع (نبيع '+esc(c)+' ونقبض ليرة)</label><input id="agentFxSell_'+c+'" class="field" type="number" min="0" step="any" value="'+esc(current[c]?.sell??'')+'"></div>').join('')+
- '<button class="primary" onclick="Agent.saveFxRates()">حفظ أسعار الصرف</button><button class="secondary" onclick="Agent.goBack()">رجوع</button></section>';
+ '<label class="label">سعر الشراء</label><input id="agentFxBuy_'+c+'" class="field" type="number" min="0" step="any" '+(edit?'':'readonly ')+'value="'+esc(current[c]?.buy??'')+'">'+
+ '<label class="label">سعر المبيع</label><input id="agentFxSell_'+c+'" class="field" type="number" min="0" step="any" '+(edit?'':'readonly ')+'value="'+esc(current[c]?.sell??'')+'"></div>').join('')+
+ (edit?'<button class="primary" onclick="Agent.saveFxRates()">حفظ وإرسال الأسعار في المزامنة</button>':'')+
+ '<button class="secondary" onclick="Agent.goBack()">رجوع</button></section>';
 };
 A.saveFxRates=async function(){
- if(this.busy)return;
- const old=localRates(),next={...old};let count=0;
+ if(this.busy||!this.requireRight('fxSharedRate'))return;
+ const changes={};
  try{
   for(const c of allowed().filter(c=>c!=='SYP')){
-   const buyText=(document.getElementById('agentFxBuy_'+c)?.value||'').trim();
-   const sellText=(document.getElementById('agentFxSell_'+c)?.value||'').trim();
-   if(!buyText&&!sellText){delete next[c];continue;}
-   const buy=Number(buyText),sell=Number(sellText);
-   if(!Number.isFinite(buy)||!Number.isFinite(sell)||buy<=0||sell<=0||buy>=1e12||sell>=1e12)
-    throw Error('أدخل سعر شراء ومبيع صالحين للعملة '+c);
-   next[c]={buy,sell};count++;
+   const b=(document.getElementById('agentFxBuy_'+c)?.value||'').trim();
+   const t=(document.getElementById('agentFxSell_'+c)?.value||'').trim();
+   const prev=localRates()[c]||{},change={};
+   if(b&&(!validatedRate(b)))throw Error('سعر الشراء غير صالح: '+c);
+   if(t&&(!validatedRate(t)))throw Error('سعر المبيع غير صالح: '+c);
+   if(b&&Number(b)!==Number(prev.buy))change.buy=Number(b);
+   if(t&&Number(t)!==Number(prev.sell))change.sell=Number(t);
+   if(Object.keys(change).length)changes[c]=change;
   }
-  if(!count)throw Error('أدخل أسعار عملة واحدة على الأقل');
-  this.busy=true;this.state.currencyExchangeRatesSyp=next;
+  if(!Object.keys(changes).length){this.toast('لم يتم تغيير أي سعر');return;}
+  const op=rateOperation(changes);
+  FieldProtocol.validateOps([op],this.state.agentId,this.state.companyId,this.state.warehouseId,this.state.items,this.state.accounts);
+  this.busy=true;
+  const priorOps=this.state.ops.slice(),priorRates=this.state.currencyExchangeRatesSyp;
+  this.state.currencyExchangeRatesSyp=storeFxChanges(changes);this.state.ops.push(op);
   try{await this.save();}
-  catch(e){this.state.currencyExchangeRatesSyp=old;throw e;}
-  this.toast('تم حفظ أسعار الصرف');await this.show('home');
+  catch(err){this.state.currencyExchangeRatesSyp=priorRates;this.state.ops=priorOps;throw err;}
+  this.toast('حُفظت أسعار الصرف وسيُرحّل تعديلها عند المزامنة');await this.show('home');
  }catch(e){this.toast('تعذر حفظ الأسعار: '+e.message);}
  finally{this.busy=false;}
 };
 
-A.renderCurrencyExchange= function(){
+A.renderCurrencyExchange=function(){
  const choices=allowed();
  if(choices.length<2)return '<div class="panel">يجب تفعيل عملتين على الأقل في التطبيق الرئيسي.</div>';
- const sel=(id)=>'<select id="'+id+'" class="field">'+choices.map(c=>'<option value="'+c+'">'+c+'</option>').join('')+'</select>';
- return '<div class="hero"><h2>تصريف عملة</h2><p>شراء عملة من رصيد صندوق موظف البيع وتسجيل العملية للمزامنة مع الرئيسي.</p></div>'+
+ const sel=id=>'<select id="'+id+'" class="field">'+choices.map(c=>'<option value="'+c+'">'+c+'</option>').join('')+'</select>';
+ return '<div class="hero"><h2>تصريف عملة</h2><p>يمكن تعديل سعر الصرف من داخل العملية إذا سمح المدير.</p></div>'+
  '<section class="panel">'+
  '<label class="label">العملة المدفوعة</label>'+sel('agentFxFrom')+
  '<label class="label">العملة المشتراة</label>'+sel('agentFxTo')+
  '<label class="label">المبلغ المدفوع</label><input id="agentFxSpent" class="field" type="number" min="0" step="any">'+
- '<label class="label">المبلغ المستلم</label><input id="agentFxReceived" class="field" type="number" min="0" step="any">'+
- '<div id="agentFxSypContainer"><label class="label">القيمة المكافئة بالليرة</label><input id="agentFxSyp" class="field" type="number" min="0" step="any"></div>'+ 
+ '<div id="agentFxRatePane" data-changed="0" style="padding:12px;background:#ebf4ff;border:1px solid #a4c5ea;border-radius:12px">'+
+ '<div id="agentFxSellRateBlock"><label class="label" id="agentFxSellRateLabel">سعر مبيع العملة المدفوعة</label>'+
+ '<input id="agentFxSellRate" class="field" type="number" min="0.000001" step="any" inputmode="decimal" '+(canEditRate()?'':'readonly')+'></div>'+
+ '<div id="agentFxBuyRateBlock"><label class="label" id="agentFxBuyRateLabel">سعر شراء العملة المستلمة</label>'+
+ '<input id="agentFxBuyRate" class="field" type="number" min="0.000001" step="any" inputmode="decimal" '+(canEditRate()?'':'readonly')+'></div>'+
+ '<p class="tiny">'+(canEditRate()?'يمكن تغيير السعر، وسيُحفظ ويرحّل التعديل مع العملية.':'السعر معتمد من المدير، وتعديله غير مسموح.')+'</p></div>'+
+ '<label class="label">المبلغ المستلم</label><input id="agentFxReceived" class="field" type="number" min="0" step="any" readonly>'+
+ '<div id="agentFxSypContainer"><label class="label">القيمة المكافئة بالليرة</label><input id="agentFxSyp" class="field" type="number" min="0" step="any" readonly></div>'+
  '<p class="tiny" id="agentFxRateHint"></p>'+
  '<label class="label">بيان اختياري</label><input id="agentFxNote" maxlength="200" class="field">'+
  '<p class="tiny" id="agentFxCashHint"></p>'+
@@ -63,53 +91,92 @@ A.renderCurrencyExchange= function(){
  '<button type="button" class="secondary" onclick="Agent.goBack()">إلغاء</button></section>';
 };
 A.paintCurrencyExchange=function(){
- const from=document.getElementById('agentFxFrom'),to=document.getElementById('agentFxTo');
+ const el=id=>document.getElementById(id);
+ const from=el('agentFxFrom'),to=el('agentFxTo');
  if(!from||!to)return;
- const update=()=>{
-  document.getElementById('agentFxSypContainer').hidden=from.value==='SYP'||to.value==='SYP';
-  document.getElementById('agentFxCashHint').textContent='رصيد الصندوق المتاح: '+fmt(Number(sources()[from.value]||0),from.value);
- };
  if(from.options.length>1&&from.value===to.value)to.selectedIndex=1;
- const paid=document.getElementById('agentFxSpent'),received=document.getElementById('agentFxReceived'),equiv=document.getElementById('agentFxSyp');
- const hint=document.getElementById('agentFxRateHint');
- const quote=()=>{
-  try{
-   const fromAmount=Number(paid.value),fromCurrency=from.value,toCurrency=to.value;
-   if(!(fromAmount>0)||fromCurrency===toCurrency)throw Error('غير مكتمل');
-   const q=E.quote(fromCurrency,toCurrency,fromAmount,localRates());
-   received.value=q.toAmount;equiv.value=q.equivalentSyp;
-   received.readOnly=true;equiv.readOnly=true;
-   hint.textContent='السعر المعتمد: '+fmt(q.toAmount,toCurrency)+' مقابل '+fmt(q.fromAmount,fromCurrency);
-  }catch(e){
-   received.readOnly=false;equiv.readOnly=false;
-   hint.textContent='إن لم تضبط سعر الصرف لهذه العملات، أدخل المبلغ المستلم يدوياً.';
-  }
-  update();
+ const paid=el('agentFxSpent'),received=el('agentFxReceived'),equiv=el('agentFxSyp');
+ const sell=el('agentFxSellRate'),buy=el('agentFxBuyRate'),pane=el('agentFxRatePane'),hint=el('agentFxRateHint');
+ const refresh=()=>{
+  el('agentFxSellRateBlock').hidden=from.value==='SYP';
+  el('agentFxBuyRateBlock').hidden=to.value==='SYP';
+  el('agentFxSellRateLabel').textContent='سعر مبيع '+from.value+' مقابل الليرة';
+  el('agentFxBuyRateLabel').textContent='سعر شراء '+to.value+' مقابل الليرة';
+  sell.value=from.value==='SYP'?'':localRates()[from.value]?.sell??'';
+  buy.value=to.value==='SYP'?'':localRates()[to.value]?.buy??'';
+  pane.dataset.changed='0';
  };
- from.addEventListener('change',quote);to.addEventListener('change',quote);paid.addEventListener('input',quote);quote();
+ const quote=()=>{
+  const f=from.value,t=to.value,rateSet={...localRates()};
+  if(f!=='SYP')rateSet[f]={...(rateSet[f]||{}),sell:Number(sell.value)};
+  if(t!=='SYP')rateSet[t]={...(rateSet[t]||{}),buy:Number(buy.value)};
+  try{
+   const q=E.quote(f,t,Number(paid.value),rateSet);
+   received.value=q.toAmount;equiv.value=q.equivalentSyp;
+   hint.textContent='وفق سعر الصرف: '+fmt(q.toAmount,t)+' مقابل '+fmt(q.fromAmount,f);
+  }catch(err){
+   received.value='';equiv.value='';
+   hint.textContent='أدخل مبلغاً وسعر صرف صالحاً. لا يمكن تجاوز السعر المعتمد دون الصلاحية.';
+  }
+  el('agentFxSypContainer').hidden=f==='SYP'||t==='SYP';
+  el('agentFxCashHint').textContent='رصيد الصندوق المتاح: '+fmt(Number(sources()[f]||0),f);
+ };
+ from.addEventListener('change',()=>{refresh();quote();});
+ to.addEventListener('change',()=>{refresh();quote();});
+ paid.addEventListener('input',quote);
+ if(canEditRate()){
+  for(const input of [sell,buy])input.addEventListener('input',()=>{pane.dataset.changed='1';quote();});
+ }
+ refresh();quote();
 };
 A.saveCurrencyExchange=async function(){
  if(this.busy)return;
  this.busy=true;
- let op;
  try{
   if(!await this.active())throw Error('يجب تفعيل تطبيق موظف البيع');
   const val=id=>document.getElementById(id)?.value;
   const fromCurrency=val('agentFxFrom'),toCurrency=val('agentFxTo');
   const fromAmount=Number(val('agentFxSpent')),toAmount=Number(val('agentFxReceived'));
   const equivalentSyp=fromCurrency==='SYP'?fromAmount:toCurrency==='SYP'?toAmount:Number(val('agentFxSyp'));
+  const changed=document.getElementById('agentFxRatePane')?.dataset.changed==='1';
+  if(changed&&!canEditRate())throw Error('ليس لديك صلاحية تعديل سعر الصرف');
+  const changes={},set={...localRates()};
+  if(changed){
+   if(fromCurrency!=='SYP'){
+    const sell=Number(val('agentFxSellRate'));if(!validatedRate(sell))throw Error('سعر مبيع غير صالح');
+    changes[fromCurrency]={...(changes[fromCurrency]||{}),sell};
+    set[fromCurrency]={...(set[fromCurrency]||{}),sell};
+   }
+   if(toCurrency!=='SYP'){
+    const buy=Number(val('agentFxBuyRate'));if(!validatedRate(buy))throw Error('سعر شراء غير صالح');
+    changes[toCurrency]={...(changes[toCurrency]||{}),buy};
+    set[toCurrency]={...(set[toCurrency]||{}),buy};
+   }
+  }
+  const q=E.quote(fromCurrency,toCurrency,fromAmount,set);
+  if(Math.abs(q.toAmount-toAmount)>1/E.scale(toCurrency)+1e-6||Math.abs(q.equivalentSyp-equivalentSyp)>1)
+    throw Error('القيم لا تطابق سعر الصرف المسموح');
   const event=E.prepare({id:'op_'+FieldProtocol.uuid(),date:new Date().toISOString(),
    fromCurrency,toCurrency,fromAmount,toAmount,equivalentSyp,agentId:this.state.agentId,source:'agent',note:val('agentFxNote')||''},allowed());
   if(event.fromAmount>Number(sources()[event.fromCurrency]||0)+1e-6)throw Error('رصيد صندوق العملة المدفوعة غير كافٍ');
-  op={...event,kind:'currency_exchange',companyId:this.state.companyId,warehouseId:this.state.warehouseId,
-    currency:event.fromCurrency,exchangeRate:Number(this.state.exchangeRate),localNumber:this.nextLocalNumber('FX')};
-  FieldProtocol.validateOps([op],this.state.agentId,this.state.companyId,this.state.warehouseId,this.state.items,this.state.accounts);
-  await this.appendOperation(op);
-  this.toast('تم تسجيل التصريف محلياً وسيصل إشعار إلى الرئيسي بعد المزامنة');
+  const opsToStore=[];
+  if(changed)opsToStore.push(rateOperation(changes));
+  const op={...event,kind:'currency_exchange',companyId:this.state.companyId,warehouseId:this.state.warehouseId,
+    currency:event.fromCurrency,exchangeRate:Number(this.state.exchangeRate),localNumber:this.nextLocalNumber('FX'),
+    fxRateChanged:changed,fxRatesUsed:{fromSell:Number(val('agentFxSellRate'))||null,toBuy:Number(val('agentFxBuyRate'))||null}};
+  opsToStore.push(op);
+  FieldProtocol.validateOps(opsToStore,this.state.agentId,this.state.companyId,this.state.warehouseId,this.state.items,this.state.accounts);
+  const priorOps=this.state.ops.slice(),priorRates=this.state.currencyExchangeRatesSyp;
+  if(changed)this.state.currencyExchangeRatesSyp=storeFxChanges(changes);
+  this.state.ops.push(...opsToStore);
+  try{await this.save();}
+  catch(err){this.state.currencyExchangeRatesSyp=priorRates;this.state.ops=priorOps;throw err;}
+  this.toast('تم حفظ التصريف. سيتم إرسال العملية'+(changed?' وأسعارها':'')+' للمدير عند المزامنة');
   this.stack=['home','invoices'];await this.show('invoices');
  }catch(error){this.toast('تعذر حفظ التصريف: '+error.message);}
  finally{this.busy=false;}
 };
+
 A.currencyExchangeList=function(){
  const entries=ops().filter(o=>o.kind==='currency_exchange').slice().reverse();
  return '<div class="hero"><h2>عمليات التصريف</h2><p>سجل تصريف العملات من صندوقك.</p></div>'+
@@ -122,8 +189,8 @@ A.currencyExchangeList=function(){
 };
 const priorHome=A.renderHome;
 A.renderHome=function(...args){return priorHome.apply(this,args).replace('</div>', '</div>')+
- '<div class="grid"><button type="button" class="tile" onclick="Agent.navigate(\'currency_exchange\')" style="background:linear-gradient(135deg,#dffdf3,#c2eeff);color:#064e3b;border:2px solid #059669"><span class="glyph">💵 €</span><strong>تصريف عملة</strong><small>شراء وبيع العملات</small></button>'+ 
- '<button type="button" class="tile" onclick="Agent.navigate(\'fx_rates\')" style="background:linear-gradient(135deg,#dce9ff,#bad1ff);color:#163f81;border:2px solid #4976d5"><span class="glyph">💱</span><strong>سعر الصرف</strong><small>شراء ومبيع مقابل الليرة</small></button></div>';};
+ '<div class="grid"><button type="button" class="tile" onclick="Agent.navigate(\'currency_exchange\')" style="background:linear-gradient(135deg,#dffdf3,#c2eeff);color:#064e3b;border:2px solid #059669"><span class="glyph"><img src="static/ta-fx-exchange-146.svg" alt="" width="70" height="70" style="width:64px;height:64px;max-width:100%;object-fit:contain"></span><strong>تصريف عملة</strong><small>شراء وبيع العملات</small></button>'+ 
+ '<button type="button" class="tile" onclick="Agent.navigate(\'fx_rates\')" style="background:linear-gradient(135deg,#dce9ff,#bad1ff);color:#163f81;border:2px solid #4976d5"><span class="glyph"><img src="static/ta-fx-rates-146.svg" alt="" width="70" height="70" style="width:64px;height:64px;max-width:100%;object-fit:contain"></span><strong>سعر الصرف</strong><small>شراء ومبيع مقابل الليرة</small></button></div>';};
 const priorInvoices=A.renderInvoices;
 if(typeof priorInvoices==='function')A.renderInvoices=function(...args){
  return priorInvoices.apply(this,args).replace('<section class="panel">','<div class="grid" style="margin-bottom:12px"><button class="tile" onclick="Agent.navigate(\'currency_exchange_list\')"><span class="glyph">💱</span><strong>عمليات التصريف</strong></button></div><section class="panel">');
