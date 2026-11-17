@@ -87,6 +87,7 @@ jobs:
           node --test tests/currency-buy-sell-147.test.cjs
           node --test tests/currency-report-local-time-148.test.cjs
           node --test tests/release149-fx-security-controls.test.cjs
+          node --test tests/release150-general-currency-rates.test.cjs
           node --check app/src/main/assets/www/static/ta-currency-exchange-core-142.js
           node --check app/src/main/assets/www/static/ta-currency-exchange-ui-142.js
           node --check app/src/main/assets/www/static/ta-report-local-date-148.js
@@ -132,14 +133,14 @@ jobs:
             exit 1
           fi
           mkdir -p output
-          cp "$apk" "output/Tiqany-Acc-Main-3.5.149-RELEASE.apk"
-          (cd output && sha256sum "Tiqany-Acc-Main-3.5.149-RELEASE.apk" > "Tiqany-Acc-Main-3.5.149-RELEASE.apk.sha256")
+          cp "$apk" "output/Tiqany-Acc-Main-3.5.150-RELEASE.apk"
+          (cd output && sha256sum "Tiqany-Acc-Main-3.5.150-RELEASE.apk" > "Tiqany-Acc-Main-3.5.150-RELEASE.apk.sha256")
       - name: Upload signed app APK and checksum
         uses: actions/upload-artifact@v4
         with:
-          name: Tiqany-Acc-Main-3.5.149-RELEASE
+          name: Tiqany-Acc-Main-3.5.150-RELEASE
           path: |
-            output/Tiqany-Acc-Main-3.5.149-RELEASE.apk
-            output/Tiqany-Acc-Main-3.5.149-RELEASE.apk.sha256
+            output/Tiqany-Acc-Main-3.5.150-RELEASE.apk
+            output/Tiqany-Acc-Main-3.5.150-RELEASE.apk.sha256
           if-no-files-found: error
           retention-days: 30
