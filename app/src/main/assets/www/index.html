@@ -5921,7 +5921,12 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                         ? Number(exp.exchangeRate) : (Number(State.settings.exchangeRate) || 1);
                     return total + (exp.currency === 'USD' ? amount : amount / originalRate);
                 }, 0);
-                const netProfitUsd = estimatedProfitUsd - expenseTotalUsd;
+                const exchangeProfitSyp = typeof TiqanyCurrencyExchangeCore!=='undefined'
+                   ?[...TiqanyCurrencyExchangeCore.analyze(State.currencyExchanges||[]).byId.values()]
+                     .filter(e=>e.gainSyp!==null && TimeFilter.matches(e.date,period,selectedDate,endDate) && (agentId==='all'||agentId===(e.agentId||'office')))
+                     .reduce((sum,e)=>sum+e.gainSyp,0):0;
+                const netProfitUsd = estimatedProfitUsd - expenseTotalUsd
+                  + exchangeProfitSyp/(Number(State.settings.exchangeRate)||1);
                 // Equity distributions are reported separately, never as operating expenses.
                 const shareholderDrawsInPeriod=(Array.isArray(State.shareholderMovements)?State.shareholderMovements:[])
                   .filter(e=>e?.type==='profitDraw'&&TimeFilter.matches(e.date,period,selectedDate,endDate));
@@ -5968,7 +5973,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                             ${['custom','range'].includes(period)?`<div class="grid grid-cols-2 gap-2"><label>من<input type="date" class="w-full border rounded p-2" value="${AppEscape.text(selectedDate)}" onchange="AppNav.navigate('reports',{tab:'cashbox',cashAgentId:'${AppEscape.text(cashScope)}',period:'${period}',date:this.value,end:'${AppEscape.text(endDate)}'},true)"></label>${period==='range'?`<label>إلى<input type="date" class="w-full border rounded p-2" value="${AppEscape.text(endDate)}" onchange="AppNav.navigate('reports',{tab:'cashbox',cashAgentId:'${AppEscape.text(cashScope)}',period:'range',date:'${AppEscape.text(selectedDate)}',end:this.value},true)"></label>`:''}</div>`:''}
                             <p class="text-[11px] text-slate-500">الرصيد الحالي للصندوق من كل الحركات، أما السجل أدناه فيُفلتر حسب الفترة.</p>
                         </div>
-                        ${CapitalLedger.card()}
+                        
                         <div class="grid grid-cols-2 gap-2.5 mb-3">
                             <div class="bg-emerald-700 text-white p-3.5 rounded-2xl"><span class="text-xs opacity-80 block">صافي صندوق الليرة السورية</span><span class="font-extrabold text-base sm:text-lg">${Accounting.format(cash.sypCash, 'SYP')}</span></div>
                             <div class="bg-slate-900 text-white p-3.5 rounded-2xl"><span class="text-xs opacity-80 block">صافي صندوق الدولار الأمريكي</span><span class="font-extrabold text-base sm:text-lg text-amber-300">${Accounting.format(cash.usdCash, 'USD')}</span></div>
