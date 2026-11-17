@@ -228,3 +228,37 @@ test('FX P&L appears within reports and is separate from principal and expenses'
  assert.match(ui,/لا تُعد مبالغ شراء العملة مصاريف/);
  assert.doesNotThrow(()=>new Function(ui));
 });
+
+test('FX profit reports retain recognized gains and account for them exactly once in net profit',()=>{
+ const ledger=[
+  fx('fx_period_101','SYP','USD',1500000,100,1500000,'2026-11-01T11:00:00Z'),
+  fx('fx_period_102','USD','SYP',150,2550000,2550000,'2026-11-02T11:00:00Z'),
+  fx('fx_period_103','SYP','USD',800000,50,800000,'2026-11-03T11:00:00Z')
+ ];
+ const a=core.analyze(ledger);
+ const matches=date=>[...a.byId.values()].filter(e=>e.date.startsWith(date)&&e.gainSyp!==null)
+  .reduce((n,e)=>n+e.gainSyp,0);
+ assert.equal(matches('2026-11-01'),0);
+ assert.equal(matches('2026-11-02'),200000);
+ assert.equal(matches('2026-11-03'),50000);
+ assert.equal(a.profitSyp,250000);
+ const costOfPurchase=800000;
+ assert.notEqual(matches('2026-11-03'),-costOfPurchase,'purchase principal must not be booked as a loss');
+ const source=fs.readFileSync(isWindows?path.join(root,'upgrade-125/ta-currency-exchange-ui-142.js'):path.join(root,'app/src/main/assets/www/static/ta-currency-exchange-ui-142.js'),'utf8');
+ assert.match(source,/data-ta-fx-profit-report/);
+ assert.match(source,/إجمالي أرباح التصريف لجميع الفترات/);
+ assert.match(source,/TimeFilter\.matches/);
+ assert.match(source,/لا تُعد مبالغ شراء العملة مصاريف/);
+});
+
+test('Core P&L calculation adds realized FX exactly once without unbound employee context',()=>{
+ const page=fs.readFileSync(path.join(root,'app/src/main/assets/www/index.html'),'utf8');
+ const from=page.indexOf('const fxPeriodEvents =');
+ const to=page.indexOf('const expenseByCategory =',from);
+ assert.ok(from>0 && to>from,'report calculates realized exchanges');
+ const block=page.slice(from,to);
+ assert.match(block,/exchangeProfitSyp/);
+ assert.match(block,/estimatedProfitUsd - expenseTotalUsd/);
+ assert.match(block,/exchangeProfitSyp\/\(Number\(State\.settings\.exchangeRate\)\|\|1\)/);
+ assert.match(block,/agentId==='all'/,'manager report can filter employees');
+});
