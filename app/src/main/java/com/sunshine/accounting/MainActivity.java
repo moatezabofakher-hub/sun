@@ -81,6 +81,8 @@ public final class MainActivity extends FragmentActivity {
     private NativeBluetoothPrinter bluetoothPrinter;
     private NativeLocalSync nativeLocalSync;
     private MainPhonePeerSync mainPhonePeerSync;
+    private MainPhonePeerSync managerPhonePeerSync;
+    private MainManagerPeerServer managerPeerServer;
     private BiometricPrompt biometricPrompt;
     private ValueCallback<Uri[]> pendingFileChooser;
     private Uri pendingItemPhotoCameraUri;
@@ -266,6 +268,8 @@ public final class MainActivity extends FragmentActivity {
                 trustedLocalMainFrame = url != null && url.startsWith("https://" + HOST + "/assets/www/");
                 if (nativeLocalSync != null) nativeLocalSync.onMainFrameUrlChanged(url);
                 if (mainPhonePeerSync != null) mainPhonePeerSync.onMainFrameUrlChanged(url);
+                if (managerPhonePeerSync != null) managerPhonePeerSync.onMainFrameUrlChanged(url);
+                if (managerPeerServer != null) managerPeerServer.onMainFrameUrlChanged(url);
             }
 
             @Override
@@ -275,6 +279,8 @@ public final class MainActivity extends FragmentActivity {
                 trustedLocalMainFrame = url != null && url.startsWith("https://" + HOST + "/assets/www/");
                 if (nativeLocalSync != null) nativeLocalSync.onMainFrameUrlChanged(url);
                 if (mainPhonePeerSync != null) mainPhonePeerSync.onMainFrameUrlChanged(url);
+                if (managerPhonePeerSync != null) managerPhonePeerSync.onMainFrameUrlChanged(url);
+                if (managerPeerServer != null) managerPeerServer.onMainFrameUrlChanged(url);
             }
 
             @Override
@@ -358,6 +364,10 @@ public final class MainActivity extends FragmentActivity {
         webView.addJavascriptInterface(nativeLocalSync, "AndroidLocalSync");
         mainPhonePeerSync = new MainPhonePeerSync(this, webView);
         webView.addJavascriptInterface(mainPhonePeerSync, "AndroidPeerSync");
+        managerPhonePeerSync = new MainPhonePeerSync(this, webView, true);
+        webView.addJavascriptInterface(managerPhonePeerSync, "AndroidManagerPeerClient");
+        managerPeerServer = new MainManagerPeerServer(this, webView);
+        webView.addJavascriptInterface(managerPeerServer, "AndroidManagerPeerServer");
 
         biometricPrompt = new BiometricPrompt(this, new BiometricPrompt.AuthenticationCallback() {
             @Override
@@ -1109,6 +1119,8 @@ public final class MainActivity extends FragmentActivity {
         }
         if (nativeLocalSync != null) nativeLocalSync.destroy();
         if (mainPhonePeerSync != null) mainPhonePeerSync.close();
+        if (managerPhonePeerSync != null) managerPhonePeerSync.close();
+        if (managerPeerServer != null) managerPeerServer.close();
         if (bluetoothPrinter != null) bluetoothPrinter.destroy();
         if (pendingFileChooser != null) pendingFileChooser.onReceiveValue(null);
         if (webView != null) {
@@ -1122,6 +1134,8 @@ public final class MainActivity extends FragmentActivity {
             webView.removeJavascriptInterface("AndroidPrinter");
             webView.removeJavascriptInterface("AndroidLocalSync");
             webView.removeJavascriptInterface("AndroidPeerSync");
+            webView.removeJavascriptInterface("AndroidManagerPeerClient");
+            webView.removeJavascriptInterface("AndroidManagerPeerServer");
             webView.destroy();
             webView = null;
         }
