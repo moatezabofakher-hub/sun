@@ -1,7 +1,7 @@
 /* Tiqany peer ledger merge (shared, testable, deliberately independent of UI). */
 (function(root,factory){const api=factory();if(typeof module==='object'&&module.exports)module.exports=api;root.TiqanyPeerMerge=api;})(typeof globalThis==='object'?globalThis:this,function(){
 'use strict';
-const BASE_COLLECTIONS=['categories','items','accounts','invoices','vouchers','warehouses','transfers','expenses','capitalMovements'];
+const BASE_COLLECTIONS=['categories','items','accounts','invoices','vouchers','warehouses','transfers','expenses','capitalMovements','shareholderOwners','shareholderMovements'];
 // The field staff directory, pending imported IDs and cash hand-offs must travel with the ledger.
 const STAFF_COLLECTIONS=['fieldAgents','fieldImported','fieldEvents','fieldCashTransfers','fieldOperationHistory','fieldRevisionAudit','fieldCompany'];
 const COLLECTIONS=BASE_COLLECTIONS.concat(STAFF_COLLECTIONS);
@@ -38,7 +38,7 @@ function snapshot(state){
 }
 function emptyLedger(s){
  if(!s||typeof s!=='object')return false;
- const arrays=['categories','items','accounts','invoices','vouchers','transfers','expenses','capitalMovements',
+ const arrays=['categories','items','accounts','invoices','vouchers','transfers','expenses','capitalMovements','shareholderOwners','shareholderMovements',
    'fieldAgents','fieldImported','fieldEvents','fieldCashTransfers','fieldOperationHistory','fieldRevisionAudit'];
  if(arrays.some(k=>Array.isArray(s[k])&&s[k].length>0))return false;
  // The template contains wh_main; additional warehouses imply an established company.
@@ -75,7 +75,7 @@ function bootstrapProtection(cfg){
    recoveryFailures:0,recoveryLockedUntil:0,lockApp:true,protectDeletion:!!cfg.protectDeletion,
    fingerprintEnabled:false,fingerprintCredentialId:''};
 }
-function ensureSnapshot(s){if(!s||typeof s!=='object'||Array.isArray(s))throw Error('نسخة مزامنة غير صالحة');for(const k of BASE_COLLECTIONS)if(!Array.isArray(s[k])&&(k!=='capitalMovements'||s[k]!==undefined))throw Error('سجل '+k+' غير صالح');for(const k of STAFF_COLLECTIONS)if(s[k]!==undefined&&!Array.isArray(s[k]))throw Error('سجل موظفي البيع '+k+' غير صالح');if(!s.sharedSettings||typeof s.sharedSettings!=='object'||Array.isArray(s.sharedSettings))throw Error('إعدادات المزامنة غير صالحة');
+function ensureSnapshot(s){if(!s||typeof s!=='object'||Array.isArray(s))throw Error('نسخة مزامنة غير صالحة');for(const k of BASE_COLLECTIONS)if(!Array.isArray(s[k])&&(!['capitalMovements','shareholderOwners','shareholderMovements'].includes(k)||s[k]!==undefined))throw Error('سجل '+k+' غير صالح');for(const k of STAFF_COLLECTIONS)if(s[k]!==undefined&&!Array.isArray(s[k]))throw Error('سجل موظفي البيع '+k+' غير صالح');if(!s.sharedSettings||typeof s.sharedSettings!=='object'||Array.isArray(s.sharedSettings))throw Error('إعدادات المزامنة غير صالحة');
  if(Object.keys(s.sharedSettings).length>500||JSON.stringify(s.sharedSettings).length>350000||
    Object.keys(s.sharedSettings).some(k=>deviceSettingKey(k)||['__proto__','prototype','constructor'].includes(k)))
    throw Error('إعدادات المزامنة تتضمن بيانات جهاز أو تتجاوز الحد المسموح');
@@ -309,37 +309,57 @@ function merge(base,local,remote,resolutions={},history=[]){
   out[type]=merged;
  }
  const settings={};
+ const stampMap={};
+ const aStamps=local.sharedSettings._syncSettingTimes||{};
+ const rStamps=remote.sharedSettings._syncSettingTimes||{};
+ const bStamps=base?.sharedSettings?._syncSettingTimes||{};
+ // Resolve settings as requested: the valid edit nearest to this synchronization
+ // wins without a conflict record. Only non-settings financial operations can conflict.
+ const syncTime=Date.parse(arguments.length>5&&arguments[5]?.syncAt||new Date().toISOString());
+ const score=st=>{
+   const t=Date.parse(st?.updatedAt||'');
+   return Number.isFinite(t)&&t<=syncTime+30000?-Math.abs(syncTime-t):-Infinity;
+ };
+ const choose=(key,B,A,R)=>{
+   if(A===undefined)return 'remote';
+   if(R===undefined)return 'phone';
+   if(same(A,R)){
+     const as=score(aStamps[key]),rs=score(rStamps[key]);
+     return as>=rs?'phone':'remote';
+   }
+   if(base&&same(A,B))return 'remote';
+   if(base&&same(R,B))return 'phone';
+   const as=score(aStamps[key]||A),rs=score(rStamps[key]||R);
+   if(as!==rs)return as>rs?'phone':'remote';
+   // Different owners with identical timestamps still converge across devices.
+   const ak=String(aStamps[key]?.deviceId||A?.deviceId||'')+'|'+String(aStamps[key]?.updatedAt||'')+'|'+canonical(A);
+   const rk=String(rStamps[key]?.deviceId||R?.deviceId||'')+'|'+String(rStamps[key]?.updatedAt||'')+'|'+canonical(R);
+   return ak>=rk?'phone':'remote';
+ };
  for(const key of new Set([...SETTINGS,...Object.keys(base?.sharedSettings||{}),
-  ...Object.keys(local.sharedSettings||{}),...Object.keys(remote.sharedSettings||{})])){
-  if(deviceSettingKey(key)||['__proto__','constructor','prototype'].includes(key))continue;
-  const B=base?.sharedSettings?.[key],A=local.sharedSettings[key],R=remote.sharedSettings[key];
-  if(!base){
-   const d=makeConflict('settings','settings',key,undefined,A,R),prior=historicalStatus(d,history),historical=prior.side;
-   if(prior.conflict){details.push(d);const side=approvedChoice(d,resolutions,[]);
-     if(side){settings[key]=clone(side==='phone'?A:R);resolved.push(resolutionReceipt(d,side));}
-     else conflicts.push('settings: قرارات سابقة متناقضة '+key);
-   }else{
-     settings[key]=clone(historical==='phone'?A:(R===undefined?A:R));
-     if(historical)resolved.push(resolutionReceipt(d,historical));
-     if(!same(A,R)&&R!==undefined&&!historical)stats.settingsFromDesktop++;
-   }
-  }
-  else if(same(A,R))settings[key]=clone(A);
-  else{
-   const detail=makeConflict('settings','settings',key,B,A,R),prior=historicalStatus(detail,history),historical=prior.side;
-   if(historical){settings[key]=clone(historical==='phone'?A:R);resolved.push(resolutionReceipt(detail,historical));}
-   else if(prior.conflict){details.push(detail);const side=approvedChoice(detail,resolutions,[]);
-     if(side){settings[key]=clone(side==='phone'?A:R);resolved.push(resolutionReceipt(detail,side));}
-     else conflicts.push('settings: قرارات سابقة متناقضة '+key);
-   }
-   else if(same(A,B))settings[key]=clone(R);
-   else if(same(R,B))settings[key]=clone(A);
-   else{details.push(detail);const side=approvedChoice(detail,resolutions,history);
-    if(side){settings[key]=clone(side==='phone'?A:R);resolved.push(resolutionReceipt(detail,side));}
-    else conflicts.push('settings: '+key);}
-  }
+   ...Object.keys(local.sharedSettings||{}),...Object.keys(remote.sharedSettings||{})])){
+   if(key==='_syncSettingTimes'||deviceSettingKey(key)||['__proto__','constructor','prototype'].includes(key))continue;
+   const B=base?.sharedSettings?.[key],A=local.sharedSettings[key],R=remote.sharedSettings[key];
+   const side=choose(key,B,A,R);
+   const value=side==='phone'?A:R;
+   if(value!==undefined)settings[key]=clone(value);
+   if(side==='remote'&&!same(A,R))stats.settingsFromDesktop++;
+   const sourceStamp=side==='phone'?aStamps[key]:rStamps[key];
+   const fallbackStamp=side==='phone'?rStamps[key]:aStamps[key];
+   if(sourceStamp||fallbackStamp||bStamps[key])stampMap[key]=clone(sourceStamp||fallbackStamp||bStamps[key]);
  }
+ settings._syncSettingTimes=stampMap;
  out.sharedSettings=settings;
+ const dist=settings.shareholderDistribution?.values;
+ if(dist!==undefined){
+   if(!dist||typeof dist!=='object'||Array.isArray(dist))throw Error('إعدادات نسب المساهمين غير صالحة');
+   let total=0;
+   for(const o of out.shareholderOwners||[]){
+     const v=Number(dist[o.id]??0);if(!Number.isFinite(v)||v<0||v>100)throw Error('نسبة أرباح مساهم غير صالحة');
+     total+=v;
+   }
+   if(total>100.0000001)throw Error('مجموع نسب أرباح المساهمين تجاوز 100% بعد المزامنة');
+ }
  // Reconcile only authenticated field-origin identities, never coincidental
  // matches of time, customer and amount (two real transactions can be identical).
  reconcileFieldDuplicates(out,local,remote,resolutions,history,conflicts,details,stats,resolved);
@@ -390,6 +410,7 @@ function apply(state,data){
  const company=Array.isArray(data.fieldCompany)?data.fieldCompany[0]:null;
  if(company&&typeof company.companyId==='string'&&company.companyId)field.companyId=company.companyId;
  state.fieldSync=field;
+ if(typeof globalThis!=='undefined'&&globalThis.SettingsRevisionClock?.remember)globalThis.SettingsRevisionClock.remember(state.settings);
 }
 return {COLLECTIONS,SETTINGS,snapshot,canonical,merge,apply,emptyLedger,companyJoin,bootstrapProtection,ensureSnapshot,itemStock,digest,fieldIdentity,fieldBusinessVersion,equivalentImported,resolutionReceipt,validReceipt,combineReceipts,retireOppositeReceipts,historicalChoice};
 });
