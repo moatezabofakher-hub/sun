@@ -5929,6 +5929,15 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                     .filter(e=>e.gainSyp!==null && TimeFilter.matches(e.date,period,selectedDate,endDate) &&
                        (agentId==='all'||agentId===(e.agentId||'office'))):[];
                 const exchangeProfitSyp = fxPeriodEvents.reduce((sum,e)=>sum+e.gainSyp,0);
+                // Present each realized FX gain in "أرباح الفواتير" without
+                // re-posting it to sales profit. The net P&L already includes it.
+                for(const e of fxPeriodEvents){
+                    if(!Number.isFinite(e.gainSyp)||e.gainSyp===0)continue;
+                    invoiceProfits.push({id:'fx_profit_'+e.id,type:'currency_exchange',
+                        ref:'تصريف عملة · '+e.fromCurrency+' / '+e.toCurrency,
+                        date:e.date,party:e.deferredGainSyp?'تسوية تكلفة تصريف سابق':'أرباح التصريف',
+                        currency:'SYP',profit:e.gainSyp/(Number(State.settings.exchangeRate)||1)});
+                }
                 const netProfitUsd = estimatedProfitUsd - expenseTotalUsd
                   + exchangeProfitSyp/(Number(State.settings.exchangeRate)||1);
                 // Equity distributions are reported separately, never as operating expenses.
@@ -10836,5 +10845,6 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
 <script src="static/ta-settings-order-security-138.js"></script>
 <script defer src="static/ta-currency-exchange-core-142.js"></script><script defer src="static/ta-currency-exchange-ui-142.js"></script>
 <script src="static/ta-scroll-144.js"></script>
+<script defer src="static/ta-fx-buy-sell-147.js"></script>
 </body>
 </html>
