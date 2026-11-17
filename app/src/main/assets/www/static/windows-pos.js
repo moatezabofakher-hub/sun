@@ -25,7 +25,7 @@ const POSController = {
     const proposedAcc=document.getElementById('posAccountSetting')?.value || '';
     const proposedTier=document.getElementById('posTierSetting')?.value || 'account';
     const proposedAutoPOS=document.getElementById('posScanFromHomeSetting')?.checked === true;
-    const proposedNext=document.getElementById('posAutoNextSetting')?.checked !== false;
+    const proposedNext=document.getElementById('posAutoNextSetting')?.checked === true;
     if(proposedAcc && !State.accounts.some(a=>a.id===proposedAcc && a.type==='customer')) {
       UI.toast('الحساب المحدد غير موجود أو ليس حساب زبون','warn'); return false;
     }
@@ -240,7 +240,7 @@ const POSController = {
       // New sale: start next POS; existing invoice: return to sales history.
       AppNav.clearDirty();
       if(d.isEditing) AppNav.navigate('invoices_list',{type:'sale'},true);
-      else if(State.settings.posAutoNextOnFinish!==false) AppNav.navigate('pos',{},true);
+      else if(State.settings.posAutoNextOnFinish===true) AppNav.navigate('pos',{},true);
       else AppNav.navigate('dashboard',{},true);
       return true;
     } finally {this.saving=false;}
