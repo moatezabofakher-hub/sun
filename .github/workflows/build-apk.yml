@@ -84,6 +84,7 @@ jobs:
       - name: Verify currency exchange engine and manager UI
         run: |
           node --test tests/currency-exchange-142.test.cjs
+          node --test tests/currency-buy-sell-147.test.cjs
           node --check app/src/main/assets/www/static/ta-currency-exchange-core-142.js
           node --check app/src/main/assets/www/static/ta-currency-exchange-ui-142.js
           node --check app/src/main/assets/www/static/field-protocol.js
