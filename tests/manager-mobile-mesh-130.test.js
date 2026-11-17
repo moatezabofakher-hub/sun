@@ -68,6 +68,5 @@ test('manager merge excludes identity/bindings while carrying future company set
  assert.deepEqual(snap.sharedSettings.specialSetting,{a:123});
  assert.equal(snap.sharedSettings.deviceToken,undefined);
  assert.equal(snap.sharedSettings.companyUid,undefined);
- assert.equal(snap.sharedSettings.appProtection.fingerprintEnabled,false);
- assert.equal(snap.sharedSettings.appProtection.fingerprintCredentialId,'');
+ assert.equal(snap.sharedSettings.appProtection,undefined); // PIN never crosses normal peer reconciliation
 });
