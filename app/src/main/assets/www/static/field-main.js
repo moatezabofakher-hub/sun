@@ -71,6 +71,7 @@ const FieldSync = {
     el.textContent=String(count);
     el.parentElement?.setAttribute('title',count+' موظفي بيع متصلين خلال آخر 40 ثانية بمزامنة موثّقة');
     el.parentElement?.classList.toggle('has-staff',count>0);
+    if(el.parentElement)el.parentElement.hidden=count===0;
   },
   paintConnectedEmployees(){
     const el=document.getElementById('fieldConnectedEmployeeList');if(!el)return;
