@@ -191,6 +191,7 @@
         window.TiqanyPeerSync.renderConflictButton?.();
       }
       try{window.AndroidPeerSync?.reset?.();}catch(_){}
+      try{window.AndroidManagerPeer?.resetAll?.();}catch(_){}
       try{localStorage.clear();}catch(_){}
       try{sessionStorage.clear();}catch(_){}
       LicenseManager.persistFallbackStorage();
