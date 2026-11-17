@@ -77,3 +77,37 @@ test('employee plain settings headings use the document scrollport', () => {
   events.click({target: {closest: () => ({parentElement: e.section()})}}); e.flush();
   assert.equal(e.d.scrollingElement.scrollTop, 252);
 });
+
+test('shareholder inner scroll survives Reports reopen but clears only on Home navigation',()=>{
+ let root=true,hidden=false,route='reports',key='profile-1';
+ const port={scrollTop:0};
+ const box={scrollTop:0,querySelector(selector){
+  return root?(selector==='.ta-share-modal'?port:selector==='.ta-share-owners'?{}:null):null;
+ }};
+ const callbacks={},frames=[],modalContainer={classList:{contains:()=>hidden}};
+ const doc={getElementById:id=>id==='modalBox'?box:id==='modalContainer'?modalContainer:null,
+  addEventListener:(type,fn)=>{callbacks[type]=fn;}};
+ const w={requestAnimationFrame:fn=>frames.push(fn)};
+ const UI={
+  openModal(mode){root=mode==='root';hidden=false;port.scrollTop=0;box.scrollTop=0;},
+  forceCloseModal(){hidden=true;root=false;}
+ };
+ const AppNav={current:()=>({screen:route}),navigate(screen){route=screen;},renderCurrent(){}};
+ const api=install({window:w,document:doc,UI,AppNav,profileId:()=>key});
+ const flush=()=>{while(frames.length)frames.shift()();};
+ UI.openModal('root');flush();port.scrollTop=420;
+ callbacks.scroll({target:port});
+ UI.forceCloseModal();
+ UI.openModal('root');flush();
+ assert.equal(port.scrollTop,420,'must restore the actual .ta-share-modal scrollport');
+ UI.openModal('owner');flush();
+ UI.openModal('root');flush();
+ assert.equal(port.scrollTop,420);
+ UI.forceCloseModal();
+ AppNav.navigate('reports');AppNav.renderCurrent();
+ UI.openModal('root');flush();
+ assert.equal(port.scrollTop,420);
+ AppNav.navigate('dashboard');AppNav.renderCurrent();
+ UI.openModal('root');flush();
+ assert.equal(port.scrollTop,0);
+});

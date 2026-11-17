@@ -1,7 +1,7 @@
 
 const TiqanyAgentPermissions=(function(){'use strict';
- const names={priceTier:'تعديل طريقة التسعير',currency:'تعديل العملة المعتمدة في العمليات',balances:'معرفة أرصدة الحسابات',editPrices:'تعديل الأسعار ضمن الفاتورة',exchangeRate:'تعديل سعر الصرف',stock:'مراقبة الجرد',createAccounts:'إضافة حسابات جديدة',createItems:'إضافة مواد جديدة',editOperations:'تعديل العمليات',deleteOperations:'حذف العمليات'};
- const defaults=Object.freeze({priceTier:true,currency:true,balances:true,editPrices:false,exchangeRate:false,stock:true,createAccounts:true,createItems:false,editOperations:true,deleteOperations:false});
+ const names={priceTier:'تعديل طريقة التسعير',currency:'تعديل العملة المعتمدة في العمليات',balances:'معرفة أرصدة الحسابات',editPrices:'تعديل الأسعار ضمن الفاتورة',exchangeRate:'تعديل سعر الصرف العام للفواتير',fxSharedRate:'السماح بتعديل سعر الصرف المزامن للتصريف',stock:'مراقبة الجرد',createAccounts:'إضافة حسابات جديدة',createItems:'إضافة مواد جديدة',editOperations:'تعديل العمليات',deleteOperations:'حذف العمليات'};
+ const defaults=Object.freeze({priceTier:true,currency:true,balances:true,editPrices:false,exchangeRate:false,fxSharedRate:false,stock:true,createAccounts:true,createItems:false,editOperations:true,deleteOperations:false});
  function normalize(p){const src=p&&typeof p==='object'&&!Array.isArray(p)?p:defaults;return Object.fromEntries(Object.keys(names).map(k=>[k,src[k]===true]));}
  function grid(prefix,permissions){const p=normalize(permissions);return `<div class="rounded-xl border-2 border-sky-200 bg-sky-50 p-3" dir="rtl"><h4 class="font-black text-blue-900 mb-2">صلاحيات الموظف — حدد المسموح</h4><div class="grid grid-cols-2 gap-2">${Object.keys(names).map((k,i)=>`<label class="flex gap-2 items-center rounded-lg border border-blue-200 bg-white p-2 text-xs font-bold min-h-[48px]" style="color:#0f2442"><input type="checkbox" data-staff-perm="${prefix}" value="${k}" ${p[k]?'checked':''} style="width:18px;height:18px;accent-color:#0f766e"/><span>${names[k]}</span></label>`).join('')}</div><p class="text-[11px] mt-2 text-slate-600">التغييرات تدخل حيز التنفيذ على هاتف الموظف عند المزامنة التالية، ويُفحص السماح عند استقبال العمليات أيضاً.</p></div>`;}
  function read(prefix){if(typeof document.querySelector!=='function')return normalize(defaults);const obj={};for(const k of Object.keys(names))obj[k]=!!document.querySelector(`input[data-staff-perm="${prefix}"][value="${k}"]:checked`);return obj;}
@@ -11,6 +11,7 @@ const TiqanyAgentPermissions=(function(){'use strict';
      if(o.kind==='document_edit'&&!p.editOperations)throw Error('ليس لدى الموظف صلاحية تعديل العمليات');
      if(o.kind==='document_delete'&&!p.deleteOperations)throw Error('ليس لدى الموظف صلاحية حذف العمليات');
      if(o.kind==='item_create'&&!p.createItems)throw Error('ليس لدى الموظف صلاحية إضافة مواد');
+     if((o.kind==='fx_rate_change'||(o.kind==='currency_exchange'&&o.fxRateChanged===true))&&!p.fxSharedRate)throw Error('لا يملك الموظف صلاحية تعديل سعر صرف التصريف المزامن');
    }
    return true;
  }
@@ -220,6 +221,7 @@ const FieldSync = {
     let imageBudget=650000,ledgerBudget=4600;
     return {kind:'provision',format:FieldProtocol.FORMAT,companyId:config.companyId,companyName:State.settings.companyName,agentId:a.id,agentName:a.name,vehicleName:a.vehicleName,warehouseId:a.warehouseId,warehouseName:WarehouseController.name(a.warehouseId),key:a.key,
       issuedAt:new Date().toISOString(),permissions:TiqanyAgentPermissions.normalize(a.permissions),employeeAuth:a.employeeAuth||null,exchangeRate:Number(State.settings.exchangeRate),
+      currencyExchangeRatesSyp:JSON.parse(JSON.stringify(State.settings.currencyExchangeRatesSyp||{})),
       allowedCurrencies:[...new Set([...(typeof CurrencyCatalog!=='undefined'?CurrencyCatalog.active():['USD','SYP']),...(State.settings.addedCurrencies||[]).map(c=>c.code).filter(c=>/^[A-Z]{3}$/.test(c))])],
       defaultPriceTier:['wholesale','center','consumer'].includes(State.settings.defaultPriceTier)?State.settings.defaultPriceTier:'wholesale',
       // Company branding is an authenticated part of each refreshed catalog; never copied from agent edits.
@@ -579,7 +581,7 @@ const FieldSync = {
     if(!ops.length)return 0;
     this.assertAuthorizedOps(ops,agent);
     if(ops.some(op=>op.kind==='document_edit'))return this.commitOperationsWithRevisions(agent,ops);
-    const config=this.data(),old={items:State.items,accounts:State.accounts,invoices:State.invoices,vouchers:State.vouchers,expenses:Array.isArray(State.expenses)?State.expenses:[],imported:config.imported,events:config.events,history:config.operationHistory,exchanges:State.currencyExchanges,used:State.license.opsUsedCount};
+    const config=this.data(),old={items:State.items,accounts:State.accounts,invoices:State.invoices,vouchers:State.vouchers,expenses:Array.isArray(State.expenses)?State.expenses:[],imported:config.imported,events:config.events,history:config.operationHistory,exchanges:State.currencyExchanges,fxRates:JSON.parse(JSON.stringify(State.settings.currencyExchangeRatesSyp||{})),used:State.license.opsUsedCount};
     const existing=new Set(config.imported.map(x=>x.id));
     const fresh=ops.filter(x=>!existing.has(x.id));
     if(!fresh.length)return 0;
@@ -613,7 +615,7 @@ const FieldSync = {
       if(!State.license.isActivated)State.license.opsUsedCount+=fresh.length;
       await StorageEngine.saveState();
       return fresh.length;
-    }catch(e){State.items=old.items;State.accounts=old.accounts;State.invoices=old.invoices;State.vouchers=old.vouchers;State.expenses=old.expenses;config.imported=old.imported;config.events=old.events;config.operationHistory=old.history;State.currencyExchanges=old.exchanges;State.license.opsUsedCount=old.used;throw e;}
+    }catch(e){State.items=old.items;State.accounts=old.accounts;State.invoices=old.invoices;State.vouchers=old.vouchers;State.expenses=old.expenses;config.imported=old.imported;config.events=old.events;config.operationHistory=old.history;State.currencyExchanges=old.exchanges;State.settings.currencyExchangeRatesSyp=old.fxRates;State.license.opsUsedCount=old.used;throw e;}
   },
   async previewFile(input){
     const file=input.files?.[0];if(!file)return;
@@ -655,7 +657,7 @@ const FieldSync = {
     if(this.busy||this.lanBusy||!this.staged?.ops?.length)return;
     this.busy=true;
     const {agent,ops}=this.staged,c=this.data();
-    const old={items:State.items,accounts:State.accounts,invoices:State.invoices,vouchers:State.vouchers,expenses:Array.isArray(State.expenses)?State.expenses:[],imported:c.imported,events:c.events,history:c.operationHistory,exchanges:State.currencyExchanges,opsUsedCount:State.license.opsUsedCount};
+    const old={items:State.items,accounts:State.accounts,invoices:State.invoices,vouchers:State.vouchers,expenses:Array.isArray(State.expenses)?State.expenses:[],imported:c.imported,events:c.events,history:c.operationHistory,exchanges:State.currencyExchanges,fxRates:JSON.parse(JSON.stringify(State.settings.currencyExchangeRatesSyp||{})),opsUsedCount:State.license.opsUsedCount};
     try {
       if(ops.some(op=>op.kind==='document_edit')){
         const count=await this.commitLanOperations(agent,ops);
@@ -696,7 +698,7 @@ const FieldSync = {
       if(typeof AppNav!=='undefined')AppNav.refreshAfterSync?.();
       // Let owner transfer ACK back to agent through Quick Share / Bluetooth.
       await this.exportAck(agent.id);
-    }catch(e){State.items=old.items;State.accounts=old.accounts;State.invoices=old.invoices;State.vouchers=old.vouchers;State.expenses=old.expenses;c.imported=old.imported;c.events=old.events;c.operationHistory=old.history;State.currencyExchanges=old.exchanges;State.license.opsUsedCount=old.opsUsedCount;UI.toast('لم يتم ترحيل البيانات: '+e.message,'error');}
+    }catch(e){State.items=old.items;State.accounts=old.accounts;State.invoices=old.invoices;State.vouchers=old.vouchers;State.expenses=old.expenses;c.imported=old.imported;c.events=old.events;c.operationHistory=old.history;State.currencyExchanges=old.exchanges;State.settings.currencyExchangeRatesSyp=old.fxRates;State.license.opsUsedCount=old.opsUsedCount;UI.toast('لم يتم ترحيل البيانات: '+e.message,'error');}
     finally{this.busy=false;}
   }
 };

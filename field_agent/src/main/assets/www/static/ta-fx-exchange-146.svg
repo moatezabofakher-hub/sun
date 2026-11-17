@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="144" height="144" viewBox="0 0 144 144" role="img" aria-label="تصريف عملة">
+<defs><linearGradient id="bg" x2="1" y2="1"><stop stop-color="#a3f4da"/><stop offset="1" stop-color="#167e9d"/></linearGradient><linearGradient id="note" x2="0" y2="1"><stop stop-color="#fff"/><stop offset="1" stop-color="#badffb"/></linearGradient><linearGradient id="coin" x2="0" y2="1"><stop stop-color="#ffe992"/><stop offset=".5" stop-color="#f1bd3a"/><stop offset="1" stop-color="#ab6b08"/></linearGradient><filter id="shadow" x="-30%" y="-30%" width="160%" height="180%"><feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#06455c" flood-opacity=".42"/></filter></defs>
+<rect x="6" y="6" width="132" height="132" rx="30" fill="url(#bg)" stroke="#ffffff" stroke-width="5"/>
+<path d="M31 15Q75 -5 125 35" fill="none" stroke="#fff" stroke-width="10" stroke-linecap="round" opacity=".33"/>
+<g filter="url(#shadow)"><rect x="17" y="44" width="65" height="45" rx="8" fill="url(#note)" stroke="#1576a0" stroke-width="3"/><path d="M24 53h51M24 80h51" stroke="#9ac8e2" stroke-width="2"/><text x="48" y="74" text-anchor="middle" font-family="Arial" font-size="26" font-weight="bold" fill="#12669b">$</text>
+<circle cx="103" cy="69" r="25" fill="url(#coin)" stroke="#fff4b1" stroke-width="4"/><circle cx="103" cy="69" r="18" fill="none" stroke="#ae7419" stroke-width="2"/><text x="103" y="78" text-anchor="middle" font-family="Arial" font-size="30" font-weight="bold" fill="#89530d">€</text></g>
+<path d="M37 102h57l-9-9M95 113H38l10 10" fill="none" stroke="#fff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" filter="url(#shadow)"/>
+</svg>

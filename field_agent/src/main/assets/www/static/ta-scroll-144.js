@@ -9,15 +9,28 @@
     const profile = () => String(env.profileId?.() || 'default');
     const modal = () => d.getElementById('modalBox');
     const isRoot = box => !!box?.querySelector('.ta-share-owners');
+    // Shareholders use an independently scrolling .ta-share-modal within #modalBox.
+    // Read the actual scrollport rather than the outer modal's usually-zero scrollTop.
+    const scrollport = box => {
+      const inner=box?.querySelector?.('.ta-share-modal');
+      return inner && typeof inner.scrollTop==='number' ? inner : box;
+    };
     const visible = () => !d.getElementById('modalContainer')?.classList.contains('hidden');
     function capture() {
       const box = modal();
-      if (modalProfile === profile() && visible() && isRoot(box)) positions.set(profile(), box.scrollTop || 0);
+      if (modalProfile === profile() && visible() && isRoot(box)) {
+        const port=scrollport(box);
+        positions.set(profile(), Number(port?.scrollTop)||0);
+      }
     }
     function resetShareholders() {
       positions.delete(profile());
       generation++;
-      if (isRoot(modal())) modal().scrollTop = 0;
+      const box=modal();
+      if (isRoot(box)) {
+        if (scrollport(box)) scrollport(box).scrollTop=0;
+        box.scrollTop=0;
+      }
     }
     if (UI?.openModal) {
       const open = UI.openModal;
@@ -30,7 +43,11 @@
         modalProfile = key;
         const top = isRoot(box) ? (positions.get(key) || 0) : 0;
         const restore = () => {
-          if (token === generation && key === profile() && box === modal() && visible()) box.scrollTop = top;
+          if (token === generation && key === profile() && box === modal() && visible()) {
+            const port=scrollport(box);
+            if(port)port.scrollTop=top;
+            if(port!==box)box.scrollTop=0;
+          }
         };
         restore();
         w.requestAnimationFrame(restore);
@@ -41,7 +58,21 @@
         capture(); generation++;
         return close.apply(this, args);
       };
-      d.addEventListener('scroll', e => { if (e.target === modal()) capture(); }, true);
+      if (UI.requestCloseModal && UI.requestCloseModal!==UI.forceCloseModal) {
+        const requestClose=UI.requestCloseModal;
+        UI.requestCloseModal=function (...args){capture();return requestClose.apply(this,args);};
+      }
+      d.addEventListener('scroll', e => {
+        const box=modal();
+        if(isRoot(box)&&(e.target===box||e.target===scrollport(box)))capture();
+      }, true);
+    }
+    if(AppNav?.navigate){
+      const navigate=AppNav.navigate;
+      AppNav.navigate=function(screen,...args){
+        if(screen==='dashboard')resetShareholders();
+        return navigate.call(this,screen,...args);
+      };
     }
     if (AppNav?.renderCurrent) {
       let lastScreen = AppNav.current()?.screen;
