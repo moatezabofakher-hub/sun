@@ -3,7 +3,7 @@ name: Tiqany Acc - Main Signed Release
 on:
   workflow_dispatch:
   push:
-    branches: [main, 'feat/company-first-run-reset-3.5.128']
+    branches: [main]
 
 permissions:
   contents: read
