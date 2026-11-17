@@ -33,7 +33,7 @@ function fixture(id,filled){
   },makeCheckpoint:async()=>{}};
  const status={host:'',port:0,serverId:'',approved:false};
  const native={
-  start:()=> 'ready',
+  start:()=> 'ready',selectProfile:()=> 'selected',
   serverConfig:()=>JSON.stringify({serverId:nativeServerId,ready:true,host:'192.168.1.10',port:49379,key:'Z'.repeat(43)}),
   clientStatus:()=>JSON.stringify(status),
   clientConfigure:(host,port,key,serverId)=>{Object.assign(status,{host,port,serverId,approved:false});return 'saved';},
@@ -68,6 +68,7 @@ function pair(from,to){
 }
 test('Android bridge is separate, encrypted, and owns QR+two-way transport',()=>{
  assert.match(java,/class MainManagerPeerSync/);
+ assert.match(java,/selectProfile\(String profileId\)/);
  assert.match(java,/AES\/GCM\/NoPadding/);
  assert.match(java,/DeviceVault\.protectSecret/);
  assert.match(java,/clientRequest\(/);
