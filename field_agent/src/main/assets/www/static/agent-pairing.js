@@ -119,6 +119,7 @@
        items:c.items,categories:c.categories||[],accounts:c.accounts,
        stock:c.stock||{},agentCash:c.agentCash||null,allowedCurrencies:Array.isArray(c.allowedCurrencies)?c.allowedCurrencies:['USD','SYP'],
        addedCurrencies:Array.isArray(c.addedCurrencies)?c.addedCurrencies:[],
+       currencyRatesSyp:c.currencyRatesSyp||{},
        currencyExchangeRatesSyp:c.currencyExchangeRatesSyp||{},cashTransfers:c.cashTransfers||[],warehouseTransfers:mergeTransfer(c.warehouseHistoryPage,{...old,companyId:c.companyId,agentId:c.agentId,warehouseId:c.warehouseId}).docs,warehouseHistoryCursor:mergeTransfer(c.warehouseHistoryPage,{...old,companyId:c.companyId,agentId:c.agentId,warehouseId:c.warehouseId}).cursor,warehouseTransferRevision:c.warehouseHistoryPage?.revision||'',
        ops:mergeHistory(c.historyPage,{...old,companyId:c.companyId,agentId:c.agentId,warehouseId:c.warehouseId}).ops,historyCursor:mergeHistory(c.historyPage,{...old,companyId:c.companyId,agentId:c.agentId,warehouseId:c.warehouseId}).cursor,
        knownIds:Array.from(new Set([...(old.knownIds||[]),...c.knownIds,...mergeHistory(c.historyPage,{...old,companyId:c.companyId,agentId:c.agentId,warehouseId:c.warehouseId}).restoredIds])),snapshotIds:c.knownIds,exchangeRate:c.permissions?.exchangeRate&&Number(old.exchangeRateOverride)>0?Number(old.exchangeRateOverride):c.exchangeRate,exchangeRateOverride:c.permissions?.exchangeRate?old.exchangeRateOverride:null,

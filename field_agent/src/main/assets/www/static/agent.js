@@ -5,7 +5,7 @@ const Agent={
   // Extension modules provide paginated restorers; these defaults keep older standalone integrations compatible.
   mergeHistoryPage(page,old=this.state){return {ops:old.ops||[],cursor:Number(old.historyCursor||0),restoredIds:[]};},
   mergeTransferPage(page,old=this.state){return {docs:old.warehouseTransfers||[],cursor:Number(old.warehouseHistoryCursor||0),revision:old.warehouseTransferRevision||''};},
-  get blank(){return {deviceId:'TD-'+FieldProtocol.uuid().toUpperCase(),companyId:'',companyName:'',companyPhone:'',companyAddress:'',companyLogo:'',footerNote:'',printerWidth:80,printFontScale:0.75,itemQuantityDecimals:2,agentId:'',agentName:'',vehicleName:'',warehouseId:'',warehouseName:'',key:'',items:[],categories:[],accounts:[],stock:{},knownIds:[],snapshotIds:[],ops:[],localSequence:0,warehouseSwitchAt:'',agentCash:null,allowedCurrencies:['USD','SYP'],addedCurrencies:[],currencyExchangeRatesSyp:{},cashTransfers:[],warehouseTransfers:[],historyCursor:0,warehouseHistoryCursor:0,warehouseTransferRevision:'',license:'',issuedAt:'',lastSyncAt:'',lastSyncSummary:null,exchangeRate:15000,defaultPriceTier:'wholesale',permissions:null,accountLedgers:[],exchangeRateOverride:null,employeeAuth:null,backupRecovery:null};},
+  get blank(){return {deviceId:'TD-'+FieldProtocol.uuid().toUpperCase(),companyId:'',companyName:'',companyPhone:'',companyAddress:'',companyLogo:'',footerNote:'',printerWidth:80,printFontScale:0.75,itemQuantityDecimals:2,agentId:'',agentName:'',vehicleName:'',warehouseId:'',warehouseName:'',key:'',items:[],categories:[],accounts:[],stock:{},knownIds:[],snapshotIds:[],ops:[],localSequence:0,warehouseSwitchAt:'',agentCash:null,allowedCurrencies:['USD','SYP'],addedCurrencies:[],currencyRatesSyp:{},currencyExchangeRatesSyp:{},cashTransfers:[],warehouseTransfers:[],historyCursor:0,warehouseHistoryCursor:0,warehouseTransferRevision:'',license:'',issuedAt:'',lastSyncAt:'',lastSyncSummary:null,exchangeRate:15000,defaultPriceTier:'wholesale',permissions:null,accountLedgers:[],exchangeRateOverride:null,employeeAuth:null,backupRecovery:null};},
   async init(){
     if(!globalThis.crypto?.subtle){document.getElementById('screen').textContent='هذا الجهاز لا يدعم البيئة الآمنة اللازمة لتشغيل المزامنة.';return;}
     try{
@@ -185,6 +185,7 @@ const Agent={
         this.state={...this.state,companyId:payload.companyId,companyName:payload.companyName,companyPhone:payload.companyPhone||'',companyAddress:payload.companyAddress||'',companyLogo:payload.companyLogo||'',footerNote:payload.footerNote||'',printerWidth:payload.printerWidth===58?58:80,printFontScale:Number(payload.printFontScale)||0.75,itemQuantityDecimals:Number.isInteger(Number(payload.itemQuantityDecimals))?Math.min(4,Math.max(0,Number(payload.itemQuantityDecimals))):2,agentId:payload.agentId,agentName:payload.agentName,vehicleName:payload.vehicleName,warehouseId:payload.warehouseId,warehouseName:payload.warehouseName||payload.vehicleName,key:payload.key,items:provisionedItems,categories:payload.categories||[],accounts:this.mergeCustomerCatalog?.(payload.accounts,this.state)||payload.accounts,stock:payload.stock,
           agentCash:payload.agentCash||null,allowedCurrencies:Array.isArray(payload.allowedCurrencies)?payload.allowedCurrencies:['USD','SYP'],
           addedCurrencies:Array.isArray(payload.addedCurrencies)?payload.addedCurrencies:[],
+          currencyRatesSyp:payload.currencyRatesSyp||{},
           currencyExchangeRatesSyp:payload.permissions?.fxSharedRate&&this.state?.ops?.some(o=>o.kind==='fx_rate_change'&&!((payload.knownIds||[]).includes(o.id)))?
            (this.state.currencyExchangeRatesSyp||{}):(payload.currencyExchangeRatesSyp||{}),cashTransfers:payload.cashTransfers||[],warehouseTransfers:this.mergeTransferPage(payload.warehouseHistoryPage,{...this.state,companyId:payload.companyId,agentId:payload.agentId,warehouseId:payload.warehouseId}).docs,warehouseHistoryCursor:this.mergeTransferPage(payload.warehouseHistoryPage,{...this.state,companyId:payload.companyId,agentId:payload.agentId,warehouseId:payload.warehouseId}).cursor,warehouseTransferRevision:payload.warehouseHistoryPage?.revision||'',
           ops:this.mergeHistoryPage(payload.historyPage,{...this.state,companyId:payload.companyId,agentId:payload.agentId,warehouseId:payload.warehouseId}).ops,
@@ -320,6 +321,7 @@ const Agent={
         JSON.stringify(old.accountLedgers||[])!==JSON.stringify(catalog.accountLedgers||[])||
         JSON.stringify(old.categories||[])!==JSON.stringify(catalog.categories||[])||
         JSON.stringify(old.addedCurrencies||[])!==JSON.stringify(catalog.addedCurrencies||[])||
+        JSON.stringify(old.currencyRatesSyp||{})!==JSON.stringify(catalog.currencyRatesSyp||{})||
         JSON.stringify(old.snapshotIds||[])!==JSON.stringify(catalog.knownIds||[]);
       // Persist real changes promptly; checkpoint a no-op heartbeat at most once per minute.
       const checkpointDue=!old.lastSyncAt||Date.now()-Date.parse(old.lastSyncAt)>=60000;
@@ -344,6 +346,7 @@ const Agent={
           accounts:receivedAccounts,stock:catalog.stock,snapshotIds:catalog.knownIds||[],
           agentCash:catalog.agentCash||null,allowedCurrencies:Array.isArray(catalog.allowedCurrencies)?catalog.allowedCurrencies:['USD','SYP'],
           addedCurrencies:Array.isArray(catalog.addedCurrencies)?catalog.addedCurrencies:[],
+          currencyRatesSyp:catalog.currencyRatesSyp||{},
           currencyExchangeRatesSyp:catalog.permissions?.fxSharedRate&&old.ops?.some(o=>o.kind==='fx_rate_change'&&!((catalog.knownIds||[]).includes(o.id)))?
            (old.currencyExchangeRatesSyp||{}):(catalog.currencyExchangeRatesSyp||{}),cashTransfers:catalog.cashTransfers||[],
           warehouseTransfers:transfersResult.docs,warehouseHistoryCursor:transfersResult.cursor,warehouseTransferRevision:transfersResult.revision,

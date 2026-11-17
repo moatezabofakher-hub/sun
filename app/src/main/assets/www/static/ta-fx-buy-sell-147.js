@@ -124,6 +124,55 @@ async function saveTrade(){
  }catch(e){UI.toast('تعذر حفظ التصريف: '+e.message,'error');}
  finally{busy=false;}
 }
+// The company-wide currency rate is NOT the FX trading buy/sell quotation.
+// USD uses the existing invoice/general rate so the top-bar value stays intact.
+// Added currencies use a separate, portable map and never modify FX profits.
+const generalRates=()=>State.settings.currencyRatesSyp||{};
+const generalRate=code=>code==='USD'?Number(State.settings.exchangeRate)||0:Number(generalRates()[code])||0;
+function currencyRates(){
+ const rows=codes().map(code=>{
+  const rate=generalRate(code);
+  return '<div class="rounded-xl border-2 border-emerald-200 bg-white p-3">'+
+    '<label class="block text-sm font-black text-slate-900 mb-2">سعر صرف '+esc(label(code))+' مقابل الليرة السورية (ل.س)</label>'+
+    '<input id="ta150General_'+esc(code)+'" data-ta150-general="'+esc(code)+'" type="number" min="0.000001" step="any" inputmode="decimal" class="w-full rounded-xl border-2 border-emerald-300 p-3 text-center font-black text-lg text-slate-900 bg-white" value="'+(rate>0?esc(rate):'')+'" placeholder="أدخل سعر صرف '+esc(code)+'" />'+
+    (code==='USD'?'<p class="text-xs text-emerald-800 mt-2 font-bold">سعر الدولار المعتمد للفواتير والظاهر في الشريط العلوي</p>':'<p class="text-xs text-slate-500 mt-2">سعر صرف العملة العام مستقل عن سعر شرائها ومبيعها في التصريف</p>')+'</div>';
+ }).join('');
+ UI.openModal('<div dir="rtl" data-ta150-currency-rates="1" class="text-right space-y-3 max-h-[78vh] overflow-y-auto">'+
+  '<h2 class="font-black text-lg">أسعار صرف العملات</h2>'+
+  '<p class="text-xs text-slate-700">حدّد سعر صرف الدولار وكل عملة أجنبية مضافة مقابل الليرة السورية. أسعار شراء ومبيع التصريف تُدار بصورة مستقلة.</p>'+
+  rows+
+  '<button type="button" class="w-full p-3 font-black rounded-xl" style="background:#047857!important;color:#fff!important;border:2px solid #065f46!important" onclick="TiqanyFx147.saveCurrencyRates()">حفظ أسعار صرف العملات</button>'+
+  '<button type="button" class="w-full p-3 rounded-xl bg-slate-100 text-slate-900 font-bold" onclick="UI.forceCloseModal()">إلغاء</button></div>');
+}
+async function saveCurrencyRates(){
+ const priorRate=State.settings.exchangeRate,priorCurrencies=State.settings.currencyRatesSyp;
+ const next={...generalRates()};
+ try{
+  const usdText=document.getElementById('ta150General_USD')?.value?.trim();
+  const usd=Number(usdText);
+  if(!usdText||!validPrice(usd))throw Error('أدخل سعر صرف الدولار الصحيح');
+  for(const code of codes().filter(c=>c!=='USD')){
+   const raw=document.getElementById('ta150General_'+code)?.value?.trim()||'';
+   if(!raw){delete next[code];continue;}
+   const rate=Number(raw);if(!validPrice(rate))throw Error('سعر صرف غير صالح للعملة '+code);
+   next[code]=rate;
+  }
+  State.settings.exchangeRate=usd;
+  State.settings.currencyRatesSyp=next;
+  try{await StorageEngine.saveState();}
+  catch(e){State.settings.exchangeRate=priorRate;State.settings.currencyRatesSyp=priorCurrencies;throw e;}
+  const badge=document.getElementById('topBarRate');
+  if(badge)badge.textContent=usd.toLocaleString('en-US');
+  UI.forceCloseModal();
+  UI.toast('تم حفظ أسعار صرف العملات مع الاحتفاظ بعرض الدولار في الشريط العلوي','success');
+  if(typeof AppNav!=='undefined'){
+   if(priorRate!==usd&&AppNav.current()?.screen==='invoice_form'&&typeof InvoiceController!=='undefined'&&InvoiceController.draft){
+    InvoiceController.updateExchangeRate(usd,true);
+   }else AppNav.renderCurrent();
+  }
+ }catch(e){UI.toast('تعذر حفظ أسعار صرف العملات: '+e.message,'error');}
+}
+
 function unifiedRates(){
  const all=codes(),existing=rates();
  const options=all.map(c=>{
@@ -189,12 +238,14 @@ function augmentReports(main,params){
 if(typeof CurrencyCatalog!=='undefined'&&typeof CurrencyCatalog.renderAdditional==='function'){
  CurrencyCatalog.renderAdditional=function(){
   const list=extra();
-  return list.length?list.map(c=>'<div class="rounded-xl border border-sky-100 bg-white p-2 mb-2">'+
-    '<div class="flex justify-between items-center gap-2"><strong class="text-xs">'+esc(c.name)+' ('+esc(c.code)+')</strong>'+
+  return list.length?list.map(c=>{
+   const rate=generalRate(c.code);
+   return '<div class="rounded-xl border border-emerald-200 bg-white p-3 mb-2">'+
+    '<div class="flex justify-between items-center gap-2"><strong class="text-xs text-slate-900">'+esc(c.name)+' ('+esc(c.code)+')</strong>'+
     '<button type="button" class="text-rose-700 text-xs font-bold" onclick="SettingsController.removeCatalogCurrency(\''+esc(c.code)+'\')">إزالة</button></div>'+
-    '<div class="text-[11px] font-bold text-indigo-800 mt-2">سعر الصرف '+esc(c.code)+' مقابل الليرة السورية</div>'+
-    '<div class="text-[11px] text-slate-600">شراء: '+money(rates()[c.code]?.buy||0,'SYP')+' • مبيع: '+money(rates()[c.code]?.sell||0,'SYP')+'</div>'+
-    '<button type="button" onclick="TiqanyFx147.editRates()" class="mt-2 w-full bg-indigo-700 text-white text-xs font-bold rounded-xl p-2"><i class="fas fa-coins ml-1"></i> سعر الصرف — تعديل الشراء والمبيع</button></div>').join(''):'<p class="text-xs text-slate-500">لم تُضف عملات جديدة.</p>';
+    '<div class="text-xs text-slate-700 font-bold mt-2">سعر صرف '+esc(c.code)+' مقابل الليرة السورية: '+(rate>0?money(rate,'SYP'):'لم يُحدّد بعد')+'</div>'+
+    '<button type="button" data-ta150-currency-rate-button="'+esc(c.code)+'" onclick="TiqanyFx147.currencyRates()" class="ta-currency-rate-150 mt-3 w-full rounded-xl p-3 font-black" style="background:#047857!important;color:#fff!important;border:2px solid #065f46!important;box-shadow:0 4px 0 #064e3b!important"><i class="fas fa-coins ml-1" style="color:#fff!important"></i> تعديل سعر الصرف</button></div>';
+  }).join(''):'<p class="text-xs text-slate-500">لم تُضف عملات جديدة.</p>';
  };
 }
 // The authenticated staff catalog carries both the ISO code and the user-given
@@ -206,6 +257,8 @@ if(typeof FieldSync!=='undefined'&&typeof FieldSync.catalog==='function'){
   result.addedCurrencies=extra().filter(c=>/^[A-Z]{3}$/.test(c.code)).map(c=>({code:c.code,name:String(c.name||c.code).slice(0,60)}));
   result.allowedCurrencies=[...new Set(['SYP','USD',...(result.allowedCurrencies||[]),...result.addedCurrencies.map(x=>x.code)])];
   result.currencyExchangeRatesSyp=JSON.parse(JSON.stringify(rates()));
+  result.currencyRatesSyp=JSON.parse(JSON.stringify(generalRates()));
+  result.generalUsdExchangeRate=Number(State.settings.exchangeRate)||0;
   return result;
  };
 }
@@ -215,8 +268,8 @@ U.ratesForm=unifiedRates;
 // Keep a separate, explicit settings action for the GENERAL invoice exchange
 // rate, without displaying it when the user clicks the top-bar FX quotation.
 const originalInvoiceRateModal=typeof UI.openRateModal==='function'?UI.openRateModal.bind(UI):null;
-if(originalInvoiceRateModal)U.openGeneralRateModal=originalInvoiceRateModal;
-UI.openRateModal=unifiedRates;
+U.openGeneralRateModal=currencyRates;
+UI.openRateModal=currencyRates;
 if(typeof Views!=='undefined'&&typeof Views.renderReports==='function'){
  const previous=Views.renderReports;
  Views.renderReports=function(main,params,...args){
@@ -225,5 +278,5 @@ if(typeof Views!=='undefined'&&typeof Views.renderReports==='function'){
   return out;
  };
 }
-root.TiqanyFx147={chooser,trade,saveTrade,editRates:unifiedRates,saveRates,profitDetails,codes,current,generalInvoiceRateModal:originalInvoiceRateModal};
+root.TiqanyFx147={chooser,trade,saveTrade,editRates:unifiedRates,saveRates,profitDetails,codes,current,generalInvoiceRateModal:currencyRates,currencyRates,saveCurrencyRates,generalRate};
 })(typeof window==='object'?window:globalThis);
