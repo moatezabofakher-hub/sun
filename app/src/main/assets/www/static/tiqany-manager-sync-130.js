@@ -305,30 +305,17 @@ const manager={
         return false;
       }
       const snapshot=first?incoming:incoming.snapshot;
-      if(!first&&this.conflicts?.details?.length){
-        // Prior decisions are single-use and bound to exact conflicting versions.
-        const unresolved=this.conflicts.details.some(d=>!oldChoices[d.id]||
-          oldChoices[d.id].signature!==d.signature);
-        if(unresolved&&this.conflicts.details.some(d=>d.collection==='fullSettings'||d.collection==='protection'))
-          return false;
-      }
       let settings,protection;
       if(first){
         if(srcEmpty){settings=fetched.provision.settings;protection=fetched.provision.protection;}
         else {settings=mySettings;protection=myPin;}
       }else{
-        const combined=this.protectedSettingsMerge(base.settings||{},mySettings,fetched.settings||{},oldChoices,'setting:');
-        const protecting=this.protectedSettingsMerge({pin:base.protection||null},
-          {pin:myPin},{pin:fetched.protection||null},oldChoices,'protection:');
-        if(!combined.ok||!protecting.ok){
-          this.conflicts={serverId:link.serverId,at:stamp(),details:[
-            ...combined.conflicts.map(x=>({...x,collection:'fullSettings'})),
-            ...protecting.conflicts.map(x=>({...x,collection:'protection'}))
-          ],decisions:oldChoices};
-          await this.write(this.conflictKey(link.serverId),this.conflicts);
-          this.showConflicts();return false;
-        }
-        settings=combined.settings;protection=protecting.settings.pin||null;
+        // The shared three-way core already merges every portable setting and
+        // PIN verifier with the SAME signed conflict decisions as invoices.
+        // A second independent settings merge would reject a resolved conflict.
+        settings=this.cleanSettings(snapshot.sharedSettings||{});
+        delete settings.managerSecurity;
+        protection=snapshot.sharedSettings?.managerSecurity??this.portablePin();
       }
       const provision=first&&!srcEmpty?await this.meta():null;
       if(core.canonical(core.snapshot(State))!==original)throw Error('تغير دفتر الموبايل أثناء المزامنة');
