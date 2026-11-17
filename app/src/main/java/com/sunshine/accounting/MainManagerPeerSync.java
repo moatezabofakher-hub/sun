@@ -31,6 +31,9 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ExecutorCompletionService;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.crypto.Cipher;
 import javax.crypto.spec.GCMParameterSpec;
@@ -54,19 +57,23 @@ public final class MainManagerPeerSync {
     private volatile boolean trusted=false,closed=false;
     private volatile long lastServerRequest=0,lastClientSuccess=0;
     private final Object serverLock=new Object();
+    private final ManagerPeerDiscovery discovery;
     // Pairing secrets are isolated for EACH independent business profile.
     // Switching the active business never exposes its ledger through another company's QR.
     private volatile String activeProfile="default";
     private String k(String field){return "profile:"+activeProfile+":"+field;}
     @JavascriptInterface public String selectProfile(String profileId){
         if(!allowed()||profileId==null||!profileId.matches("[A-Za-z0-9_-]{1,120}"))return "invalid";
+        if(!activeProfile.equals(profileId))discovery.stop();
         activeProfile=profileId;
+        if(listener!=null&&!listener.isClosed())discovery.advertise(getServerId(),PORT,localIP());
         lastClientSuccess=0;lastServerRequest=0;
         return "selected";
     }
     public MainManagerPeerSync(Activity activity,WebView page){
         this.activity=activity;this.page=page;
         this.prefs=activity.getSharedPreferences("tiqany_manager_manager_pair",Context.MODE_PRIVATE);
+        this.discovery=new ManagerPeerDiscovery(activity);
     }
     public void onMainFrameUrlChanged(String url){trusted=url!=null&&url.startsWith(ORIGIN);}
     private boolean allowed(){return trusted&&!closed;}
@@ -171,6 +178,14 @@ public final class MainManagerPeerSync {
             String payload=decrypt(keyBytes(getServerKey()),encrypted);
             JSONObject command=new JSONObject(payload);
             if(!"TIQANY-MANAGER-1".equals(command.optString("protocol")))return;
+            // Authenticate a known pairing secret without opening JS or returning ledger data.
+            if("identify".equals(command.optString("action"))){
+                String reply=new JSONObject().put("ok",true).put("serverId",getServerId()).toString();
+                byte[] answer=crypt(keyBytes(getServerKey()),reply);
+                DataOutputStream stream=new DataOutputStream(client.getOutputStream());
+                stream.writeInt(answer.length);stream.write(answer);stream.flush();
+                return;
+            }
             String id=UUID.randomUUID().toString();
             ArrayBlockingQueue<String> queue=new ArrayBlockingQueue<>(1);
             answers.put(id,queue);
@@ -189,13 +204,17 @@ public final class MainManagerPeerSync {
     @JavascriptInterface public String start(){
         if(!allowed())return "invalid";
         synchronized(serverLock){
-            if(listener!=null&&!listener.isClosed())return "ready";
+            if(listener!=null&&!listener.isClosed()){
+                discovery.advertise(getServerId(),PORT,localIP());
+                return "ready";
+            }
             try{
                 getServerId();getServerKey();
                 final ServerSocket server=new ServerSocket();
                 server.setReuseAddress(true);
                 server.bind(new InetSocketAddress(PORT));
                 listener=server;
+                discovery.advertise(getServerId(),PORT,localIP());
                 io.execute(()->{
                     while(!closed&&!server.isClosed()){
                         try{Socket accepted=server.accept();io.execute(()->serve(accepted));}
@@ -267,6 +286,81 @@ public final class MainManagerPeerSync {
     @JavascriptInterface public void clientUnlink(){
         if(allowed())prefs.edit().remove(k("host")).remove(k("port")).remove(k("client_key")).remove(k("client_id")).remove(k("approved")).apply();
     }
+
+    /** Route local sockets through Wi-Fi even with mobile data set as the default network. */
+    private void bindToWifi(Socket socket){
+        try{
+            ConnectivityManager conn=(ConnectivityManager)activity.getSystemService(Context.CONNECTIVITY_SERVICE);
+            if(conn!=null)for(Network network:conn.getAllNetworks()){
+                NetworkCapabilities caps=conn.getNetworkCapabilities(network);
+                if(caps!=null&&caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)){
+                    network.bindSocket(socket);break;
+                }
+            }
+        }catch(Exception ignored){}
+    }
+    /** Test the peer's saved QR secret + full 32-char identity before accepting a new IP. */
+    private InetSocketAddress verifyCandidate(InetSocketAddress target,byte[] key,String expectedId){
+        if(!privateIP(target.getHostString())||!expectedId.matches("[a-f0-9]{32}"))return null;
+        try(Socket socket=new Socket()){
+            bindToWifi(socket);
+            socket.connect(target,300);
+            socket.setSoTimeout(850);
+            String request=new JSONObject().put("protocol","TIQANY-MANAGER-1")
+                .put("action","identify").toString();
+            byte[] ciphertext=crypt(key,request);
+            DataOutputStream out=new DataOutputStream(socket.getOutputStream());
+            out.writeInt(ciphertext.length);out.write(ciphertext);out.flush();
+            DataInputStream in=new DataInputStream(socket.getInputStream());
+            int length=in.readInt();
+            if(length<1||length>4096)return null;
+            byte[] bytes=new byte[length];in.readFully(bytes);
+            JSONObject response=new JSONObject(decrypt(key,bytes));
+            return response.optBoolean("ok")&&expectedId.equals(response.optString("serverId"))?target:null;
+        }catch(Exception ignored){return null;}
+    }
+    /**
+     * Routers sometimes suppress mDNS. Probe only the local /24 on the app's
+     * dedicated port; a candidate is accepted ONLY after encrypted ID verification.
+     * Runs after a QR pairing, on an I/O worker, within a bounded search pass.
+     */
+    private InetSocketAddress searchSubnet(String id,byte[] key){
+        String current=localIP();
+        int dot=current.lastIndexOf('.');
+        if(dot<1||!privateIP(current))return null;
+        String subnet=current.substring(0,dot+1);
+        ExecutorService scan=Executors.newFixedThreadPool(24);
+        ExecutorCompletionService<InetSocketAddress> completion=new ExecutorCompletionService<>(scan);
+        int submitted=0;
+        try{
+            for(int last=1;last<255;last++){
+                String candidate=subnet+last;
+                if(candidate.equals(current))continue;
+                final InetSocketAddress address=new InetSocketAddress(candidate,PORT);
+                completion.submit(()->verifyCandidate(address,key,id));submitted++;
+            }
+            long deadline=System.nanoTime()+TimeUnit.SECONDS.toNanos(8);
+            for(int i=0;i<submitted;i++){
+                long remaining=deadline-System.nanoTime();
+                if(remaining<=0)break;
+                Future<InetSocketAddress> done=completion.poll(remaining,TimeUnit.NANOSECONDS);
+                if(done==null)break;
+                InetSocketAddress found=done.get();
+                if(found!=null)return found;
+            }
+        }catch(Exception ignored){}finally{scan.shutdownNow();}
+        return null;
+    }
+    private InetSocketAddress findPairedManager(String serverId,byte[] key){
+        if(serverId==null||!serverId.matches("[a-f0-9]{32}"))return null;
+        InetSocketAddress advertised=discovery.find(serverId);
+        if(advertised!=null){
+            InetSocketAddress verified=verifyCandidate(advertised,key,serverId);
+            if(verified!=null)return verified;
+        }
+        return searchSubnet(serverId,key);
+    }
+
     @JavascriptInterface public void clientRequest(String raw){
         if(!allowed()||raw==null||raw.length()>9000000)return;
         if(!connecting.compareAndSet(false,true)){sendClientReply("{\"ok\":false,\"error\":\"مزامنة أخرى قيد التنفيذ\"}");return;}
@@ -275,22 +369,32 @@ public final class MainManagerPeerSync {
                 String host=prefs.getString(k("host"),""),key=getClientKey();
                 int port=prefs.getInt(k("port"),0);
                 if(!privateIP(host)||port<1024)throw new Exception("لم يتم إعداد جهاز المدير");
-                byte[] request=crypt(keyBytes(key),raw);
-                try(Socket sock=new Socket()){
-                    // Follow Wi-Fi even if mobile data is the Android default network.
-                    ConnectivityManager conn=(ConnectivityManager)activity.getSystemService(Context.CONNECTIVITY_SERVICE);
-                    if(conn!=null)for(Network network:conn.getAllNetworks()){
-                        NetworkCapabilities caps=conn.getNetworkCapabilities(network);
-                        if(caps!=null&&caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)){
-                            network.bindSocket(sock);break;
-                        }
-                    }
-                    sock.connect(new InetSocketAddress(host,port),4500);sock.setSoTimeout(23500);
-                    DataOutputStream out=new DataOutputStream(sock.getOutputStream());out.writeInt(request.length);out.write(request);out.flush();
+                byte[] cipherKey=keyBytes(key);
+                // Prefer the QR address when reachable, then discover the SAME
+                // cryptographically verified peer on the router/hotspot.
+                Socket socket=new Socket();
+                boolean relocated=false;
+                try{
+                    bindToWifi(socket);
+                    socket.connect(new InetSocketAddress(host,port),1400);
+                }catch(Exception oldAddressFailed){
+                    try{socket.close();}catch(Exception ignored){}
+                    InetSocketAddress found=findPairedManager(prefs.getString(k("client_id"),""),cipherKey);
+                    if(found==null)throw new Exception("لم يُعثر على موبايل المدير المقترن على الشبكة. تحقق من اتصال الجهازين بنفس Wi-Fi ومن تعطيل عزل الأجهزة في الراوتر.");
+                    socket=new Socket();bindToWifi(socket);
+                    socket.connect(found,1800);
+                    host=found.getHostString();port=found.getPort();relocated=true;
+                }
+                try(Socket sock=socket){
+                    sock.setSoTimeout(23500);
+                    byte[] request=crypt(cipherKey,raw);
+                    DataOutputStream out=new DataOutputStream(sock.getOutputStream());
+                    out.writeInt(request.length);out.write(request);out.flush();
                     DataInputStream in=new DataInputStream(sock.getInputStream());
                     int count=in.readInt();if(count<1||count>MAX_FRAME)throw new Exception("استجابة مزامنة غير صالحة");
                     byte[] response=new byte[count];in.readFully(response);
-                    String answer=decrypt(keyBytes(key),response);
+                    String answer=decrypt(cipherKey,response);
+                    if(relocated)prefs.edit().putString(k("host"),host).putInt(k("port"),port).apply();
                     lastClientSuccess=System.currentTimeMillis();sendClientReply(answer);
                 }
             }catch(Exception e){
@@ -307,6 +411,7 @@ public final class MainManagerPeerSync {
         if(!allowed())return;
         synchronized(serverLock){
             try{if(listener!=null)listener.close();}catch(Exception ignored){}
+            discovery.stop();
             listener=null;prefs.edit().clear().commit();
             lastClientSuccess=0;lastServerRequest=0;
         }
@@ -314,6 +419,7 @@ public final class MainManagerPeerSync {
     public void close(){
         closed=true;
         synchronized(serverLock){try{if(listener!=null)listener.close();}catch(Exception ignored){}}
+        discovery.stop();
         io.shutdownNow();
     }
 }
