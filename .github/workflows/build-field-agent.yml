@@ -96,14 +96,14 @@ jobs:
             exit 1
           fi
           mkdir -p output
-          cp "$apk" "output/Tiqany-Acc-Agent-3.5.146-RELEASE.apk"
-          (cd output && sha256sum "Tiqany-Acc-Agent-3.5.146-RELEASE.apk" > "Tiqany-Acc-Agent-3.5.146-RELEASE.apk.sha256")
+          cp "$apk" "output/Tiqany-Acc-Agent-3.5.147-RELEASE.apk"
+          (cd output && sha256sum "Tiqany-Acc-Agent-3.5.147-RELEASE.apk" > "Tiqany-Acc-Agent-3.5.147-RELEASE.apk.sha256")
       - name: Upload signed field_agent APK and checksum
         uses: actions/upload-artifact@v4
         with:
-          name: Tiqany-Acc-Agent-3.5.146-RELEASE
+          name: Tiqany-Acc-Agent-3.5.147-RELEASE
           path: |
-            output/Tiqany-Acc-Agent-3.5.146-RELEASE.apk
-            output/Tiqany-Acc-Agent-3.5.146-RELEASE.apk.sha256
+            output/Tiqany-Acc-Agent-3.5.147-RELEASE.apk
+            output/Tiqany-Acc-Agent-3.5.147-RELEASE.apk.sha256
           if-no-files-found: error
           retention-days: 30
