@@ -127,18 +127,18 @@ test('Unpaired two populated managers must never merge, even if names match',asy
  assert.equal(one.State.invoices.length,1);
  assert.equal(two.State.invoices.length,1);
 });
-test('Manager-to-manager settings conflicts require resolution, rather than silently clobbering',async()=>{
- const one=fixture(ids.one,true),two=fixture(ids.two,false);pair(two,one);
- assert.equal(await two.manager.sync(false),true);
- one.State.settings.invoicePrintTitle='A';
- two.State.settings.invoicePrintTitle='B';
- assert.equal(await two.manager.sync(true),false);
- assert.ok(two.manager.conflicts.details.some(x=>x.key==='invoicePrintTitle'||x.recordId==='invoicePrintTitle'));
- const conflict=two.manager.conflicts.details.find(x=>x.key==='invoicePrintTitle'||x.recordId==='invoicePrintTitle');
- two.manager.resolveConflict(conflict.id,'local');
- await new Promise(r=>setTimeout(r,5));
- assert.equal(await two.manager.sync(true),true);
- assert.equal(one.State.settings.invoicePrintTitle,'B');
+test('Manager-to-manager settings choose the edit nearest to sync without recording conflicts',async()=>{
+  const one=fixture(ids.one,true),two=fixture(ids.two,false);pair(two,one);
+  assert.equal(await two.manager.sync(false),true);
+  const instant=Date.now();
+  one.State.settings.invoicePrintTitle='A';
+  two.State.settings.invoicePrintTitle='B';
+  one.State.settings._syncSettingTimes={invoicePrintTitle:{updatedAt:new Date(instant-60000).toISOString(),deviceId:'one'}};
+  two.State.settings._syncSettingTimes={invoicePrintTitle:{updatedAt:new Date(instant-1000).toISOString(),deviceId:'two'}};
+  assert.equal(await two.manager.sync(true),true);
+  assert.equal(one.State.settings.invoicePrintTitle,'B');
+  assert.equal(two.State.settings.invoicePrintTitle,'B');
+  assert.ok(!two.manager.conflicts?.details?.some(x=>x.recordId==='invoicePrintTitle'));
 });
 
 test('Synchronizing an unchanged password must not disable the phone own biometric enrollment',()=>{
