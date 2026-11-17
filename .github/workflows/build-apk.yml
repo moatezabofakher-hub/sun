@@ -65,6 +65,10 @@ jobs:
           node --check app/src/main/assets/www/static/settings-revision-clock-133.js
       - name: Verify router rediscovery and dashboard-only navigation
         run: node --test tests/release137-manager-discovery.test.js tests/release137-home-only-dock.test.js
+      - name: Verify explicit popup dismissal and fixed connection icons
+        run: |
+          node --test tests/release138-no-outside-dismiss.test.js
+          node --test tests/release138-stable-header-links.test.js
       - name: Build, sign, and verify app release APK
         shell: bash
         env:
@@ -105,14 +109,14 @@ jobs:
             exit 1
           fi
           mkdir -p output
-          cp "$apk" "output/Tiqany-Acc-Main-3.5.137-RELEASE.apk"
-          (cd output && sha256sum "Tiqany-Acc-Main-3.5.137-RELEASE.apk" > "Tiqany-Acc-Main-3.5.137-RELEASE.apk.sha256")
+          cp "$apk" "output/Tiqany-Acc-Main-3.5.138-RELEASE.apk"
+          (cd output && sha256sum "Tiqany-Acc-Main-3.5.138-RELEASE.apk" > "Tiqany-Acc-Main-3.5.138-RELEASE.apk.sha256")
       - name: Upload signed app APK and checksum
         uses: actions/upload-artifact@v4
         with:
-          name: Tiqany-Acc-Main-3.5.137-RELEASE
+          name: Tiqany-Acc-Main-3.5.138-RELEASE
           path: |
-            output/Tiqany-Acc-Main-3.5.137-RELEASE.apk
-            output/Tiqany-Acc-Main-3.5.137-RELEASE.apk.sha256
+            output/Tiqany-Acc-Main-3.5.138-RELEASE.apk
+            output/Tiqany-Acc-Main-3.5.138-RELEASE.apk.sha256
           if-no-files-found: error
           retention-days: 30
