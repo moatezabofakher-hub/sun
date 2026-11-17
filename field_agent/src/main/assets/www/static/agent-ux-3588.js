@@ -36,6 +36,8 @@ function closePicker(){const picked=Object.values(A.gridPending||{}).some(x=>Num
  A.confirmAction('مواد لم تُضَف بعد','هناك مواد محددة في الشبكة. هل تريد إغلاقها دون إضافتها إلى الفاتورة؟',()=>A.closeInvoiceItemGrid());
 }
 const originalBack=A.goBack;A.goBack=async function(...args){
+ // Close exactly one nested picker per Back press.
+ if(one('#agentPosNameList')){this.closePosNameList?.();return;}
  if(one('#agentItemPicker')){closePicker();return;}
  const open=one('#screen .ta-payment-selector[open]');if(open){open.open=false;return;}
  if(one('#agentNewCustomerModal:not(.hide)')){this.closeCustomerForm?.();return;}
