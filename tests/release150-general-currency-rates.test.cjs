@@ -30,7 +30,8 @@ test('Exchange rate update is atomic and does not alter existing FX trading gain
  assert.match(source,/priorCurrencies=State\.settings\.currencyRatesSyp/);
  assert.match(source,/catch\(e\)\{State\.settings\.exchangeRate=priorRate;State\.settings\.currencyRatesSyp=priorCurrencies;throw e;\}/);
  assert.match(source,/badge\.textContent=usd\.toLocaleString/);
- assert.doesNotMatch(source,/State\.currencyExchanges\s*=\s*next/);
+ const section=source.slice(source.indexOf('async function saveCurrencyRates(){'),source.indexOf('function unifiedRates(){'));
+ assert.doesNotMatch(section,/State\.currencyExchanges\s*=/,'General rate changes cannot create or rewrite FX trades');
 });
 test('Manager-to-computer keeps currency rates in settings reconciliation',()=>{
  const file=win?'tiqany-peer-merge-133.js':'tiqany-peer-merge.js';
