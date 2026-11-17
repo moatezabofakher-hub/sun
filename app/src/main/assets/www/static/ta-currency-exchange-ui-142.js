@@ -110,8 +110,9 @@ const oldReport=Views.renderReports;
 if(typeof oldReport==='function')Views.renderReports=function(main,params,...args){
  const result=oldReport.call(this,main,params,...args);
  main.insertAdjacentHTML('afterbegin','<div class="space-y-2 mb-3">'+
- '<button type="button" onclick="CapitalLedger.open()" class="w-full p-3 rounded-xl font-black text-right" style="background:#16804a;color:white"><i class="fas fa-wallet ml-2"></i> رأس المال</button>'+
- '<button type="button" onclick="AppNav.navigate(\'reports\',{tab:\'cashbox\'},true)" class="w-full p-3 rounded-xl border bg-white font-black text-right">صافي الصناديق</button></div>');
+  CapitalLedger.card()+
+  '<button type="button" onclick="AppNav.navigate(\'reports\',{tab:\'cashbox\'},true)" class="w-full p-3 rounded-xl border bg-slate-900 text-white font-black text-right"><i class="fas fa-landmark ml-2"></i> صافي الصناديق</button></div>');
+
  if((params?.tab||'cashbox')==='pnl'){
    const r=E.analyze(rows());let profit=0;
    for(const e of r.byId.values())if(e.gainSyp!==null && TimeFilter.matches(e.date,TimeFilter.mode(params?.period||TimeFilter.defaultMode()),params?.date||TimeFilter.defaultStart(),params?.end||TimeFilter.defaultEnd()))profit+=e.gainSyp;
@@ -153,5 +154,10 @@ function stageAgentExchanges(operations,agent){
  return accepted.length;
 }
 
+if(!document.getElementById('taFxCapitalGreen142')){
+ const st=document.createElement('style');st.id='taFxCapitalGreen142';
+ st.textContent='.ta-capital-card{background:linear-gradient(145deg,#198c51,#07572f)!important;color:#fff!important;border-color:#38ac77!important;box-shadow:0 6px 0 #04452a,0 10px 18px #023e2633!important}.ta-capital-card .ta-capital-card-text strong,.ta-capital-card .ta-capital-card-text small,.ta-capital-card .ta-capital-amount,.ta-capital-card .ta-capital-divider,.ta-capital-card>i{color:#fff!important}.ta-capital-card .ta-capital-icon{background:linear-gradient(145deg,#157e49,#07552e)!important;color:#fff!important;border-color:#35ac78!important}';
+ document.head.appendChild(st);
+}
 window.TiqanyFxUI={newForm,save,list,stageAgentExchanges,core:E};
 })();
