@@ -133,3 +133,69 @@ test('employee and manager use the same partial-cost algorithm for overdrawn FX 
  assert.deepEqual([b.gainSyp,b.coveredAmount,b.uncoveredAmount,b.costOfSoldSyp],
                   [a.gainSyp,a.coveredAmount,a.uncoveredAmount,a.costOfSoldSyp]);
 });
+
+test('Deferred FX sale keeps the uncovered proceeds neutral until a later purchase',()=>{
+ const purchase=fx('fx_defer_buy_01','SYP','USD',1500000,100,1500000,'2026-11-01T00:00:00Z');
+ const sale=fx('fx_defer_sale_01','USD','SYP',150,2550000,2550000,'2026-11-02T00:00:00Z');
+ const original=core.analyze([purchase,sale]);
+ assert.equal(original.profitSyp,200000);
+ assert.equal(original.byId.get(sale.id).gainSyp,200000);
+ assert.equal(original.byId.get(sale.id).pendingAmount,50);
+ assert.equal(original.pendingSales.USD.proceedsSyp,850000);
+ const cover=fx('fx_defer_cover_01','SYP','USD',800000,50,800000,'2026-11-03T00:00:00Z');
+ const result=core.analyze([purchase,sale,cover]);
+ assert.equal(result.byId.get(cover.id).deferredCoveredAmount,50);
+ assert.equal(result.byId.get(cover.id).deferredGainSyp,50000);
+ assert.equal(result.byId.get(sale.id).pendingAmount,0);
+ assert.equal(result.profitSyp,250000);
+ assert.equal(result.unknownCostCount,0);
+ assert.equal(result.holdings.USD.quantity,0);
+});
+test('Covering an earlier FX oversale at a higher price realizes only the actual later loss',()=>{
+ const sale=fx('fx_defer_sale_02','USD','SYP',50,850000,850000,'2026-11-01T00:00:00Z');
+ const cover=fx('fx_defer_cover_02','SYP','USD',900000,50,900000,'2026-11-02T00:00:00Z');
+ assert.equal(core.analyze([sale]).profitSyp,0);
+ const covered=core.analyze([sale,cover]);
+ assert.equal(covered.profitSyp,-50000);
+ assert.equal(covered.byId.get(cover.id).deferredGainSyp,-50000);
+ assert.equal(covered.byId.get(sale.id).pendingAmount,0);
+});
+test('Multiple subsequent FX purchases settle the oldest pending units in order',()=>{
+ const sale=fx('fx_defer_sale_03','USD','SYP',50,850000,850000,'2026-11-01T00:00:00Z');
+ const first=fx('fx_defer_cover_03','SYP','USD',320000,20,320000,'2026-11-02T00:00:00Z');
+ const second=fx('fx_defer_cover_04','SYP','USD',540000,30,540000,'2026-11-03T00:00:00Z');
+ const partial=core.analyze([sale,first]);
+ assert.equal(partial.byId.get(sale.id).pendingAmount,30);
+ assert.equal(partial.byId.get(first.id).deferredGainSyp,20000);
+ const final=core.analyze([sale,first,second]);
+ assert.equal(final.byId.get(second.id).deferredGainSyp,-30000);
+ assert.equal(final.byId.get(sale.id).pendingAmount,0);
+ assert.equal(final.profitSyp,-10000);
+});
+test('Editing or deleting an FX purchase recomputes deferred profits without phantom loss',()=>{
+ const sale=fx('fx_defer_sale_04','USD','SYP',50,850000,850000,'2026-11-01T00:00:00Z');
+ const original=fx('fx_defer_cover_05','SYP','USD',800000,50,800000,'2026-11-02T00:00:00Z');
+ const changed={...original,fromAmount:900000,equivalentSyp:900000};
+ assert.equal(core.analyze([sale,original]).profitSyp,50000);
+ assert.equal(core.analyze([sale,changed]).profitSyp,-50000);
+ const deleted=core.analyze([sale]);
+ assert.equal(deleted.profitSyp,0);
+ assert.equal(deleted.pendingSales.USD.quantity,50);
+});
+test('Saved SYP buy/sell rates quote the correct side for each direction',()=>{
+ const rates={USD:{buy:15000,sell:17000},EUR:{buy:18000,sell:19000}};
+ assert.deepEqual(core.quote('SYP','USD',1500000,rates),{fromAmount:1500000,toAmount:100,equivalentSyp:1500000});
+ assert.deepEqual(core.quote('USD','SYP',100,rates),{fromAmount:100,toAmount:1700000,equivalentSyp:1700000});
+ assert.deepEqual(core.quote('USD','EUR',100,rates),{fromAmount:100,toAmount:94.44,equivalentSyp:1700000});
+ assert.throws(()=>core.quote('USD','SYP',100,{}),/حدّد سعر/);
+});
+test('Currency exchange editor has a rate tile and red deletion with confirmation',()=>{
+ const fxUi=fs.readFileSync(isWindows?path.join(root,'upgrade-125/ta-currency-exchange-ui-142.js'):
+  path.join(root,'app/src/main/assets/www/static/ta-currency-exchange-ui-142.js'),'utf8');
+ assert.match(fxUi,/سعر الصرف/);
+ assert.match(fxUi,/currencyExchangeRatesSyp/);
+ assert.match(fxUi,/TiqanyFxUI\.remove/);
+ assert.match(fxUi,/bg-red-700/);
+ assert.match(fxUi,/window\.confirm/);
+ assert.doesNotThrow(()=>new Function(fxUi));
+});
