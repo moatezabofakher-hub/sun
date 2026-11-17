@@ -2,6 +2,12 @@ name: Tiqany Acc - Agent Signed Release
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'field_agent/**'
+      - 'tests/release138-no-outside-dismiss.test.js'
+      - '.github/workflows/build-field-agent.yml'
 
 permissions:
   contents: read
