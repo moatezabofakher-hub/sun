@@ -39,7 +39,11 @@
           <button id="ta-company-save-128" type="submit" style="width:100%;margin-top:16px;padding:15px;border-radius:14px;border:1px solid #047857;background:linear-gradient(#10b981,#047857);color:white;font-size:16px;font-weight:900;box-shadow:0 4px 0 #065f46">حفظ بيانات الشركة والبدء</button>
           <button type="button" onclick="window.CompanyLifecycle.openPairingFirst()"
             style="width:100%;margin-top:14px;padding:13px;border-radius:13px;border:1px solid #0284c7;background:linear-gradient(#e0f2fe,#7dd3fc);color:#075985;font-size:14px;font-weight:900">
-            لدي جهاز مدير فيه بيانات — الربط واستيراد الشركة بدلاً من إدخالها
+            لدي كمبيوتر مدير فيه بيانات — الربط واستيراد الشركة
+          </button>
+          <button type="button" onclick="window.CompanyLifecycle.openManagerPairingFirst()"
+            style="width:100%;margin-top:12px;padding:13px;border-radius:13px;border:1px solid #047857;background:linear-gradient(#dcfce7,#86efac);color:#14532d;font-size:14px;font-weight:900">
+            لدي موبايل مدير فيه بيانات — الربط واستيراد الشركة
           </button>
         </form>`;
       document.body.appendChild(overlay);
@@ -56,6 +60,17 @@
       } catch(error) {
         this.show();
         UI.toast('تعذّر فتح الربط: '+String(error?.message||error),'error');
+      }
+    },
+    openManagerPairingFirst() {
+      $('ta-company-setup-128')?.remove();
+      try{
+        AppNav.navigate('settings',{},true);
+        UI.toast('افتح مزامنة أجهزة مدير، ثم امسح QR الموبايل الموجود واختر مزامنة الآن','success');
+        setTimeout(()=>window.TiqanyManagerPeerClient?.requestHeaderAccess?.(),160);
+      }catch(error){
+        this.show();
+        UI.toast('تعذّر فتح مزامنة أجهزة مدير: '+String(error?.message||error),'error');
       }
     },
     async saveFirstRun() {
