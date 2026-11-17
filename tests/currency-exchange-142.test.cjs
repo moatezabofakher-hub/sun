@@ -199,3 +199,32 @@ test('Currency exchange editor has a rate tile and red deletion with confirmatio
  assert.match(fxUi,/window\.confirm/);
  assert.doesNotThrow(()=>new Function(fxUi));
 });
+
+test('Profit report books sold foreign currency gain once and later pending-cost settlement on its purchase date',()=>{
+ const xs=[
+  fx('fx_report_buy_01','SYP','USD',1500000,100,1500000,'2026-11-01T11:00:00Z'),
+  fx('fx_report_sell_02','USD','SYP',150,2550000,2550000,'2026-11-02T11:00:00Z'),
+  fx('fx_report_cover_03','SYP','USD',800000,50,800000,'2026-11-03T11:00:00Z')
+ ];
+ const a=core.analyze(xs);
+ const onDate=date=>[...a.byId.values()].filter(x=>x.date.startsWith(date)&&x.gainSyp!==null)
+   .reduce((sum,e)=>sum+e.gainSyp,0);
+ assert.equal(onDate('2026-11-01'),0);
+ assert.equal(onDate('2026-11-02'),200000);
+ assert.equal(onDate('2026-11-03'),50000);
+ assert.equal(a.profitSyp,250000);
+ assert.equal([...a.byId.values()].reduce((total,e)=>total+(e.gainSyp||0),0),a.profitSyp);
+ assert.equal(a.byId.get('fx_report_cover_03').deferredGainSyp,50000);
+ assert.equal(a.pendingSales.USD,undefined);
+});
+test('FX P&L appears within reports and is separate from principal and expenses',()=>{
+ const ui=fs.readFileSync(isWindows?path.join(root,'upgrade-125/ta-currency-exchange-ui-142.js'):
+  path.join(root,'app/src/main/assets/www/static/ta-currency-exchange-ui-142.js'),'utf8');
+ assert.match(ui,/data-ta-fx-profit-report/);
+ assert.match(ui,/أرباح التصريف المحققة/);
+ assert.match(ui,/report\.profitSyp/);
+ assert.match(ui,/pendingSales/);
+ assert.match(ui,/TimeFilter\.matches/);
+ assert.match(ui,/لا تُعد مبالغ شراء العملة مصاريف/);
+ assert.doesNotThrow(()=>new Function(ui));
+});
