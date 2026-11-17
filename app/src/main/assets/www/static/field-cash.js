@@ -45,6 +45,7 @@ const FieldCash={
     }
     // Capital receipts/returns are posted only to the office cashbox.
     if(scope==='all'||scope==='office')for(const m of CapitalLedger.cashMovements())add(m);
+ if(scope==='all'||scope==='office')for(const m of (typeof ShareholdersCashMovements==='function'?ShareholdersCashMovements():[]))add(m);
     movements.sort((a,b)=>String(b.date).localeCompare(String(a.date)));
     return {sypCash,usdCash,movements};
   },

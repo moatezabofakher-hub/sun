@@ -18,9 +18,9 @@ const CapitalLedger={
  },
  card(){
    const s=this.total();
-   return `<button type="button" class="ta-capital-card" onclick="CapitalLedger.open()" aria-label="رأس المال، استلام مبلغ أو دفع مبلغ">
+   return `<button type="button" class="ta-capital-card" onclick="ShareholdersUI.open()" aria-label="رأس المال والمساهمون، سجل رأس المال والأرباح">
       <span class="ta-capital-icon" aria-hidden="true"><i class="fas fa-piggy-bank"></i></span>
-      <span class="ta-capital-card-text"><strong>رأس المال</strong><small>الرصيد المتبقي من المبالغ المدخلة إلى الصندوق بعد المبالغ المعادة</small>
+      <span class="ta-capital-card-text"><strong>رأس المال والمساهمون</strong><small>المساهمات، توزيع الأرباح، سحب الأرباح، وتحويل رأس المال إلى الصندوق</small>
       <span class="ta-capital-amount">${Accounting.format(s.SYP,'SYP')} <span class="ta-capital-divider">|</span> ${Accounting.format(s.USD,'USD')}</span></span>
       <i class="fas fa-chevron-left" aria-hidden="true"></i>
    </button>`;
@@ -68,6 +68,9 @@ const CapitalLedger={
    if(!['SYP','USD'].includes(currency)||!Number.isFinite(raw)||raw<=0||raw>1e12)return UI.toast('أدخل مبلغًا موجبًا وعملة صحيحة','error');
    const amount=round(raw,currency);
    if(!(amount>0))return UI.toast('المبلغ أقل من أصغر وحدة معتمدة لهذه العملة','warn');
+   if(direction==='receive'&&Array.isArray(State.shareholderOwners)&&State.shareholderOwners.length&&
+      typeof TiqanyShareholders!=='undefined'&&amount>TiqanyShareholders.reserve(State,currency)/(currency==='USD'?100:1)+0.00001)
+      return UI.toast('الاحتياطي المتاح من مساهمات المالكين غير كافٍ للتحويل','error');
    if(direction==='pay'){
      const cash=this.officeCash(),available=currency==='SYP'?cash.sypCash:cash.usdCash;
      if(amount>available+0.00001)return UI.toast('رصيد الصندوق الرئيسي غير كافٍ لدفع هذا المبلغ','error');
