@@ -73,6 +73,7 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
   },
   updateHeaderConnection(active){
     const el=document.getElementById('ta-desktop-phone-connection');if(!el)return;
+    el.hidden=!active;
     el.classList.toggle('ta-link-online',!!active);
     el.classList.toggle('ta-link-offline',!active);
     el.setAttribute('aria-label',active?'متصل: اضغط لفتح مزامنة الموبايل والكمبيوتر':'غير متصل: اضغط لفتح مزامنة الموبايل والكمبيوتر');
