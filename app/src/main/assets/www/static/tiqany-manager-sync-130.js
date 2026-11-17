@@ -12,6 +12,13 @@ const deviceOnly=k=>['companyUid','appProtection','peerBootstrapSourceUid','devi
 const isUid=x=>typeof x==='string'&&/^business_[0-9a-f]{32}$/.test(x);
 const obj=x=>x&&typeof x==='object'&&!Array.isArray(x);
 const stamp=()=>new Date().toISOString();
+const localAddress=x=>{
+  if(typeof x!=='string'||!/^([0-9]{1,3}\.){3}[0-9]{1,3}$/.test(x))return false;
+  const p=x.split('.').map(Number);
+  if(p.some(n=>!Number.isInteger(n)||n<0||n>255))return false;
+  return p[0]===10||(p[0]===172&&p[1]>=16&&p[1]<=31)||
+    (p[0]===192&&p[1]===168);
+};
 const manager={
   pending:null,busy:false,serverBusy:false,locks:new Map(),server:null,
   lastClient:0,lastServer:0,lastResult:'',lastRemoteVersion:'',
@@ -368,7 +375,7 @@ const manager={
   },
   async acceptPairing(raw){
     let code;try{code=JSON.parse(String(raw||''));}catch(_){return this.info('رمز QR غير صالح',true);}
-    if(code?.type!=='tiqany-manager-main'||code.v!==1||!/^([0-9]{1,3}\.){3}[0-9]{1,3}$/.test(code.host)||
+    if(code?.type!=='tiqany-manager-main'||code.v!==1||!localAddress(code.host)||
       !Number.isInteger(code.port)||!/^[A-Za-z0-9_-]{43}$/.test(code.key)||!/^[a-f0-9]{32}$/.test(code.serverId))
       return this.info('رمز ربط أجهزة المدير غير صالح',true);
     if(code.serverId===this.serverStatus().serverId)return this.info('لا يمكن ربط الجهاز بنفسه',true);
