@@ -327,7 +327,7 @@ if(typeof oldReport==='function')Views.renderReports=function(main,params,...arg
  return result;
 };
 function stageAgentExchanges(operations,agent){
- const candidate=rows().slice(),found=new Set(candidate.map(x=>x.id)),accepted=[];
+ const candidate=rows().slice(),found=new Set(candidate.map(x=>x.id)),accepted=[],rateChanges=[];
  const base=baseCash?.summary?.(agent.id)||{};
  const till={...base.otherCurrencies,SYP:Number(base.sypCash)||0,USD:Number(base.usdCash)||0};
  const signed=(kind,c,amt)=>{
@@ -336,6 +336,20 @@ function stageAgentExchanges(operations,agent){
  };
  const ordered=(operations||[]).slice().sort((a,b)=>String(a.date).localeCompare(String(b.date))||String(a.id).localeCompare(String(b.id)));
  for(const raw of ordered){
+  if(raw.kind==='fx_rate_change'){
+   if(agent?.permissions?.fxSharedRate!==true)throw Error('موظف البيع غير مخوّل بتعديل أسعار التصريف');
+   const rates=raw.rates||{},codes=Object.keys(rates);
+   if(!codes.length||codes.length>32)throw Error('أسعار صرف غير مكتملة');
+   const cleaned={};
+   for(const code of codes){
+    const r=rates[code],buy=Number(r?.buy),sell=Number(r?.sell);
+    if(!/^[A-Z]{3}$/.test(code)||code==='SYP'||!(buy>0&&sell>0&&buy<1e12&&sell<1e12))
+      throw Error('أسعار صرف غير صالحة من جهاز موظف البيع');
+    cleaned[code]={buy,sell};
+   }
+   rateChanges.push(cleaned);
+   continue;
+  }
   if(raw.kind==='currency_exchange'){
    if(raw.agentId!==agent.id)throw Error('محاولة تصريف من صندوق موظف آخر');
    const e=E.prepare(raw,currencies());
@@ -357,7 +371,12 @@ function stageAgentExchanges(operations,agent){
    E.analyze([...candidate,...accepted]);
    State.currencyExchanges=[...candidate,...accepted];
  }
- return accepted.length;
+ if(rateChanges.length){
+   const next={...exchangeRates()};
+   for(const rates of rateChanges)for(const [currency,value] of Object.entries(rates))next[currency]=value;
+   State.settings.currencyExchangeRatesSyp=next;
+ }
+ return accepted.length+rateChanges.length;
 }
 
 if(!document.getElementById('taFxCapitalGreen142')){
