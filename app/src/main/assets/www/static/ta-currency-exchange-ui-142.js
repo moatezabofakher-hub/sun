@@ -281,7 +281,7 @@ function list(){
  (summary||'<p class="text-slate-500">لا يوجد تداول بعد</p>')+'</div>'+
  '<button type="button" class="ta-primary-3d w-full bg-emerald-700 text-white rounded-xl p-3 font-bold" onclick="TiqanyFxUI.newForm()">＋ تصريف عملة جديد</button>'+
  '<div class="max-h-[55vh] overflow-y-auto">'+(entries.length?entries.map(e=>
- '<div class="rounded-xl border p-3 mb-2 text-xs bg-white"><b>'+esc(e.id.slice(-10))+' · '+esc(e.date.slice(0,16).replace('T',' '))+'</b>'+
+ '<div class="rounded-xl border p-3 mb-2 text-xs bg-white"><b>'+esc(e.id.slice(-10))+' · '+esc(window.TiqanyReportDate148?.localClock(e.date)||e.date.slice(0,16).replace('T',' '))+'</b>'+
  '<div class="mt-2 text-rose-700">− '+fmt(e.fromAmount,e.fromCurrency)+'</div>'+
  '<div class="text-emerald-700">+ '+fmt(e.toAmount,e.toCurrency)+'</div>'+
  (e.agentId?'<div>موظف البيع: '+esc((State.fieldSync?.agents||[]).find(a=>a.id===e.agentId)?.name||e.agentId)+'</div>':'')+
@@ -346,7 +346,7 @@ if(typeof oldReport==='function')Views.renderReports=function(main,params,...arg
       (pending?'<p class="text-xs font-bold text-amber-800 mt-2">كمية تنتظر تسوية التكلفة: '+esc(pending)+'؛ ربحها الحالي صفر.</p>':'')+
       (details.length?'<div class="mt-2 pt-2 border-t border-teal-200 space-y-1">'+
       details.map(e=>'<div class="flex justify-between gap-2 text-xs border-b border-teal-100 py-1"><span>'+
-        esc(String(e.date||'').slice(0,10))+' · '+(e.deferredCoveredAmount>0?'تسوية بيع سابق':'تصريف عملة')+
+        esc(window.TiqanyReportDate148?.calendarDate(e.date)||String(e.date||'').slice(0,10))+' · '+(e.deferredCoveredAmount>0?'تسوية بيع سابق':'تصريف عملة')+
         '</span><b class="'+(e.gainSyp<0?'text-rose-700':'text-emerald-800')+'">'+fmt(e.gainSyp,'SYP')+'</b></div>').join('')+
       '</div>':'<p class="text-xs text-slate-600 mt-2">لا توجد أرباح تصريف محققة ضمن الفترة المحددة.</p>')+
       '</section>';
