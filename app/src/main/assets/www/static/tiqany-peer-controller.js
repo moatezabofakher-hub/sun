@@ -146,7 +146,7 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
     return {version:1,active:a?.data||null,resolved:r?.data||null};
   },
   async firstLinkProvision(uid){
-    return {companyUid:uid,fieldCompanyId:String(State.fieldSync?.companyId||''),
+    return {companyUid:uid,fieldCompanyId:String(State.fieldSync?.companyId||'company_'+uid.slice('business_'.length)),
       protection:core.bootstrapProtection(State.settings?.appProtection),
       settings:this.firstLinkSettings(),alertCenter:clone(State.alertCenter||{entries:[]}),
       journal:await this.firstLinkJournal()};
