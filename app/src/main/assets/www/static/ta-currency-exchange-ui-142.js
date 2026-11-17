@@ -119,5 +119,39 @@ if(typeof oldReport==='function')Views.renderReports=function(main,params,...arg
  }
  return result;
 };
-window.TiqanyFxUI={newForm,save,list,core:E};
+function stageAgentExchanges(operations,agent){
+ const candidate=rows().slice(),found=new Set(candidate.map(x=>x.id)),accepted=[];
+ const base=baseCash?.summary?.(agent.id)||{};
+ const till={...base.otherCurrencies,SYP:Number(base.sypCash)||0,USD:Number(base.usdCash)||0};
+ const signed=(kind,c,amt)=>{
+   if(!c||!Number.isFinite(Number(amt)))return;
+   till[c]=(Number(till[c])||0)+(kind==='in'?1:-1)*Number(amt);
+ };
+ const ordered=(operations||[]).slice().sort((a,b)=>String(a.date).localeCompare(String(b.date))||String(a.id).localeCompare(String(b.id)));
+ for(const raw of ordered){
+  if(raw.kind==='currency_exchange'){
+   if(raw.agentId!==agent.id)throw Error('محاولة تصريف من صندوق موظف آخر');
+   const e=E.prepare(raw,currencies());
+   if(found.has(e.id))throw Error('معرف عملية التصريف مكرر');
+   if(e.fromAmount>Number(till[e.fromCurrency]||0)+0.000001)
+     throw Error('رصيد صندوق موظف البيع غير كافٍ لتصريف '+e.fromCurrency);
+   signed('out',e.fromCurrency,e.fromAmount);
+   signed('in',e.toCurrency,e.toAmount);
+   accepted.push({...e,source:'agent',agentId:agent.id,
+     fieldOrigin:{agentId:agent.id,agentName:agent.name,operationId:e.id,localNumber:raw.localNumber||'',receivedAt:new Date().toISOString()}});
+   found.add(e.id);
+  }else if(raw.kind==='sale'||raw.kind==='receipt'){
+   signed('in',raw.currency,raw.kind==='sale'?raw.paidAmount:raw.amount);
+  }else if(['sale_return','payment','expense'].includes(raw.kind)){
+   signed('out',raw.currency,raw.kind==='sale_return'?raw.paidAmount:raw.amount);
+  }
+ }
+ if(accepted.length){
+   E.analyze([...candidate,...accepted]);
+   State.currencyExchanges=[...candidate,...accepted];
+ }
+ return accepted.length;
+}
+
+window.TiqanyFxUI={newForm,save,list,stageAgentExchanges,core:E};
 })();
