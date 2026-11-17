@@ -130,14 +130,23 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
       serverId:server.serverId,serverProfileId:server.profileId,sourceUid:server.companyUid,localUid:this.companyUid(),expires:Date.now()+90000};
     setTimeout(()=>this.sync(false),0);
   },
+  // Transfer every company-level setting; do not copy the destination's
+  // hardware identity, pairing keys or device-bound biometric credentials.
+  firstLinkDeviceOnlyKey(key){
+    return ['companyUid','appProtection','peerBootstrapSourceUid','deviceId',
+      'btMacAddress','lastSyncEndpoint','localPrinterName','printerDeviceId'].includes(key)
+      || /(?:^|_)(?:privateKey|accessToken|refreshToken|pairingSecret|deviceToken)$/i.test(key);
+  },
   firstLinkSettings(){
-    const keys=['companyName','companyPhone','companyAddress','companyLogo','footerNote','exchangeRate',
-      'defaultCurrency','defaultItemCurrency','primaryCurrency','secondaryCurrency','primaryOnlyMode',
-      'addedCurrencies','defaultInvoiceListType','defaultPriceTier','posAutoNextOnFinish','defaultViewPeriod',
-      'defaultViewStart','defaultViewEnd','itemQuantityDecimals','inventoryValuationCurrency',
-      'allowNegativeStockSales','selectedWarehouseId','printerWidth','printFontScale','posAccountId','posPriceTier'];
-    const o={};for(const k of keys)if(Object.prototype.hasOwnProperty.call(State.settings||{},k))o[k]=clone(State.settings[k]);
-    return o;
+    const settings=State.settings||{};
+    const exported=Object.create(null);
+    for(const [k,value] of Object.entries(settings)){
+      if(k==='__proto__'||k==='constructor'||k==='prototype'||this.firstLinkDeviceOnlyKey(k))continue;
+      if(value!==undefined)exported[k]=clone(value);
+    }
+    if(JSON.stringify(exported).length>250000)
+      throw Error('حجم إعدادات الشركة غير مدعوم في النقل الأول');
+    return exported;
   },
   async firstLinkJournal(){
     if(typeof CompanyLifecycle!=='undefined'&&CompanyLifecycle.conflictJournal)return CompanyLifecycle.conflictJournal();
@@ -145,9 +154,19 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
     const a=await ProfileManager.getRecord('peer_conflicts:'+id),r=await ProfileManager.getRecord('peer_conflict_audit:'+id);
     return {version:1,active:a?.data||null,resolved:r?.data||null};
   },
+  firstLinkPortableProtection(){
+    const cfg=State.settings?.appProtection||{};
+    const result=core.bootstrapProtection(cfg);
+    if(!result)return null;
+    // Preserve all portable protection flags, not Android biometric bindings.
+    return {...result,
+      protectDeviceAddition:cfg.protectDeviceAddition===true,
+      protectDeletion:cfg.protectDeletion===true,
+      lockApp:cfg.lockApp===true};
+  },
   async firstLinkProvision(uid){
     return {companyUid:uid,fieldCompanyId:String(State.fieldSync?.companyId||'company_'+uid.slice('business_'.length)),
-      protection:core.bootstrapProtection(State.settings?.appProtection),
+      protection:this.firstLinkPortableProtection(),
       settings:this.firstLinkSettings(),alertCenter:clone(State.alertCenter||{entries:[]}),
       journal:await this.firstLinkJournal()};
   },
@@ -155,13 +174,14 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
     if(!p||p.companyUid!==uid||typeof p.fieldCompanyId!=='string'||p.fieldCompanyId.length>150)
       throw Error('هوية الشركة أو بيانات الموظفين المستلمة غير صالحة');
     if(p.protection!=null&&!core.bootstrapProtection(p.protection))throw Error('حماية الشركة المستلمة غير صالحة');
-    const allowed=new Set(['companyName','companyPhone','companyAddress','companyLogo','footerNote','exchangeRate',
-      'defaultCurrency','defaultItemCurrency','primaryCurrency','secondaryCurrency','primaryOnlyMode',
-      'addedCurrencies','defaultInvoiceListType','defaultPriceTier','posAutoNextOnFinish','defaultViewPeriod',
-      'defaultViewStart','defaultViewEnd','itemQuantityDecimals','inventoryValuationCurrency',
-      'allowNegativeStockSales','selectedWarehouseId','printerWidth','printFontScale','posAccountId','posPriceTier']);
-    if(!p.settings||typeof p.settings!=='object'||Array.isArray(p.settings))throw Error('إعدادات الشركة المستلمة غير صالحة');
-    if(Object.keys(p.settings).some(k=>!allowed.has(k)))throw Error('تم رفض إعدادات تخص الجهاز وليست الشركة');
+    if(!p.settings||typeof p.settings!=='object'||Array.isArray(p.settings))
+      throw Error('إعدادات الشركة المستلمة غير صالحة');
+    if(Object.keys(p.settings).length>400||JSON.stringify(p.settings).length>250000)
+      throw Error('إعدادات الشركة المستلمة أكبر من الحد الآمن');
+    for(const k of Object.keys(p.settings)){
+      if(k==='__proto__'||k==='constructor'||k==='prototype'||this.firstLinkDeviceOnlyKey(k))
+        throw Error('تم رفض مفتاح إعداد غير مسموح نقله بين الجهازين');
+    }
     if(p.alertCenter!=null&&(typeof p.alertCenter!=='object'||Array.isArray(p.alertCenter)))
       throw Error('تنبيهات الشركة المستلمة غير صالحة');
     if(p.journal!=null&&typeof CompanyLifecycle!=='undefined'&&CompanyLifecycle.validateConflictJournal)
