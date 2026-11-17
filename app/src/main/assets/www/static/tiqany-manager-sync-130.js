@@ -20,8 +20,18 @@ const manager={
   async ensureUid(){if(isUid(this.currentUid()))return this.currentUid();
     State.settings.companyUid=ProfileManager.generateId();await StorageEngine.saveState();return this.currentUid();},
   profile(){return ProfileManager.activeId;},
-  nativeStatus(){try{return JSON.parse(native.clientStatus()||'{}');}catch(_){return {};}},
-  serverStatus(){try{return JSON.parse(native.serverConfig()||'{}');}catch(_){return {};}},
+  nativeProfileId:null,
+  ensureNativeProfile(){
+    const current=this.profile();
+    if(!current||this.nativeProfileId===current)return;
+    if(native.selectProfile(current)!=='selected')return;
+    this.nativeProfileId=current;
+    this.lastServer=0;this.lastClient=0;this.conflicts=null;this.approvedFirst=null;
+    this.lastRemoteVersion='';
+  },
+  nativeStatus(){this.ensureNativeProfile();try{return JSON.parse(native.clientStatus()||'{}');}catch(_){return {};}},
+  serverStatus(){this.ensureNativeProfile();try{return JSON.parse(native.serverConfig()||'{}');}catch(_){return {};}},
+
   baseKey(id){return 'manager_link_base:'+this.profile()+':'+id;},
   clientKey(id){return 'manager_known_client:'+this.profile()+':'+id;},
   conflictKey(id){return 'manager_pair_conflicts:'+this.profile()+':'+id;},
@@ -481,11 +491,13 @@ const manager={
     if(this.settingsOpened){this.settingsOpened=false;this.openSettings();}
   },
   onSave(){
+    this.ensureNativeProfile();
     if(this.busy||this.serverBusy)return;
     clearTimeout(this.saveTimer);
     this.saveTimer=setTimeout(()=>{if(!this.blocked()&&this.nativeStatus().approved)this.sync(true);},280);
   },
   async boot(){
+    this.ensureNativeProfile();
     const ready=native.start();
     if(ready!=='ready')this.info('تعذّر تشغيل استقبال أجهزة المدير: '+ready);
     const status=this.nativeStatus();
