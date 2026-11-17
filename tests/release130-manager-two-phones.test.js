@@ -140,3 +140,18 @@ test('Manager-to-manager settings conflicts require resolution, rather than sile
  assert.equal(await two.manager.sync(true),true);
  assert.equal(one.State.settings.invoicePrintTitle,'B');
 });
+
+test('Synchronizing an unchanged password must not disable the phone own biometric enrollment',()=>{
+ const full=fixture(ids.one,true);
+ full.State.settings.appProtection.fingerprintEnabled=true;
+ full.State.settings.appProtection.fingerprintCredentialId='local-key';
+ const snapshot=core.snapshot(full.State);
+ core.apply(full.State,snapshot);
+ assert.equal(full.State.settings.appProtection.fingerprintEnabled,true);
+ assert.equal(full.State.settings.appProtection.fingerprintCredentialId,'local-key');
+ const changed=JSON.parse(JSON.stringify(snapshot));
+ changed.sharedSettings.managerSecurity.pinHash='Z'+changed.sharedSettings.managerSecurity.pinHash.slice(1);
+ core.apply(full.State,changed);
+ assert.equal(full.State.settings.appProtection.fingerprintEnabled,false);
+ assert.equal(full.State.settings.appProtection.fingerprintCredentialId,'');
+});
