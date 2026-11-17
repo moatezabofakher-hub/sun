@@ -11,7 +11,7 @@ const currencies=()=>{
   const extra=(State.settings.addedCurrencies||[]).map(c=>String(c.code||'').toUpperCase()).filter(c=>/^[A-Z]{3}$/.test(c));
   return [...new Set([...standard,...extra])];
 };
-const baseCash=window.FieldCash||window.SoloCashbox;
+const baseCash=typeof FieldCash!=='undefined'?FieldCash:(typeof SoloCashbox!=='undefined'?SoloCashbox:(window.FieldCash||window.SoloCashbox));
 let rawSummary=null;
 if(baseCash&&typeof baseCash.summary==='function'){
  rawSummary=baseCash.summary.bind(baseCash);
