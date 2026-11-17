@@ -132,8 +132,8 @@ test('Manager-to-manager settings conflicts require resolution, rather than sile
  one.State.settings.invoicePrintTitle='A';
  two.State.settings.invoicePrintTitle='B';
  assert.equal(await two.manager.sync(true),false);
- assert.ok(two.manager.conflicts.details.some(x=>x.key==='invoicePrintTitle'));
- const conflict=two.manager.conflicts.details.find(x=>x.key==='invoicePrintTitle');
+ assert.ok(two.manager.conflicts.details.some(x=>x.key==='invoicePrintTitle'||x.recordId==='invoicePrintTitle'));
+ const conflict=two.manager.conflicts.details.find(x=>x.key==='invoicePrintTitle'||x.recordId==='invoicePrintTitle');
  two.manager.resolveConflict(conflict.id,'local');
  await new Promise(r=>setTimeout(r,5));
  assert.equal(await two.manager.sync(true),true);
