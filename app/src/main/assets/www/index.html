@@ -3240,7 +3240,12 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 }
                 const modal = document.getElementById('modalContainer');
                 if (!modal.classList.contains('hidden')) {
-                    UI.requestCloseModal();
+                    // The Back key and the popup's own Back icon follow one hierarchy.
+                    if (typeof ShareholdersUI !== 'undefined' &&
+                        modal.querySelector('.ta-share-modal') &&
+                        typeof ShareholdersUI.back === 'function') {
+                        ShareholdersUI.back();
+                    } else UI.requestCloseModal();
                     return;
                 }
 
