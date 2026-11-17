@@ -11,7 +11,7 @@ const clone=v=>v===undefined?undefined:JSON.parse(JSON.stringify(v));
 // Never share hardware identity, activation, pairing secrets, or device biometrics.
 function portableSetting(k){
  if(['companyUid','peerBootstrapSourceUid','deviceId','localPrinterName','printerDeviceId',
-      'btMacAddress','lastSyncEndpoint','activationCode','license','deviceFingerprint'].includes(k))return false;
+      'btMacAddress','lastSyncEndpoint','activationCode','license','deviceFingerprint','appProtection'].includes(k))return false;
  if(/(?:^|_)(?:privateKey|accessToken|refreshToken|pairingSecret|deviceToken)$/i.test(k))return false;
  return k!=='__proto__'&&k!=='constructor'&&k!=='prototype';
 }
