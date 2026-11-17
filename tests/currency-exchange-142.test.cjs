@@ -60,3 +60,20 @@ test('Manager, solo and employee UI files are present in the corresponding mobil
   }
  }
 });
+
+test('Two directors importing the same employee FX transaction converge with no duplicate gain',()=>{
+ const merge=require(isWindows?path.join(root,'upgrade-125/tiqany-peer-merge-133.js'):
+   path.join(root,'app/src/main/assets/www/static/tiqany-peer-merge.js'));
+ const ledger={settings:{companyName:'شركة'},categories:[],items:[],accounts:[],invoices:[],vouchers:[],
+   warehouses:[{id:'wh_main',name:'الرئيسي'}],transfers:[],expenses:[],capitalMovements:[],
+   shareholderOwners:[],shareholderMovements:[],currencyExchanges:[],fieldSync:{agents:[],imported:[],events:[]}};
+ const base=merge.snapshot(ledger),phone=JSON.parse(JSON.stringify(base)),desktop=JSON.parse(JSON.stringify(base));
+ const original=fx('op_'+'a'.repeat(32),'SYP','USD',1500000,100,1500000);
+ const origin={agentId:'agent_123',operationId:original.id,localNumber:'FX-1',agentName:'الموظف',receivedAt:'2026-11-17T10:00:00Z'};
+ phone.currencyExchanges=[{...original,agentId:'agent_123',source:'agent',note:'',fieldOrigin:origin}];
+ desktop.currencyExchanges=[{...phone.currencyExchanges[0],fieldOrigin:{...origin,receivedAt:'2026-11-17T11:00:00Z'}}];
+ const result=merge.merge(base,phone,desktop);
+ assert.equal(result.ok,true,JSON.stringify(result.conflicts||[]));
+ assert.equal(result.snapshot.currencyExchanges.length,1);
+ assert.equal(core.analyze(result.snapshot.currencyExchanges).movements.length,2);
+});
