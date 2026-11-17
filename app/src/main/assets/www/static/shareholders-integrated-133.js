@@ -361,7 +361,7 @@
       '<option value="date" '+(o.period==='date'?'selected':'')+'>تاريخ محدد</option></select></label>'+
       '<label>تاريخ البداية عند اختيار تاريخ محدد<input id="taShareEditStart" type="date" value="'+safe(o.period==='all'?'':o.startDate)+'"></label>'+
       '<div class="ta-share-actions">'+btn('saveOwnerEdit','حفظ تعديل المساهم')+
-      ownerButton('owner',id,'رجوع إلى المساهم')+'</div>');
+      btn('back','رجوع إلى المساهم')+'</div>');
     document.querySelector('[data-ta-action="saveOwnerEdit"]').addEventListener('click',async()=>{
       if(busy)return;
       const old=JSON.parse(JSON.stringify(State.shareholderOwners));
@@ -369,6 +369,7 @@
         S.editOwner(State,id,{name:formValue('taShareEditName'),phone:formValue('taShareEditPhone'),
           period:formValue('taShareEditPeriod'),startDate:formValue('taShareEditStart')});
         busy=true;await StorageEngine.saveState();busy=false;
+        this._levels=[{kind:'root',id:null}];this._level={kind:'owner',id};
         this.ownerForm(id);ok('تم حفظ تعديل المساهم بعد التحقق من الحماية');
       }catch(e){State.shareholderOwners=old;busy=false;problem(e)}
     });
