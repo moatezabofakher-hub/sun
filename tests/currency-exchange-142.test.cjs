@@ -77,3 +77,17 @@ test('Two directors importing the same employee FX transaction converge with no 
  assert.equal(result.snapshot.currencyExchanges.length,1);
  assert.equal(core.analyze(result.snapshot.currencyExchanges).movements.length,2);
 });
+
+test('Partially uncosted FX sale consumes prior lots without inventing later profits',()=>{
+ const rows=[
+   fx('fx_partial_001','SYP','USD',1500000,100,1500000,'2026-11-14T11:00:00Z'),
+   fx('fx_partial_002','USD','SYP',150,2550000,2550000,'2026-11-15T11:00:00Z'),
+   fx('fx_partial_003','USD','SYP',50,900000,900000,'2026-11-16T11:00:00Z')
+ ];
+ const result=core.analyze(rows);
+ assert.equal(result.byId.get('fx_partial_002').gainSyp,null);
+ assert.equal(result.byId.get('fx_partial_003').gainSyp,null);
+ assert.equal(result.unknownCostCount,2);
+ assert.equal(result.holdings.USD.quantity,0);
+ assert.equal(result.profitSyp,0);
+});
