@@ -106,21 +106,23 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
   // The first phone-to-empty-desktop transfer is approved on the owning
   // phone, never based on matching the displayed company name or QR alone.
   requestBootstrapApproval(server,desktopSnapshot,phoneSnapshot){
+    // The signed QR/secret pairing already authenticates the intended computer.
+    // Require one explicit local confirmation of first-copy identity/ledger, but
+    // never a second PIN challenge to complete the already-approved transfer.
+    // QR disclosure / adding a new device remains PIN/biometric protected.
     const protection=core.bootstrapProtection(State.settings?.appProtection);
     if(!protection){
-      this.message('يجب إعداد كلمة سر المدير على الموبايل قبل نقل الشركة إلى كمبيوتر فارغ.',true);
+      this.message('يجب إعداد كلمة سر المدير قبل نقل شركة كاملة إلى كمبيوتر جديد.',true);
       return;
     }
     const approvedProfile=ProfileManager.activeId;
     const phoneDigest=core.digest(phoneSnapshot),desktopDigest=core.digest(desktopSnapshot);
-    const message='الموافقة على نسخ كامل بيانات الشركة وهوية الشركة وكلمة سر المدير المشفّرة إلى الكمبيوتر الجديد. بعد النقل سيطلب الكمبيوتر كلمة سر المدير الموجودة على الهاتف.';
-    if(!window.confirm('الكمبيوتر الحالي فارغ؛ هل تريد نقل شركة الموبايل وجميع عملياتها إليه؟\nستُحفظ نقطة استرجاع على الكمبيوتر، ولن تُنقل بصمة الجهاز.'))return;
-    this.authorizePairing(message,()=>{
-      if(ProfileManager.activeId!==approvedProfile||core.digest(this.snapshot())!==phoneDigest)return this.message('تغيرت بيانات الهاتف؛ أعد الموافقة من البداية.',true);
-      this.bootstrapApproval={profileId:approvedProfile,serverId:server.serverId,serverProfileId:server.profileId,
-        phoneUid:this.companyUid(),phoneDigest,desktopDigest,expiresAt:Date.now()+90000};
-      this.sync(false);
-    });
+    if(!window.confirm('الكمبيوتر المقترن فارغ؛ هل توافق على نقل الشركة وبياناتها وإعداداتها إلى هذا الكمبيوتر؟\\nهذا تأكيد نقل أول مرة، ولا يحتاج رمز حماية إضافياً.'))return;
+    if(ProfileManager.activeId!==approvedProfile||core.digest(this.snapshot())!==phoneDigest)
+      return this.message('تغيّرت الشركة أو بياناتها أثناء الموافقة؛ أعد الربط.',true);
+    this.bootstrapApproval={profileId:approvedProfile,serverId:server.serverId,serverProfileId:server.profileId,
+      phoneUid:this.companyUid(),phoneDigest,desktopDigest,expiresAt:Date.now()+90000};
+    setTimeout(()=>this.sync(false),0);
   },
   // First link may ONLY copy from a populated ledger into an empty ledger.
   // This approval is bound to both snapshots and both business profiles.
@@ -163,7 +165,7 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
     return {...result,
       protectDeviceAddition:cfg.protectDeviceAddition===true,
       protectDeletion:cfg.protectDeletion===true,
-      lockApp:true};
+      lockApp:cfg.lockApp===true};
   },
   async firstLinkProvision(uid){
     return {companyUid:uid,fieldCompanyId:String(State.fieldSync?.companyId||'company_'+uid.slice('business_'.length)),
