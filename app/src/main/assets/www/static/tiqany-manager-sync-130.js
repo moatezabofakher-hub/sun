@@ -368,8 +368,14 @@ const manager={
   },
   async acceptPairing(raw){
     let code;try{code=JSON.parse(String(raw||''));}catch(_){return this.info('رمز QR غير صالح',true);}
-    if(code?.type!=='tiqany-manager-main'||code.v!==1||!/^([0-9]{1,3}\\.){3}[0-9]{1,3}$/.test(code.host)||
-      !Number.isInteger(code.port)||!/^[A-Za-z0-9_-]{43}$/.test(code.key)||!/^[a-f0-9]{32}$/.test(code.serverId))
+    // A QR contains ordinary dotted IPv4 (e.g. 192.168.43.1). The old regex
+    // accidentally used a DOUBLE escaped backslash, rejecting valid IPs.
+    const hostParts=String(code?.host||'').split('.');
+    const validHost=hostParts.length===4&&hostParts.every(part=>
+      /^(0|[1-9][0-9]{0,2})$/.test(part)&&Number(part)<=255);
+    if(code?.type!=='tiqany-manager-main'||code.v!==1||!validHost||
+      !Number.isInteger(code.port)||code.port<1024||code.port>65535||
+      !/^[A-Za-z0-9_-]{43}$/.test(code.key)||!/^[a-f0-9]{32}$/.test(code.serverId))
       return this.info('رمز ربط أجهزة المدير غير صالح',true);
     if(code.serverId===this.serverStatus().serverId)return this.info('لا يمكن ربط الجهاز بنفسه',true);
     const base=await this.read(this.baseKey(this.nativeStatus().serverId));

@@ -177,3 +177,28 @@ test('Hotspot QR advertises real host and port keys, not profile-scoped preferen
  assert.match(source,/if\(!this\.serverStatus\(\)\.ready\)native\.start\(\)/);
  assert.match(source,/VPN/);
 });
+
+test('Valid QR from another manager on Wi-Fi or hotspot is accepted for pairing',async()=>{
+ const phone=fixture(ids.two,false),server=fixture(ids.one,true);
+ for(const host of ['192.168.1.10','192.168.43.1','172.20.10.1']){
+   const payload=JSON.stringify({type:'tiqany-manager-main',v:1,host,
+     port:49379,key:'Z'.repeat(43),serverId:server.manager.serverStatus().serverId});
+   await phone.manager.acceptPairing(payload);
+   assert.equal(phone.status.host,host);
+   assert.equal(phone.status.port,49379);
+   assert.equal(phone.status.serverId,server.manager.serverStatus().serverId);
+ }
+});
+
+test('QR rejects invalid IPs and malformed payloads without saving a peer',async()=>{
+ const phone=fixture(ids.two,false);
+ const serverId=ids.one.slice(9);
+ const payload={type:'tiqany-manager-main',v:1,host:'192.168.43.1',port:49379,
+  key:'Z'.repeat(43),serverId};
+ for(const host of ['300.168.43.1','192.168.43','192.168.43.1/24','192.168.43.01']){
+   await phone.manager.acceptPairing(JSON.stringify({...payload,host}));
+   assert.equal(phone.status.host,'');
+ }
+ await phone.manager.acceptPairing(JSON.stringify({...payload,key:'broken'}));
+ assert.equal(phone.status.host,'');
+});
