@@ -16,6 +16,7 @@ const manager={
   pending:null,busy:false,serverBusy:false,locks:new Map(),server:null,
   lastClient:0,lastServer:0,lastResult:'',lastRemoteVersion:'',
   approvedFirst:null,conflicts:null,nextPoll:0,settingsOpened:false,qrTimer:null,
+  nextReconnect:0,autoPaused:false,searching:false,
   currentUid(){return String(State.settings?.companyUid||'');},
   async ensureUid(){if(isUid(this.currentUid()))return this.currentUid();
     State.settings.companyUid=ProfileManager.generateId();await StorageEngine.saveState();return this.currentUid();},
@@ -278,7 +279,8 @@ const manager={
     }
     return true;
   },
-  async sync(silent=false){
+  async sync(silent=false,quietNetwork=false){
+    if(!quietNetwork)this.autoPaused=false;
     if(this.busy||this.pending||this.blocked())return false;
     const link=this.nativeStatus();
     if(!link.host||!link.port||!link.serverId)return false;
@@ -348,9 +350,23 @@ const manager={
       this.info(first?'اكتمل النقل الأول لجميع البيانات والإعدادات والحماية':'اكتملت مزامنة أجهزة المدير');
       if(AppNav.current()?.screen!=='settings')AppNav.renderCurrent();
       return true;
-    }catch(e){this.info('فشلت مزامنة أجهزة المدير دون حذف البيانات: '+String(e?.message||e),!silent);
+    }catch(e){
+      const reason=String(e?.message||e);
+      if(quietNetwork&&/رفض|إلغاء|تعارض|شركة مختلفة|مختلفة/.test(reason))this.autoPaused=true;
+      this.info('فشلت مزامنة أجهزة المدير دون حذف البيانات: '+reason,!silent&&!quietNetwork);
       this.lastClient=0;this.updateHeader();return false;}
     finally{this.busy=false;this.renderPanel();}
+  },
+  async reconnectTick(){
+    if(this.busy||this.pending||this.autoPaused||this.blocked()||
+       document.visibilityState==='hidden'||Date.now()<this.nextReconnect)return;
+    const peer=this.nativeStatus();
+    if(!peer.serverId||peer.approved)return;
+    this.nextReconnect=Date.now()+18000;
+    this.searching=true;
+    this.info('جارٍ البحث عن موبايل المدير المقترن عبر Wi-Fi؛ ستتم إعادة المحاولة تلقائياً.');
+    try{await this.sync(false,true);}
+    finally{this.searching=false;this.renderPanel();}
   },
   async probe(){
     if(this.busy||this.pending||this.blocked()||document.visibilityState==='hidden'||Date.now()<this.nextPoll)return;
@@ -383,8 +399,10 @@ const manager={
     if(!window.confirm('هل تريد ربط هذا الموبايل بموبايل المدير الآخر عبر شبكة Wi-Fi المحلية؟'))return;
     if(native.clientConfigure(code.host,code.port,code.key,code.serverId)!=='saved')
       return this.info('تعذر حفظ مفتاح اقتران المدير',true);
-    this.info('تم حفظ الاقتران، اضغط «مزامنة الآن» لإكمال التحقق والنقل الأول');
+    this.autoPaused=false;this.nextReconnect=0;
+    this.info('تم حفظ الاقتران. جارٍ البحث عن موبايل المدير الآخر، وسيُطلب تأكيد النقل الأول عند العثور عليه.');
     this.renderPanel();
+    setTimeout(()=>this.reconnectTick(),700);
   },
   scan(){
     if(!window.NativeBarcode?.scan)return this.info('يلزم تطبيق أندرويد لمسح الرمز',true);
@@ -418,11 +436,13 @@ const manager={
     const host=val('ta-manager-host'),port=Number(val('ta-manager-port')),key=val('ta-manager-secret'),id=val('ta-manager-id');
     if(!window.confirm('تأكيد ربط موبايل المدير بهذا العنوان؟'))return;
     if(native.clientConfigure(host,port,key,id)!=='saved')return this.info('بيانات الاقتران غير صحيحة',true);
-    this.renderPanel();
+    this.autoPaused=false;this.nextReconnect=0;
+    this.renderPanel();setTimeout(()=>this.reconnectTick(),700);
   },
   unlink(){
     if(!window.confirm('إلغاء اقتران موبايل المدير؟ لا تُحذف بيانات الشركة.'))return;
-    native.clientUnlink();this.lastClient=0;this.conflicts=null;this.updateHeader();this.renderPanel();
+    native.clientUnlink();this.autoPaused=false;this.searching=false;
+    this.lastClient=0;this.conflicts=null;this.updateHeader();this.renderPanel();
   },
   resolveConflict(id,side){
     const log=this.conflicts;if(!log)return;
@@ -470,6 +490,7 @@ const manager={
     host.innerHTML='<p><b>عنوان هذا الموبايل:</b> <span dir="ltr">'+esc(server.host||'غير متاح')+':'+esc(server.port||'')+'</span></p>'+
       '<p><b>الاستقبال:</b> '+(server.ready?'جاهز':'غير جاهز')+'</p>'+
       '<p><b>الموبايل المقترن:</b> '+(client.host?esc(client.host)+':'+esc(client.port):'لم يتم الربط')+'</p>'+
+      (!client.approved&&client.serverId?'<p><b>البحث التلقائي:</b> '+(this.autoPaused?'متوقف حتى تأكيد المحاولة يدوياً':'نشط — يبحث عن الجهاز المقترن كل فترة')+'</p>':'')+
       '<p>'+esc(this.lastResult||'الربط المحلي مشفّر ولا يحتاج إنترنت')+'</p>';
   },
   renderSettings(root){
@@ -515,10 +536,17 @@ const manager={
     const status=this.nativeStatus();
     if(status.serverId)this.conflicts=await this.read(this.conflictKey(status.serverId));
     this.updateHeader();
-    setInterval(()=>{this.updateHeader();this.probe();},3000);
+    // Refresh local advertisements when the router/hotspot address changes,
+    // and keep probing approved devices without requiring another QR scan.
+    setInterval(()=>{native.start();this.updateHeader();this.probe();},5000);
+    setInterval(()=>this.reconnectTick(),18000);
+    setTimeout(()=>this.reconnectTick(),1000);
     setInterval(()=>{if(this.nativeStatus().approved&&!this.busy)this.sync(true);},30000);
     document.addEventListener('visibilitychange',()=>{
-      if(document.visibilityState==='visible')setTimeout(()=>this.probe(),600);
+      if(document.visibilityState==='visible')setTimeout(()=>{
+        native.start();this.nextPoll=0;this.nextReconnect=0;
+        this.probe();this.reconnectTick();
+      },600);
     });
   }
 };
