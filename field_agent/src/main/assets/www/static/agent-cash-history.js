@@ -48,10 +48,22 @@ A.mergeTransferPage=function(page,old=this.state){
 A.cashSummary=function(){
  const base=this.state.agentCash||{};
  let syp=Number(base.sypCash||0),usd=Number(base.usdCash||0);
+ const extra={...(base.otherCurrencies||{})};
+ const exchangeMovements=[];
  const accepted=new Set(this.state.snapshotIds||[]);
  const pending=[];
  for(const op of (this.state.ops||[])){
   if(accepted.has(op.id)||op.kind==='customer_create')continue;
+  if(op.kind==='currency_exchange'){
+    const change=(code,amount)=>{
+      if(code==='SYP')syp+=amount;
+      else if(code==='USD')usd+=amount;
+      else extra[code]=(Number(extra[code])||0)+amount;
+    };
+    change(op.fromCurrency,-Number(op.fromAmount||0));
+    change(op.toCurrency,Number(op.toAmount||0));
+    continue;
+  }
   const amount=['sale','sale_return'].includes(op.kind)?Number(op.paidAmount||0):Number(op.amount||0);
   if(!Number.isFinite(amount)||amount<=0)continue;
   const positive=['sale','receipt'].includes(op.kind);
@@ -59,13 +71,18 @@ A.cashSummary=function(){
   pending.push({id:op.id,date:op.date,currency:op.currency,amount:positive?amount:-amount,desc:this.kindName(op.kind)+' · '+(op.kind==='expense'?op.category+' · ':'')+String(op.localNumber||''),pending:true});
  }
  const transfers=(this.state.cashTransfers||[]).filter(t=>!this.state.warehouseSwitchAt||String(t.date||'')>=this.state.warehouseSwitchAt).map(t=>({id:t.id,date:t.date,currency:t.currency,amount:t.direction==='toAgent'?Number(t.amount):-Number(t.amount),desc:t.direction==='toAgent'?'استلام دفعة من الرئيسي':'تسليم دفعة للرئيسي',pending:false}));
- const local=(this.state.ops||[]).filter(op=>op.kind!=='customer_create').map(op=>{
+ const local=(this.state.ops||[]).filter(op=>op.kind!=='customer_create'&&op.kind!=='currency_exchange').map(op=>{
    const amount=['sale','sale_return'].includes(op.kind)?Number(op.paidAmount||0):Number(op.amount||0);
    return {id:op.id,date:op.date,currency:op.currency,amount:['sale','receipt'].includes(op.kind)?amount:-amount,
      desc:this.kindName(op.kind)+' · '+(op.kind==='expense'?op.category+' · ':'')+String(op.localNumber||''),pending:!accepted.has(op.id)};
  }).filter(x=>Number.isFinite(x.amount)&&x.amount!==0);
- return {syp:Math.round(syp),usd:Math.round(usd*100)/100,
-   movements:[...local,...transfers].sort((a,b)=>String(b.date).localeCompare(String(a.date)))};
+ for(const op of (this.state.ops||[]).filter(o=>o.kind==='currency_exchange')){
+    for(const [c,value] of [[op.fromCurrency,-Number(op.fromAmount)],[op.toCurrency,Number(op.toAmount)]]){
+      exchangeMovements.push({id:op.id+':'+c,date:op.date,currency:c,amount:value,desc:'تصريف عملة · '+String(op.localNumber||''),pending:!accepted.has(op.id)});
+    }
+  }
+ return {otherCurrencies:extra,syp:Math.round(syp),usd:Math.round(usd*100)/100,
+   movements:[...local,...exchangeMovements,...transfers].sort((a,b)=>String(b.date).localeCompare(String(a.date)))};
 };
 A.cashShown=60;
 A.invoicesShown=60;
