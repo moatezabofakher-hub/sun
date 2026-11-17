@@ -49,17 +49,23 @@
       if(seen.has(e.id))throw Error('تكرار معرف عملية التصريف '+e.id);
       seen.add(e.id);
       const selling=lot(e.fromCurrency),buying=lot(e.toCurrency);
-      let gain=null,averageCost=null;
+      let gain=null,averageCost=null,costOfSoldSyp=null,coveredAmount=0;
       if(e.fromCurrency==='SYP')gain=0;
       else {
-        const avg=selling.quantity>1e-9?selling.costSyp/selling.quantity:selling.lastAverageSyp;
-        const covered=Number.isFinite(avg)&&avg>0&&selling.quantity+1e-8>=e.fromAmount;
-        if(covered){
-          averageCost=avg;gain=Math.round((e.equivalentSyp-e.fromAmount*avg)*100)/100;
-        }else unknownCostCount++;
-        // Consume every known unit actually sold, even if the remainder has
-        // unknown acquisition cost. Otherwise that lot could be sold twice.
+        // Only units acquired BEFORE this trade have a determinable historical cost.
+        // A sale beyond known inventory realizes profit on the covered fraction,
+        // never on the uncosted remainder; all proceeds are apportioned pro rata.
+        const avg=selling.quantity>1e-9?selling.costSyp/selling.quantity:null;
         const sold=Math.min(e.fromAmount,Math.max(0,selling.quantity));
+        const known=Number.isFinite(avg)&&avg>0?sold:0;
+        if(known>1e-9){
+          coveredAmount=rounded(known,e.fromCurrency);
+          averageCost=avg;
+          costOfSoldSyp=Math.round(known*avg*100)/100;
+          gain=Math.round(((e.equivalentSyp*known/e.fromAmount)-(known*avg))*100)/100;
+        }
+        if(e.fromAmount-known>1e-8)unknownCostCount++;
+        // Consume all the recorded acquired units at most once.
         selling.quantity=Math.max(0,selling.quantity-sold);
         selling.costSyp=Math.max(0,selling.costSyp-sold*(Number.isFinite(avg)&&avg>0?avg:0));
         if(Number.isFinite(avg)&&avg>0)selling.lastAverageSyp=avg;
@@ -71,7 +77,7 @@
         buying.lastAverageSyp=buying.costSyp/buying.quantity;
       }
       if(gain!==null)profitSyp+=gain;
-      const view={...e,gainSyp:gain,averageCostSyp:averageCost};
+      const view={...e,gainSyp:gain,averageCostSyp:averageCost,costOfSoldSyp,coveredAmount,uncoveredAmount:e.fromCurrency==='SYP'?0:rounded(Math.max(0,e.fromAmount-coveredAmount),e.fromCurrency)};
       byId.set(e.id,view);
       movements.push({id:e.id+':out',exchangeId:e.id,date:e.date,ref:'تصريف عملة',party:e.agentId||'الصندوق الرئيسي',desc:e.note||'شراء '+e.toCurrency,currency:e.fromCurrency,inflow:0,outflow:e.fromAmount});
       movements.push({id:e.id+':in',exchangeId:e.id,date:e.date,ref:'تصريف عملة',party:e.agentId||'الصندوق الرئيسي',desc:e.note||'شراء '+e.toCurrency,currency:e.toCurrency,inflow:e.toAmount,outflow:0});
