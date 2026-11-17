@@ -155,3 +155,13 @@ test('Synchronizing an unchanged password must not disable the phone own biometr
  assert.equal(full.State.settings.appProtection.fingerprintEnabled,false);
  assert.equal(full.State.settings.appProtection.fingerprintCredentialId,'');
 });
+
+test('Manager-to-manager QR button reaches Android scanner in QR-only mode',()=>{
+ const scanner=activity.slice(activity.indexOf('public void scan(String target)'),activity.indexOf('private void showNativeExitConfirmation()'));
+ assert.match(source,/NativeBarcode\.scan\('manager-peer'\)/);
+ assert.match(scanner,/!"manager-peer"\.equals\(target\)/);
+ assert.match(scanner,/"peer"\.equals\(target\)\s*\|\|\s*"manager-peer"\.equals\(target\)/);
+ assert.match(scanner,/options\.setDesiredBarcodeFormats\(ScanOptions\.QR_CODE\)/);
+ assert.match(scanner,/صوّر رمز QR للموبايل المدير الآخر/);
+ assert.match(source,/if\(target==='manager-peer'\)/);
+});

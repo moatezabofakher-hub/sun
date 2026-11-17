@@ -513,7 +513,9 @@ public final class MainActivity extends FragmentActivity {
 
         @JavascriptInterface
         public void scan(String target) {
-            if (!"invoice".equals(target) && !"item".equals(target) && !"peer".equals(target)) return;
+            // Manager-to-manager QR is a distinct scan target; it must not be silently ignored.
+            if (!"invoice".equals(target) && !"item".equals(target) && !"peer".equals(target)
+                    && !"manager-peer".equals(target)) return;
             runOnUiThread(() -> {
                 if (!isLocalPage()) return;
                 if (pendingNativeBarcodeTarget != null) {
@@ -525,14 +527,16 @@ public final class MainActivity extends FragmentActivity {
                 // These ScanOptions constants have different types (String versus a
                 // collection). A ternary expression here is not valid for the overloaded
                 // setter and breaks the Android release Java compilation.
-                if ("peer".equals(target)) {
+                if ("peer".equals(target) || "manager-peer".equals(target)) {
                     options.setDesiredBarcodeFormats(ScanOptions.QR_CODE);
                 } else {
                     options.setDesiredBarcodeFormats(ScanOptions.ALL_CODE_TYPES);
                 }
-                options.setPrompt("peer".equals(target)
-                        ? ("صوّر رمز ربط الكمبيوتر QR")
-                        : ("وجّه الكاميرا نحو الباركود أو رمز QR"));
+                options.setPrompt("manager-peer".equals(target)
+                        ? "صوّر رمز QR للموبايل المدير الآخر"
+                        : ("peer".equals(target)
+                            ? "صوّر رمز ربط الكمبيوتر QR"
+                            : "وجّه الكاميرا نحو الباركود أو رمز QR"));
                 options.setOrientationLocked(false);
                 options.setBeepEnabled(true);
                 options.setBarcodeImageEnabled(false);
