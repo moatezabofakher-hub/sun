@@ -8,6 +8,8 @@ import android.webkit.WebView;
 import android.net.ConnectivityManager;
 import android.net.Network;
 import android.net.NetworkCapabilities;
+import android.net.LinkProperties;
+import android.net.LinkAddress;
 import android.graphics.Bitmap;
 import android.util.Base64;
 import com.google.zxing.BarcodeFormat;
@@ -101,18 +103,50 @@ public final class MainManagerPeerSync {
         try{InetAddress address=InetAddress.getByName(host);return address.isSiteLocalAddress()&&!address.isLoopbackAddress();}
         catch(Exception e){return false;}
     }
-    private static String localIP(){
+    /**
+     * Prefer the active Wi-Fi network rather than the first IPv4 interface:
+     * VPN tun and cellular interfaces may appear before wlan0 on Android.
+     * An Android hotspot can have an IPv4 on wlan/ap without a registered Wi-Fi network,
+     * so keep a Wi-Fi / hotspot interface fallback.
+     */
+    private String localIP(){
         try{
-            Enumeration<NetworkInterface> all=NetworkInterface.getNetworkInterfaces();
-            while(all.hasMoreElements()){
-                NetworkInterface net=all.nextElement();
-                if(!net.isUp()||net.isLoopback())continue;
-                for(InetAddress ip:Collections.list(net.getInetAddresses()))
+            ConnectivityManager conn=(ConnectivityManager)activity.getSystemService(Context.CONNECTIVITY_SERVICE);
+            if(conn!=null)for(Network network:conn.getAllNetworks()){
+                NetworkCapabilities caps=conn.getNetworkCapabilities(network);
+                if(caps==null||!caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)||
+                   caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN))continue;
+                LinkProperties props=conn.getLinkProperties(network);
+                if(props==null)continue;
+                for(LinkAddress link:props.getLinkAddresses()){
+                    InetAddress ip=link.getAddress();
                     if(ip.getAddress().length==4&&ip.isSiteLocalAddress()&&!ip.isLoopbackAddress())
                         return ip.getHostAddress();
+                }
             }
         }catch(Exception ignored){}
-        return "";
+        String wiredFallback="";
+        try{
+            Enumeration<NetworkInterface> all=NetworkInterface.getNetworkInterfaces();
+            while(all!=null&&all.hasMoreElements()){
+                NetworkInterface net=all.nextElement();
+                if(!net.isUp()||net.isLoopback()||net.isVirtual())continue;
+                String name=net.getName().toLowerCase(java.util.Locale.ROOT);
+                if(name.startsWith("tun")||name.startsWith("ppp")||name.startsWith("rmnet")||
+                   name.startsWith("ccmni")||name.startsWith("v4-")||name.startsWith("ipsec")||
+                   name.startsWith("clat")||name.startsWith("dummy"))continue;
+                for(InetAddress ip:Collections.list(net.getInetAddresses())){
+                    if(ip.getAddress().length!=4||!ip.isSiteLocalAddress()||ip.isLoopbackAddress())continue;
+                    if(name.startsWith("wlan")||name.startsWith("swlan")||
+                       name.startsWith("ap")||name.startsWith("wifi"))
+                        return ip.getHostAddress();
+                    if(wiredFallback.isEmpty()&&(name.startsWith("eth")||
+                        name.startsWith("en")||name.startsWith("rndis")||name.startsWith("usb")))
+                        wiredFallback=ip.getHostAddress();
+                }
+            }
+        }catch(Exception ignored){}
+        return wiredFallback;
     }
     private void js(String call){
         activity.runOnUiThread(()->{if(allowed())page.evaluateJavascript(call,null);});
@@ -198,11 +232,12 @@ public final class MainManagerPeerSync {
     @JavascriptInterface public String pairingQr(){
         if(!allowed())return "";
         try{
+            if(listener==null||listener.isClosed())start();
             JSONObject c=new JSONObject(serverConfig());
             if(!c.optBoolean("ready")||!privateIP(c.optString("host")))return "";
             JSONObject qr=new JSONObject();
-            qr.put("type","tiqany-manager-main");qr.put("v",1);qr.put("host",c.getString(k("host")));
-            qr.put("port",c.getInt(k("port")));qr.put("key",c.getString("key"));qr.put("serverId",c.getString("serverId"));
+            qr.put("type","tiqany-manager-main");qr.put("v",1);qr.put("host",c.getString("host"));
+            qr.put("port",c.getInt("port"));qr.put("key",c.getString("key"));qr.put("serverId",c.getString("serverId"));
             BitMatrix bits=new MultiFormatWriter().encode(qr.toString(),BarcodeFormat.QR_CODE,490,490);
             Bitmap bitmap=Bitmap.createBitmap(490,490,Bitmap.Config.ARGB_8888);
             for(int y=0;y<490;y++)for(int x=0;x<490;x++)bitmap.setPixel(x,y,bits.get(x,y)?0xff102b43:0xffffffff);
