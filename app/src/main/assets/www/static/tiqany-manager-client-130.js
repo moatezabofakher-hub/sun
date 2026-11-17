@@ -549,7 +549,7 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
       if(core.canonical(merged.snapshot)!==origin||companyMatch.adopt||(bootstrap&&State.fieldSync?.companyId!==fieldCompanyId)){
         await ProfileManager.makeCheckpoint('before-windows-peer-sync');
         const notificationBefore=clone(State.alertCenter||{entries:[]});
-        const incoming=window.TiqanyPeerEvents?.records(stateBefore,merged.snapshot,'windows');
+        const incoming=window.TiqanyPeerEvents?.records(stateBefore,merged.snapshot,'موبايل المدير');
         core.apply(State,merged.snapshot);
         if(companyMatch.adopt)State.settings.companyUid=fetched.companyUid;
         if(bootstrap){State.fieldSync??={};State.fieldSync.companyId=fieldCompanyId;}
