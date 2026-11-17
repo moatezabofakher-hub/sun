@@ -109,9 +109,11 @@ if(typeof oldList==='function')Views.renderInvoicesList=function(main,...args){
 const oldReport=Views.renderReports;
 if(typeof oldReport==='function')Views.renderReports=function(main,params,...args){
  const result=oldReport.call(this,main,params,...args);
+ const netBoxes=baseCash?.summary?.('all')||{sypCash:0,usdCash:0,otherCurrencies:{}};
+ const extra=Object.entries(netBoxes.otherCurrencies||{}).filter(([code])=>!['USD','SYP'].includes(code)).map(([code,n])=>fmt(n,code)).join(' · ');
  main.insertAdjacentHTML('afterbegin','<div class="space-y-2 mb-3">'+
   CapitalLedger.card()+
-  '<button type="button" onclick="AppNav.navigate(\'reports\',{tab:\'cashbox\'},true)" class="w-full p-3 rounded-xl border bg-slate-900 text-white font-black text-right"><i class="fas fa-landmark ml-2"></i> صافي الصناديق</button></div>');
+  '<button type="button" onclick="AppNav.navigate(\'reports\',{tab:\'cashbox\'},true)" class="w-full p-3 rounded-xl border bg-slate-900 text-white font-black text-right"><i class="fas fa-landmark ml-2"></i> صافي الصناديق <span class="block text-xs font-medium mt-2">'+fmt(netBoxes.sypCash,'SYP')+' · '+fmt(netBoxes.usdCash,'USD')+(extra?' · '+esc(extra):'')+'</span></button></div>');
 
  if((params?.tab||'cashbox')==='pnl'){
    const r=E.analyze(rows());let profit=0;
