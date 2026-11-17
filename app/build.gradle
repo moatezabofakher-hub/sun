@@ -10,8 +10,8 @@ android {
         applicationId 'com.sunshine.technicalaccountant'
         minSdk 26
         targetSdk 35
-        versionCode 150
-        versionName '3.5.150'
+        versionCode 151
+        versionName '3.5.151'
     }
 
     // A permanent signing key is required for in-place updates. The keystore is
