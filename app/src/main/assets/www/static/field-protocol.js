@@ -46,6 +46,24 @@
       seen.add(op.id);
       if(op.agentId!==agentId||op.companyId!==companyId||op.warehouseId!==warehouseId)throw Error('العملية تابعة لموظف بيع أو شركة أو مستودع آخر');
       if(typeof op.date!=='string'||!/^\d{4}-\d\d-\d\d/.test(op.date)||isNaN(Date.parse(op.date)))throw Error('تاريخ عملية غير صالح');
+
+      if(op.kind==='fx_rate_change'){
+        if(op.currency!=='SYP'||op.accountId||op.rows||op.amount!=null)throw Error('سجل تعديل أسعار صرف غير صالح');
+        const rates=op.rates;
+        if(!rates||typeof rates!=='object'||Array.isArray(rates))throw Error('أسعار الصرف غير صالحة');
+        const keys=Object.keys(rates);
+        if(!keys.length||keys.length>32)throw Error('عدد العملات في الأسعار غير صالح');
+        const clean={};
+        for(const code of keys){
+          if(!/^[A-Z]{3}$/.test(code)||code==='SYP')throw Error('رمز عملة غير صالح في السعر');
+          const item=rates[code];
+          if(!item||typeof item!=='object'||Array.isArray(item))throw Error('سعر صرف غير صالح');
+          const buy=Number(item.buy),sell=Number(item.sell);
+          if(!Number.isFinite(buy)||!Number.isFinite(sell)||buy<=0||sell<=0||buy>=1e12||sell>=1e12)throw Error('سعر صرف خارج النطاق');
+          clean[code]={buy,sell};
+        }
+        return {...op,rates:clean,exchangeRate:positiveNumber(op.exchangeRate)};
+      }
       if(op.kind==='currency_exchange'){
         if(op.accountId||op.rows||op.amount!=null)throw Error('تصريف العملة ليس فاتورة أو سند عميل');
         const from=String(op.fromCurrency||'').trim().toUpperCase(),to=String(op.toCurrency||'').trim().toUpperCase();
@@ -161,6 +179,7 @@
     const invoices=[],vouchers=[],expenses=[],customers=[],createdItems=[],exchanges=[];
     for(const op of ops){
       const origin={agentId:agent.id,agentName:agent.name,vehicleName:agent.vehicleName||'',operationId:op.id,localNumber:op.localNumber||'',receivedAt:new Date().toISOString()};
+      if(op.kind==='fx_rate_change')continue;
       if(op.kind==='currency_exchange'){
         exchanges.push({...op,source:'agent',fieldOrigin:origin});
       }else if(op.kind==='item_create'){
