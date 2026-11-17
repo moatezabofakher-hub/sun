@@ -536,6 +536,9 @@ style.textContent=`
 #topAppBar .ta-header-connections{display:flex!important;flex-direction:row!important;flex-wrap:nowrap!important;align-items:center!important;justify-content:center!important;gap:4px!important;width:max-content!important;max-width:100%!important}
 #topAppBar .ta-header-connections>button{position:static!important;flex:0 0 auto!important}
 #topAppBar .ta-header-connections .ta-staff-counter-label{display:none!important}
+#topAppBar.dashboard-header #salesStaffCounterButton[hidden],#topAppBar.dashboard-header #ta-desktop-phone-connection[hidden],#topAppBar.dashboard-header #ta-manager-phone-connection[hidden]{display:none!important}
+#topAppBar.dashboard-header .ta-header-connections{flex-direction:row!important;flex-wrap:nowrap!important}
+#topAppBar.dashboard-header .ta-header-connections>button:not([hidden]){display:inline-flex!important}
 `;
 document.head.appendChild(style);
 })();
