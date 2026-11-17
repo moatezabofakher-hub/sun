@@ -28,15 +28,21 @@ test('shareholder root keeps its position through owner forms, back, close and r
   e.UI.openModal('root'); e.flush(); assert.equal(e.box.scrollTop, 480);
   e.UI.forceCloseModal(); e.UI.openModal('root'); e.flush(); assert.equal(e.box.scrollTop, 480);
 });
-test('reports navigation clears shareholder position but in-place reports renders preserve it', () => {
+test('Reports preserves shareholder position; returning Home resets it', () => {
   const e = environment(); e.setRoute('reports'); e.AppNav.renderCurrent();
   e.UI.openModal('root'); e.flush(); e.box.scrollTop = 370;
-  e.AppNav.renderCurrent(); e.UI.openModal('root'); e.flush(); assert.equal(e.box.scrollTop, 370);
-  e.api.resetShareholders(); e.UI.openModal('root'); e.flush(); assert.equal(e.box.scrollTop, 0);
-  e.box.scrollTop = 200; e.setRoute('dashboard'); e.AppNav.renderCurrent();
-  e.setRoute('reports'); e.AppNav.renderCurrent(); e.UI.openModal('root'); e.flush(); assert.equal(e.box.scrollTop, 0);
+  e.setRoute('invoices_list'); e.AppNav.renderCurrent();
+  e.setRoute('reports'); e.AppNav.renderCurrent();
+  e.UI.openModal('root'); e.flush(); assert.equal(e.box.scrollTop, 370);
+  e.setRoute('dashboard'); e.AppNav.renderCurrent();
+  e.UI.openModal('root'); e.flush(); assert.equal(e.box.scrollTop, 0);
+  e.box.scrollTop = 200;
+  e.setRoute('reports'); e.AppNav.renderCurrent();
+  e.UI.openModal('root'); e.flush(); assert.equal(e.box.scrollTop, 200);
+  e.setRoute('dashboard'); e.AppNav.renderCurrent();
+  e.UI.openModal('root'); e.flush(); assert.equal(e.box.scrollTop, 0);
 });
-test('deferred modal restoration cannot apply an old position after reports reset', () => {
+test('deferred modal restoration cannot apply an old position after Home reset', () => {
   const e = environment(); e.box.scrollTop = 700; e.UI.openModal('root');
   e.api.resetShareholders(); e.flush(); assert.equal(e.box.scrollTop, 0);
 });
