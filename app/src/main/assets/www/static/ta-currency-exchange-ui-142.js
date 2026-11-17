@@ -342,10 +342,15 @@ function stageAgentExchanges(operations,agent){
    if(!codes.length||codes.length>32)throw Error('أسعار صرف غير مكتملة');
    const cleaned={};
    for(const code of codes){
-    const r=rates[code],buy=Number(r?.buy),sell=Number(r?.sell);
-    if(!/^[A-Z]{3}$/.test(code)||code==='SYP'||!(buy>0&&sell>0&&buy<1e12&&sell<1e12))
-      throw Error('أسعار صرف غير صالحة من جهاز موظف البيع');
-    cleaned[code]={buy,sell};
+    const r=rates[code]||{},change={};
+    if(!/^[A-Z]{3}$/.test(code)||code==='SYP')throw Error('رمز عملة غير صالح');
+    for(const side of ['buy','sell'])if(Object.prototype.hasOwnProperty.call(r,side)){
+      const n=Number(r[side]);
+      if(!Number.isFinite(n)||n<=0||n>=1e12)throw Error('سعر صرف غير صالح');
+      change[side]=n;
+    }
+    if(!Object.keys(change).length)throw Error('تعديل سعر صرف فارغ');
+    cleaned[code]=change;
    }
    rateChanges.push(cleaned);
    continue;
@@ -373,7 +378,8 @@ function stageAgentExchanges(operations,agent){
  }
  if(rateChanges.length){
    const next={...exchangeRates()};
-   for(const rates of rateChanges)for(const [currency,value] of Object.entries(rates))next[currency]=value;
+   for(const rates of rateChanges)for(const [currency,value] of Object.entries(rates))
+     next[currency]={...(next[currency]||{}),...value};
    State.settings.currencyExchangeRatesSyp=next;
  }
  return accepted.length+rateChanges.length;
