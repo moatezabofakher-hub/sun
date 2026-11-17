@@ -41,6 +41,7 @@ public final class MainPhonePeerSync {
     private final Activity activity;
     private final WebView webView;
     private final SharedPreferences prefs;
+    private final boolean managerToManager;
     private final ExecutorService io=Executors.newSingleThreadExecutor();
     private final AtomicBoolean busy=new AtomicBoolean(false);
     private volatile boolean trusted=false;
@@ -50,8 +51,12 @@ public final class MainPhonePeerSync {
     private final ConnectivityManager connectivity;
     private ConnectivityManager.NetworkCallback wifiCallback;
     public MainPhonePeerSync(Activity activity,WebView webView){
+        this(activity,webView,false);
+    }
+    public MainPhonePeerSync(Activity activity,WebView webView,boolean managerToManager){
         this.activity=activity;this.webView=webView;
-        this.prefs=activity.getSharedPreferences("tiqany_main_peer_link",Context.MODE_PRIVATE);
+        this.managerToManager=managerToManager;
+        this.prefs=activity.getSharedPreferences(managerToManager?"tiqany_mobile_manager_link":"tiqany_main_peer_link",Context.MODE_PRIVATE);
         this.nsd=(NsdManager)activity.getSystemService(Context.NSD_SERVICE);
         this.connectivity=(ConnectivityManager)activity.getSystemService(Context.CONNECTIVITY_SERVICE);
         if(connectivity!=null){
@@ -78,7 +83,7 @@ public final class MainPhonePeerSync {
         catch(Exception ex){return "invalid";}
         try {
             // The QR pairing secret must never be persisted as readable Base64.
-            String protectedKey = DeviceVault.protectSecret(activity, "peer-link", key);
+            String protectedKey = DeviceVault.protectSecret(activity, managerToManager?"manager-phone-peer":"peer-link", key);
             if (!prefs.edit().putString("host",host).putInt("port",port).putString("key",protectedKey)
                     .remove("serverId").putBoolean("approved",false).commit()) return "error";
         } catch (Exception ex) { return "error"; }
@@ -88,10 +93,10 @@ public final class MainPhonePeerSync {
     private String pairedKey() throws Exception {
         String stored = prefs.getString("key", "");
         if (stored.startsWith("vault1:"))
-            return DeviceVault.revealSecret(activity, "peer-link", stored);
+            return DeviceVault.revealSecret(activity, managerToManager?"manager-phone-peer":"peer-link", stored);
         // One-way migration preserves the existing Windows pairing identity and key.
         if (stored.matches("[A-Za-z0-9_-]{43}")) {
-            String protectedKey = DeviceVault.protectSecret(activity, "peer-link", stored);
+            String protectedKey = DeviceVault.protectSecret(activity, managerToManager?"manager-phone-peer":"peer-link", stored);
             if (!prefs.edit().putString("key", protectedKey).commit())
                 throw new java.io.IOException("تعذر تأمين مفتاح الاقتران");
             return stored;
@@ -113,7 +118,7 @@ public final class MainPhonePeerSync {
     private void wifiChanged(){
         networkChanged=true;
         activity.runOnUiThread(()->{if(allowed())webView.evaluateJavascript(
-            "window.TiqanyPeerSync&&window.TiqanyPeerSync.onNetworkChanged&&window.TiqanyPeerSync.onNetworkChanged();",null);});
+            managerToManager?"window.TiqanyManagerPeerClient&&window.TiqanyManagerPeerClient.onNetworkChanged&&window.TiqanyManagerPeerClient.onNetworkChanged();":"window.TiqanyPeerSync&&window.TiqanyPeerSync.onNetworkChanged&&window.TiqanyPeerSync.onNetworkChanged();",null);});
     }
     /** Find only the advertised identity paired via QR or verified by encrypted sync. */
     private InetSocketAddress discover(String id){
@@ -222,7 +227,7 @@ public final class MainPhonePeerSync {
     private void sendReply(String json){
         activity.runOnUiThread(()->{if(!allowed())return;
             String quoted=JSONObject.quote(json);
-            webView.evaluateJavascript("window.__tiqanyPeerReply&&window.__tiqanyPeerReply("+quoted+");",null);
+            webView.evaluateJavascript((managerToManager?"window.__tiqanyManagerReply&&window.__tiqanyManagerReply(":"window.__tiqanyPeerReply&&window.__tiqanyPeerReply(")+quoted+");",null);
         });
     }
     public void close(){closed=true;
