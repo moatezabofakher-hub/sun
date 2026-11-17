@@ -168,7 +168,7 @@ const manager={
     if(this.pending)throw Error('هناك مزامنة قيد التنفيذ');
     const request={protocol:'TIQANY-MANAGER-1',...command};
     return new Promise((resolve,reject)=>{
-      const timer=setTimeout(()=>{this.pending=null;reject(Error('انتهت مهلة اتصال أجهزة المدير'));},36000);
+      const timer=setTimeout(()=>{this.pending=null;reject(Error('انتهت مهلة اتصال أجهزة المدير'));},55000);
       this.pending={timer,resolve,reject};
       native.clientRequest(JSON.stringify(request));
     });
@@ -267,11 +267,15 @@ const manager={
     if(selected?.signature===signature&&Date.now()<selected.expires){this.approvedFirst=null;return true;}
     if(!window.confirm(kind==='send'?
       'الموبايل المقترن فارغ. هل تريد إرسال كل بيانات شركتك وإعداداتها وحمايتها إليه دون استلام أي عمليات منه؟':
-      'هذا الموبايل فارغ. هل تريد استيراد الشركة كاملة من موبايل المدير الموجود دون تعديل بياناته؟'))return false;
+      'هذا الموبايل فارغ. هل تريد استيراد الشركة كاملة من موبايل المدير الموجود دون تعديل بياناته؟')){
+      this.autoPaused=true;return false;
+    }
     this.approvedFirst=null;
     const cfg=State.settings?.appProtection;
     if(kind==='send'&&cfg?.pinHash&&typeof ProtectionController!=='undefined'){
+      this.autoPaused=true; // Avoid repeated biometric prompts while the user decides.
       ProtectionController.requestPin('تأكيد نقل بيانات الشركة كاملة إلى موبايل مدير جديد',()=>{
+        this.autoPaused=false;
         this.approvedFirst={signature,expires:Date.now()+90000};
         setTimeout(()=>this.sync(false),0);
       });
