@@ -323,6 +323,8 @@ function merge(base,local,remote,resolutions={},history=[]){
  const choose=(key,B,A,R)=>{
    if(A===undefined)return 'remote';
    if(R===undefined)return 'phone';
+   // First authenticated link adopts the source device's company preferences.
+   if(!base)return 'remote';
    if(same(A,R)){
      const as=score(aStamps[key]),rs=score(rStamps[key]);
      return as>=rs?'phone':'remote';
