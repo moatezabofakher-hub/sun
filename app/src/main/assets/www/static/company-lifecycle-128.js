@@ -37,9 +37,26 @@
           <textarea id="ta-company-address-128" required maxlength="220" minlength="3" placeholder="العنوان الكامل للشركة" rows="3" style="width:100%;box-sizing:border-box;border:1px solid #a6bfd1;border-radius:12px;padding:13px;background:#f8fcff;color:#123;font:inherit"></textarea>
           <p id="ta-company-error-128" role="alert" style="display:none;color:#b91c1c;font-size:12px;margin-top:10px"></p>
           <button id="ta-company-save-128" type="submit" style="width:100%;margin-top:16px;padding:15px;border-radius:14px;border:1px solid #047857;background:linear-gradient(#10b981,#047857);color:white;font-size:16px;font-weight:900;box-shadow:0 4px 0 #065f46">حفظ بيانات الشركة والبدء</button>
+          <button type="button" onclick="window.CompanyLifecycle.openPairingFirst()"
+            style="width:100%;margin-top:14px;padding:13px;border-radius:13px;border:1px solid #0284c7;background:linear-gradient(#e0f2fe,#7dd3fc);color:#075985;font-size:14px;font-weight:900">
+            لدي جهاز مدير فيه بيانات — الربط واستيراد الشركة بدلاً من إدخالها
+          </button>
         </form>`;
       document.body.appendChild(overlay);
       $('ta-company-name-128')?.focus();
+    },
+    openPairingFirst() {
+      // Do not create a dummy business just to access the existing encrypted QR pairing screen.
+      $('ta-company-setup-128')?.remove();
+      try {
+        AppNav.navigate('settings',{},true);
+        UI.toast('افتح «مزامنة الموبايل والكمبيوتر» واقرن الجهاز الموجود ثم اختر مزامنة الآن','success');
+        if(window.TiqanyPeerSync?.requestHeaderAccess)
+          setTimeout(()=>window.TiqanyPeerSync.requestHeaderAccess(),180);
+      } catch(error) {
+        this.show();
+        UI.toast('تعذّر فتح الربط: '+String(error?.message||error),'error');
+      }
     },
     async saveFirstRun() {
       if(this.busy)return;
