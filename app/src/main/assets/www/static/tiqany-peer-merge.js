@@ -7,6 +7,15 @@ const STAFF_COLLECTIONS=['fieldAgents','fieldImported','fieldEvents','fieldCashT
 const COLLECTIONS=BASE_COLLECTIONS.concat(STAFF_COLLECTIONS);
 const SETTINGS=['companyName','companyPhone','companyAddress','exchangeRate','defaultCurrency','defaultItemCurrency','primaryCurrency','secondaryCurrency','primaryOnlyMode','defaultPriceTier','itemQuantityDecimals','inventoryValuationCurrency','allowNegativeStockSales','companyLogo','footerNote','addedCurrencies','defaultInvoiceListType','defaultViewPeriod','defaultViewStart','defaultViewEnd','posAccountId','posPriceTier','posAutoNextOnFinish'];
 const clone=v=>v===undefined?undefined:JSON.parse(JSON.stringify(v));
+// Business options are synced, but local device identity, pairing keys,
+// activation and biometric bindings must never cross devices.
+const deviceSettingKey=k=>['companyUid','appProtection','peerBootstrapSourceUid',
+  'deviceId','btMacAddress','lastSyncEndpoint','localPrinterName','printerDeviceId'].includes(k)||
+  /(?:privateKey|accessToken|refreshToken|pairingSecret|deviceToken)$/i.test(k);
+const portableSecurity=cfg=>{
+ const base=bootstrapProtection(cfg);
+ return base?{...base,protectDeviceAddition:cfg?.protectDeviceAddition===true}:null;
+};
 function sortDeep(x){if(Array.isArray(x))return x.map(sortDeep);if(x&&typeof x==='object'){const out={};for(const k of Object.keys(x).sort())out[k]=sortDeep(x[k]);return out;}return x;}
 function canonical(x){return JSON.stringify(sortDeep(x));}
 function snapshot(state){
@@ -17,7 +26,14 @@ function snapshot(state){
  // An unused installation has no bound field-company identity to overwrite on the other device.
  const hasFieldData=STAFF_COLLECTIONS.some(name=>name!=='fieldCompany'&&result[name].length>0);
  result.fieldCompany=field.companyId&&hasFieldData?[{id:'field-company',companyId:String(field.companyId)}]:[];
- result.sharedSettings={};for(const k of SETTINGS)if(state.settings&&Object.prototype.hasOwnProperty.call(state.settings,k))result.sharedSettings[k]=clone(state.settings[k]);
+ result.sharedSettings={};
+ const cfg=state.settings||{};
+ for(const [key,value] of Object.entries(cfg))
+   if(!deviceSettingKey(key)&&key!=='__proto__'&&key!=='prototype'&&key!=='constructor'&&value!==undefined)
+     result.sharedSettings[key]=clone(value);
+ if(portableSecurity(cfg.appProtection))result.sharedSettings.managerSecurity=portableSecurity(cfg.appProtection);
+ if(JSON.stringify(result.sharedSettings).length>350000)throw Error('إعدادات الشركة كبيرة جداً للمزامنة');
+
  return result;
 }
 function emptyLedger(s){
@@ -59,7 +75,12 @@ function bootstrapProtection(cfg){
    recoveryFailures:0,recoveryLockedUntil:0,lockApp:true,protectDeletion:!!cfg.protectDeletion,
    fingerprintEnabled:false,fingerprintCredentialId:''};
 }
-function ensureSnapshot(s){if(!s||typeof s!=='object'||Array.isArray(s))throw Error('نسخة مزامنة غير صالحة');for(const k of BASE_COLLECTIONS)if(!Array.isArray(s[k])&&(k!=='capitalMovements'||s[k]!==undefined))throw Error('سجل '+k+' غير صالح');for(const k of STAFF_COLLECTIONS)if(s[k]!==undefined&&!Array.isArray(s[k]))throw Error('سجل موظفي البيع '+k+' غير صالح');if(!s.sharedSettings||typeof s.sharedSettings!=='object'||Array.isArray(s.sharedSettings))throw Error('إعدادات المزامنة غير صالحة');}
+function ensureSnapshot(s){if(!s||typeof s!=='object'||Array.isArray(s))throw Error('نسخة مزامنة غير صالحة');for(const k of BASE_COLLECTIONS)if(!Array.isArray(s[k])&&(k!=='capitalMovements'||s[k]!==undefined))throw Error('سجل '+k+' غير صالح');for(const k of STAFF_COLLECTIONS)if(s[k]!==undefined&&!Array.isArray(s[k]))throw Error('سجل موظفي البيع '+k+' غير صالح');if(!s.sharedSettings||typeof s.sharedSettings!=='object'||Array.isArray(s.sharedSettings))throw Error('إعدادات المزامنة غير صالحة');
+ if(Object.keys(s.sharedSettings).length>500||JSON.stringify(s.sharedSettings).length>350000||
+   Object.keys(s.sharedSettings).some(k=>deviceSettingKey(k)||['__proto__','prototype','constructor'].includes(k)))
+   throw Error('إعدادات المزامنة تتضمن بيانات جهاز أو تتجاوز الحد المسموح');
+ if(Object.hasOwn(s.sharedSettings,'managerSecurity')&&s.sharedSettings.managerSecurity&&!portableSecurity(s.sharedSettings.managerSecurity))
+   throw Error('بيانات الحماية غير صالحة');}
 function recordKey(name,r){
  if(name==='categories'){if(typeof r!=='string')throw Error('اسم مجموعة غير صالح');return 'str:'+r;}
  if(!r||typeof r!=='object'||typeof r.id!=='string'||!r.id||r.id.length>200)throw Error('معرف سجل غير صالح في '+name);
@@ -288,7 +309,9 @@ function merge(base,local,remote,resolutions={},history=[]){
   out[type]=merged;
  }
  const settings={};
- for(const key of SETTINGS){
+ for(const key of new Set([...SETTINGS,...Object.keys(base?.sharedSettings||{}),
+  ...Object.keys(local.sharedSettings||{}),...Object.keys(remote.sharedSettings||{})])){
+  if(deviceSettingKey(key)||['__proto__','constructor','prototype'].includes(key))continue;
   const B=base?.sharedSettings?.[key],A=local.sharedSettings[key],R=remote.sharedSettings[key];
   if(!base){
    const d=makeConflict('settings','settings',key,undefined,A,R),prior=historicalStatus(d,history),historical=prior.side;
@@ -349,7 +372,15 @@ function merge(base,local,remote,resolutions={},history=[]){
 function apply(state,data){
  ensureSnapshot(data);
  for(const k of BASE_COLLECTIONS)state[k]=clone(Array.isArray(data[k])?data[k]:[]);
- for(const k of SETTINGS)if(Object.hasOwn(data.sharedSettings,k))state.settings[k]=clone(data.sharedSettings[k]);
+ for(const [k,v] of Object.entries(data.sharedSettings)){
+   if(deviceSettingKey(k)||['__proto__','constructor','prototype'].includes(k)||k==='managerSecurity')continue;
+   state.settings[k]=clone(v);
+ }
+ if(Object.hasOwn(data.sharedSettings,'managerSecurity')&&data.sharedSettings.managerSecurity){
+   const cfg=portableSecurity(data.sharedSettings.managerSecurity);
+   if(!cfg)throw Error('تم رفض إعدادات الحماية غير الصالحة');
+   state.settings.appProtection={...cfg,fingerprintEnabled:false,fingerprintCredentialId:''};
+ }
  const field=state.fieldSync&&typeof state.fieldSync==='object'?state.fieldSync:{};
  for(const [name,dest] of [['fieldAgents','agents'],['fieldImported','imported'],['fieldEvents','events'],['fieldCashTransfers','cashTransfers'],['fieldOperationHistory','operationHistory'],['fieldRevisionAudit','revisionAudit']])
    if(Array.isArray(data[name]))field[dest]=clone(data[name]);
