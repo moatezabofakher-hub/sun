@@ -29,7 +29,15 @@ function storeFxChanges(changes){
 }
 A.renderFxRates=function(){
  const list=allowed().filter(c=>c!=='SYP'),current=localRates(),edit=canEditRate();
- return '<div class="hero"><h2>سعر الصرف</h2><p>أسعار شراء ومبيع العملات الأجنبية بما فيها الدولار، مقابل الليرة السورية، المستلمة بمزامنة تطبيق المدير.</p></div>'+
+ const generic=list.map(c=>{
+  const value=c==='USD'?Number(this.state.exchangeRate)||0:Number(this.state.currencyRatesSyp?.[c])||0;
+  return '<div style="border:1px solid #a4d2b5;background:#edfff5;border-radius:12px;padding:12px;margin:8px 0">'+
+   '<strong>سعر صرف '+esc(c)+' مقابل الليرة السورية</strong>'+
+   '<div style="font-size:20px;font-weight:900;color:#065f46">'+(value>0?value.toLocaleString('en-US')+' ل.س':'لم يحدده المدير بعد')+'</div></div>';
+ }).join('');
+ return '<div class="hero"><h2>أسعار صرف العملات</h2><p>سعر الصرف العام لكل عملة مقابل الليرة السورية. يُحدَّث بواسطة المدير عند المزامنة، والدولار هو سعر الفواتير المعتمد.</p></div>'+
+ '<section class="panel">'+generic+'</section>'+
+ '<div class="hero"><h2>أسعار التصريف</h2><p>أسعار شراء ومبيع العملات المخصصة لعمليات التصريف فقط.</p></div>'+
  '<section class="panel">'+
  (!edit?'<p class="tiny" style="color:#9f1239">تعديل هذه الأسعار مقفل بصلاحيات المدير؛ يمكنك الاطلاع عليها فقط.</p>':
  '<p class="tiny">يمكنك تعديل الأسعار وسيُرسل التعديل إلى المدير عند المزامنة التالية.</p>')+
