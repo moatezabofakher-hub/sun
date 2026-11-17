@@ -89,6 +89,17 @@ if(typeof Views!=='undefined'){
    const pair=cashTitle?.parentElement?.parentElement;
    if(pair&&pair.classList?.contains('grid'))main.insertBefore(pair,toolbar);
    for(const card of main.querySelectorAll('.ta-capital-card'))card.classList.add('ta-fx-capital-green');
+   if(params?.tab==='pnl'){
+     const period=TimeFilter.mode(params.period||TimeFilter.defaultMode());
+     const start=params.date||TimeFilter.defaultStart(),end=params.end||TimeFilter.defaultEnd();
+     const gains=F.profit(State,t=>TimeFilter.matches(t.date,period,start,end));
+     const profitCard=document.createElement('section');
+     profitCard.className='ta-fx-profit-line bg-emerald-50 border border-emerald-300 text-emerald-900 rounded-xl p-3 my-3 font-bold';
+     profitCard.setAttribute('aria-label','أرباح التصريف');
+     profitCard.innerHTML='<span>أرباح التصريف</span><strong dir="ltr" class="block mt-1">'+esc(fmt(gains,'USD'))+'</strong>';
+     const anchor=main.querySelector('.ta-capital-card')||main.firstElementChild;
+     anchor?.insertAdjacentElement('afterend',profitCard);
+   }
    return result;
  };
 }
