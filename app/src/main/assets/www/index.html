@@ -3136,7 +3136,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
 
             navigate(screen, params = {}, replace = false) {
                 const executeNavigation = () => {
-                    if(screen==='reports')window.TiqanyScroll144?.resetShareholders();
+                    if(screen==='dashboard')window.TiqanyScroll144?.resetShareholders();
                     const before=this.current();
                     const enteringDifferentView=before.screen!==screen ||
                         String(before.params?.id||'')!==String(params?.id||'') ||
