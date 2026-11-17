@@ -165,3 +165,15 @@ test('Manager-to-manager QR button reaches Android scanner in QR-only mode',()=>
  assert.match(scanner,/صوّر رمز QR للموبايل المدير الآخر/);
  assert.match(source,/if\(target==='manager-peer'\)/);
 });
+
+test('Hotspot QR advertises real host and port keys, not profile-scoped preference keys',()=>{
+ assert.match(java,/qr\.put\("host",c\.getString\("host"\)\)/);
+ assert.match(java,/qr\.put\("port",c\.getInt\("port"\)\)/);
+ assert.doesNotMatch(java,/c\.getString\(k\("host"\)\)/);
+ assert.doesNotMatch(java,/c\.getInt\(k\("port"\)\)/);
+ assert.match(java,/name\.startsWith\("ap"\)/);
+ assert.match(java,/name\.startsWith\("swlan"\)/);
+ assert.match(java,/name\.startsWith\("tun"\)/);
+ assert.match(source,/if\(!this\.serverStatus\(\)\.ready\)native\.start\(\)/);
+ assert.match(source,/VPN/);
+});

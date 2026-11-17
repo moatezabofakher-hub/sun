@@ -101,18 +101,42 @@ public final class MainManagerPeerSync {
         try{InetAddress address=InetAddress.getByName(host);return address.isSiteLocalAddress()&&!address.isLoopbackAddress();}
         catch(Exception e){return false;}
     }
+    /**
+     * Prefer the address of Android's hotspot (AP) or active Wi-Fi adapter.
+     * Simply using the first private IPv4 address can advertise a VPN address,
+     * so the other phone cannot reach the listener even on the same hotspot.
+     */
     private static String localIP(){
+        String best="";
+        int bestScore=-1;
         try{
             Enumeration<NetworkInterface> all=NetworkInterface.getNetworkInterfaces();
+            if(all==null)return "";
             while(all.hasMoreElements()){
                 NetworkInterface net=all.nextElement();
                 if(!net.isUp()||net.isLoopback())continue;
-                for(InetAddress ip:Collections.list(net.getInetAddresses()))
-                    if(ip.getAddress().length==4&&ip.isSiteLocalAddress()&&!ip.isLoopbackAddress())
-                        return ip.getHostAddress();
+                String name=String.valueOf(net.getName()).toLowerCase(java.util.Locale.ROOT);
+                // Exclude tunnelling, cellular and VPN interfaces from QR advertisements.
+                if(name.startsWith("tun")||name.startsWith("tap")||name.startsWith("wg")||
+                   name.startsWith("ppp")||name.startsWith("rmnet")||name.startsWith("ccmni")||
+                   name.startsWith("v4-")||name.startsWith("clat")||name.startsWith("vti")||
+                   name.startsWith("ipsec")||name.startsWith("dummy"))continue;
+                int score=(name.startsWith("ap")||name.startsWith("swlan")||name.contains("softap"))?80:
+                          (name.startsWith("wlan")||name.startsWith("wifi"))?70:
+                          name.startsWith("eth")?60:
+                          name.startsWith("br")?50:
+                          (name.startsWith("rndis")||name.startsWith("usb"))?40:10;
+                for(InetAddress ip:Collections.list(net.getInetAddresses())){
+                    if(ip.getAddress().length!=4||!ip.isSiteLocalAddress()||
+                       ip.isLoopbackAddress()||ip.isLinkLocalAddress())continue;
+                    if(score>bestScore){
+                        bestScore=score;
+                        best=ip.getHostAddress();
+                    }
+                }
             }
         }catch(Exception ignored){}
-        return "";
+        return best;
     }
     private void js(String call){
         activity.runOnUiThread(()->{if(allowed())page.evaluateJavascript(call,null);});
@@ -201,8 +225,8 @@ public final class MainManagerPeerSync {
             JSONObject c=new JSONObject(serverConfig());
             if(!c.optBoolean("ready")||!privateIP(c.optString("host")))return "";
             JSONObject qr=new JSONObject();
-            qr.put("type","tiqany-manager-main");qr.put("v",1);qr.put("host",c.getString(k("host")));
-            qr.put("port",c.getInt(k("port")));qr.put("key",c.getString("key"));qr.put("serverId",c.getString("serverId"));
+            qr.put("type","tiqany-manager-main");qr.put("v",1);qr.put("host",c.getString("host"));
+            qr.put("port",c.getInt("port"));qr.put("key",c.getString("key"));qr.put("serverId",c.getString("serverId"));
             BitMatrix bits=new MultiFormatWriter().encode(qr.toString(),BarcodeFormat.QR_CODE,490,490);
             Bitmap bitmap=Bitmap.createBitmap(490,490,Bitmap.Config.ARGB_8888);
             for(int y=0;y<490;y++)for(int x=0;x<490;x++)bitmap.setPixel(x,y,bits.get(x,y)?0xff102b43:0xffffffff);

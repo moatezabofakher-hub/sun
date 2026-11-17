@@ -3,7 +3,7 @@ name: Tiqany Acc - Main Signed Release
 on:
   workflow_dispatch:
   push:
-    branches: [main, 'feat/integrated-shareholders-3.5.134']
+    branches: [main, 'feat/integrated-shareholders-3.5.135']
 
 permissions:
   contents: read
@@ -91,19 +91,26 @@ jobs:
           "$verifier" verify --verbose --print-certs "$apk"
           cert_digest=$("$verifier" verify --print-certs "$apk" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -n 1)
           [[ "$cert_digest" =~ ^[0-9a-fA-F]{64}$ ]] || { echo '::error::Could not read signing certificate SHA-256'; exit 1; }
+          # Public SHA-256 fingerprint from verified 3.5.133 / 3.5.135 signed releases.
+          # Reject accidental signing-key rotation: Android will refuse in-place updates.
+          PINNED_CERT_SHA256="94d9512302e262c8a526651a6bc4c24e1797482dcdcb6f32a0638a8f958aaf9f"
+          if [[ "${cert_digest,,}" != "$PINNED_CERT_SHA256" ]]; then
+            echo "::error::APK signing certificate differs from the verified 3.5.133/134 releases. Do not tell users to uninstall their app."
+            exit 1
+          fi
           if [[ -n "$EXPECTED_CERT_SHA256" && "${cert_digest,,}" != "${EXPECTED_CERT_SHA256,,}" ]]; then
-            echo '::error::Signing certificate does not match pinned certificate. Update aborted to protect install continuity.'
+            echo '::error::Signing certificate does not match the configured certificate fingerprint.'
             exit 1
           fi
           mkdir -p output
-          cp "$apk" "output/Tiqany-Acc-Main-3.5.134-RELEASE.apk"
-          (cd output && sha256sum "Tiqany-Acc-Main-3.5.134-RELEASE.apk" > "Tiqany-Acc-Main-3.5.134-RELEASE.apk.sha256")
+          cp "$apk" "output/Tiqany-Acc-Main-3.5.135-RELEASE.apk"
+          (cd output && sha256sum "Tiqany-Acc-Main-3.5.135-RELEASE.apk" > "Tiqany-Acc-Main-3.5.135-RELEASE.apk.sha256")
       - name: Upload signed app APK and checksum
         uses: actions/upload-artifact@v4
         with:
-          name: Tiqany-Acc-Main-3.5.134-RELEASE
+          name: Tiqany-Acc-Main-3.5.135-RELEASE
           path: |
-            output/Tiqany-Acc-Main-3.5.134-RELEASE.apk
-            output/Tiqany-Acc-Main-3.5.134-RELEASE.apk.sha256
+            output/Tiqany-Acc-Main-3.5.135-RELEASE.apk
+            output/Tiqany-Acc-Main-3.5.135-RELEASE.apk.sha256
           if-no-files-found: error
           retention-days: 30

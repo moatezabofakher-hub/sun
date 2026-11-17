@@ -389,11 +389,17 @@ const manager={
   },
   qr(){
     const show=()=>{
+      // A listener remains bound to every local address while switching Wi-Fi/hotspot.
+      if(!this.serverStatus().ready)native.start();
       const src=native.pairingQr();
       const panel=document.getElementById('ta-manager-qr');
       if(!panel)return;
+      const status=this.serverStatus();
+      const failure=!status.ready
+        ? 'تعذّر تشغيل استقبال أجهزة المدير على هذا الموبايل. أعد فتح التطبيق ثم جرّب مجدداً.'
+        : 'لا يمكن تحديد عنوان شبكة محلي صالح. شغّل نقطة الاتصال أو اتصل بشبكة Wi-Fi، وأوقف VPN إن وجد، ثم أعد المحاولة.';
       panel.innerHTML=src?'<img src="'+src+'" alt="رمز QR لاقتران موبايلَي المدير" style="max-width:238px;width:100%;margin:auto">':
-        '<span>لا يوجد عنوان Wi-Fi صالح أو الاستقبال غير جاهز</span>';
+        '<span>'+failure+'</span>';
       if(this.qrTimer)clearTimeout(this.qrTimer);
       this.qrTimer=setTimeout(()=>{if(panel)panel.textContent='انتهت مدة عرض رمز الاقتران، اضغط إظهار مجدداً';},60000);
     };
