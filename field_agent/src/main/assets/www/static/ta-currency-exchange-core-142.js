@@ -53,13 +53,16 @@
       if(e.fromCurrency==='SYP')gain=0;
       else {
         const avg=selling.quantity>1e-9?selling.costSyp/selling.quantity:selling.lastAverageSyp;
-        if(avg>0&&Number.isFinite(avg)&&selling.quantity+1e-8>=e.fromAmount){
+        const covered=Number.isFinite(avg)&&avg>0&&selling.quantity+1e-8>=e.fromAmount;
+        if(covered){
           averageCost=avg;gain=Math.round((e.equivalentSyp-e.fromAmount*avg)*100)/100;
-          const sold=Math.min(e.fromAmount,selling.quantity);
-          selling.quantity=Math.max(0,selling.quantity-sold);
-          selling.costSyp=Math.max(0,selling.costSyp-sold*avg);
-          selling.lastAverageSyp=avg;
         }else unknownCostCount++;
+        // Consume every known unit actually sold, even if the remainder has
+        // unknown acquisition cost. Otherwise that lot could be sold twice.
+        const sold=Math.min(e.fromAmount,Math.max(0,selling.quantity));
+        selling.quantity=Math.max(0,selling.quantity-sold);
+        selling.costSyp=Math.max(0,selling.costSyp-sold*(Number.isFinite(avg)&&avg>0?avg:0));
+        if(Number.isFinite(avg)&&avg>0)selling.lastAverageSyp=avg;
       }
       // An exchange creates new acquired inventory at its actual SYP equivalent.
       if(e.toCurrency!=='SYP'){
