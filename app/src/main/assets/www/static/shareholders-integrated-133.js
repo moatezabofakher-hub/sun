@@ -106,6 +106,15 @@
      const usd=exp.currency==='USD'?amt:amt/rate;
      rows.push({id:'expense:'+String(exp.id),date:datePart(exp.date),usdCents:-Math.round(usd*100),type:'expense'});
    }
+   if(typeof globalThis!=='undefined'&&globalThis.TiqanyCurrencyExchangeCore){
+     const exchanges=globalThis.TiqanyCurrencyExchangeCore.analyze(s.currencyExchanges||[]);
+     for(const fx of exchanges.byId.values()){
+       if(fx.gainSyp===null||!dateValid(datePart(fx.date)))continue;
+       const rate=Math.max(Number(s.settings?.exchangeRate)||0,1);
+       rows.push({id:'exchange:'+fx.id,date:datePart(fx.date),
+         usdCents:Math.round(fx.gainSyp/rate*100),type:'currency_exchange'});
+     }
+   }
    return rows;
  }
  function operatingProfit(s,start='0001-01-01'){
