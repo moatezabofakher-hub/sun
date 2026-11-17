@@ -341,6 +341,7 @@ if(typeof oldReport==='function')Views.renderReports=function(main,params,...arg
       '<div class="flex justify-between gap-3 items-center"><strong class="text-teal-900 text-sm">أرباح التصريف</strong>'+
       '<strong class="text-base '+(profit<0?'text-rose-700':'text-emerald-700')+'">'+fmt(profit,'SYP')+'</strong></div>'+
       '<div class="text-xs text-teal-800">المقابل التوضيحي: '+fmt(profit/currentRate,'USD')+'</div>'+
+      '<div class="text-xs font-bold text-slate-700 mt-1">إجمالي أرباح التصريف لجميع الفترات: '+fmt(report.profitSyp,'SYP')+'</div>'+
       '<p class="text-xs text-teal-800 mt-2">صافي الربح = أرباح المبيعات + أرباح التصريف المحققة − المصاريف. لا تُعد مبالغ شراء العملة مصاريف.</p>'+
       (pending?'<p class="text-xs font-bold text-amber-800 mt-2">كمية تنتظر تسوية التكلفة: '+esc(pending)+'؛ ربحها الحالي صفر.</p>':'')+
       (details.length?'<div class="mt-2 pt-2 border-t border-teal-200 space-y-1">'+
