@@ -1354,6 +1354,84 @@ html body.ta-3d-v3524:not(.ta-dashboard-screen):not(.ta-workspace-screen):not(.t
 }
 </style>
 <script defer src="static/ta-no-outside-dismiss-138.js"></script>
+<style id="ta-stable-header-links-138">
+/* Position the three connections in stable, non-overlapping header slots. */
+#topAppBar{direction:rtl!important;gap:4px!important;box-sizing:border-box!important;}
+#topAppBar > div:first-child{display:flex!important;align-items:center!important;justify-content:flex-start!important;gap:3px!important;flex:1 1 0!important;min-width:0!important;overflow:hidden!important;}
+#topAppBar #headerSettingsBtn,#topAppBar #headerNotificationsBtn,
+#topAppBar.ta-operation-header #headerSettingsBtn,#topAppBar.ta-operation-header #headerNotificationsBtn,
+body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
+  display:inline-flex!important;position:relative!important;flex:0 0 34px!important;
+  width:34px!important;min-width:34px!important;height:36px!important;
+  visibility:visible!important;
+}
+#topAppBar #ta-stable-connection-slots,
+#topAppBar.dashboard-header #ta-stable-connection-slots,
+#topAppBar.ta-operation-header #ta-stable-connection-slots {
+  direction:rtl!important;display:grid!important;
+  grid-template-columns:repeat(3,30px)!important;
+  flex:0 0 94px!important;width:94px!important;min-width:94px!important;
+  gap:2px!important;align-items:center!important;justify-content:start!important;
+  position:static!important;transform:none!important;margin:0!important;padding:0!important;
+  pointer-events:auto!important;overflow:visible!important;
+}
+#topAppBar #ta-stable-connection-slots .ta-connection-slot {
+  width:30px!important;min-width:30px!important;height:34px!important;
+  display:flex!important;align-items:center!important;justify-content:center!important;
+  position:relative!important;overflow:visible!important;
+}
+#topAppBar #ta-stable-connection-slots .ta-connection-slot > button,
+#topAppBar.dashboard-header #ta-stable-connection-slots .ta-connection-slot > button,
+#topAppBar.ta-operation-header #ta-stable-connection-slots .ta-connection-slot > button {
+  position:static!important;box-sizing:border-box!important;
+  width:30px!important;min-width:30px!important;max-width:30px!important;
+  height:30px!important;min-height:30px!important;
+  margin:0!important;padding:2px!important;gap:1px!important;
+  display:flex!important;align-items:center!important;justify-content:center!important;
+  flex:0 0 30px!important;border-radius:9px!important;
+}
+#topAppBar #ta-stable-connection-slots .ta-connection-slot > button[hidden] {display:none!important;}
+#topAppBar #ta-stable-connection-slots .ta-staff-counter strong{
+  font-size:9px!important;line-height:1!important;min-width:0!important;padding:0 2px!important;
+}
+#topAppBar #ta-stable-connection-slots .ta-link-devices{
+  display:inline-flex!important;align-items:center!important;gap:0!important;font-size:10px!important;
+}
+#topAppBar #ta-stable-connection-slots .ta-link-devices .fa-mobile-screen{font-size:10px!important;}
+#topAppBar #ta-stable-connection-slots .ta-link-devices svg{width:11px!important;height:11px!important;}
+#topAppBar #ta-stable-connection-slots .ta-link-dot{width:5px!important;height:5px!important;flex:0 0 5px!important;}
+#topAppBar #headerTitleWrap,#topAppBar.dashboard-header #headerTitleWrap,
+#topAppBar.ta-operation-header #headerTitleWrap {
+  display:flex!important;flex-direction:column!important;
+  position:static!important;left:auto!important;top:auto!important;transform:none!important;
+  flex:1 1 0!important;width:auto!important;max-width:none!important;min-width:0!important;
+  margin:0!important;align-items:stretch!important;justify-content:center!important;
+  text-align:right!important;overflow:hidden!important;pointer-events:auto!important;
+}
+#topAppBar #headerTitleWrap #screenTitle,
+#topAppBar.dashboard-header #headerTitleWrap #screenTitle{
+  width:100%!important;max-width:100%!important;min-width:0!important;
+  justify-content:flex-start!important;text-align:right!important;
+  white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;
+  font-size:clamp(10px,2.9vw,15px)!important;
+}
+#topAppBar #headerTitleWrap #screenTitle span{
+  display:block!important;min-width:0!important;max-width:100%!important;
+  overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important;
+}
+#topAppBar #headerActionGroup{flex:0 0 auto!important;min-width:0!important;max-width:33%!important;margin:0!important;gap:2px!important;}
+#topAppBar #topBarRateButton{min-width:0!important;max-width:100%!important;padding:4px!important;gap:2px!important;font-size:10px!important;}
+@media(max-width:420px){
+  #topAppBar{padding:5px!important;gap:2px!important;}
+  #topAppBar > div:first-child{gap:2px!important;}
+  #topAppBar #headerSettingsBtn,#topAppBar #headerNotificationsBtn{flex-basis:29px!important;width:29px!important;min-width:29px!important;height:32px!important;}
+  #topAppBar #ta-stable-connection-slots{grid-template-columns:repeat(3,27px)!important;flex-basis:85px!important;width:85px!important;min-width:85px!important;}
+  #topAppBar #ta-stable-connection-slots .ta-connection-slot{width:27px!important;min-width:27px!important;height:30px!important;}
+  #topAppBar #ta-stable-connection-slots .ta-connection-slot > button{width:27px!important;min-width:27px!important;max-width:27px!important;height:27px!important;min-height:27px!important;flex-basis:27px!important;}
+  #topAppBar #headerActionGroup{max-width:28%!important;}
+  #topAppBar #screenTitle{font-size:10px!important;}
+}
+</style>
 </head>
 <body class="ta-premium-ui ta-3d-v3524 bg-slate-100 text-slate-800 min-h-screen flex flex-col w-full max-w-full overflow-x-hidden">
 
@@ -1367,6 +1445,17 @@ html body.ta-3d-v3524:not(.ta-dashboard-screen):not(.ta-workspace-screen):not(.t
                 <button id="headerNotificationsBtn" type="button" onclick="AppNav.navigate('notifications')" class="ta-header-notifications shrink-0 flex items-center justify-center transition active:scale-95" title="الإشعارات" aria-label="فتح الإشعارات">
                     <i class="fas fa-bell" aria-hidden="true"></i><span id="headerNotificationsCount" class="ta-alert-count" role="status" aria-live="polite" hidden>0</span>
                 </button>
+                <div id="ta-stable-connection-slots" class="ta-header-connections" aria-label="الأجهزة المتصلة">
+                    <span class="ta-connection-slot" data-connection-slot="computer">
+                        <button id="ta-desktop-phone-connection" type="button" hidden class="ta-link-status ta-link-offline" onclick="TiqanyPeerSync.openSettingsFromHeader()" aria-label="فتح مزامنة الموبايل والكمبيوتر من الضبط" title="افتح مزامنة الموبايل والكمبيوتر"><span class="ta-link-devices" aria-hidden="true"><svg width="14" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8m-4-4v4"/></svg><i class="fas fa-mobile-screen"></i></span><span class="ta-link-dot" aria-hidden="true"></span></button>
+                    </span>
+                    <span class="ta-connection-slot" data-connection-slot="employee">
+                        <button id="salesStaffCounterButton" type="button" hidden class="ta-staff-counter" onclick="AppNav.navigate('agent_hub')" title="موظفو البيع المتصلون" aria-label="عدد موظفي البيع المتصلين"><i class="fas fa-users" aria-hidden="true"></i><strong id="salesStaffConnectedCount" aria-live="polite">0</strong></button>
+                    </span>
+                    <span class="ta-connection-slot" data-connection-slot="manager">
+                        <button id="ta-manager-phone-connection" type="button" hidden class="ta-link-status ta-manager-link" aria-label="مزامنة موبايلين مدير" title="مزامنة أجهزة مدير" onclick="TiqanyManagerSync.openSettings()"><span class="ta-link-devices" aria-hidden="true"><i class="fas fa-mobile-screen"></i><i class="fas fa-mobile-screen"></i></span><span class="ta-link-dot" aria-hidden="true"></span></button>
+                    </span>
+                </div>
                 <button id="headerBackBtn" onclick="AppNav.handleBackButton()" class="w-8 h-8 shrink-0 rounded-full flex items-center justify-center hover:bg-slate-800 active:bg-slate-700 transition" title="رجوع / خروج">
                     <i id="headerBackIcon" class="fas fa-arrow-right text-base"></i>
                 </button>
@@ -1376,13 +1465,7 @@ html body.ta-3d-v3524:not(.ta-dashboard-screen):not(.ta-workspace-screen):not(.t
                         <span class="truncate" id="brandCompanyName">المحاسب التقني</span>
                     </h1>
                     <p id="screenSubtitle" class="text-[10px] sm:text-[11px] text-slate-400 truncate">نظام محاسبة ومستودعات (Offline-First)</p>
-                    <div class="ta-header-connections"><button id="salesStaffCounterButton" type="button" hidden class="ta-staff-counter" onclick="AppNav.navigate('agent_hub')" title="موظفو البيع المتصلون" aria-label="عدد موظفي البيع المتصلين"><i class="fas fa-users" aria-hidden="true"></i><strong id="salesStaffConnectedCount" aria-live="polite">0</strong></button>
-                <button id="ta-desktop-phone-connection" type="button" hidden class="ta-link-status ta-link-offline" onclick="TiqanyPeerSync.openSettingsFromHeader()" aria-label="فتح مزامنة الموبايل والكمبيوتر من الضبط" title="افتح مزامنة الموبايل والكمبيوتر"><span class="ta-link-devices" aria-hidden="true"><svg width="14" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8m-4-4v4"/></svg><i class="fas fa-mobile-screen"></i></span><span class="ta-link-dot" aria-hidden="true"></span></button>
-                <button id="ta-manager-phone-connection" type="button" hidden class="ta-link-status ta-manager-link"
-                    aria-label="مزامنة موبايلين مدير" title="مزامنة أجهزة مدير"
-                    onclick="TiqanyManagerSync.openSettings()"><span class="ta-link-devices" aria-hidden="true">
-                    <i class="fas fa-mobile-screen"></i><i class="fas fa-mobile-screen"></i></span>
-                    <span class="ta-link-dot" aria-hidden="true"></span></button></div>
+                    <!-- Connection buttons moved to their fixed slots next to notifications. -->
                 </div>
             </div>
 
