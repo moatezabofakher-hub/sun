@@ -52,7 +52,10 @@ function quote(s,{fromCurrency,toCurrency,fromAmount,toAmount,at}){
 function record(s,details,available){
  const info=quote(s,details);
  if(!finite(available)||Number(available)+0.0000001<info.fromAmount)fail('الرصيد المتاح في الصندوق غير كافٍ');
- const tx={...info,id:id(),date:info.at,createdAt:info.at,note:String(details.note||'').trim().slice(0,200)};
+ const operationId=details.operationId||id();
+ if(!/^(?:fx_[a-z0-9_]{8,80}|op_[a-f0-9]{32})$/i.test(operationId))fail('معرّف عملية التصريف غير صالح');
+ const tx={...info,id:operationId,date:info.at,createdAt:info.at,note:String(details.note||'').trim().slice(0,200)};
+ if(details.fieldOrigin&&typeof details.fieldOrigin==='object')tx.fieldOrigin={agentId:String(details.fieldOrigin.agentId||''),agentName:String(details.fieldOrigin.agentName||''),operationId};
  if(ensure(s).some(x=>x.id===tx.id))fail('معرف العملية مكرر');
  s.fxTrades.push(tx);
  return tx;
@@ -67,7 +70,9 @@ function postings(tx){
     currency:tx.toCurrency,inflow:Number(tx.toAmount),outflow:0}
  ];
 }
-function cashMovements(s){return sortTrades(s).flatMap(postings);}
+function cashMovements(s,scope='all'){
+ return sortTrades(s).filter(t=>scope==='all'||(scope==='office'?!t.fieldOrigin?.agentId:t.fieldOrigin?.agentId===scope)).flatMap(postings);
+}
 function profit(s,filter=()=>true){return ensure(s).filter(filter).reduce((n,t)=>n+(Number(t.profitUSD)||0),0);}
 function deleteTrade(s,tradeId){const list=ensure(s),i=list.findIndex(t=>t.id===tradeId);if(i<0)fail('عملية التصريف غير موجودة');return list.splice(i,1)[0];}
 function activeCurrencies(s){
