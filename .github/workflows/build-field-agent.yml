@@ -60,7 +60,9 @@ jobs:
       - name: Verify employee currency exchange and cashbox
         run: |
           node --test tests/currency-exchange-142.test.cjs
+          node --test tests/currency-buy-sell-147.test.cjs
           node --check field_agent/src/main/assets/www/static/ta-currency-exchange-agent-142.js
+          node --check field_agent/src/main/assets/www/static/ta-fx-employee-147.js
           node --check field_agent/src/main/assets/www/static/agent-cash-history.js
           node --check field_agent/src/main/assets/www/static/field-protocol.js
       - name: Build, sign, and verify field_agent release APK
