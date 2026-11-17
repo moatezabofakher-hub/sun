@@ -1,7 +1,7 @@
 /* 3.5.89 — authenticated staff rights and employee-owned account PDF statements. */
 (function(){'use strict';
-const A=Agent,all=['priceTier','currency','balances','editPrices','exchangeRate','stock','createAccounts','createItems','editOperations','deleteOperations'];
-const fallback={priceTier:true,currency:true,balances:true,editPrices:false,exchangeRate:false,stock:true,createAccounts:true,createItems:false,editOperations:true,deleteOperations:false};
+const A=Agent,all=['priceTier','currency','balances','editPrices','exchangeRate','fxSharedRate','stock','createAccounts','createItems','editOperations','deleteOperations'];
+const fallback={priceTier:true,currency:true,balances:true,editPrices:false,exchangeRate:false,fxSharedRate:false,stock:true,createAccounts:true,createItems:false,editOperations:true,deleteOperations:false};
 A.can=function(k){const p=this.state?.permissions;return all.includes(k)&&((p&&typeof p==='object')?p[k]===true:fallback[k]===true);};
 A.requireRight=function(k){if(this.can(k))return true;this.toast('هذه الصلاحية غير ممنوحة من التطبيق الرئيسي. اطلب تحديث الصلاحيات ثم قم بالمزامنة.');return false;};
 function guard(key,method){if(typeof A[method]!=='function')return;const original=A[method].bind(A);A[method]=function(...args){if(!this.requireRight(key))return;return original(...args);};}
