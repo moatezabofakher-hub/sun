@@ -46,7 +46,7 @@ function harness({desktop,filled,uid}){
  const AppNav={isDirty:false,isModalDirty:false,activeOperationGuard:false,current:()=>({screen:'home'}),renderCurrent:()=>{}};
  const document={getElementById:()=>null,createElement:()=>({textContent:''}),head:{append(){}},visibilityState:'visible'};
  const context={State,ProfileManager,StorageEngine,Views:{renderSettings(){}},AppNav,UI:{toast(){}},
-   document,console,Date,window:peerWindow,AndroidPeerSync:desktop?undefined:android,
+   document,console,Date,window:peerWindow,WindowsPeerSync:desktop?peerWindow.WindowsPeerSync:undefined,AndroidPeerSync:desktop?undefined:android,
    setTimeout:()=>0,setInterval:()=>0,clearTimeout:()=>{},confirm:(msg)=>{prompts.push(msg);return true;}};
  vm.runInNewContext(source,context,{filename:'tiqany-peer-controller.js'});
  const peer=peerWindow.TiqanyPeerSync;
