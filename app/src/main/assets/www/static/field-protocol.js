@@ -58,9 +58,15 @@
           if(!/^[A-Z]{3}$/.test(code)||code==='SYP')throw Error('رمز عملة غير صالح في السعر');
           const item=rates[code];
           if(!item||typeof item!=='object'||Array.isArray(item))throw Error('سعر صرف غير صالح');
-          const buy=Number(item.buy),sell=Number(item.sell);
-          if(!Number.isFinite(buy)||!Number.isFinite(sell)||buy<=0||sell<=0||buy>=1e12||sell>=1e12)throw Error('سعر صرف خارج النطاق');
-          clean[code]={buy,sell};
+          const next={};
+          for(const side of ['buy','sell']){
+            if(!Object.prototype.hasOwnProperty.call(item,side))continue;
+            const value=Number(item[side]);
+            if(!Number.isFinite(value)||value<=0||value>=1e12)throw Error('سعر صرف خارج النطاق');
+            next[side]=value;
+          }
+          if(!Object.keys(next).length)throw Error('تعديل سعر صرف فارغ');
+          clean[code]=next;
         }
         return {...op,rates:clean,exchangeRate:positiveNumber(op.exchangeRate)};
       }
