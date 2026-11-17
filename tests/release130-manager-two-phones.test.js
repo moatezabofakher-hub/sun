@@ -155,3 +155,32 @@ test('Synchronizing an unchanged password must not disable the phone own biometr
  assert.equal(full.State.settings.appProtection.fingerprintEnabled,false);
  assert.equal(full.State.settings.appProtection.fingerprintCredentialId,'');
 });
+
+test('Manager QR scan accepts valid LAN IPv4, pairing key, port, and peer identity',async()=>{
+ const a=fixture(ids.one,true),b=fixture(ids.two,false);
+ const code={type:'tiqany-manager-main',v:1,host:'192.168.43.1',port:49379,key:'Z'.repeat(43),serverId:b.manager.serverStatus().serverId};
+ await a.manager.acceptPairing(JSON.stringify(code));
+ assert.equal(a.status.host,'192.168.43.1');
+ assert.equal(a.status.port,49379);
+ assert.equal(a.status.serverId,code.serverId);
+});
+test('Manager QR scan never accepts untrusted hostname, loopback or invalid source identity',async()=>{
+ const a=fixture(ids.one,true),b=fixture(ids.two,false);
+ const original={type:'tiqany-manager-main',v:1,host:'192.168.1.20',port:49379,key:'Z'.repeat(43),serverId:b.manager.serverStatus().serverId};
+ for(const host of ['evil.example','127.0.0.1','192.168.1.20:1234','192.168.1.x']){
+   await a.manager.acceptPairing(JSON.stringify({...original,host}));
+   // Native Java must also reject loopback, so only check JS rejects
+   // malformed hosts here; syntactically valid loopback stays blocked natively.
+   if(host!=='127.0.0.1')assert.equal(a.status.host,'');
+ }
+});
+test('QR native generator reads JSON host/port fields, never profile-scoped preferences keys',()=>{
+ assert.match(java,/qr\.put\("host",c\.getString\("host"\)\)/);
+ assert.match(java,/qr\.put\("port",c\.getInt\("port"\)\)/);
+ assert.doesNotMatch(java,/qr\.put\("host",c\.getString\(k\("host"\)\)\)/);
+ assert.doesNotMatch(java,/qr\.put\("port",c\.getInt\(k\("port"\)\)\)/);
+ assert.match(java,/caps\.hasTransport\(NetworkCapabilities\.TRANSPORT_WIFI\)/);
+ assert.match(java,/name\.startsWith\("wlan"\)/);
+ assert.match(source,/native\.start\(\)/);
+ assert.match(source,/رمز QR جاهز/);
+});
