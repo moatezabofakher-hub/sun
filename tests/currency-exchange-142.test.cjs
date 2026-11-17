@@ -78,16 +78,44 @@ test('Two directors importing the same employee FX transaction converge with no 
  assert.equal(core.analyze(result.snapshot.currencyExchanges).movements.length,2);
 });
 
-test('Partially uncosted FX sale consumes prior lots without inventing later profits',()=>{
+test('Partially uncosted FX sale realizes only profit for known prior lots and never reuses them',()=>{
  const rows=[
    fx('fx_partial_001','SYP','USD',1500000,100,1500000,'2026-11-14T11:00:00Z'),
    fx('fx_partial_002','USD','SYP',150,2550000,2550000,'2026-11-15T11:00:00Z'),
    fx('fx_partial_003','USD','SYP',50,900000,900000,'2026-11-16T11:00:00Z')
  ];
  const result=core.analyze(rows);
- assert.equal(result.byId.get('fx_partial_002').gainSyp,null);
+ assert.equal(result.byId.get('fx_partial_002').gainSyp,200000);
+ assert.equal(result.byId.get('fx_partial_002').costOfSoldSyp,1500000);
+ assert.equal(result.byId.get('fx_partial_002').coveredAmount,100);
+ assert.equal(result.byId.get('fx_partial_002').uncoveredAmount,50);
  assert.equal(result.byId.get('fx_partial_003').gainSyp,null);
  assert.equal(result.unknownCostCount,2);
  assert.equal(result.holdings.USD.quantity,0);
- assert.equal(result.profitSyp,0);
+ assert.equal(result.profitSyp,200000);
+});
+
+
+test('Editing the same FX operation replaces its cash legs and recomputes profit exactly once',()=>{
+ const purchase=fx('fx_edit_1001','SYP','USD',1500000,100,1500000,'2026-11-14T11:00:00Z');
+ const sale=fx('fx_edit_1002','USD','SYP',80,1600000,1600000,'2026-11-15T11:00:00Z');
+ const before=core.analyze([purchase,sale]);
+ assert.equal(before.byId.get(sale.id).gainSyp,400000);
+ const revised={...sale,fromAmount:90,toAmount:1800000,equivalentSyp:1800000};
+ const after=core.analyze([purchase,revised]);
+ assert.equal(after.movements.length,4);
+ assert.equal(after.byId.size,2);
+ assert.equal(after.byId.get(sale.id).gainSyp,450000);
+ assert.equal(after.holdings.USD.quantity,10);
+ assert.deepEqual(core.balances({SYP:3000000,USD:0},[purchase,revised]),{SYP:3300000,USD:10});
+});
+test('FX user interface contains editable operation and per-currency trading totals',()=>{
+ const uiFile=isWindows?path.join(root,'upgrade-125/ta-currency-exchange-ui-142.js'):
+   path.join(root,'app/src/main/assets/www/static/ta-currency-exchange-ui-142.js');
+ const ui=fs.readFileSync(uiFile,'utf8');
+ assert.match(ui,/TiqanyFxUI\.edit/);
+ assert.match(ui,/taFxEditId/);
+ assert.match(ui,/إجمالي المبالغ المتداولة حسب العملة/);
+ assert.match(ui,/costOfSoldSyp/);
+ assert.doesNotThrow(()=>new Function(ui));
 });
