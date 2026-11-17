@@ -162,7 +162,7 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
     return {...result,
       protectDeviceAddition:cfg.protectDeviceAddition===true,
       protectDeletion:cfg.protectDeletion===true,
-      lockApp:cfg.lockApp===true};
+      lockApp:true};
   },
   async firstLinkProvision(uid){
     return {companyUid:uid,fieldCompanyId:String(State.fieldSync?.companyId||'company_'+uid.slice('business_'.length)),
@@ -187,6 +187,15 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
     if(p.journal!=null&&typeof CompanyLifecycle!=='undefined'&&CompanyLifecycle.validateConflictJournal)
       CompanyLifecycle.validateConflictJournal({peerConflictJournal:p.journal});
     return true;
+  },
+  async rememberFirstLinkCompany(){
+    const current=ProfileManager.registry;
+    const name=String(State.settings?.companyName||'').trim();
+    if(!name||!current?.profiles?.some(p=>p.id===ProfileManager.activeId))return;
+    const next={...current,profiles:current.profiles.map(p=>
+      p.id===ProfileManager.activeId?{...p,name}:p)};
+    await ProfileManager.putBatch([{id:'profile_registry',data:next}]);
+    ProfileManager.registry=next;
   },
   async restoreFirstLinkJournal(journal){
     if(journal==null)return;
@@ -563,6 +572,7 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
       // Persist receipts BEFORE clearing pending conflict choices. Do not silently
       // forget the resolution when disk storage fails.
       if(desktopBootstrap)await this.restoreFirstLinkJournal(fetched.sourceProvision.journal);
+      if(desktopBootstrap)await this.rememberFirstLinkCompany();
       else await this.saveResolved(appliedReceipts,linkId,explicitApprovals);
       await this.saveBase(fetched.serverId,fetched.profileId,merged.snapshot);
       if(!desktopBootstrap)await this.clearConflicts();
@@ -691,6 +701,10 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
         // Acknowledge only after persisting the conflict decisions to durable
         // storage. Keep the pending log intact when writing the archive fails.
         if(lock.adoptDesktop)await this.restoreFirstLinkJournal(data.provision.journal);
+        if(lock.adoptDesktop){
+          await this.rememberFirstLinkCompany();
+          document.getElementById?.('ta-company-setup-128')?.remove();
+        }
         else {
           await this.saveResolved(data.resolvedReceipts||[],lock.linkId,data.explicitApprovals||[]);
           await this.archiveResolvedConflicts();
