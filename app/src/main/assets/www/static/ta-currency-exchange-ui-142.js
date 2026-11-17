@@ -19,8 +19,7 @@ if(baseCash&&typeof baseCash.summary==='function'){
    const data=rawSummary(scope);
    const fx=E.analyze(rows(),scope);
    const values={SYP:Number(data.sypCash)||0,USD:Number(data.usdCash)||0};
-   for(const m of fx.movements)values[m.currency]=E.rounded(Math.max(0,Number(values[m.currency]||0)+m.inflow-m.outflow),m.currency)*
-     ((Number(values[m.currency]||0)+m.inflow-m.outflow)<0?-1:1);
+   for(const m of fx.movements)values[m.currency]=(Number(values[m.currency])||0)+m.inflow-m.outflow;
    // Keep exact negative historical balances; never hide an out-of-balance book.
    for(const c of Object.keys(values))values[c]=Math.round((values[c])*E.scale(c))/E.scale(c);
    return {...data,sypCash:values.SYP||0,usdCash:values.USD||0,otherCurrencies:values,
