@@ -29,7 +29,7 @@ function storeFxChanges(changes){
 }
 A.renderFxRates=function(){
  const list=allowed().filter(c=>c!=='SYP'),current=localRates(),edit=canEditRate();
- return '<div class="hero"><h2>سعر الصرف</h2><p>أسعار الشراء والمبيع مقابل الليرة السورية، المستلمة بمزامنة تطبيق المدير.</p></div>'+
+ return '<div class="hero"><h2>سعر الصرف</h2><p>أسعار شراء ومبيع العملات الأجنبية بما فيها الدولار، مقابل الليرة السورية، المستلمة بمزامنة تطبيق المدير.</p></div>'+
  '<section class="panel">'+
  (!edit?'<p class="tiny" style="color:#9f1239">تعديل هذه الأسعار مقفل بصلاحيات المدير؛ يمكنك الاطلاع عليها فقط.</p>':
  '<p class="tiny">يمكنك تعديل الأسعار وسيُرسل التعديل إلى المدير عند المزامنة التالية.</p>')+
@@ -190,7 +190,7 @@ A.currencyExchangeList=function(){
 const priorHome=A.renderHome;
 A.renderHome=function(...args){return priorHome.apply(this,args).replace('</div>', '</div>')+
  '<div class="grid"><button type="button" class="tile" onclick="Agent.navigate(\'currency_exchange\')" style="background:linear-gradient(135deg,#dffdf3,#c2eeff);color:#064e3b;border:2px solid #059669"><span class="glyph"><img src="static/ta-fx-exchange-146.svg" alt="" width="70" height="70" style="width:64px;height:64px;max-width:100%;object-fit:contain"></span><strong>تصريف عملة</strong><small>شراء وبيع العملات</small></button>'+ 
- '<button type="button" class="tile" onclick="Agent.navigate(\'fx_rates\')" style="background:linear-gradient(135deg,#dce9ff,#bad1ff);color:#163f81;border:2px solid #4976d5"><span class="glyph"><img src="static/ta-fx-rates-146.svg" alt="" width="70" height="70" style="width:64px;height:64px;max-width:100%;object-fit:contain"></span><strong>سعر الصرف</strong><small>شراء ومبيع مقابل الليرة</small></button></div>';};
+ '<button type="button" class="tile" onclick="Agent.navigate(\'fx_rates\')" style="background:linear-gradient(135deg,#047857,#065f46)!important;color:#fff!important;border:2px solid #064e3b!important"><span class="glyph"><img src="static/ta-fx-rates-146.svg" alt="" width="70" height="70" style="width:64px;height:64px;max-width:100%;object-fit:contain"></span><strong>سعر الصرف</strong><small>شراء ومبيع مقابل الليرة</small></button></div>';};
 const priorInvoices=A.renderInvoices;
 if(typeof priorInvoices==='function')A.renderInvoices=function(...args){
  return priorInvoices.apply(this,args).replace('<section class="panel">','<div class="grid" style="margin-bottom:12px"><button class="tile" onclick="Agent.navigate(\'currency_exchange_list\')"><span class="glyph">💱</span><strong>عمليات التصريف</strong></button></div><section class="panel">');
