@@ -198,6 +198,8 @@ const manager={
         return {ok:false,error:'هوية الشركة تغيرت بعد الربط'};
       if(!known&&!empty&&!data.clientEmpty)
         return {ok:false,error:'لا يُسمح لأول مرة بربط جهازَي مدير يحتويان عمليات'};
+      if(!known&&!empty&&data.clientEmpty&&!window.confirm('موبايل مدير فارغ يطلب استيراد هذه الشركة. هل تسمح بنسخ بيانات الشركة وإعداداتها إلى الجهاز الجديد؟'))
+        return {ok:false,error:'رفض صاحب الشركة الاقتران الأول'};
       const ticket=String(Date.now())+Math.random().toString(36).slice(2);
       const settings=this.portableSettings(),protection=this.portablePin();
       const provision=!known&&!empty&&data.clientEmpty?await this.meta():null;
