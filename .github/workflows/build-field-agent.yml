@@ -3,7 +3,7 @@ name: Tiqany Acc - Agent Signed Release
 on:
   workflow_dispatch:
   push:
-    branches: [main, 'feat/currency-exchange-142']
+    branches: [main, 'fix/scroll-behavior-144']
     paths:
       - 'field_agent/**'
       - 'tests/release138-no-outside-dismiss.test.js'
@@ -33,6 +33,10 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
+      - name: Validate all application scripts
+        run: node --test tests/release144-javascript-parse.test.cjs
+      - name: Verify shareholder position and settings alignment
+        run: node --test tests/release144-scroll-behavior.test.cjs
       - name: Static release audit
         run: python3 scripts/release_audit.py main
       - name: Run project tests
@@ -92,14 +96,14 @@ jobs:
             exit 1
           fi
           mkdir -p output
-          cp "$apk" "output/Tiqany-Acc-Agent-3.5.142-RELEASE.apk"
-          (cd output && sha256sum "Tiqany-Acc-Agent-3.5.142-RELEASE.apk" > "Tiqany-Acc-Agent-3.5.142-RELEASE.apk.sha256")
+          cp "$apk" "output/Tiqany-Acc-Agent-3.5.144-RELEASE.apk"
+          (cd output && sha256sum "Tiqany-Acc-Agent-3.5.144-RELEASE.apk" > "Tiqany-Acc-Agent-3.5.144-RELEASE.apk.sha256")
       - name: Upload signed field_agent APK and checksum
         uses: actions/upload-artifact@v4
         with:
-          name: Tiqany-Acc-Agent-3.5.142-RELEASE
+          name: Tiqany-Acc-Agent-3.5.144-RELEASE
           path: |
-            output/Tiqany-Acc-Agent-3.5.142-RELEASE.apk
-            output/Tiqany-Acc-Agent-3.5.142-RELEASE.apk.sha256
+            output/Tiqany-Acc-Agent-3.5.144-RELEASE.apk
+            output/Tiqany-Acc-Agent-3.5.144-RELEASE.apk.sha256
           if-no-files-found: error
           retention-days: 30
