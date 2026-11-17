@@ -38,53 +38,116 @@
       agentId:String(raw.agentId||''),source:String(raw.source||'manager'),
       note:String(raw.note||'').slice(0,200)};
   }
+
+  // Quotations are in Syrian pounds for one unit of foreign currency.
+  // buy: SYP paid to acquire it; sell: SYP received when selling it.
+  function quote(from,to,fromAmount,rates){
+    const fromCurrency=validCurrency(from),toCurrency=validCurrency(to);
+    if(fromCurrency===toCurrency)throw Error('اختر عملتين مختلفتين');
+    const paid=rounded(fromAmount,fromCurrency);
+    if(!(paid>0))throw Error('المبلغ المدفوع غير صالح');
+    const rate=(c,side)=>{
+      const n=Number(rates?.[c]?.[side]);
+      if(!Number.isFinite(n)||n<=0)throw Error('حدّد سعر '+(side==='buy'?'شراء ':'مبيع ')+c+' أولاً');
+      return n;
+    };
+    const equivalentSyp=fromCurrency==='SYP'?paid:rounded(paid*rate(fromCurrency,'sell'),'SYP');
+    const received=toCurrency==='SYP'?equivalentSyp:rounded(equivalentSyp/rate(toCurrency,'buy'),toCurrency);
+    if(!(received>0))throw Error('المبلغ المستلم أقل من أصغر وحدة');
+    return {fromAmount:paid,toAmount:received,equivalentSyp};
+  }
+
   function analyze(entries,scope='all'){
-    const lots=new Map(),movements=[],byId=new Map(),seen=new Set();
-    let profitSyp=0,unknownCostCount=0;
+    const lots=new Map(),pending=new Map(),movements=[],byId=new Map(),seen=new Set();
+    let profitSyp=0;
     const inScope=e=>scope==='all'||(scope==='office'?!e.agentId:e.agentId===scope);
     const ordered=(entries||[]).filter(inScope).slice().sort((a,b)=>String(a.date).localeCompare(String(b.date))||String(a.id).localeCompare(String(b.id)));
+    const roundSyp=n=>Math.round((n+Number.EPSILON)*100)/100;
     function lot(c){if(!lots.has(c))lots.set(c,{quantity:0,costSyp:0,lastAverageSyp:0});return lots.get(c);}
+    function debts(c){if(!pending.has(c))pending.set(c,[]);return pending.get(c);}
     for(const original of ordered){
       const e=prepare(original);
       if(seen.has(e.id))throw Error('تكرار معرف عملية التصريف '+e.id);
       seen.add(e.id);
       const selling=lot(e.fromCurrency),buying=lot(e.toCurrency);
-      let gain=null,averageCost=null,costOfSoldSyp=null,coveredAmount=0;
-      if(e.fromCurrency==='SYP')gain=0;
-      else {
-        // Only units acquired BEFORE this trade have a determinable historical cost.
-        // A sale beyond known inventory realizes profit on the covered fraction,
-        // never on the uncosted remainder; all proceeds are apportioned pro rata.
+      let gain=e.fromCurrency==='SYP'?0:null,averageCost=null,costOfSoldSyp=null,coveredAmount=0;
+      let uncoveredAmount=0,deferredGainSyp=0,deferredCoveredAmount=0;
+      if(e.fromCurrency!=='SYP'){
+        // Only a real prior purchase can establish a sale's acquisition cost.
         const avg=selling.quantity>1e-9?selling.costSyp/selling.quantity:null;
-        const sold=Math.min(e.fromAmount,Math.max(0,selling.quantity));
-        const known=Number.isFinite(avg)&&avg>0?sold:0;
+        const known=avg>0?Math.min(e.fromAmount,selling.quantity):0;
         if(known>1e-9){
           coveredAmount=rounded(known,e.fromCurrency);
           averageCost=avg;
-          costOfSoldSyp=Math.round(known*avg*100)/100;
-          gain=Math.round(((e.equivalentSyp*known/e.fromAmount)-(known*avg))*100)/100;
+          costOfSoldSyp=roundSyp(known*avg);
+          gain=roundSyp(e.equivalentSyp*known/e.fromAmount-known*avg);
+          selling.quantity=Math.max(0,selling.quantity-known);
+          selling.costSyp=Math.max(0,selling.costSyp-known*avg);
+          selling.lastAverageSyp=avg;
         }
-        if(e.fromAmount-known>1e-8)unknownCostCount++;
-        // Consume all the recorded acquired units at most once.
-        selling.quantity=Math.max(0,selling.quantity-sold);
-        selling.costSyp=Math.max(0,selling.costSyp-sold*(Number.isFinite(avg)&&avg>0?avg:0));
-        if(Number.isFinite(avg)&&avg>0)selling.lastAverageSyp=avg;
+        uncoveredAmount=rounded(Math.max(0,e.fromAmount-known),e.fromCurrency);
+        if(uncoveredAmount>1e-9){
+          // This is deferred sale REVENUE, not a loss. It will be matched FIFO
+          // against the price paid to acquire these units on a later date.
+          debts(e.fromCurrency).push({exchangeId:e.id,quantity:uncoveredAmount,
+            proceedsSyp:e.equivalentSyp*uncoveredAmount/e.fromAmount});
+        }
       }
-      // An exchange creates new acquired inventory at its actual SYP equivalent.
-      if(e.toCurrency!=='SYP'){
-        buying.quantity+=e.toAmount;
-        buying.costSyp+=e.equivalentSyp;
-        buying.lastAverageSyp=buying.costSyp/buying.quantity;
-      }
-      if(gain!==null)profitSyp+=gain;
-      const view={...e,gainSyp:gain,averageCostSyp:averageCost,costOfSoldSyp,coveredAmount,uncoveredAmount:e.fromCurrency==='SYP'?0:rounded(Math.max(0,e.fromAmount-coveredAmount),e.fromCurrency)};
+      const view={...e,gainSyp:gain,averageCostSyp:averageCost,costOfSoldSyp,coveredAmount,
+        uncoveredAmount,pendingAmount:uncoveredAmount,settledAmount:0,settlementGainSyp:0,
+        deferredGainSyp:0,deferredCoveredAmount:0};
       byId.set(e.id,view);
+      if(e.toCurrency!=='SYP'){
+        // A purchase first settles older uncosted sales, at THIS purchase's
+        // actual unit cost. Only remaining purchased units enter inventory.
+        const unitCost=e.equivalentSyp/e.toAmount;
+        let remaining=e.toAmount;
+        const outstanding=debts(e.toCurrency);
+        while(remaining>1e-9&&outstanding.length){
+          const debt=outstanding[0];
+          const settled=Math.min(remaining,debt.quantity);
+          const proceeds=debt.proceedsSyp*settled/debt.quantity;
+          const cost=settled*unitCost;
+          const realized=proceeds-cost;
+          deferredGainSyp+=realized;
+          deferredCoveredAmount+=settled;
+          const oldView=byId.get(debt.exchangeId);
+          if(oldView){
+            oldView.pendingAmount=rounded(Math.max(0,oldView.pendingAmount-settled),e.toCurrency);
+            oldView.settledAmount=rounded(oldView.settledAmount+settled,e.toCurrency);
+            oldView.settlementGainSyp=roundSyp(oldView.settlementGainSyp+realized);
+          }
+          debt.quantity-=settled;
+          debt.proceedsSyp-=proceeds;
+          remaining-=settled;
+          if(debt.quantity<1e-9)outstanding.shift();
+        }
+        if(remaining>1e-9){
+          buying.quantity+=remaining;
+          buying.costSyp+=remaining*unitCost;
+          buying.lastAverageSyp=buying.costSyp/buying.quantity;
+        }
+        if(deferredCoveredAmount>1e-9){
+          const settledProfit=roundSyp(deferredGainSyp);
+          view.deferredGainSyp=settledProfit;
+          view.deferredCoveredAmount=rounded(deferredCoveredAmount,e.toCurrency);
+          view.gainSyp=roundSyp((view.gainSyp||0)+settledProfit);
+        }
+      }
+      if(view.gainSyp!==null)profitSyp+=view.gainSyp;
       movements.push({id:e.id+':out',exchangeId:e.id,date:e.date,ref:'تصريف عملة',party:e.agentId||'الصندوق الرئيسي',desc:e.note||'شراء '+e.toCurrency,currency:e.fromCurrency,inflow:0,outflow:e.fromAmount});
       movements.push({id:e.id+':in',exchangeId:e.id,date:e.date,ref:'تصريف عملة',party:e.agentId||'الصندوق الرئيسي',desc:e.note||'شراء '+e.toCurrency,currency:e.toCurrency,inflow:e.toAmount,outflow:0});
     }
-    const holdings={};
-    for(const [currency,value] of lots)holdings[currency]={quantity:value.quantity,costSyp:value.costSyp,averageSyp:value.lastAverageSyp};
-    return {profitSyp:Math.round(profitSyp*100)/100,unknownCostCount,holdings,movements,byId};
+    const holdings={},pendingSales={};
+    let unknownCostCount=0;
+    for(const [currency,value] of lots)holdings[currency]={quantity:rounded(value.quantity,currency),costSyp:roundSyp(value.costSyp),averageSyp:value.lastAverageSyp};
+    for(const [currency,items] of pending){
+      const open=items.filter(d=>d.quantity>1e-9);
+      unknownCostCount+=open.length;
+      if(open.length)pendingSales[currency]={quantity:rounded(open.reduce((s,d)=>s+d.quantity,0),currency),
+        proceedsSyp:roundSyp(open.reduce((s,d)=>s+d.proceedsSyp,0))};
+    }
+    return {profitSyp:roundSyp(profitSyp),unknownCostCount,holdings,pendingSales,movements,byId};
   }
   function balances(base,entries,scope='office'){
     const current={...base},history=analyze(entries,scope);
@@ -94,5 +157,5 @@
     }
     return current;
   }
-  return Object.freeze({prepare,analyze,balances,rounded,scale});
+  return Object.freeze({prepare,analyze,balances,rounded,scale,quote});
 });
