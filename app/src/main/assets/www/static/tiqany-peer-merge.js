@@ -5,7 +5,7 @@ const BASE_COLLECTIONS=['categories','items','accounts','invoices','vouchers','w
 // The field staff directory, pending imported IDs and cash hand-offs must travel with the ledger.
 const STAFF_COLLECTIONS=['fieldAgents','fieldImported','fieldEvents','fieldCashTransfers','fieldOperationHistory','fieldRevisionAudit','fieldCompany'];
 const COLLECTIONS=BASE_COLLECTIONS.concat(STAFF_COLLECTIONS);
-const SETTINGS=['companyName','companyPhone','companyAddress','exchangeRate','defaultCurrency','defaultItemCurrency','primaryCurrency','secondaryCurrency','primaryOnlyMode','defaultPriceTier','itemQuantityDecimals','inventoryValuationCurrency','allowNegativeStockSales','companyLogo','footerNote','addedCurrencies','defaultInvoiceListType','defaultViewPeriod','defaultViewStart','defaultViewEnd','posAccountId','posPriceTier','posAutoNextOnFinish'];
+const SETTINGS=['companyName','companyPhone','companyAddress','exchangeRate','currencyRatesSyp','currencyExchangeRatesSyp','defaultCurrency','defaultItemCurrency','primaryCurrency','secondaryCurrency','primaryOnlyMode','defaultPriceTier','itemQuantityDecimals','inventoryValuationCurrency','allowNegativeStockSales','companyLogo','footerNote','addedCurrencies','defaultInvoiceListType','defaultViewPeriod','defaultViewStart','defaultViewEnd','posAccountId','posPriceTier','posAutoNextOnFinish'];
 const clone=v=>v===undefined?undefined:JSON.parse(JSON.stringify(v));
 // Business options are synced, but local device identity, pairing keys,
 // activation and biometric bindings must never cross devices.
