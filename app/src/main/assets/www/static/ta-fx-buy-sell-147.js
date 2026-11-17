@@ -181,7 +181,7 @@ function profitDetails(){
    (e.deferredGainSyp?' • تسوية أرباح مؤجلة':'')+'</span><strong class="'+(e.gainSyp<0?'text-rose-700':'text-emerald-700')+'">'+money(e.gainSyp,'SYP')+'</strong></div>').join('');
  UI.openModal('<div dir="rtl" class="text-right space-y-3"><h2 class="font-black text-lg"><i class="fas fa-chart-line text-emerald-600"></i> أرباح التصريف</h2>'+
    '<div class="bg-emerald-50 rounded-xl border border-emerald-300 p-3 font-black">'+money(report.profitSyp,'SYP')+'</div>'+
-   '<p class="text-xs text-slate-600">الأرباح المحققة محسوبة بطريقة الإصدار 145، ولا تتضمن تكلفة المبالغ المؤجلة حتى تتم تغطيتها.</p>'+
+   '<p class="text-xs text-slate-600">أرباح التصريف المحققة محسوبة بطريقة الإصدار 145، ولا تتضمن تكلفة المبالغ المؤجلة حتى تتم تغطيتها.</p>'+
    '<div class="max-h-[55vh] overflow-y-auto">'+(items||'<p>لا توجد أرباح تصريف محققة.</p>')+'</div>'+
    '<button type="button" onclick="UI.forceCloseModal()" class="w-full rounded-xl bg-slate-100 p-3">إغلاق</button></div>');
 }
