@@ -212,7 +212,7 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
   },
   async saveConflicts(){
     await ProfileManager.putBatch([{id:this.conflictsKey(),data:this.conflictLog}]);
-    BackupController.stageLatest();
+    if(typeof BackupController!=='undefined')BackupController.stageLatest?.();
     this.renderConflictButton();
   },
   // The old 3.5.114 audit was write-only. In 3.5.115 the same durable store is
@@ -234,7 +234,7 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
     const entries=core.combineReceipts(preserved,scoped);
     if(core.canonical(entries)!==core.canonical(old)){
       await ProfileManager.putBatch([{id:this.auditKey(),data:{version:2,entries}}]);
-      BackupController.stageLatest();
+      if(typeof BackupController!=='undefined')BackupController.stageLatest?.();
     }
     this.resolvedHistory=entries;this.renderConflictButton();
     return entries;
