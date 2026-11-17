@@ -1364,8 +1364,13 @@ button.ta-profile-delete-button:focus-visible{outline:3px solid #0c4a6e!importan
                         <span class="truncate" id="brandCompanyName">المحاسب التقني</span>
                     </h1>
                     <p id="screenSubtitle" class="text-[10px] sm:text-[11px] text-slate-400 truncate">نظام محاسبة ومستودعات (Offline-First)</p>
-                    <div class="ta-header-connections"><button id="salesStaffCounterButton" type="button" class="ta-staff-counter" onclick="AppNav.navigate('agent_hub')" title="موظفو البيع المتصلون" aria-label="عدد موظفي البيع المتصلين"><i class="fas fa-users" aria-hidden="true"></i><span class="ta-staff-counter-label">متصل</span><strong id="salesStaffConnectedCount" aria-live="polite">0</strong></button>
-                <button id="ta-desktop-phone-connection" type="button" class="ta-link-status ta-link-offline" onclick="TiqanyPeerSync.openSettingsFromHeader()" aria-label="فتح مزامنة الموبايل والكمبيوتر من الضبط" title="افتح مزامنة الموبايل والكمبيوتر"><span class="ta-link-devices" aria-hidden="true"><svg width="14" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8m-4-4v4"/></svg><i class="fas fa-mobile-screen"></i></span><span class="ta-link-dot" aria-hidden="true"></span></button></div>
+                    <div class="ta-header-connections"><button id="salesStaffCounterButton" type="button" hidden class="ta-staff-counter" onclick="AppNav.navigate('agent_hub')" title="موظفو البيع المتصلون" aria-label="عدد موظفي البيع المتصلين"><i class="fas fa-users" aria-hidden="true"></i><strong id="salesStaffConnectedCount" aria-live="polite">0</strong></button>
+                <button id="ta-desktop-phone-connection" type="button" hidden class="ta-link-status ta-link-offline" onclick="TiqanyPeerSync.openSettingsFromHeader()" aria-label="فتح مزامنة الموبايل والكمبيوتر من الضبط" title="افتح مزامنة الموبايل والكمبيوتر"><span class="ta-link-devices" aria-hidden="true"><svg width="14" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8m-4-4v4"/></svg><i class="fas fa-mobile-screen"></i></span><span class="ta-link-dot" aria-hidden="true"></span></button>
+                <button id="ta-manager-phone-connection" type="button" hidden class="ta-link-status ta-manager-link"
+                    aria-label="مزامنة موبايلين مدير" title="مزامنة أجهزة مدير"
+                    onclick="TiqanyManagerSync.openSettings()"><span class="ta-link-devices" aria-hidden="true">
+                    <i class="fas fa-mobile-screen"></i><i class="fas fa-mobile-screen"></i></span>
+                    <span class="ta-link-dot" aria-hidden="true"></span></button></div>
                 </div>
             </div>
 
@@ -10600,6 +10605,7 @@ button.ta-profile-delete-button:focus-visible{outline:3px solid #0c4a6e!importan
 <script src="static/tiqany-peer-merge.js"></script>
 <script src="static/tiqany-peer-events.js"></script>
 <script src="static/tiqany-peer-controller.js"></script>
+<script src="static/tiqany-manager-sync-130.js"></script>
 <script src="static/tiqany-recovery.js"></script>
 <script src="static/tiqany-support.js"></script>
 <script src="static/tiqany-ux-3588.js"></script>
