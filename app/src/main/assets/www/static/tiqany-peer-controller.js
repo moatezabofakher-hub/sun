@@ -174,13 +174,17 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
     if(!p||p.companyUid!==uid||typeof p.fieldCompanyId!=='string'||p.fieldCompanyId.length>150)
       throw Error('هوية الشركة أو بيانات الموظفين المستلمة غير صالحة');
     if(p.protection!=null&&!core.bootstrapProtection(p.protection))throw Error('حماية الشركة المستلمة غير صالحة');
-    if(!p.settings||typeof p.settings!=='object'||Array.isArray(p.settings))
-      throw Error('إعدادات الشركة المستلمة غير صالحة');
-    if(Object.keys(p.settings).length>400||JSON.stringify(p.settings).length>250000)
-      throw Error('إعدادات الشركة المستلمة أكبر من الحد الآمن');
-    for(const k of Object.keys(p.settings)){
-      if(k==='__proto__'||k==='constructor'||k==='prototype'||this.firstLinkDeviceOnlyKey(k))
-        throw Error('تم رفض مفتاح إعداد غير مسموح نقله بين الجهازين');
+    // Older verified clients may not yet have a separate settings envelope.
+    // Current 3.5.129 senders always include one; retain old PIN-protected pairing.
+    if(p.settings!==undefined){
+      if(!p.settings||typeof p.settings!=='object'||Array.isArray(p.settings))
+        throw Error('إعدادات الشركة المستلمة غير صالحة');
+      if(Object.keys(p.settings).length>400||JSON.stringify(p.settings).length>250000)
+        throw Error('إعدادات الشركة المستلمة أكبر من الحد الآمن');
+      for(const k of Object.keys(p.settings)){
+        if(k==='__proto__'||k==='constructor'||k==='prototype'||this.firstLinkDeviceOnlyKey(k))
+          throw Error('تم رفض مفتاح إعداد غير مسموح نقله بين الجهازين');
+      }
     }
     if(p.alertCenter!=null&&(typeof p.alertCenter!=='object'||Array.isArray(p.alertCenter)))
       throw Error('تنبيهات الشركة المستلمة غير صالحة');
