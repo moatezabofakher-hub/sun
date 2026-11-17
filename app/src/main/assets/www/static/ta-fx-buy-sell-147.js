@@ -206,6 +206,18 @@ if(typeof CurrencyCatalog!=='undefined'&&typeof CurrencyCatalog.renderAdditional
     '<button type="button" onclick="TiqanyFx147.editRates()" class="mt-2 w-full bg-indigo-700 text-white text-xs font-bold rounded-xl p-2"><i class="fas fa-coins ml-1"></i> سعر الصرف — تعديل الشراء والمبيع</button></div>').join(''):'<p class="text-xs text-slate-500">لم تُضف عملات جديدة.</p>';
  };
 }
+// The authenticated staff catalog carries both the ISO code and the user-given
+// currency name, plus the quote table. Existing employee permission checks stay intact.
+if(typeof FieldSync!=='undefined'&&typeof FieldSync.catalog==='function'){
+ const previousCatalog=FieldSync.catalog;
+ FieldSync.catalog=function(agent,...args){
+  const result=previousCatalog.call(this,agent,...args);
+  result.addedCurrencies=extra().filter(c=>/^[A-Z]{3}$/.test(c.code)).map(c=>({code:c.code,name:String(c.name||c.code).slice(0,60)}));
+  result.allowedCurrencies=[...new Set(['SYP','USD',...(result.allowedCurrencies||[]),...result.addedCurrencies.map(x=>x.code)])];
+  result.currencyExchangeRatesSyp=JSON.parse(JSON.stringify(rates()));
+  return result;
+ };
+}
 const originalEdit=U.newForm;
 U.newForm=function(editId=''){return editId?originalEdit(editId):chooser();};
 U.ratesForm=unifiedRates;
