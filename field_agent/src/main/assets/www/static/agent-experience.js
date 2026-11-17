@@ -38,7 +38,7 @@ Agent.confirmAction=function(title,message,action){this.dialogAction=action;
 Agent.acceptDialog=function(){const fn=this.dialogAction;this.dismissDialog();if(fn)fn();};
 Agent.bottomRoutes=['home','invoices','ops','reports','sync','settings'];
 Agent.navigate=async function(route){
- if(this.screen!==route){document.getElementById('screen')?.scrollTo({top:0,behavior:'instant'});window.scrollTo(0,0);}
+ // Reset scroll after a confirmed route change, not before a dialog opens.
  if(this.screen===route){await this.show(route);return;}
  if(this.screen==='invoice'&&this.draft.length){this.confirmAction('توجد فاتورة لم تُحفظ','هل تريد ترك الفاتورة وفقدان المواد المختارة؟',()=>{this.draft=[];this.stack=this.bottomRoutes.includes(route)?(route==='home'?['home']:['home',route]):[...this.stack,route];this.show(route);});return;}
  if(this.screen==='voucher'&&document.getElementById('vAmount')?.value){this.confirmAction('سند لم يُحفظ','سيتم تجاهل السند الذي أدخلته. هل تريد المتابعة؟',()=>{this.stack=this.bottomRoutes.includes(route)?(route==='home'?['home']:['home',route]):[...this.stack,route];this.show(route);});return;}
@@ -293,6 +293,7 @@ window.__nativePrinterEvent=function(detail,message){const event=typeof detail==
 };
 const previousShow=Agent.show.bind(Agent);
 Agent.show=async function(route){
+ const previousRoute=this.screen;
  // Original renderer still handles activation, provisioning, and sync; specialized screens are rendered here.
  if(route==='printer'||route==='settings'||route==='payment'||route==='backup'){
   this.screen=route;
@@ -309,6 +310,16 @@ Agent.show=async function(route){
  document.getElementById('bottom')?.classList.toggle('hide',!active || this.screen==='voucher');
  document.querySelectorAll('.bottom button').forEach(b=>b.classList.toggle('active',b.id==='nav-'+this.screen));
  if(this.screen==='invoice')this.paintUnits();
+ // Redrawing the same route preserves scroll; a different page starts from top.
+ if(previousRoute!==this.screen){
+   const reset=()=>{
+     const view=document.getElementById('screen');
+     if(view)view.scrollTop=0;
+     if(document.scrollingElement)document.scrollingElement.scrollTop=0;
+     window.scrollTo({top:0,behavior:'instant'});
+   };
+   reset();requestAnimationFrame(reset);
+ }
 };
 // Activate setup after the baseline app's initialization, preserving the IndexedDB namespace.
 })();
