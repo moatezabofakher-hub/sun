@@ -58,7 +58,7 @@ jobs:
       - name: Verify first-link direction, complete settings and source-only protection
         run: node --test tests/peer-first-link-source-only-129.test.js tests/peer-first-phone-to-empty-desktop-35118.test.js
       - name: Verify manager-to-manager transport, header and operation notifications
-        run: node --test tests/manager-mobile-mesh-130.test.js
+        run: node --test tests/manager-mobile-mesh-130.test.js tests/manager-mobile-integration-130.test.js
       - name: Build, sign, and verify app release APK
         shell: bash
         env:
