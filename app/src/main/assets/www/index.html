@@ -3245,6 +3245,13 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                         modal.querySelector('.ta-share-modal') &&
                         typeof ShareholdersUI.back === 'function') {
                         ShareholdersUI.back();
+                    } else if(typeof CapitalLedger!=='undefined' &&
+                        modal.querySelector('.ta-capital-modal')){
+                        if(modal.querySelector('#capitalAmount'))CapitalLedger.open();
+                        else if(CapitalLedger._fromShareholders&&typeof ShareholdersUI!=='undefined'){
+                            CapitalLedger._fromShareholders=false;
+                            ShareholdersUI.open();
+                        }else UI.requestCloseModal();
                     } else UI.requestCloseModal();
                     return;
                 }
