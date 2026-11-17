@@ -48,7 +48,16 @@
       if(typeof op.date!=='string'||!/^\d{4}-\d\d-\d\d/.test(op.date)||isNaN(Date.parse(op.date)))throw Error('تاريخ عملية غير صالح');
       const code=currency(op.currency);
       const rate=positiveNumber(op.exchangeRate);
-      if(!['sale','sale_return','receipt','payment','expense','customer_create','item_create','document_edit'].includes(op.kind))throw Error('نوع عملية غير مصرح به');
+      if(!['sale','sale_return','receipt','payment','expense','currency_exchange','customer_create','item_create','document_edit'].includes(op.kind))throw Error('نوع عملية غير مصرح به');
+      if(op.kind==='currency_exchange'){
+        const from=currency(op.fromCurrency),to=currency(op.toCurrency);
+        if(from===to||code!==from||op.accountId||op.rows)throw Error('عملية تصريف عملة غير صالحة');
+        const fromAmount=money(op.fromAmount,from),toAmount=money(op.toAmount,to);
+        if(fromAmount<=0||toAmount<=0||Math.abs(fromAmount-Number(op.fromAmount))>1e-8||Math.abs(toAmount-Number(op.toAmount))>1e-8)
+          throw Error('قيم تصريف العملة أو دقتها غير صالحة');
+        if(String(op.note||'').length>200)throw Error('بيان التصريف طويل');
+        return {...op,fromCurrency:from,toCurrency:to,fromAmount,toAmount,exchangeRate:rate,note:String(op.note||'').trim()};
+      }
       if(op.kind==='document_edit'){
         if(!/^op_[a-f0-9]{32}$/i.test(op.targetOperationId||''))throw Error('معرف المستند المعدّل غير صالح');
         if(!Number.isInteger(op.baseRevision)||op.baseRevision<0||op.baseRevision>1000)throw Error('رقم مراجعة غير صالح');
@@ -145,7 +154,7 @@
     });
   }
   function toLedgerDocuments(ops, agent, startingInvoice, startingVoucher) {
-    const invoices=[],vouchers=[],expenses=[],customers=[],createdItems=[];
+    const invoices=[],vouchers=[],expenses=[],customers=[],createdItems=[],fxTrades=[];
     for(const op of ops){
       const origin={agentId:agent.id,agentName:agent.name,vehicleName:agent.vehicleName||'',operationId:op.id,localNumber:op.localNumber||'',receivedAt:new Date().toISOString()};
       if(op.kind==='item_create'){
@@ -155,6 +164,8 @@
       }else if(op.kind==='sale'||op.kind==='sale_return'){
         const net=op.netTotal,paid=op.paidAmount;
         invoices.push({id:'field_'+op.id,number:++startingInvoice,type:op.kind,warehouseId:agent.warehouseId,date:op.date,accountId:op.accountId||'',currency:op.currency,exchangeRate:op.exchangeRate,paymentMethod:paid>=net?'cash':paid>0?'partial':'credit',rows:op.rows.map((r,i)=>({...r,rowId:'fieldrow_'+op.id+'_'+i,discount:0})),subTotal:op.subTotal??net,discountValue:op.discountValue||0,discountType:op.discountType||'amount',discountAmount:op.discountAmount||0,taxValue:op.taxValue||0,taxType:op.taxType||'percent',taxAmount:op.taxAmount||0,netTotal:net,paidAmount:paid,remainingAmount:money(net-paid,op.currency),note:op.note||'',fieldOrigin:origin});
+      }else if(op.kind==='currency_exchange'){
+        fxTrades.push({...op});
       }else if(op.kind==='expense'){
         expenses.push({id:'field_'+op.id,category:op.category,amount:op.amount,currency:op.currency,
           exchangeRate:op.exchangeRate,date:op.date,note:op.note||'',updatedAt:new Date().toISOString(),
@@ -163,7 +174,7 @@
         vouchers.push({id:'field_'+op.id,number:++startingVoucher,type:op.kind,date:op.date,accountId:op.accountId,currency:op.currency,amount:op.amount,exchangeRate:op.exchangeRate,accountCurrency:op.currency,accountAmount:op.amount,note:op.note||'',linkedInvoiceId:op.linkedInvoiceOpId?'field_'+op.linkedInvoiceOpId:'',fieldOrigin:{...origin,linkedInvoiceOperationId:op.linkedInvoiceOpId||''}});
       }
     }
-    return {invoices,vouchers,expenses,customers,items:createdItems};
+    return {invoices,vouchers,expenses,customers,items:createdItems,fxTrades};
   }
   function applyStock(baseStock, ops, ackIds, items=[]) {
     const result={...baseStock},acked=new Set(ackIds||[]),catalog=new Map((items||[]).map(it=>[it.id,it]));

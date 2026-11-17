@@ -5,7 +5,7 @@ F.commitOperationsWithRevisions=async function(agent,ops){
  this.assertAuthorizedOps(ops,agent);
  const cfg=this.data();const known=new Set(cfg.imported.map(x=>x.id));
  const fresh=ops.filter(x=>!known.has(x.id));if(!fresh.length)return 0;
- const original={items:State.items,accounts:State.accounts,invoices:State.invoices,vouchers:State.vouchers,expenses:State.expenses||[],
+ const original={items:State.items,accounts:State.accounts,invoices:State.invoices,vouchers:State.vouchers,expenses:State.expenses||[],fxTrades:Array.isArray(State.fxTrades)?State.fxTrades.slice():[],
     imported:cfg.imported,events:cfg.events,history:cfg.operationHistory,used:State.license.opsUsedCount};
  if(!State.license.isActivated&&Number(original.used||0)+fresh.length>LicenseManager.MAX_TRIAL_OPS)
    throw Error('تجاوز الحد التجريبي للتطبيق الرئيسي');
@@ -69,6 +69,7 @@ F.commitOperationsWithRevisions=async function(agent,ops){
    State.items=[...original.items,...(docs.items||[])];
    State.accounts=[...original.accounts,...docs.customers];State.invoices=invoices;State.vouchers=vouchers;
    State.expenses=[...original.expenses,...docs.expenses];
+   this.postFxTrades(agent,docs);
    cfg.imported=[...original.imported,...fresh.map(x=>({id:x.id,agentId:agent.id,receivedAt:new Date().toISOString(),kind:x.kind}))];
    cfg.events=[...original.events,{id:FieldProtocol.uuid(),agentId:agent.id,at:new Date().toISOString(),count:fresh.length,edits:edits.length,mode:'wifi'}].slice(-3000);
    cfg.operationHistory=[...archived,...novel.map(op=>JSON.parse(JSON.stringify(op)))];
@@ -76,7 +77,7 @@ F.commitOperationsWithRevisions=async function(agent,ops){
    if(!State.license.isActivated)State.license.opsUsedCount+=fresh.length;
    await StorageEngine.saveState();return fresh.length;
  }catch(err){
-   State.items=original.items;State.accounts=original.accounts;State.invoices=original.invoices;State.vouchers=original.vouchers;State.expenses=original.expenses;
+   State.items=original.items;State.accounts=original.accounts;State.invoices=original.invoices;State.vouchers=original.vouchers;State.expenses=original.expenses;State.fxTrades=original.fxTrades;
    cfg.imported=original.imported;cfg.events=original.events;cfg.operationHistory=original.history;
    cfg.revisionAudit=(cfg.revisionAudit||[]).filter(x=>!changes.some(y=>y.id===x.id));
    State.license.opsUsedCount=original.used;throw err;

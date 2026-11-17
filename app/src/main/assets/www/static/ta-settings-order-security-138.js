@@ -5,9 +5,10 @@
   const ORDER = [
     'mobile-computer-sync', // computer connection on a manager phone
     'manager-manager-sync',  // manager phone connection
-    'business-profiles',    // existing extra section: keep company accounts
     'company', 'currency', 'invoices', 'items', 'default_period',
-    'printing', 'backup', 'activation', 'security', 'data'
+    'printing', 'backup', 'activation', 'security',
+    'business-profiles',    // preserve extra company profiles without interrupting requested order
+    'data'
   ];
   let dataOpenApproved = false;
   const selectData = () => document.querySelector('details.settings-section[data-settings-section="data"]');

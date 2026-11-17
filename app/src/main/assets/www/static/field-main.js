@@ -255,6 +255,7 @@ const FieldSync = {
         }):[],
       knownIds:known,
       // A cashbox is a separate physical till, not a customer's receivable.
+      enabledCurrencies:(typeof TiqanyFxLedger!=='undefined'?TiqanyFxLedger.activeCurrencies(State):['USD','SYP']),
       agentCash:(typeof FieldCash!=='undefined'?((x)=>({sypCash:x.sypCash,usdCash:x.usdCash}))(FieldCash.summary(a.id)):{sypCash:0,usdCash:0}),
       cashTransfers:config.cashTransfers.filter(x=>x.agentId===a.id),
       warehouseTransfers:[],
@@ -578,7 +579,7 @@ const FieldSync = {
     if(!ops.length)return 0;
     this.assertAuthorizedOps(ops,agent);
     if(ops.some(op=>op.kind==='document_edit'))return this.commitOperationsWithRevisions(agent,ops);
-    const config=this.data(),old={items:State.items,accounts:State.accounts,invoices:State.invoices,vouchers:State.vouchers,expenses:Array.isArray(State.expenses)?State.expenses:[],imported:config.imported,events:config.events,history:config.operationHistory,used:State.license.opsUsedCount};
+    const config=this.data(),old={items:State.items,accounts:State.accounts,invoices:State.invoices,vouchers:State.vouchers,expenses:Array.isArray(State.expenses)?State.expenses:[],fxTrades:Array.isArray(State.fxTrades)?State.fxTrades.slice():[],imported:config.imported,events:config.events,history:config.operationHistory,used:State.license.opsUsedCount};
     const existing=new Set(config.imported.map(x=>x.id));
     const fresh=ops.filter(x=>!existing.has(x.id));
     if(!fresh.length)return 0;
@@ -605,13 +606,14 @@ const FieldSync = {
       State.items=[...old.items,...(docs.items||[])];
       State.accounts=[...old.accounts,...docs.customers];
       State.invoices=[...old.invoices,...docs.invoices];State.vouchers=[...old.vouchers,...docs.vouchers];State.expenses=[...old.expenses,...docs.expenses];
+      this.postFxTrades(agent,docs);
       config.imported=[...old.imported,...fresh.map(x=>({id:x.id,agentId:agent.id,receivedAt:new Date().toISOString(),kind:x.kind}))];
       config.events=[...old.events,{id:FieldProtocol.uuid(),agentId:agent.id,at:new Date().toISOString(),count:fresh.length,mode:'wifi'}].slice(-3000);
       config.operationHistory=[...old.history,...fresh.map(op=>JSON.parse(JSON.stringify(op)))];
       if(!State.license.isActivated)State.license.opsUsedCount+=fresh.length;
       await StorageEngine.saveState();
       return fresh.length;
-    }catch(e){State.items=old.items;State.accounts=old.accounts;State.invoices=old.invoices;State.vouchers=old.vouchers;State.expenses=old.expenses;config.imported=old.imported;config.events=old.events;config.operationHistory=old.history;State.license.opsUsedCount=old.used;throw e;}
+    }catch(e){State.items=old.items;State.accounts=old.accounts;State.invoices=old.invoices;State.vouchers=old.vouchers;State.expenses=old.expenses;State.fxTrades=old.fxTrades;config.imported=old.imported;config.events=old.events;config.operationHistory=old.history;State.license.opsUsedCount=old.used;throw e;}
   },
   async previewFile(input){
     const file=input.files?.[0];if(!file)return;
@@ -653,7 +655,7 @@ const FieldSync = {
     if(this.busy||this.lanBusy||!this.staged?.ops?.length)return;
     this.busy=true;
     const {agent,ops}=this.staged,c=this.data();
-    const old={items:State.items,accounts:State.accounts,invoices:State.invoices,vouchers:State.vouchers,expenses:Array.isArray(State.expenses)?State.expenses:[],imported:c.imported,events:c.events,history:c.operationHistory,opsUsedCount:State.license.opsUsedCount};
+    const old={items:State.items,accounts:State.accounts,invoices:State.invoices,vouchers:State.vouchers,expenses:Array.isArray(State.expenses)?State.expenses:[],fxTrades:Array.isArray(State.fxTrades)?State.fxTrades.slice():[],imported:c.imported,events:c.events,history:c.operationHistory,opsUsedCount:State.license.opsUsedCount};
     try {
       if(ops.some(op=>op.kind==='document_edit')){
         const count=await this.commitLanOperations(agent,ops);
@@ -684,6 +686,7 @@ const FieldSync = {
       State.items=[...old.items,...(docs.items||[])];
       State.accounts=[...old.accounts,...docs.customers];
       State.invoices=[...old.invoices,...docs.invoices];State.vouchers=[...old.vouchers,...docs.vouchers];State.expenses=[...old.expenses,...docs.expenses];
+      this.postFxTrades(agent,docs);
       c.imported=[...old.imported,...fresh.map(x=>({id:x.id,agentId:agent.id,receivedAt:new Date().toISOString(),kind:x.kind}))];
       c.events=[...old.events,{id:FieldProtocol.uuid(),agentId:agent.id,at:new Date().toISOString(),count:fresh.length}].slice(-3000);
       c.operationHistory=[...old.history,...fresh.map(op=>JSON.parse(JSON.stringify(op)))];
@@ -693,7 +696,7 @@ const FieldSync = {
       if(typeof AppNav!=='undefined')AppNav.refreshAfterSync?.();
       // Let owner transfer ACK back to agent through Quick Share / Bluetooth.
       await this.exportAck(agent.id);
-    }catch(e){State.items=old.items;State.accounts=old.accounts;State.invoices=old.invoices;State.vouchers=old.vouchers;State.expenses=old.expenses;c.imported=old.imported;c.events=old.events;c.operationHistory=old.history;State.license.opsUsedCount=old.opsUsedCount;UI.toast('لم يتم ترحيل البيانات: '+e.message,'error');}
+    }catch(e){State.items=old.items;State.accounts=old.accounts;State.invoices=old.invoices;State.vouchers=old.vouchers;State.expenses=old.expenses;State.fxTrades=old.fxTrades;c.imported=old.imported;c.events=old.events;c.operationHistory=old.history;State.license.opsUsedCount=old.opsUsedCount;UI.toast('لم يتم ترحيل البيانات: '+e.message,'error');}
     finally{this.busy=false;}
   }
 };

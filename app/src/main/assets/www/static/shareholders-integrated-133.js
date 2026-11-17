@@ -106,6 +106,11 @@
      const usd=exp.currency==='USD'?amt:amt/rate;
      rows.push({id:'expense:'+String(exp.id),date:datePart(exp.date),usdCents:-Math.round(usd*100),type:'expense'});
    }
+   for(const trade of (Array.isArray(s.fxTrades)?s.fxTrades:[])){
+     if(!trade?.id||!dateValid(datePart(trade.date)))continue;
+     const gain=Number(trade.profitUSD);
+     if(Number.isFinite(gain))rows.push({id:'fx:'+trade.id,date:datePart(trade.date),usdCents:Math.round(gain*100),type:'fx'});
+   }
    return rows;
  }
  function operatingProfit(s,start='0001-01-01'){
