@@ -177,7 +177,7 @@ function profitDetails(){
  const operations=[...report.byId.values()].filter(x=>x.gainSyp!==null && x.gainSyp!==0).reverse();
  const items=operations.slice(0,100).map(e=>
    '<div class="flex justify-between gap-3 py-2 border-b border-slate-100 text-xs"><span>'+
-   esc(String(e.date||'').slice(0,10))+' • '+esc(e.fromCurrency)+' → '+esc(e.toCurrency)+
+   esc(root.TiqanyReportDate148?.calendarDate(e.date)||String(e.date||'').slice(0,10))+' • '+esc(e.fromCurrency)+' → '+esc(e.toCurrency)+
    (e.deferredGainSyp?' • تسوية أرباح مؤجلة':'')+'</span><strong class="'+(e.gainSyp<0?'text-rose-700':'text-emerald-700')+'">'+money(e.gainSyp,'SYP')+'</strong></div>').join('');
  UI.openModal('<div dir="rtl" class="text-right space-y-3"><h2 class="font-black text-lg"><i class="fas fa-chart-line text-emerald-600"></i> أرباح التصريف</h2>'+
    '<div class="bg-emerald-50 rounded-xl border border-emerald-300 p-3 font-black">'+money(report.profitSyp,'SYP')+'</div>'+
