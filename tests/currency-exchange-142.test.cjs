@@ -258,7 +258,7 @@ test('Core P&L calculation adds realized FX exactly once without unbound employe
  assert.ok(from>0 && to>from,'report calculates realized exchanges');
  const block=page.slice(from,to);
  assert.match(block,/exchangeProfitSyp/);
- assert.match(block,/estimatedProfitUsd - expenseTotalUsd/);
- assert.match(block,/exchangeProfitSyp\/\(Number\(State\.settings\.exchangeRate\)\|\|1\)/);
+ assert.match(block,/grossProfitUsd = estimatedProfitUsd \+ exchangeProfitSyp/);
+ assert.match(block,/netProfitUsd = grossProfitUsd - expenseTotalUsd/);
  assert.match(block,/agentId==='all'/,'manager report can filter employees');
 });
