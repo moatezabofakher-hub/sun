@@ -91,7 +91,7 @@ const same=(a,b)=>canonical(a)===canonical(b);
 // The field employee creates immutable operation IDs offline. Importing the same
 // operation into two masters changes only the LOCAL bookkeeping number and
 // reception timestamp. These fields must not cause a double posting.
-const DOCUMENT_COLLECTIONS=new Set(['accounts','invoices','vouchers','expenses']);
+const DOCUMENT_COLLECTIONS=new Set(['accounts','invoices','vouchers','expenses','currencyExchanges']);
 function fieldIdentity(collection,record){
  if(!DOCUMENT_COLLECTIONS.has(collection)||!record||typeof record!=='object')return null;
  const o=record.fieldOrigin;
