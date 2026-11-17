@@ -3,7 +3,7 @@ name: Tiqany Acc - Main Signed Release
 on:
   workflow_dispatch:
   push:
-    branches: [main, 'feat/integrated-shareholders-3.5.137']
+    branches: [main, 'feat/integrated-shareholders-3.5.137', 'feat/currency-exchange-142']
 
 permissions:
   contents: read
@@ -77,6 +77,12 @@ jobs:
         run: |
           node --test tests/release141-shareholder-edit-back.test.js
           node --test tests/shareholders-integration-133.test.js
+      - name: Verify currency exchange engine and manager UI
+        run: |
+          node --test tests/currency-exchange-142.test.cjs
+          node --check app/src/main/assets/www/static/ta-currency-exchange-core-142.js
+          node --check app/src/main/assets/www/static/ta-currency-exchange-ui-142.js
+          node --check app/src/main/assets/www/static/field-protocol.js
       - name: Build, sign, and verify app release APK
         shell: bash
         env:
@@ -117,14 +123,14 @@ jobs:
             exit 1
           fi
           mkdir -p output
-          cp "$apk" "output/Tiqany-Acc-Main-3.5.141-RELEASE.apk"
-          (cd output && sha256sum "Tiqany-Acc-Main-3.5.141-RELEASE.apk" > "Tiqany-Acc-Main-3.5.141-RELEASE.apk.sha256")
+          cp "$apk" "output/Tiqany-Acc-Main-3.5.142-RELEASE.apk"
+          (cd output && sha256sum "Tiqany-Acc-Main-3.5.142-RELEASE.apk" > "Tiqany-Acc-Main-3.5.142-RELEASE.apk.sha256")
       - name: Upload signed app APK and checksum
         uses: actions/upload-artifact@v4
         with:
-          name: Tiqany-Acc-Main-3.5.141-RELEASE
+          name: Tiqany-Acc-Main-3.5.142-RELEASE
           path: |
-            output/Tiqany-Acc-Main-3.5.141-RELEASE.apk
-            output/Tiqany-Acc-Main-3.5.141-RELEASE.apk.sha256
+            output/Tiqany-Acc-Main-3.5.142-RELEASE.apk
+            output/Tiqany-Acc-Main-3.5.142-RELEASE.apk.sha256
           if-no-files-found: error
           retention-days: 30

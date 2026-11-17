@@ -220,6 +220,7 @@ const FieldSync = {
     let imageBudget=650000,ledgerBudget=4600;
     return {kind:'provision',format:FieldProtocol.FORMAT,companyId:config.companyId,companyName:State.settings.companyName,agentId:a.id,agentName:a.name,vehicleName:a.vehicleName,warehouseId:a.warehouseId,warehouseName:WarehouseController.name(a.warehouseId),key:a.key,
       issuedAt:new Date().toISOString(),permissions:TiqanyAgentPermissions.normalize(a.permissions),employeeAuth:a.employeeAuth||null,exchangeRate:Number(State.settings.exchangeRate),
+      allowedCurrencies:[...new Set([...(typeof CurrencyCatalog!=='undefined'?CurrencyCatalog.active():['USD','SYP']),...(State.settings.addedCurrencies||[]).map(c=>c.code).filter(c=>/^[A-Z]{3}$/.test(c))])],
       defaultPriceTier:['wholesale','center','consumer'].includes(State.settings.defaultPriceTier)?State.settings.defaultPriceTier:'wholesale',
       // Company branding is an authenticated part of each refreshed catalog; never copied from agent edits.
       companyPhone:String(State.settings.companyPhone||'').slice(0,100),
@@ -255,7 +256,7 @@ const FieldSync = {
         }):[],
       knownIds:known,
       // A cashbox is a separate physical till, not a customer's receivable.
-      agentCash:(typeof FieldCash!=='undefined'?((x)=>({sypCash:x.sypCash,usdCash:x.usdCash}))(FieldCash.summary(a.id)):{sypCash:0,usdCash:0}),
+      agentCash:(typeof FieldCash!=='undefined'?((x)=>({sypCash:x.sypCash,usdCash:x.usdCash,otherCurrencies:x.otherCurrencies||{}}))(FieldCash.summary(a.id)):{sypCash:0,usdCash:0,otherCurrencies:{}}),
       cashTransfers:config.cashTransfers.filter(x=>x.agentId===a.id),
       warehouseTransfers:[],
       historyPage:typeof this.historyPage==='function'?this.historyPage(a,historyCursor):{ops:[],nextCursor:0,total:0}};
@@ -578,7 +579,7 @@ const FieldSync = {
     if(!ops.length)return 0;
     this.assertAuthorizedOps(ops,agent);
     if(ops.some(op=>op.kind==='document_edit'))return this.commitOperationsWithRevisions(agent,ops);
-    const config=this.data(),old={items:State.items,accounts:State.accounts,invoices:State.invoices,vouchers:State.vouchers,expenses:Array.isArray(State.expenses)?State.expenses:[],imported:config.imported,events:config.events,history:config.operationHistory,used:State.license.opsUsedCount};
+    const config=this.data(),old={items:State.items,accounts:State.accounts,invoices:State.invoices,vouchers:State.vouchers,expenses:Array.isArray(State.expenses)?State.expenses:[],imported:config.imported,events:config.events,history:config.operationHistory,exchanges:State.currencyExchanges,used:State.license.opsUsedCount};
     const existing=new Set(config.imported.map(x=>x.id));
     const fresh=ops.filter(x=>!existing.has(x.id));
     if(!fresh.length)return 0;
@@ -602,6 +603,7 @@ const FieldSync = {
         if(old.items.some(x=>String(x.name).trim().toLowerCase()===String(item.name).trim().toLowerCase()||x.id===item.id))
           throw Error('المادة موجودة مسبقًا على الرئيسي؛ لم تُقبل الإضافة المكررة');
       }
+      window.TiqanyFxUI?.stageAgentExchanges(fresh,agent);
       State.items=[...old.items,...(docs.items||[])];
       State.accounts=[...old.accounts,...docs.customers];
       State.invoices=[...old.invoices,...docs.invoices];State.vouchers=[...old.vouchers,...docs.vouchers];State.expenses=[...old.expenses,...docs.expenses];
@@ -611,7 +613,7 @@ const FieldSync = {
       if(!State.license.isActivated)State.license.opsUsedCount+=fresh.length;
       await StorageEngine.saveState();
       return fresh.length;
-    }catch(e){State.items=old.items;State.accounts=old.accounts;State.invoices=old.invoices;State.vouchers=old.vouchers;State.expenses=old.expenses;config.imported=old.imported;config.events=old.events;config.operationHistory=old.history;State.license.opsUsedCount=old.used;throw e;}
+    }catch(e){State.items=old.items;State.accounts=old.accounts;State.invoices=old.invoices;State.vouchers=old.vouchers;State.expenses=old.expenses;config.imported=old.imported;config.events=old.events;config.operationHistory=old.history;State.currencyExchanges=old.exchanges;State.license.opsUsedCount=old.used;throw e;}
   },
   async previewFile(input){
     const file=input.files?.[0];if(!file)return;
@@ -653,7 +655,7 @@ const FieldSync = {
     if(this.busy||this.lanBusy||!this.staged?.ops?.length)return;
     this.busy=true;
     const {agent,ops}=this.staged,c=this.data();
-    const old={items:State.items,accounts:State.accounts,invoices:State.invoices,vouchers:State.vouchers,expenses:Array.isArray(State.expenses)?State.expenses:[],imported:c.imported,events:c.events,history:c.operationHistory,opsUsedCount:State.license.opsUsedCount};
+    const old={items:State.items,accounts:State.accounts,invoices:State.invoices,vouchers:State.vouchers,expenses:Array.isArray(State.expenses)?State.expenses:[],imported:c.imported,events:c.events,history:c.operationHistory,exchanges:State.currencyExchanges,opsUsedCount:State.license.opsUsedCount};
     try {
       if(ops.some(op=>op.kind==='document_edit')){
         const count=await this.commitLanOperations(agent,ops);
@@ -681,6 +683,7 @@ const FieldSync = {
         if(old.items.some(x=>String(x.name).trim().toLowerCase()===String(item.name).trim().toLowerCase()||x.id===item.id))
           throw Error('المادة موجودة مسبقًا على الرئيسي؛ لم تُقبل الإضافة المكررة');
       }
+      window.TiqanyFxUI?.stageAgentExchanges(fresh,agent);
       State.items=[...old.items,...(docs.items||[])];
       State.accounts=[...old.accounts,...docs.customers];
       State.invoices=[...old.invoices,...docs.invoices];State.vouchers=[...old.vouchers,...docs.vouchers];State.expenses=[...old.expenses,...docs.expenses];
@@ -693,7 +696,7 @@ const FieldSync = {
       if(typeof AppNav!=='undefined')AppNav.refreshAfterSync?.();
       // Let owner transfer ACK back to agent through Quick Share / Bluetooth.
       await this.exportAck(agent.id);
-    }catch(e){State.items=old.items;State.accounts=old.accounts;State.invoices=old.invoices;State.vouchers=old.vouchers;State.expenses=old.expenses;c.imported=old.imported;c.events=old.events;c.operationHistory=old.history;State.license.opsUsedCount=old.opsUsedCount;UI.toast('لم يتم ترحيل البيانات: '+e.message,'error');}
+    }catch(e){State.items=old.items;State.accounts=old.accounts;State.invoices=old.invoices;State.vouchers=old.vouchers;State.expenses=old.expenses;c.imported=old.imported;c.events=old.events;c.operationHistory=old.history;State.currencyExchanges=old.exchanges;State.license.opsUsedCount=old.opsUsedCount;UI.toast('لم يتم ترحيل البيانات: '+e.message,'error');}
     finally{this.busy=false;}
   }
 };

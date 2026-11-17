@@ -46,9 +46,22 @@
       seen.add(op.id);
       if(op.agentId!==agentId||op.companyId!==companyId||op.warehouseId!==warehouseId)throw Error('العملية تابعة لموظف بيع أو شركة أو مستودع آخر');
       if(typeof op.date!=='string'||!/^\d{4}-\d\d-\d\d/.test(op.date)||isNaN(Date.parse(op.date)))throw Error('تاريخ عملية غير صالح');
+      if(op.kind==='currency_exchange'){
+        if(op.accountId||op.rows||op.amount!=null)throw Error('تصريف العملة ليس فاتورة أو سند عميل');
+        const from=String(op.fromCurrency||'').trim().toUpperCase(),to=String(op.toCurrency||'').trim().toUpperCase();
+        if(!/^[A-Z]{3}$/.test(from)||!/^[A-Z]{3}$/.test(to)||from===to||op.currency!==from)throw Error('عملات التصريف غير صالحة');
+        const spent=money(op.fromAmount,from),received=money(op.toAmount,to);
+        const equivalent=money(op.equivalentSyp,'SYP');
+        if(!(spent>0&&received>0&&equivalent>0))throw Error('قيمة التصريف غير صالحة');
+        if((from==='SYP'&&Math.abs(equivalent-spent)>0.01)||(to==='SYP'&&Math.abs(equivalent-received)>0.01))
+          throw Error('القيمة المكافئة بالليرة غير متطابقة');
+        if(String(op.note||'').length>200)throw Error('بيان التصريف طويل');
+        return {...op,fromCurrency:from,toCurrency:to,fromAmount:spent,toAmount:received,equivalentSyp:equivalent,
+          currency:from,exchangeRate:positiveNumber(op.exchangeRate),note:String(op.note||'')};
+      }
       const code=currency(op.currency);
       const rate=positiveNumber(op.exchangeRate);
-      if(!['sale','sale_return','receipt','payment','expense','customer_create','item_create','document_edit'].includes(op.kind))throw Error('نوع عملية غير مصرح به');
+      if(!['sale','sale_return','receipt','payment','expense','customer_create','item_create','document_edit','currency_exchange'].includes(op.kind))throw Error('نوع عملية غير مصرح به');
       if(op.kind==='document_edit'){
         if(!/^op_[a-f0-9]{32}$/i.test(op.targetOperationId||''))throw Error('معرف المستند المعدّل غير صالح');
         if(!Number.isInteger(op.baseRevision)||op.baseRevision<0||op.baseRevision>1000)throw Error('رقم مراجعة غير صالح');
@@ -145,10 +158,12 @@
     });
   }
   function toLedgerDocuments(ops, agent, startingInvoice, startingVoucher) {
-    const invoices=[],vouchers=[],expenses=[],customers=[],createdItems=[];
+    const invoices=[],vouchers=[],expenses=[],customers=[],createdItems=[],exchanges=[];
     for(const op of ops){
       const origin={agentId:agent.id,agentName:agent.name,vehicleName:agent.vehicleName||'',operationId:op.id,localNumber:op.localNumber||'',receivedAt:new Date().toISOString()};
-      if(op.kind==='item_create'){
+      if(op.kind==='currency_exchange'){
+        exchanges.push({...op,source:'agent',fieldOrigin:origin});
+      }else if(op.kind==='item_create'){
         createdItems.push({...op.item,fieldOrigin:origin});
       }else if(op.kind==='customer_create'){
         customers.push({...op.account,fieldOrigin:origin});
@@ -163,7 +178,7 @@
         vouchers.push({id:'field_'+op.id,number:++startingVoucher,type:op.kind,date:op.date,accountId:op.accountId,currency:op.currency,amount:op.amount,exchangeRate:op.exchangeRate,accountCurrency:op.currency,accountAmount:op.amount,note:op.note||'',linkedInvoiceId:op.linkedInvoiceOpId?'field_'+op.linkedInvoiceOpId:'',fieldOrigin:{...origin,linkedInvoiceOperationId:op.linkedInvoiceOpId||''}});
       }
     }
-    return {invoices,vouchers,expenses,customers,items:createdItems};
+    return {invoices,vouchers,expenses,customers,items:createdItems,exchanges};
   }
   function applyStock(baseStock, ops, ackIds, items=[]) {
     const result={...baseStock},acked=new Set(ackIds||[]),catalog=new Map((items||[]).map(it=>[it.id,it]));

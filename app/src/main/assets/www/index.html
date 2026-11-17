@@ -1615,7 +1615,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
             transfers: [],
             expenses: [],
             capitalMovements: [],
-            shareholderOwners: [], shareholderMovements: [],
+            shareholderOwners: [], shareholderMovements: [], currencyExchanges: [],
             fieldSync: {companyId:'',agents:[],imported:[],events:[]},
             alertCenter: { entries: [], seenImportIds: null, stockLevels: null }
         };
@@ -1739,6 +1739,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                             State.capitalMovements = Array.isArray(d.capitalMovements) ? d.capitalMovements : [];
                             State.shareholderOwners = Array.isArray(d.shareholderOwners) ? d.shareholderOwners : [];
                             State.shareholderMovements = Array.isArray(d.shareholderMovements) ? d.shareholderMovements : [];
+                            State.currencyExchanges = Array.isArray(d.currencyExchanges) ? d.currencyExchanges : [];
                             State.alertCenter = d.alertCenter || {entries:[],seenImportIds:null,stockLevels:null};
                             if (!State.warehouses.some(w => w.id === State.settings.selectedWarehouseId))
                                 State.settings.selectedWarehouseId = 'wh_main';
@@ -1785,6 +1786,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                             capitalMovements: State.capitalMovements,
                             shareholderOwners: State.shareholderOwners,
                             shareholderMovements: State.shareholderMovements,
+                            currencyExchanges: State.currencyExchanges,
                             alertCenter: State.alertCenter
                         }
                     });
@@ -1815,7 +1817,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 State.transfers = [];
                 State.expenses = [];
                 State.capitalMovements = [];
-                State.shareholderOwners = []; State.shareholderMovements = [];
+                State.shareholderOwners = []; State.shareholderMovements = []; State.currencyExchanges = [];
                 State.settings.shareholderDistribution = {values:{}};
                 State.alertCenter = {entries:[],seenImportIds:null,stockLevels:null};
                 State.settings.selectedWarehouseId = 'wh_main';
@@ -2012,7 +2014,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                         {id:'profile_registry',data:registry}
                     ]);
                     this.registry=registry;this.activeId=id;
-                    for(const key of ['settings','categories','items','accounts','invoices','vouchers','warehouses','transfers','expenses','capitalMovements','shareholderOwners','shareholderMovements','fieldSync','alertCenter'])
+                    for(const key of ['settings','categories','items','accounts','invoices','vouchers','warehouses','transfers','expenses','capitalMovements','shareholderOwners','shareholderMovements','currencyExchanges','fieldSync','alertCenter'])
                         State[key]=JSON.parse(JSON.stringify(newState[key]??DEFAULT_PROFILE[key]));
                     State.license=commonLicense;
                     if(typeof SettingsRevisionClock!=='undefined')SettingsRevisionClock.remember(State.settings);
@@ -2095,7 +2097,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                         {id:'profile_registry',data:updated}
                     ],[profileId]);
                     this.registry=updated;this.activeId=newId;
-                    for(const key of ['settings','categories','items','accounts','invoices','vouchers','warehouses','transfers','expenses','capitalMovements','shareholderOwners','shareholderMovements','fieldSync','alertCenter'])
+                    for(const key of ['settings','categories','items','accounts','invoices','vouchers','warehouses','transfers','expenses','capitalMovements','shareholderOwners','shareholderMovements','currencyExchanges','fieldSync','alertCenter'])
                         State[key]=JSON.parse(JSON.stringify(newData[key]??DEFAULT_PROFILE[key]));
                     State.license=license;
                     if(typeof SettingsRevisionClock!=='undefined')SettingsRevisionClock.remember(State.settings);
@@ -2274,8 +2276,8 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 const license=State.license;
                 this._preRestoreProtection=JSON.parse(JSON.stringify(State.settings?.appProtection||{}));
                 const fresh=this.newState(d.settings?.companyName||this.currentName());
-                for(const key of ['settings','categories','items','accounts','invoices','vouchers','warehouses','transfers','expenses','capitalMovements','shareholderOwners','shareholderMovements','fieldSync','alertCenter'])
-                    State[key]=JSON.parse(JSON.stringify(d[key]??fresh[key]??(['capitalMovements','shareholderOwners','shareholderMovements'].includes(key)?[]:null)));
+                for(const key of ['settings','categories','items','accounts','invoices','vouchers','warehouses','transfers','expenses','capitalMovements','shareholderOwners','shareholderMovements','currencyExchanges','fieldSync','alertCenter'])
+                    State[key]=JSON.parse(JSON.stringify(d[key]??fresh[key]??(['capitalMovements','shareholderOwners','shareholderMovements','currencyExchanges'].includes(key)?[]:null)));
                 State.license=license;
                     if(typeof SettingsRevisionClock!=='undefined')SettingsRevisionClock.remember(State.settings); // Activation cannot be imported from another device/business.
                 // Keep the approved account's security identity on this device.
@@ -5919,7 +5921,12 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                         ? Number(exp.exchangeRate) : (Number(State.settings.exchangeRate) || 1);
                     return total + (exp.currency === 'USD' ? amount : amount / originalRate);
                 }, 0);
-                const netProfitUsd = estimatedProfitUsd - expenseTotalUsd;
+                const exchangeProfitSyp = typeof TiqanyCurrencyExchangeCore!=='undefined'
+                   ?[...TiqanyCurrencyExchangeCore.analyze(State.currencyExchanges||[]).byId.values()]
+                     .filter(e=>e.gainSyp!==null && TimeFilter.matches(e.date,period,selectedDate,endDate) && (agentId==='all'||agentId===(e.agentId||'office')))
+                     .reduce((sum,e)=>sum+e.gainSyp,0):0;
+                const netProfitUsd = estimatedProfitUsd - expenseTotalUsd
+                  + exchangeProfitSyp/(Number(State.settings.exchangeRate)||1);
                 // Equity distributions are reported separately, never as operating expenses.
                 const shareholderDrawsInPeriod=(Array.isArray(State.shareholderMovements)?State.shareholderMovements:[])
                   .filter(e=>e?.type==='profitDraw'&&TimeFilter.matches(e.date,period,selectedDate,endDate));
@@ -5966,7 +5973,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                             ${['custom','range'].includes(period)?`<div class="grid grid-cols-2 gap-2"><label>من<input type="date" class="w-full border rounded p-2" value="${AppEscape.text(selectedDate)}" onchange="AppNav.navigate('reports',{tab:'cashbox',cashAgentId:'${AppEscape.text(cashScope)}',period:'${period}',date:this.value,end:'${AppEscape.text(endDate)}'},true)"></label>${period==='range'?`<label>إلى<input type="date" class="w-full border rounded p-2" value="${AppEscape.text(endDate)}" onchange="AppNav.navigate('reports',{tab:'cashbox',cashAgentId:'${AppEscape.text(cashScope)}',period:'range',date:'${AppEscape.text(selectedDate)}',end:this.value},true)"></label>`:''}</div>`:''}
                             <p class="text-[11px] text-slate-500">الرصيد الحالي للصندوق من كل الحركات، أما السجل أدناه فيُفلتر حسب الفترة.</p>
                         </div>
-                        ${CapitalLedger.card()}
+                        
                         <div class="grid grid-cols-2 gap-2.5 mb-3">
                             <div class="bg-emerald-700 text-white p-3.5 rounded-2xl"><span class="text-xs opacity-80 block">صافي صندوق الليرة السورية</span><span class="font-extrabold text-base sm:text-lg">${Accounting.format(cash.sypCash, 'SYP')}</span></div>
                             <div class="bg-slate-900 text-white p-3.5 rounded-2xl"><span class="text-xs opacity-80 block">صافي صندوق الدولار الأمريكي</span><span class="font-extrabold text-base sm:text-lg text-amber-300">${Accounting.format(cash.usdCash, 'USD')}</span></div>
@@ -10823,5 +10830,6 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
 <script defer src="static/ta-date-view-35107.js"></script>
 <script src="static/company-lifecycle-128.js"></script>
 <script src="static/ta-settings-order-security-138.js"></script>
+<script defer src="static/ta-currency-exchange-core-142.js"></script><script defer src="static/ta-currency-exchange-ui-142.js"></script>
 </body>
 </html>

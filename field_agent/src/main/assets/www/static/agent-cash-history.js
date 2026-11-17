@@ -10,7 +10,7 @@ A.mergeHistoryPage=function(page,old=this.state){
  if(!page||!Array.isArray(page.ops))return {ops,cursor,restoredIds};
  const current=new Set(ops.map(o=>o.id));
  for(const op of page.ops){
-  if(!op||typeof op.id!=='string'||!op.id.startsWith('op_')||op.agentId!==old.agentId||op.companyId!==old.companyId||!['sale','sale_return','receipt','payment','expense','customer_create','document_edit'].includes(op.kind))continue;
+  if(!op||typeof op.id!=='string'||!op.id.startsWith('op_')||op.agentId!==old.agentId||op.companyId!==old.companyId||!['sale','sale_return','receipt','payment','expense','customer_create','document_edit','currency_exchange'].includes(op.kind))continue;
   if(op.kind==='document_edit'){
     const i=ops.findIndex(x=>x.id===op.targetOperationId);
     if(i>=0&&op.replacement&&Number(op.revision||0)>Number(ops[i].revision||0))ops[i]=op.replacement;
@@ -48,10 +48,22 @@ A.mergeTransferPage=function(page,old=this.state){
 A.cashSummary=function(){
  const base=this.state.agentCash||{};
  let syp=Number(base.sypCash||0),usd=Number(base.usdCash||0);
+ const extra={...(base.otherCurrencies||{})};
+ const exchangeMovements=[];
  const accepted=new Set(this.state.snapshotIds||[]);
  const pending=[];
  for(const op of (this.state.ops||[])){
   if(accepted.has(op.id)||op.kind==='customer_create')continue;
+  if(op.kind==='currency_exchange'){
+    const change=(code,amount)=>{
+      if(code==='SYP')syp+=amount;
+      else if(code==='USD')usd+=amount;
+      else extra[code]=(Number(extra[code])||0)+amount;
+    };
+    change(op.fromCurrency,-Number(op.fromAmount||0));
+    change(op.toCurrency,Number(op.toAmount||0));
+    continue;
+  }
   const amount=['sale','sale_return'].includes(op.kind)?Number(op.paidAmount||0):Number(op.amount||0);
   if(!Number.isFinite(amount)||amount<=0)continue;
   const positive=['sale','receipt'].includes(op.kind);
@@ -59,13 +71,18 @@ A.cashSummary=function(){
   pending.push({id:op.id,date:op.date,currency:op.currency,amount:positive?amount:-amount,desc:this.kindName(op.kind)+' · '+(op.kind==='expense'?op.category+' · ':'')+String(op.localNumber||''),pending:true});
  }
  const transfers=(this.state.cashTransfers||[]).filter(t=>!this.state.warehouseSwitchAt||String(t.date||'')>=this.state.warehouseSwitchAt).map(t=>({id:t.id,date:t.date,currency:t.currency,amount:t.direction==='toAgent'?Number(t.amount):-Number(t.amount),desc:t.direction==='toAgent'?'استلام دفعة من الرئيسي':'تسليم دفعة للرئيسي',pending:false}));
- const local=(this.state.ops||[]).filter(op=>op.kind!=='customer_create').map(op=>{
+ const local=(this.state.ops||[]).filter(op=>op.kind!=='customer_create'&&op.kind!=='currency_exchange').map(op=>{
    const amount=['sale','sale_return'].includes(op.kind)?Number(op.paidAmount||0):Number(op.amount||0);
    return {id:op.id,date:op.date,currency:op.currency,amount:['sale','receipt'].includes(op.kind)?amount:-amount,
      desc:this.kindName(op.kind)+' · '+(op.kind==='expense'?op.category+' · ':'')+String(op.localNumber||''),pending:!accepted.has(op.id)};
  }).filter(x=>Number.isFinite(x.amount)&&x.amount!==0);
- return {syp:Math.round(syp),usd:Math.round(usd*100)/100,
-   movements:[...local,...transfers].sort((a,b)=>String(b.date).localeCompare(String(a.date)))};
+ for(const op of (this.state.ops||[]).filter(o=>o.kind==='currency_exchange')){
+    for(const [c,value] of [[op.fromCurrency,-Number(op.fromAmount)],[op.toCurrency,Number(op.toAmount)]]){
+      exchangeMovements.push({id:op.id+':'+c,date:op.date,currency:c,amount:value,desc:'تصريف عملة · '+String(op.localNumber||''),pending:!accepted.has(op.id)});
+    }
+  }
+ return {otherCurrencies:extra,syp:Math.round(syp),usd:Math.round(usd*100)/100,
+   movements:[...local,...exchangeMovements,...transfers].sort((a,b)=>String(b.date).localeCompare(String(a.date)))};
 };
 A.cashShown=60;
 A.invoicesShown=60;
@@ -74,7 +91,7 @@ A.showMoreInvoices=function(){this.invoicesShown+=60;this.show('invoices');};
 A.renderCashbox=function(){
  const box=this.cashSummary(),updated=this.state.lastSyncAt||this.state.issuedAt;
  return `<div class="hero"><h2>صندوق موظف البيع</h2><p>رصيد النقد الخاص بك بالدولار والليرة؛ يتأثر بالفواتير المقبوضة والسندات، وبالدفعات التي يسجلها الرئيسي مع صندوقك.</p></div>
- <section class="panel"><h3>الرصيد الحالي</h3><div class="grid grid-cols-2 gap-2"><div class="stat"><b>${this.money(box.syp,'SYP')}</b><small>ليرة سورية SYP</small></div><div class="stat"><b>${this.money(box.usd,'USD')}</b><small>دولار USD</small></div></div>
+ <section class="panel"><h3>الرصيد الحالي</h3><div class="grid grid-cols-2 gap-2"><div class="stat"><b>${this.money(box.syp,'SYP')}</b><small>ليرة سورية SYP</small></div><div class="stat"><b>${this.money(box.usd,'USD')}</b><small>دولار USD</small></div>${Object.entries(box.otherCurrencies||{}).filter(([c,n])=>c!=='USD'&&c!=='SYP'&&Number(n)!==0).map(([c,n])=>`<div class="stat"><b>${this.money(n,c)}</b><small>${this.escape(c)}</small></div>`).join('')}</div>
  <p class="tiny">${updated?'آخر كشف من الرئيسي: '+esc(new Date(updated).toLocaleString('ar')):'لم يتم استلام كشف من الرئيسي بعد'}. تُضاف الحركات المحلية غير المرحّلة دون ازدواج.</p></section>
  <section class="panel"><h3>حركة الصندوق</h3>${box.movements.length?box.movements.slice(0,this.cashShown).map(x=>`<div class="itemrow ${x.amount>0?'agent-cash-inflow':'agent-cash-outflow'}"><div class="itemhead"><b>${esc(x.desc)}</b><b class="agent-cash-amount">${x.amount>=0?'+':'−'}${this.money(Math.abs(x.amount),x.currency)} ${esc(x.currency)}</b></div><p class="tiny">${esc(String(x.date||'').replace('T',' ').slice(0,16))} ${x.pending?'· بانتظار المزامنة':''}</p></div>`).join(''):'<p class="muted">لا توجد حركات نقدية.</p>'}</section>`;
 };

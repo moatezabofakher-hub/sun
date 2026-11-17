@@ -94,7 +94,7 @@ const ManagerNotifications = {
     const docKind=edit||deleted?String(operation?.originalKind||operation?.replacement?.kind||''):kind;
     const isInvoice=['sale','sale_return'].includes(docKind);
     const isVoucher=['receipt','payment'].includes(docKind);
-    const docLabel=docKind==='sale'?'فاتورة مبيعات':docKind==='sale_return'?'فاتورة مردود':docKind==='receipt'?'سند قبض':docKind==='payment'?'سند دفع':docKind==='expense'?'إيصال مصروف':docKind==='customer_create'?'حساب زبون':'عملية';
+    const docLabel=docKind==='sale'?'فاتورة مبيعات':docKind==='sale_return'?'فاتورة مردود':docKind==='receipt'?'سند قبض':docKind==='payment'?'سند دفع':docKind==='expense'?'إيصال مصروف':docKind==='customer_create'?'حساب زبون':docKind==='currency_exchange'?'عملية تصريف عملة':'عملية';
     const verb=deleted?'حذف':edit?'تعديل':'إنشاء';
     const originalId=edit||deleted?operation?.targetOperationId:imported.id;
     const target=isInvoice?'invoice':isVoucher?'voucher':docKind==='expense'?'expense':docKind==='customer_create'?'customer':'operation';
@@ -103,7 +103,9 @@ const ManagerNotifications = {
       :target==='customer'?String(operation?.account?.id||''):String(originalId||'');
     const title=`${verb} ${docLabel} بواسطة ${agentName}`;
     const changes=edit?this.changesForEdit(operation):[];
-    const detail=`${agentName} · ${docLabel} ${ref} · ${edit?changes.slice(0,4).join('؛ '):deleted?'تم إلغاؤها أو حذفها':'وصلت من تطبيق موظف البيع'}`;
+    const exchangeNote=docKind==='currency_exchange'&&operation
+      ?' · − '+Number(operation.fromAmount||0)+' '+String(operation.fromCurrency||'')+' / + '+Number(operation.toAmount||0)+' '+String(operation.toCurrency||''):'';
+    const detail=`${agentName} · ${docLabel} ${ref}${exchangeNote} · ${edit?changes.slice(0,4).join('؛ '):deleted?'تم إلغاؤها أو حذفها':'وصلت من تطبيق موظف البيع'}`;
     return {id:'agent:'+String(imported.id),type:'agent',action:verb,agentId,agentName,
       operationId:String(imported.id),target,targetId,docKind,title,detail,
       changes,revision:edit?Number(operation?.revision||0):null,
