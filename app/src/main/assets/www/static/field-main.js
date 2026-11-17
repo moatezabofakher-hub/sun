@@ -1,7 +1,7 @@
 
 const TiqanyAgentPermissions=(function(){'use strict';
- const names={priceTier:'تعديل طريقة التسعير',currency:'تعديل العملة المعتمدة في العمليات',balances:'معرفة أرصدة الحسابات',editPrices:'تعديل الأسعار ضمن الفاتورة',exchangeRate:'تعديل سعر الصرف',stock:'مراقبة الجرد',createAccounts:'إضافة حسابات جديدة',createItems:'إضافة مواد جديدة',editOperations:'تعديل العمليات',deleteOperations:'حذف العمليات'};
- const defaults=Object.freeze({priceTier:true,currency:true,balances:true,editPrices:false,exchangeRate:false,stock:true,createAccounts:true,createItems:false,editOperations:true,deleteOperations:false});
+ const names={priceTier:'تعديل طريقة التسعير',currency:'تعديل العملة المعتمدة في العمليات',balances:'معرفة أرصدة الحسابات',editPrices:'تعديل الأسعار ضمن الفاتورة',exchangeRate:'تعديل سعر الصرف العام للفواتير',fxSharedRate:'السماح بتعديل سعر الصرف المزامن للتصريف',stock:'مراقبة الجرد',createAccounts:'إضافة حسابات جديدة',createItems:'إضافة مواد جديدة',editOperations:'تعديل العمليات',deleteOperations:'حذف العمليات'};
+ const defaults=Object.freeze({priceTier:true,currency:true,balances:true,editPrices:false,exchangeRate:false,fxSharedRate:false,stock:true,createAccounts:true,createItems:false,editOperations:true,deleteOperations:false});
  function normalize(p){const src=p&&typeof p==='object'&&!Array.isArray(p)?p:defaults;return Object.fromEntries(Object.keys(names).map(k=>[k,src[k]===true]));}
  function grid(prefix,permissions){const p=normalize(permissions);return `<div class="rounded-xl border-2 border-sky-200 bg-sky-50 p-3" dir="rtl"><h4 class="font-black text-blue-900 mb-2">صلاحيات الموظف — حدد المسموح</h4><div class="grid grid-cols-2 gap-2">${Object.keys(names).map((k,i)=>`<label class="flex gap-2 items-center rounded-lg border border-blue-200 bg-white p-2 text-xs font-bold min-h-[48px]" style="color:#0f2442"><input type="checkbox" data-staff-perm="${prefix}" value="${k}" ${p[k]?'checked':''} style="width:18px;height:18px;accent-color:#0f766e"/><span>${names[k]}</span></label>`).join('')}</div><p class="text-[11px] mt-2 text-slate-600">التغييرات تدخل حيز التنفيذ على هاتف الموظف عند المزامنة التالية، ويُفحص السماح عند استقبال العمليات أيضاً.</p></div>`;}
  function read(prefix){if(typeof document.querySelector!=='function')return normalize(defaults);const obj={};for(const k of Object.keys(names))obj[k]=!!document.querySelector(`input[data-staff-perm="${prefix}"][value="${k}"]:checked`);return obj;}
@@ -220,6 +220,7 @@ const FieldSync = {
     let imageBudget=650000,ledgerBudget=4600;
     return {kind:'provision',format:FieldProtocol.FORMAT,companyId:config.companyId,companyName:State.settings.companyName,agentId:a.id,agentName:a.name,vehicleName:a.vehicleName,warehouseId:a.warehouseId,warehouseName:WarehouseController.name(a.warehouseId),key:a.key,
       issuedAt:new Date().toISOString(),permissions:TiqanyAgentPermissions.normalize(a.permissions),employeeAuth:a.employeeAuth||null,exchangeRate:Number(State.settings.exchangeRate),
+      currencyExchangeRatesSyp:JSON.parse(JSON.stringify(State.settings.currencyExchangeRatesSyp||{})),
       allowedCurrencies:[...new Set([...(typeof CurrencyCatalog!=='undefined'?CurrencyCatalog.active():['USD','SYP']),...(State.settings.addedCurrencies||[]).map(c=>c.code).filter(c=>/^[A-Z]{3}$/.test(c))])],
       defaultPriceTier:['wholesale','center','consumer'].includes(State.settings.defaultPriceTier)?State.settings.defaultPriceTier:'wholesale',
       // Company branding is an authenticated part of each refreshed catalog; never copied from agent edits.
