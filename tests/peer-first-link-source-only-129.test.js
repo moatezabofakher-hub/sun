@@ -75,7 +75,7 @@ test('source-only first link exports ALL portable company settings and protectio
  assert.ok(!Object.hasOwn(p.settings,'appProtection'));
  assert.equal(p.protection.protectDeviceAddition,true);
  assert.equal(p.protection.protectDeletion,true);
- assert.equal(p.protection.lockApp,true);
+ assert.equal(p.protection.lockApp,false,'A saved biometric may not silently activate application lock on the destination');
  assert.equal(p.protection.fingerprintEnabled,false);
  assert.equal(p.protection.fingerprintCredentialId,'');
  assert.equal(h.peer.validateFirstLinkProvision(p,UID_PC),true);
