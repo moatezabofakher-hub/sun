@@ -41,9 +41,10 @@ const Print={
    if(header){
       if(!this.enabled('logo'))header.querySelector('img')?.setAttribute('hidden','');
       if(!this.enabled('company'))header.querySelector('h2')?.setAttribute('hidden','');
-      const el=header.querySelectorAll('p');
-      if(!this.enabled('phone')&&el[0])el[0].hidden=true;
-      if(!this.enabled('address')&&el[1])el[1].hidden=true;
+      const phone=header.querySelector('p[dir="ltr"]');
+      const address=header.querySelector('p:not([dir="ltr"])');
+      if(!this.enabled('phone')&&phone)phone.hidden=true;
+      if(!this.enabled('address')&&address)address.hidden=true;
    }
    for(const row of paper.querySelectorAll('.grid.grid-cols-12')){
       const name=row.querySelector('span')?.textContent?.trim();
