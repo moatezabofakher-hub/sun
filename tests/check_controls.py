@@ -41,4 +41,10 @@ with sync_playwright() as pw:
     assert p.evaluate('AppNav.current().screen')=='dashboard'
     p.evaluate("""()=>{AppNav.stack=[{screen:'dashboard',params:{}},{screen:'expenses',params:{}}];AppNav.renderCurrent();AppNav.handleBackButton();}""")
     assert p.evaluate('AppNav.current().screen')=='dashboard'
+   if ed=='employee':
+    p.evaluate("""async()=>{Agent.ready=()=>true;Agent.active=async()=>true;Agent.stack=['home','voucher'];Agent.voucherKind='receipt';await Agent.show('voucher');let amount=document.getElementById('vAmount');amount.value='17';amount.dispatchEvent(new Event('input',{bubbles:true}));await Agent.goBack()}""")
+    decision=p.locator('#taAgentSettingsDecision')
+    assert decision.locator('[data-answer=save]').inner_text()=='نعم'
+    decision.locator('[data-answer=discard]').evaluate('(e)=>e.click()')
+    p.wait_for_function("Agent.screen==='home'")
    print('PASS',ed,w,flush=True)

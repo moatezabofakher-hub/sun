@@ -6,6 +6,8 @@ on:
     branches: ['feature/functional-icons-header', main, 'fix/scroll-behavior-144', 'feature/manager-finance-ui-from-152']
     paths:
       - 'field_agent/**'
+      - 'tests/check_controls.py'
+      - 'app/src/main/assets/www/static/ta-fx-buy-sell-147.js'
       - 'tests/release138-no-outside-dismiss.test.js'
       - '.github/workflows/build-field-agent.yml'
 
