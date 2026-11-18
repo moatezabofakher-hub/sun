@@ -364,7 +364,7 @@ if(typeof oldReport==='function')Views.renderReports=function(main,params,...arg
       '<summary class="ta-fx-profit-toggle flex justify-between items-center gap-3 p-3 cursor-pointer list-none" aria-label="عرض تفاصيل أرباح التصريف">'+
       '<strong class="font-black text-white text-sm"><i class="fas fa-chart-line ml-2" aria-hidden="true"></i>أرباح التصريف</strong>'+
       '<strong class="font-black text-base text-white" dir="auto">'+fmt(profit,'SYP')+'</strong></summary>'+
-      '<div class="px-3 pb-3 max-h-[52vh] overflow-y-auto">'+detailsHtml+'</div></details>';
+      '<div class="px-3 pb-3 max-h-[52vh] overflow-y-auto"><h4 class="font-bold text-sm text-slate-700 pt-2">أرباح التصريف المحققة</h4>'+detailsHtml+'<div class="text-xs text-slate-500 border-t mt-2 pt-2">إجمالي أرباح التصريف لجميع الفترات: '+fmt(report.profitSyp,'SYP')+'</div></div></details>';
    const expenses=main.querySelector('.bg-orange-50');
    const before=expenses?.parentElement;
    if(before?.parentElement===main)before.insertAdjacentHTML('beforebegin',body);
