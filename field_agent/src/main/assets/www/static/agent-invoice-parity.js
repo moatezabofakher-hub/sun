@@ -138,24 +138,42 @@ A.changeRowUnit=function(i,unitName){
  r.unitName=u.name;r.unitFactor=Number(u.factor);r.price=this.unitPrice(it,u,this.currency);r.total=round(r.qty*r.price,this.currency);
  this.show('invoice');
 };
-A.effectivePricingLabel=function(override,accountId){
+A.pricingModes=function(){
+ const modes=Array.isArray(this.state?.taPricingModes)?this.state.taPricingModes.filter(m=>m?.id&&m?.name):[];
+ return modes.length?modes:[{id:'wholesale',name:'الجملة'},{id:'center',name:'المركز'},{id:'consumer',name:'المستهلك'}];
+};
+A.priceModeName=function(id){
+ const m=this.pricingModes().find(x=>x.id===id);
+ const name=String(m?.name||'الجملة').trim();
+ return name.startsWith('سعر ')?name:'سعر '+name;
+};
+A.effectivePricingTier=function(override,accountId){
+ const active=new Set(this.pricingModes().map(m=>m.id));
  const account=(this.state.accounts||[]).find(a=>a.id===accountId);
- const base=['wholesale','center','consumer'];
- const tier=(this.can?.('priceTier')&&base.includes(override))?override:
-  base.includes(account?.priceTier)?account.priceTier:
-  base.includes(this.state.defaultPriceTier)?this.state.defaultPriceTier:'wholesale';
- return ({wholesale:'سعر الجملة',center:'سعر المركز',consumer:'سعر المستهلك'})[tier]||'سعر الجملة';
+ if(this.can?.('priceTier')&&active.has(override))return override;
+ if(active.has(account?.priceTier))return account.priceTier;
+ return active.has(this.state.defaultPriceTier)?this.state.defaultPriceTier:'wholesale';
+};
+A.effectivePricingLabel=function(override,accountId){
+ return this.priceModeName(this.effectivePricingTier(override,accountId));
+};
+A.priceModeOptions=function(selected){
+ const options='<option value="account" '+(selected==='account'?'selected':'')+'>حسب إعدادات الحساب</option>';
+ return options+this.pricingModes().map(m=>'<option value="'+this.escape(m.id)+'" '+(selected===m.id?'selected':'')+'>'+this.escape(this.priceModeName(m.id))+'</option>').join('');
 };
 A.unitPrice=function(it,u,c){
  const acc=this.state.accounts.find(a=>a.id===(document.getElementById('fAccount')?.value||this.invoiceMeta?.accountId));
- const override=this.posMode?'account':this.invoiceMeta?.priceTierOverride;
- const tier=(this.can?.('priceTier')&&['wholesale','center','consumer'].includes(override))?override:(['wholesale','center','consumer'].includes(acc?.priceTier)?acc.priceTier: (['wholesale','center','consumer'].includes(this.state.defaultPriceTier)?this.state.defaultPriceTier:'wholesale'));
- const price=tier==='consumer'?(u.consumerPrice??u.centerPrice??u.salePrice):(tier==='center'?(u.centerPrice??u.salePrice):(u.wholesalePrice??u.salePrice));
- const raw=Number(price||0),rate=Number(this.state.exchangeRate)||1;
+ const tier=this.effectivePricingTier(this.posMode?'account':this.invoiceMeta?.priceTierOverride,acc?.id);
+ const base=tier==='consumer'?(u.consumerPrice??u.centerPrice??u.salePrice):
+     tier==='center'?(u.centerPrice??u.salePrice):
+     tier==='cost'?(u.costPrice??u.salePrice):
+     tier==='wholesale'?(u.wholesalePrice??u.salePrice):
+     (u.customTierPrices?.[tier]??u.wholesalePrice??u.salePrice);
+ const raw=Number(base||0),rate=Number(this.state.exchangeRate)||1;
  return round(it.currency===c?raw:it.currency==='USD'?raw*rate:raw/rate,c);
 };
 A.changeInvoicePricingTier=function(tier){
- if(!['account','wholesale','center','consumer'].includes(tier))return;
+ if(tier!=='account'&&!this.pricingModes().some(m=>m.id===tier))return;
  if(!this.can?.('priceTier'))return this.requireRight?.('priceTier');
  this.captureInvoiceMeta();this.invoiceMeta.priceTierOverride=tier;
  for(const row of this.draft){
@@ -317,7 +335,7 @@ A.renderInvoice=function(){
   <div class="ta-invoice-field ta-invoice-currency-field"><label><i class="fas fa-coins"></i> العملة</label><button type="button" onclick="Agent.changeInvoiceCurrency()" aria-label="تبديل عملة الفاتورة؛ الحالية: ${c==='SYP'?'ل.س':'$USD'}" class="ta-invoice-currency-choice bg-sky-100 border border-sky-300 text-sky-900 px-2 py-1 rounded-lg font-extrabold"><i class="fas fa-coins" aria-hidden="true"></i><strong class="ta-invoice-currency-code" dir="ltr">${c==='SYP'?'ل.س':'$USD'}</strong></button></div>
   <div class="ta-invoice-field ta-invoice-date-field"><label><i class="fas fa-calendar-days text-blue-600"></i> التاريخ والوقت</label><div class="ta-invoice-date-visible" dir="ltr"><input id="agentInvoiceDate" aria-label="تاريخ الفاتورة" type="date" value="${esc(dateValue.slice(0,10))}" onchange="Agent.updateInvoiceDateParts()"><input id="agentInvoiceTime" aria-label="وقت الفاتورة" type="time" value="${esc(dateValue.slice(11,16))}" onchange="Agent.updateInvoiceDateParts()"></div><input id="fDate" type="hidden" value="${esc(dateValue)}"></div>
   <div class="ta-invoice-field ta-invoice-warehouse-field"><label><i class="fas fa-warehouse text-sky-700"></i> ${esc(this.state.vehicleName||'مستودع موظف البيع')}</label><div class="ta-quick-picker ta-readonly-warehouse" aria-label="مستودع الموظف المحدد من الإدارة"><span class="ta-quick-picker__face"><i class="fas fa-warehouse"></i><span>${esc(this.state.vehicleName||'مستودع موظف البيع')}</span></span></div></div>
-  <div class="ta-invoice-pricing-choice"><div class="ta-quick-picker" title="طريقة تسعير الفاتورة"><span class="ta-quick-picker__face"><i class="fas fa-tags"></i><span>${esc(this.effectivePricingLabel(selectedTier,meta.accountId))}</span></span><select id="invoicePricingTier" aria-label="اختيار طريقة تسعير الفاتورة" onchange="Agent.changeInvoicePricingTier(this.value)" ${this.can?.('priceTier')?'':'disabled title="الصلاحية تحددها الإدارة"'}><option value="account" ${selectedTier==='account'?'selected':''}>حسب إعدادات الحساب</option><option value="wholesale" ${selectedTier==='wholesale'?'selected':''}>سعر الجملة</option><option value="center" ${selectedTier==='center'?'selected':''}>سعر المركز</option><option value="consumer" ${selectedTier==='consumer'?'selected':''}>سعر المستهلك</option></select></div></div>
+  <div class="ta-invoice-pricing-choice"><div class="ta-quick-picker" title="طريقة تسعير الفاتورة"><span class="ta-quick-picker__face"><i class="fas fa-tags"></i><span>${esc(this.effectivePricingLabel(selectedTier,meta.accountId))}</span></span><select id="invoicePricingTier" aria-label="اختيار طريقة تسعير الفاتورة" onchange="Agent.changeInvoicePricingTier(this.value)" ${this.can?.('priceTier')?'':'disabled title="الصلاحية تحددها الإدارة"'}>${this.priceModeOptions(selectedTier)}</select></div></div>
  </div>
  <button type="button" class="ta-payment-cycle ta-pay-${mode}" onclick="Agent.cycleInvoicePayment()" title="نقدي ثم دفعات ثم آجل" aria-label="تغيير طريقة الدفع: نقدي ثم دفعات ثم آجل"><span class="ta-payment-method-value"><i class="fas ${mode==='cash'?'fa-money-bill-wave':mode==='partial'?'fa-hand-holding-dollar':'fa-clock'}" aria-hidden="true"></i> طريقة الدفع: ${mode==='cash'?'نقدي':mode==='partial'?'دفعات':'آجل'}</span><i class="fas fa-arrow-rotate-right" aria-hidden="true"></i></button>
  </div>
