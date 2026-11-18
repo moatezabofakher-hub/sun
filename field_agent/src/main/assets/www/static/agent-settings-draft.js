@@ -28,11 +28,23 @@ Agent.saveDraftSettings=async function(area){
    posTouched=false;
    this.toast('تم اعتماد إعدادات نقطة البيع');
   }else if(area==='printer'){
-   if(printerWidth!==null)await this.updatePrinterWidth(printerWidth);
+   if(printerWidth!==null){
+     const requested=printerWidth;
+     await this.updatePrinterWidth(requested);
+     if(Number(this.state.printerWidth)!==requested)throw Error('فشل حفظ قياس الورق');
+   }
    printerWidth=null;
    this.toast('تم اعتماد إعدادات الطباعة');
   }
- }catch(e){this.toast('تعذر حفظ الإعدادات: '+e.message);}
+  return true;
+ }catch(e){this.toast('تعذر حفظ الإعدادات: '+e.message);return false;}
+};
+Agent.hasPendingSettingsDraft=function(area){
+ return area==='printer'?printerWidth!==null:area==='pos'?posTouched:false;
+};
+Agent.discardSettingsDraftSilently=function(area){
+ if(area==='printer')printerWidth=null;
+ if(area==='pos')posTouched=false;
 };
 Agent.cancelDraftSettings=async function(area){
  if(area==='pos'){posTouched=false;await this.show('settings');}
