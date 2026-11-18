@@ -10,7 +10,7 @@ on:
       - '.github/workflows/build-field-agent.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   release:
@@ -120,3 +120,16 @@ jobs:
             output/Tiqany-Acc-Agent-3.5.152-RELEASE.apk.sha256
           if-no-files-found: error
           retention-days: 30
+      - name: Publish signed employee feature APK for direct download
+        if: github.ref == 'refs/heads/feature/manager-finance-ui-from-152'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          apk='output/Tiqany-Acc-Agent-3.5.152-RELEASE.apk'
+          checksum="${apk}.sha256"
+          test -s "$apk" && test -s "$checksum"
+          tag='tiqany-agent-finance-preview-'"${GITHUB_SHA:0:10}"
+          gh release create "$tag" "$apk" "$checksum" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title 'المحاسب التقني موظف البيع - معاينة تعديلات 3.5.152' --notes 'نسخة موظف البيع 3.5.152: تنسيق الفواتير، تبديل الوحدة دون تغيير الكمية، الضريبة الافتراضية بالعملة، عرض السعر المعتمد، الصفحات المستقلة للضبط والواجهة ثلاثية الأبعاد. احتفظ بنسخة احتياطية قبل التثبيت.' --prerelease
+          gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json url --jq '.url'
