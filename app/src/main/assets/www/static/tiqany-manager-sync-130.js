@@ -166,7 +166,7 @@ const manager={
   },
   async call(command){
     if(this.pending)throw Error('هناك مزامنة قيد التنفيذ');
-    const request={protocol:'TIQANY-MANAGER-1',...command};
+    const request={protocol:'TIQANY-MANAGER-1',appVersion:'3.5.152',...command};
     return new Promise((resolve,reject)=>{
       const timer=setTimeout(()=>{this.pending=null;reject(Error('انتهت مهلة اتصال أجهزة المدير'));},55000);
       this.pending={timer,resolve,reject};
@@ -183,6 +183,14 @@ const manager={
   },
   async handle(data){
     if(data.protocol!=='TIQANY-MANAGER-1')return {ok:false,error:'بروتوكول غير معروف'};
+    if(data.appVersion!=='3.5.152'){
+      const warning='اختلاف إصدار التطبيقات: يجب تحديث جميع الأجهزة إلى الإصدار 3.5.152 قبل الاتصال أو المزامنة. لم تُنقل أي بيانات.';
+      if(Date.now()-(this.lastVersionMismatchNotice||0)>60000){this.lastVersionMismatchNotice=Date.now();
+        try{await ManagerNotifications.addSyncNotice(warning);}catch(_){}
+      }
+      this.info(warning,true);
+      return {ok:false,code:'APP_VERSION_MISMATCH',appVersion:'3.5.152',error:warning};
+    }
     if(this.blocked())return {ok:false,code:'UNSAVED_EDIT',error:'احفظ العملية المفتوحة أولاً'};
     const localServer=this.serverStatus();
     if(!localServer.ready||!localServer.serverId)return {ok:false,error:'الاستقبال غير جاهز'};
@@ -193,7 +201,7 @@ const manager={
       if(!link||link.companyUid!==currentUid||link.clientUid!==data.companyUid)
         return {ok:false,error:'أجهزة المدير ليست مرتبطة بهذه الشركة'};
       this.lastServer=Date.now();this.updateHeader();
-      return {ok:true,serverId:localServer.serverId,profileId:this.profile(),
+      return {ok:true,appVersion:'3.5.152',serverId:localServer.serverId,profileId:this.profile(),
         version:core.digest([core.snapshot(State),this.portableSettings(),this.portablePin()])};
     }
     if(data.action==='fetch'){
@@ -219,7 +227,7 @@ const manager={
         snapshot:core.canonical(localSnap),settings:core.canonical(settings),pin:core.canonical(protection),
         empty,clientEmpty:data.clientEmpty===true,known});
       for(const [id,x] of this.locks)if(Date.now()-x.at>65000)this.locks.delete(id);
-      return {ok:true,ticket,serverId:localServer.serverId,profileId:this.profile(),companyUid:currentUid,
+      return {ok:true,appVersion:'3.5.152',ticket,serverId:localServer.serverId,profileId:this.profile(),companyUid:currentUid,
         empty,known,snapshot:localSnap,settings,protection,provision};
     }
     if(data.action==='commit'){
@@ -298,6 +306,7 @@ const manager={
         phoneProfileId:this.profile(),clientEmpty:core.emptyLedger(local),
         knownServerId:base?.serverId||'',knownServerProfileId:base?.profileId||''});
       if(!fetched.ok)throw Error(fetched.error||'تعذر استلام بيانات موبايل المدير');
+      if(fetched.appVersion!=='3.5.152')throw Error('اختلاف إصدار التطبيقات: يجب تحديث جميع الأجهزة إلى الإصدار 3.5.152 قبل الاتصال أو المزامنة. لم تُنقل أي بيانات.');
       if(fetched.serverId!==link.serverId||!isUid(fetched.companyUid))
         throw Error('هوية موبايل المدير المقترن غير صحيحة');
       if(base&&base.serverId!==fetched.serverId)throw Error('جهاز مدير مختلف');
