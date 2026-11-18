@@ -4166,10 +4166,10 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 ctx.font = `bold ${fMeta}px Cairo, sans-serif`;
                 ctx.textAlign = 'right';
                 // Numbered items are shown in bordered rows and columns.
-                ctx.save();ctx.lineWidth=1;ctx.strokeStyle='#333';ctx.setLineDash([]);
+                const taOldStroke=ctx.strokeStyle,taOldWidth=ctx.lineWidth;ctx.lineWidth=1;ctx.strokeStyle='#333';ctx.setLineDash([]);
                 for(const gx of [pad,widthDots*0.18,widthDots*0.30,widthDots*0.41,widthDots*0.56,widthDots*0.90,widthDots-pad]){ctx.beginPath();ctx.moveTo(gx,taPrintGridTop);ctx.lineTo(gx,y);ctx.stroke();}
                 for(const gy of taPrintGridRows){ctx.beginPath();ctx.moveTo(pad,gy);ctx.lineTo(widthDots-pad,gy);ctx.stroke();}
-                ctx.restore();
+                ctx.strokeStyle=taOldStroke;ctx.lineWidth=taOldWidth;
                 y += fMeta + 12;
                 drawDoubleSep();
 
