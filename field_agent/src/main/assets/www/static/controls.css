@@ -73,3 +73,5 @@ body input:is([type=radio],[type=checkbox]) {accent-color:#087a72}
 #dialogContainer[data-dialog-type=unsaved] .ta-decision-actions {display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:10px}
 #dialogContainer[data-dialog-type=unsaved] #dlgDiscardBtn {background:linear-gradient(#f3f6f8,#d5dfe3)!important;color:#263949!important;-webkit-text-fill-color:#263949!important}
 body .ta-operation-art {display:block;width:100%;height:100%;object-fit:contain;filter:drop-shadow(0 2px 1px #15303938)}
+#taAgentSettingsDecision button[data-answer=save] {background:var(--ta-positive)!important;color:#fff!important}
+#taAgentSettingsDecision button[data-answer=discard] {background:linear-gradient(#f3f6f8,#d5dfe3)!important;color:#263949!important}

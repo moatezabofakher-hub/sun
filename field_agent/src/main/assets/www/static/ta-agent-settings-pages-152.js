@@ -166,7 +166,7 @@ Agent.show=async function(route,...args){
  return result;
 };
 window.AgentSettingsPages152={open,save:async()=>{if(await save())await close(null);},back:()=>requestExit(null),changed};
-const operationSaves = {invoice:'saveInvoice', voucher:'saveVoucher', expense:'saveExpense', payment:'saveInvoicePayment'};
+const operationSaves = {invoice:'saveInvoice', voucher:'saveVoucher', expense:'saveExpense', payment:'saveInvoicePayment', currency_exchange:'saveCurrencyExchange'};
 let operationBaseline = null;
 function operationValues() {
  const page = document.getElementById('screen');
@@ -183,9 +183,31 @@ Agent.show = async function(route,...args) {
  else if(previous!==this.screen || operationBaseline===null) operationBaseline=operationValues();
  return result;
 };
+// Customer and item editors are overlays over the current operation.
+const editorDefinitions=[
+ ['agentNewCustomerModal','openCustomerForm','closeCustomerForm','saveNewCustomer'],
+ ['agentItemCreateModal','openNewItemForm','closeNewItemForm','saveNewItem']
+];
+for(const [id,openName,closeName,saveName] of editorDefinitions){
+ const open=Agent[openName],close=Agent[closeName];
+ let original=null;
+ Agent[openName]=function(...args){
+   const result=open.apply(this,args);
+   original=values(document.getElementById(id));return result;
+ };
+ Agent[closeName]=function(...args){
+   const element=document.getElementById(id);
+   if(this.busy || original===null || values(element)===original)return close.apply(this,args);
+   decision(async()=>{await this[saveName]();return element.classList.contains('hide');},()=>close.apply(this,args));
+ };
+}
 const backFromOperation=Agent.goBack;
 Agent.goBack=function(...args) {
  if(document.getElementById('taAgentSettingsDecision'))return;
+ for(const [id,,closeName] of editorDefinitions){
+   const editor=document.getElementById(id);
+   if(editor && !editor.classList.contains('hide'))return this[closeName]();
+ }
  const saveMethod=operationSaves[this.screen];
  const openOverlay=Array.from(document.querySelectorAll('.dialog-mask,.agent-picker-mask,#agentPosNameList,.modal-overlay'))
    .some(el=>el.getClientRects().length && getComputedStyle(el).visibility!=='hidden');

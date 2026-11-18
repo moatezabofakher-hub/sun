@@ -86,7 +86,7 @@ function trade(code,side,editId=''){
    '<div id="ta147Preview" class="rounded-lg bg-slate-50 p-3 font-bold text-xs"></div>'+
    '<label class="block font-bold text-xs">بيان (اختياري)</label><input id="ta147Note" maxlength="200" class="w-full rounded-lg border p-3" value="'+esc(old?.note||'')+'">'+
    '<button type="button" class="w-full ta-primary-3d bg-emerald-700 text-white font-black rounded-xl p-3" onclick="TiqanyFx147.saveTrade()">'+(old?'حفظ تعديل ':'حفظ ')+esc(title)+'</button>'+
-   '<button type="button" class="w-full rounded-xl bg-slate-100 p-3" onclick="TiqanyFx147.chooser()">رجوع إلى التصريف</button>'+
+   '<button type="button" class="w-full rounded-xl bg-slate-100 p-3" onclick="TiqanyFx147.leaveTrade()">رجوع إلى التصريف</button>'+
    '<input type="hidden" id="ta147Currency" value="'+esc(code)+'"><input type="hidden" id="ta147Side" value="'+side+'"></div>');
  const update=()=>{
   const amount=Number(document.getElementById('ta147Amount')?.value),price=Number(document.getElementById('ta147Rate')?.value);
@@ -112,9 +112,21 @@ function trade(code,side,editId=''){
     (result.pendingAmount>0?' · كمية مؤجلة التكلفة: '+money(result.pendingAmount,code):'');
   }catch(e){document.getElementById('ta147Preview').textContent=e.message;}
  };
+ const fields=['ta147Amount','ta147Rate','ta147Note'].map(id=>document.getElementById(id));
+ const signature=()=>JSON.stringify(fields.map(el=>el.value));
+ const baseline=signature();
+ fields.forEach(el=>el.addEventListener('input',()=>{
+    if(signature()===baseline)AppNav.clearModalDirty();
+    else AppNav.markModalDirty(saveTrade);
+ }));
  document.getElementById('ta147Amount').addEventListener('input',update);
  document.getElementById('ta147Rate').addEventListener('input',update);
  update();
+}
+function leaveTrade(){
+ const leave=()=>{AppNav.clearModalDirty();chooser();};
+ if(!AppNav.isModalDirty){leave();return;}
+ UI.showUnsavedDialog(async()=>{if(await saveTrade())chooser();},leave);
 }
 let busy=false;
 async function saveTrade(){
@@ -155,6 +167,7 @@ async function saveTrade(){
   UI.forceCloseModal();
   UI.toast(old?'تم تعديل التصريف وإعادة احتساب أرصدة الصناديق والأرباح':'تم حفظ '+(isBuy?'شراء ':'مبيع ')+code+' في الصندوقين واحتساب أرباح التصريف','success');
   if(typeof AppNav!=='undefined')AppNav.renderCurrent();
+  return true;
  }catch(e){UI.toast('تعذر حفظ التصريف: '+e.message,'error');}
  finally{busy=false;}
 }
@@ -325,5 +338,5 @@ if(typeof Views!=='undefined'&&typeof Views.renderReports==='function'){
   return out;
  };
 }
-root.TiqanyFx147={chooser,trade,saveTrade,editRates:unifiedRates,saveRates,profitDetails,codes,current,generalInvoiceRateModal:currencyRates,currencyRates,saveCurrencyRates,generalRate};
+root.TiqanyFx147={chooser,trade,saveTrade,leaveTrade,editRates:unifiedRates,saveRates,profitDetails,codes,current,generalInvoiceRateModal:currencyRates,currencyRates,saveCurrencyRates,generalRate};
 })(typeof window==='object'?window:globalThis);

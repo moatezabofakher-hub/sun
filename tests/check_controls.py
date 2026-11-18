@@ -34,4 +34,11 @@ with sync_playwright() as pw:
    if ed!='employee':
     result=p.evaluate("""()=>{let saved=0,discarded=0;for(const id of ['dlgSaveBtn','dlgDiscardBtn']){UI.showUnsavedDialog(()=>saved++,()=>discarded++);let box=document.querySelector('#dialogBox');if(box.querySelector('.ta-decision-title').textContent!=='هل تريد حفظ التغييرات قبل الخروج؟')throw Error('Missing prompt');if(box.querySelector('#dlgSaveBtn').textContent!=='نعم'||box.querySelector('#dlgDiscardBtn').textContent!=='لا')throw Error('Wrong decisions');document.getElementById(id).click()}return [saved,discarded]}""")
     assert result==[1,1]
+   if ed!='employee':
+    p.evaluate("""()=>{AppNav.stack=[{screen:'dashboard',params:{}},{screen:'expenses',params:{}}];AppNav.renderCurrent();const input=document.getElementById('expenseAmount');input.value='23';input.dispatchEvent(new Event('input',{bubbles:true}));AppNav.handleBackButton();}""")
+    assert p.locator('#dlgDiscardBtn').is_visible()
+    p.locator('#dlgDiscardBtn').evaluate('(e)=>e.click()')
+    assert p.evaluate('AppNav.current().screen')=='dashboard'
+    p.evaluate("""()=>{AppNav.stack=[{screen:'dashboard',params:{}},{screen:'expenses',params:{}}];AppNav.renderCurrent();AppNav.handleBackButton();}""")
+    assert p.evaluate('AppNav.current().screen')=='dashboard'
    print('PASS',ed,w,flush=True)

@@ -3195,14 +3195,18 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                     return;
                 }
 
+                if(!this.isDirty && this.activeOperationGuard && (
+                    (['invoice_form','pos'].includes(this.current()?.screen) && InvoiceController.draft?.isEditing) ||
+                    (this.current()?.screen==='voucher_form' && VoucherController.draft?.isEditing)
+                )) this.clearDirty();
                 if (this.isDirty || this.activeOperationGuard) {
-                    if (this.current()?.screen === 'voucher_form' && VoucherController.isEmptyNewVoucher()) {
+                    if (this.current()?.screen === 'voucher_form' && VoucherController.isEmptyNewVoucher() && !this.isDirty) {
                         this.clearDirty();
                         executeNavigation();
                         return;
                     }
                     if (['invoice_form','pos'].includes(this.current()?.screen) &&
-                        !InvoiceController.draft?.rows?.length) {
+                        !InvoiceController.draft?.rows?.length && !this.isDirty) {
                         this.clearDirty();
                         executeNavigation();
                         return;
@@ -3244,7 +3248,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                         void box.offsetWidth;
                         box.classList.add('animate-slide-up');
                     }
-                    UI.toast('يرجى اختيار (حفظ) أو (تجاهل) أو (البقاء في العملية) من النافذة', 'warn');
+                    UI.toast('اختر نعم لحفظ التغييرات أو لا لتجاهلها', 'warn');
                     return;
                 }
 
@@ -3256,7 +3260,8 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 const modal = document.getElementById('modalContainer');
                 if (!modal.classList.contains('hidden')) {
                     // The Back key and the popup's own Back icon follow one hierarchy.
-                    if (typeof ShareholdersUI !== 'undefined' &&
+                    if(modal.querySelector('[data-ta-fx-trade]') && window.TiqanyFx147?.leaveTrade){TiqanyFx147.leaveTrade();}
+                    else if (typeof ShareholdersUI !== 'undefined' &&
                         modal.querySelector('.ta-share-modal') &&
                         typeof ShareholdersUI.back === 'function') {
                         ShareholdersUI.back();
@@ -3288,19 +3293,23 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 // Empty invoice/POS: Back closes it immediately, with no unsaved-data dialog.
                 // Do not change the guarded behavior when at least one item exists.
                 if (['invoice_form','pos'].includes(this.current()?.screen) &&
-                    !InvoiceController.draft?.rows?.length) {
+                    !InvoiceController.draft?.rows?.length && !this.isDirty) {
                     this.clearDirty();
                     this.popScreen();
                     return;
                 }
 
                 // A fresh voucher with no account, amount or note has nothing to lose.
-                if (this.current()?.screen === 'voucher_form' && VoucherController.isEmptyNewVoucher()) {
+                if (this.current()?.screen === 'voucher_form' && VoucherController.isEmptyNewVoucher() && !this.isDirty) {
                     this.clearDirty();
                     this.popScreen();
                     return;
                 }
 
+                if(!this.isDirty && this.activeOperationGuard && (
+                    (['invoice_form','pos'].includes(this.current()?.screen) && InvoiceController.draft?.isEditing) ||
+                    (this.current()?.screen==='voucher_form' && VoucherController.draft?.isEditing)
+                )) this.clearDirty();
                 if (this.isDirty || this.activeOperationGuard) {
                     UI.showUnsavedDialog(
                         async () => {
@@ -5171,6 +5180,14 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                             </div>`).join('') : '<p class="text-slate-400 text-xs">لا توجد مصاريف مسجلة.</p>'}
                     </div>
                 `;
+                const expensePanel=document.getElementById('expenseFormPanel');
+                ExpenseController.formBaseline=ExpenseController.signature();
+                const changed=()=>{
+                    if(ExpenseController.signature()===ExpenseController.formBaseline) AppNav.clearDirty();
+                    else AppNav.markDirty(()=>ExpenseController.saveExpense());
+                };
+                expensePanel.addEventListener('input',changed);
+                expensePanel.addEventListener('change',changed);
                 if (params.action === 'add') this.jumpToEntry('expenseFormPanel', 'expenseAmount');
             },
 
@@ -7475,11 +7492,16 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                     const note=document.getElementById('transferNote');if(note)note.value='';
                     this.updateTransferGridSelections();this.renderTransferDraft();
                 }
+                this.transferBaseline=this.transferSignature();
                 Views.scrollToTransferPanel();
             },
+            transferSignature(){
+                const fields=['transferFrom','transferTo','transferDate','transferNote'].map(id=>document.getElementById(id)?.value||'');
+                return JSON.stringify([fields,this.transferDraft||[]]);
+            },
             closeTransferForm(){
-                if((this.transferDraft||[]).length){
-                    UI.openModal(`<div class="text-right" dir="rtl"><h3 class="font-extrabold mb-2">إغلاق فاتورة المناقلة؟</h3><p class="text-xs">لن تُحفظ الأصناف غير المسجلة.</p><div class="flex gap-2 mt-4"><button onclick="UI.forceCloseModal();WarehouseController.discardTransferForm()" class="flex-1 bg-rose-600 text-white rounded-xl p-3 font-bold">إغلاق دون حفظ</button><button onclick="UI.forceCloseModal()" class="flex-1 bg-slate-100 rounded-xl p-3 font-bold">متابعة التعديل</button></div></div>`);return;
+                if(this.transferSignature()!==this.transferBaseline){
+                    UI.showUnsavedDialog(()=>this.saveTransfer(false),()=>this.discardTransferForm());return;
                 }
                 this.discardTransferForm();
             },
@@ -7754,6 +7776,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 for(const [field,value] of [['transferFrom',doc.fromWarehouseId],['transferTo',doc.toWarehouseId],['transferDate',doc.date],['transferNote',doc.note||'']]){
                     const element=document.getElementById(field);if(element)element.value=value;
                 }
+                this.transferBaseline=this.transferSignature();
                 const title=document.getElementById('transferFormTitle');if(title)title.textContent='تعديل فاتورة مناقلة';
                 const editing=document.getElementById('transferEditBanner');if(editing)editing.hidden=false;
                 const editingRef=document.getElementById('transferEditingRef');if(editingRef)editingRef.textContent='رقم الفاتورة: '+doc.id;
@@ -7968,6 +7991,10 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
         };
 
         const ExpenseController = {
+            signature(){
+                return JSON.stringify(['expenseId','expenseAmount','expenseCurrency','expenseRate','expenseDate','expenseCategory','expenseNote']
+                    .map(id=>document.getElementById(id)?.value||''));
+            },
             startNewExpense() {
                 // Re-render to leave edit mode without modifying existing records.
                 AppNav.renderCurrent();
@@ -8006,8 +8033,10 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                     await LicenseManager.recordNewOperation();
                 }
                 await StorageEngine.saveState();
+                AppNav.clearDirty();
                 UI.toast(idx>=0?'تم تعديل المصروف':'تم تسجيل المصروف وخصمه من صافي الأرباح', 'success');
                 AppNav.renderCurrent();
+                return true;
                 } finally { this.saving = false; }
             },
             editExpense(id) {
@@ -8028,6 +8057,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 put('expenseDate',exp.date);
                 put('expenseNote',exp.note || '');
                 put('expenseRate',exp.exchangeRate);
+                this.formBaseline=this.signature();
                 const title=document.getElementById('expenseFormTitle');
                 if(title) title.textContent = 'تعديل مصروف مسجل (مع إمكانية تغيير العملة)';
                 const saveLabel=document.querySelector('#expenseFormPanel button[onclick*="saveExpense"] span');
