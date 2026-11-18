@@ -434,7 +434,7 @@
   },
   operationForm(ownerId,type,editing=null){
    this._enter('operation',ownerId);
-    const o=S.owner(State,ownerId),c=editing?.currency||'USD',amt=editing?S.major(editing.units,editing.currency):'';
+    const o=S.owner(State,ownerId),c=editing?.currency||'SYP',amt=editing?S.major(editing.units,editing.currency):'';
     modal('<h2 class="ta-share-heading">'+safe(moneyLabels[type])+' - '+safe(o.name)+'</h2>'+
       '<label>العملة<select id="taShareCur"><option value="USD" '+(c==='USD'?'selected':'')+'>دولار أمريكي</option><option value="SYP" '+(c==='SYP'?'selected':'')+'>ليرة سورية</option></select></label>'+
       '<label>المبلغ<input id="taShareAmount" type="number" step="any" min="0" value="'+safe(amt)+'"></label>'+
