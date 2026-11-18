@@ -53,7 +53,7 @@ Agent.renderSettings=function(){
    '<button type="button" onclick="AgentSettingsPages152.back()" aria-label="الرجوع إلى أقسام الضبط"><i class="fas fa-arrow-right"></i> رجوع</button>'+
    '<strong>'+esc(label)+'</strong></div>'+
    '<div id="taAgentSettingsBody">'+section.outerHTML+'</div>'+
-   '<div class="ta-agent-settings-footer" dir="rtl"><button type="button" class="primary" onclick="AgentSettingsPages152.back()">حفظ أو خروج</button>'+
+   '<div class="ta-agent-settings-footer" dir="rtl"><button type="button" class="primary" onclick="AgentSettingsPages152.save()">حفظ</button>'+
    '<button type="button" class="secondary" onclick="AgentSettingsPages152.back()">رجوع</button></div>';
 };
 async function open(index){
@@ -70,15 +70,14 @@ function decision(saveAction,discardAction){
  overlay.className='ta-agent-settings-mask';
  overlay.setAttribute('role','presentation');
  overlay.innerHTML='<div class="ta-agent-settings-dialog" dir="rtl" role="dialog" aria-modal="true" aria-labelledby="taAgentSettingsPrompt">'+
-   '<h3 id="taAgentSettingsPrompt">تأكيد الخروج من الإعدادات</h3><p>هل تريد حفظ التعديلات أو متابعة الإعداد أو تجاهلها؟</p>'+
-   '<div class="ta-agent-settings-choices"><button type="button" class="primary" data-answer="save">حفظ</button>'+
-   '<button type="button" class="secondary" data-answer="continue">متابعة الإعداد</button>'+
-   '<button type="button" class="secondary" data-answer="discard">الخروج بدون تعديل</button></div></div>';
+   '<h3 id="taAgentSettingsPrompt">هل تريد حفظ التغييرات قبل الخروج؟</h3>'+
+   '<div class="ta-agent-settings-choices"><button type="button" class="primary" data-answer="save">نعم</button>'+
+   '<button type="button" class="secondary" data-answer="discard">لا</button></div></div>';
  overlay.addEventListener('click',event=>{
   const button=event.target.closest('[data-answer]');if(!button)return;
   const answer=button.dataset.answer;
-  if(answer==='continue'){overlay.remove();return;}
-  if(answer==='save'){saveAction().then(ok=>{if(ok)overlay.remove();}).catch(e=>Agent.toast('فشل حفظ الإعدادات: '+e.message));}
+  
+  if(answer==='save'){overlay.remove();Promise.resolve(saveAction()).catch(e=>Agent.toast('تعذر الحفظ: '+e.message));}
   if(answer==='discard'){overlay.remove();discardAction();}
  });
  document.body.appendChild(overlay);
@@ -137,6 +136,7 @@ async function close(next){
 }
 function requestExit(next){
  if(busy)return;
+ if(!changed())return close(next);
  decision(async()=>{const saved=await save();if(saved)await close(next);return saved;},()=>close(next));
 }
 const oldBack=Agent.goBack;
@@ -165,5 +165,48 @@ Agent.show=async function(route,...args){
  if(route!=='backup'&&this.screen!=='backup')backupBaseline=null;
  return result;
 };
-window.AgentSettingsPages152={open,save,back:()=>requestExit(null),changed};
+window.AgentSettingsPages152={open,save:async()=>{if(await save())await close(null);},back:()=>requestExit(null),changed};
+const operationSaves = {invoice:'saveInvoice', voucher:'saveVoucher', expense:'saveExpense', payment:'saveInvoicePayment'};
+let operationBaseline = null;
+function operationValues() {
+ const page = document.getElementById('screen');
+ const fields = Array.from(page?.querySelectorAll('input[id],textarea[id],select[id]') || [])
+   .filter(el => !/search|filter|barcode|query/i.test(el.id))
+   .map(el => [el.id, el.type==='checkbox' || el.type==='radio' ? el.checked : el.value]);
+ return JSON.stringify([fields, Agent.screen==='invoice' ? Agent.draft : null]);
+}
+const showOperation = Agent.show;
+Agent.show = async function(route,...args) {
+ const previous=this.screen;
+ const result=await showOperation.call(this,route,...args);
+ if(!operationSaves[this.screen]) operationBaseline=null;
+ else if(previous!==this.screen || operationBaseline===null) operationBaseline=operationValues();
+ return result;
+};
+const backFromOperation=Agent.goBack;
+Agent.goBack=function(...args) {
+ if(document.getElementById('taAgentSettingsDecision'))return;
+ const saveMethod=operationSaves[this.screen];
+ const openOverlay=Array.from(document.querySelectorAll('.dialog-mask,.agent-picker-mask,#agentPosNameList,.modal-overlay'))
+   .some(el=>el.getClientRects().length && getComputedStyle(el).visibility!=='hidden');
+ if(!saveMethod || openOverlay) return backFromOperation.apply(this,args);
+ const parentStack=this.stack.slice(0,-1);
+ if(!parentStack.length)parentStack.push('home');
+ const leave=async()=>{
+   this.editingId=null;this.posMode=false;this.draft=[];operationBaseline=null;
+   this.stack=parentStack;
+   await this.show(parentStack[parentStack.length-1]);
+ };
+ if(operationValues()===operationBaseline)return leave();
+ decision(async()=>{
+   if(this.busy)return false;
+   const count=this.state.ops.length, editing=this.editingId;
+   const revision=editing && this.state.ops.find(op=>op.id===editing);
+   await this[saveMethod]();
+   const committed=this.state.ops.length>count || (revision && this.state.ops.find(op=>op.id===editing)!==revision);
+   if(committed)await leave();
+   return Boolean(committed);
+ },leave);
+};
+
 })();

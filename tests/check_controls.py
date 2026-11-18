@@ -31,4 +31,7 @@ with sync_playwright() as pw:
     assert vals['headerSettingsBtn'][0]>=bell[1]-1
     assert vals['topBarRateButton'][0] <= 25
     assert p.locator('.ta-rate-label').inner_text()=='سعر الصرف'
+   if ed!='employee':
+    result=p.evaluate("""()=>{let saved=0,discarded=0;for(const id of ['dlgSaveBtn','dlgDiscardBtn']){UI.showUnsavedDialog(()=>saved++,()=>discarded++);let box=document.querySelector('#dialogBox');if(box.querySelector('.ta-decision-title').textContent!=='هل تريد حفظ التغييرات قبل الخروج؟')throw Error('Missing prompt');if(box.querySelector('#dlgSaveBtn').textContent!=='نعم'||box.querySelector('#dlgDiscardBtn').textContent!=='لا')throw Error('Wrong decisions');document.getElementById(id).click()}return [saved,discarded]}""")
+    assert result==[1,1]
    print('PASS',ed,w,flush=True)

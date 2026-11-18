@@ -81,12 +81,12 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
     el.querySelector('.ta-link-dot')?.setAttribute('aria-label',active?'متصل':'غير متصل');
   },
   updatePresence(){
-    const region=document.getElementById('ta-peer-connection');if(!region)return;
-    let badge=document.getElementById('ta-peer-presence');
-    if(!badge){badge=document.createElement('div');badge.id='ta-peer-presence';region.insertAdjacentElement('beforebegin',badge);}
     const now=Date.now();
     const active=desktop?(this.lastPhoneSeenAt>0&&now-this.lastPhoneSeenAt<20000):(this.lastSuccessfulAt>0&&now-this.lastSuccessfulAt<20000);
     this.updateHeaderConnection(active);
+    const region=document.getElementById('ta-peer-connection');if(!region)return;
+    let badge=document.getElementById('ta-peer-presence');
+    if(!badge){badge=document.createElement('div');badge.id='ta-peer-presence';region.insertAdjacentElement('beforebegin',badge);}
     const pending=this.busy&&!active;
     badge.className='ta-peer-presence '+(active?'connected':pending?'connecting':'offline');
     badge.textContent=active?'● متصل '+(desktop?'بالموبايل الرئيسي':'بالكمبيوتر'):

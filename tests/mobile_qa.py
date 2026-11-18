@@ -18,8 +18,9 @@ with sync_playwright() as pw:
     ids=section.locator('select').evaluate_all('(list)=>list.map(x=>x.id)')
     order=['setDefaultInvoiceCurrency','setDefaultPriceTier','taDefaultSaleUnitName','taDefaultPurchaseUnitName','setDefaultInvoiceListType','posAccountSetting']
     assert all(i in ids for i in order) and sorted(order,key=ids.index)==order, ids
+    section.locator('#setDefaultInvoiceCurrency').evaluate('(e)=>{e.selectedIndex=(e.selectedIndex+1)%e.options.length;e.dispatchEvent(new Event("change",{bubbles:true}));}')
     p.evaluate('TiqanySettingsPages152.back()')
-    assert p.locator('#dlgDiscardBtn').inner_text()=='الخروج بدون تعديل'
+    assert p.locator('#dlgDiscardBtn').inner_text()=='لا'
     p.locator('#dlgDiscardBtn').evaluate('(el)=>el.click()')
     for width,height in [(320,432),(360,592),(432,272)]:
         p.set_viewport_size({'width':width,'height':height})

@@ -8,7 +8,7 @@ const savedHome=A.renderHome.bind(A);
 A.renderHome=function(){
   const html=savedHome();
   return html.replace('<button class="tile" onclick="Agent.startInvoice(\'sale_return\')">',
-    '<button class="tile" onclick="Agent.startPOS()"><span class="glyph">▦</span><strong>نقطة البيع</strong><small>بيع نقدي سريع • شبكة أصناف • باركود</small></button><button class="tile" onclick="Agent.startInvoice(\'sale_return\')">');
+    '<button class="tile" onclick="Agent.startPOS()"><span class="glyph"><img class="ta-operation-art" src="static/pos.png" alt=""></span><strong>نقطة البيع</strong><small>بيع نقدي سريع • شبكة أصناف • باركود</small></button><button class="tile" onclick="Agent.startInvoice(\'sale_return\')">');
 };
 const savedSettings=A.renderSettings.bind(A);
 A.renderSettings=function(){

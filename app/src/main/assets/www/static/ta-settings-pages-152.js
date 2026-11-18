@@ -112,19 +112,8 @@ async function saveAndClose(after){
  finally{busy=false;}
 }
 function confirmExit(action){
-
- UI.showUnsavedDialog(
-   ()=>saveAndClose(action),
-   ()=>{discard();action?.();}
- );
- const box=document.getElementById('dialogBox');
- if(box){
-   const title=box.querySelector('.ta-decision-title'),subtitle=box.querySelector('.ta-decision-subtitle'),stay=box.querySelector('#dlgCancelBtn');
-   if(title)title.textContent='تأكيد الخروج من الإعدادات';
-   const discardButton=box.querySelector('#dlgDiscardBtn');if(discardButton)discardButton.textContent='الخروج بدون تعديل';
-   if(subtitle)subtitle.textContent='هل تريد حفظ التعديلات أو متابعة الإعداد أو تجاهلها؟';
-   if(stay)stay.innerHTML='<i class="fas fa-pen ml-1" aria-hidden="true"></i> متابعة الإعداد';
- }
+ if(!hasChanges()){discard();action?.();return;}
+ UI.showUnsavedDialog(()=>saveAndClose(action),()=>{discard();action?.();});
 }
 function back(){
  if(!active)return;

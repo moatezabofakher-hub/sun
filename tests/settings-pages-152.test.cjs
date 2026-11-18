@@ -12,7 +12,7 @@ test('v152 standalone manager settings page JavaScript parses safely',()=>{
  assert.match(s,/draft\.cancel\(key\)/);
  assert.match(s,/draft\.discardSilently/);
  assert.match(s,/confirmExit/);
- assert.match(s,/متابعة الإعداد/);
+ assert.match(s,/if\(!hasChanges\(\)\)/);
 });
 test('v152 Back and dock navigation require Save, Continue Editing or Discard',()=>{
  const s=fs.readFileSync(manager,'utf8');
@@ -22,7 +22,7 @@ test('v152 Back and dock navigation require Save, Continue Editing or Discard',(
 test('Employee settings use standalone views and protect unsaved POS and print width',()=>{
  const s=fs.readFileSync(agent,'utf8'),html=fs.readFileSync(agentHtml,'utf8');
  new vm.Script(s,{filename:agent});
- for(const mark of ['taAgentSettingsDecision','AgentSettingsPages152','Agent.goBack=function','Agent.navigate=function','Agent.savePosSettings()','Agent.updatePrinterWidth(width)','متابعة الإعداد','تجاهل'])assert.ok(s.includes(mark),mark);
+ for(const mark of ['taAgentSettingsDecision','AgentSettingsPages152','Agent.goBack=function','Agent.navigate=function','Agent.savePosSettings()','Agent.updatePrinterWidth(width)','هل تريد حفظ التغييرات قبل الخروج؟','data-answer="discard"'])assert.ok(s.includes(mark),mark);
  assert.match(html,/ta-agent-settings-pages-152\.js/);
  assert.match(html,/ta-agent-settings-pages-152\.css/);
  assert.doesNotMatch(s,/State\.shareholderMovements\s*=/);

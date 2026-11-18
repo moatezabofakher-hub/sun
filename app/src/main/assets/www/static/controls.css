@@ -50,3 +50,26 @@ body button[data-action-tone=neutral],body #mainContent button[data-action-tone=
 #agentHeader #agentSyncConnection {position:relative;display:inline-flex;align-items:center;gap:3px;justify-content:center;width:40px;min-height:32px;border-radius:9px;font-size:17px}
 #agentHeader #agentSyncConnection::after {content:"";width:7px;height:7px;border-radius:50%;background:#ff9b9f}
 #agentHeader #agentSyncConnection[data-connected=true]::after {background:#52e798}
+/* Shared petrol navigation, pearl paper surfaces and silver edges. */
+:root {--ta-petrol:#104954;--ta-pearl:#f9faf7;--ta-silver:#bccbcf;--ta-heading:#124c57}
+body.ta-3d-v3524,body:has(#agentHeader) {background:linear-gradient(150deg,#f9faf7,#e7eff0)!important;color:#18373c}
+body header.ta-app-header,body #agentHeader,body nav.ta-bottom-nav,body #bottom.bottom {
+  background:linear-gradient(150deg,#195962,#103e49 68%,#0b323a)!important;color:white!important;
+  border-color:#9bb7bc!important;box-shadow:inset 0 1px #bfd2d7,0 3px 8px #142b3630!important
+}
+body .ta-bottom-nav .nav-btn,body #bottom.bottom button {color:#ecf5f4!important}
+body .ta-bottom-nav .nav-btn.active,body #bottom.bottom button.active {background:#216771!important;color:white!important;border-radius:10px}
+#mainContent :is(h2,h3,h4):not([class*="text-white"]):not([class*="text-red"]):not([class*="text-emerald"]),
+#screen .panel>h3,#screen .hero h2 {color:var(--ta-heading)}
+#screen .hero {background:linear-gradient(135deg,#f8faf8,#dcebed)!important;color:#164b54!important}
+#screen .hero p {color:#375962!important}
+body #mainContent :is(table,.ta-invoice-control-grid,.ta-voucher-footer-actions,.ta-footer-actions),
+#screen :is(table,.panel),body #modalBox,body #dialogBox {background-color:var(--ta-pearl);border-color:var(--ta-silver)}
+body #mainContent thead,body #screen thead {background:#dbe9e9!important;color:#153f47!important}
+body :is(.ta-action-card,.ta-module-card,.tile,.ta-icon-box,.ta-settings-page-header,.ta-agent-settings-heading) {border-color:var(--ta-silver);box-shadow:inset 0 1px 1px #ffffffa8,0 2px 0 #8ca9ad,0 5px 9px #18363d23}
+body button:is([aria-pressed=true],[role=option][aria-selected=true]) {outline:2px solid #14746f;outline-offset:-2px}
+body button:is([aria-pressed=true],[role=option][aria-selected=true])::after {content:'✓';margin-inline-start:.3em}
+body input:is([type=radio],[type=checkbox]) {accent-color:#087a72}
+#dialogContainer[data-dialog-type=unsaved] .ta-decision-actions {display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:10px}
+#dialogContainer[data-dialog-type=unsaved] #dlgDiscardBtn {background:linear-gradient(#f3f6f8,#d5dfe3)!important;color:#263949!important;-webkit-text-fill-color:#263949!important}
+body .ta-operation-art {display:block;width:100%;height:100%;object-fit:contain;filter:drop-shadow(0 2px 1px #15303938)}

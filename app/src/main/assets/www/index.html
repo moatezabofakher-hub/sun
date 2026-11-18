@@ -3321,13 +3321,8 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                             }
                         },
                         () => {
-                            const repeatPOS=this.current()?.screen==='pos' &&
-                              InvoiceController.draft?.rows?.length>0 &&
-                              !InvoiceController.draft.isEditing &&
-                              State.settings.posAutoNextOnFinish===true;
                             this.clearDirty();
-                            if(repeatPOS)this.navigate('pos',{},true);
-                            else this.popScreen();
+                            this.popScreen();
                         }
                     );
                     return;
@@ -4376,12 +4371,10 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 c.setAttribute('data-dialog-type','unsaved');
                 b.innerHTML = `
                     <div class="ta-decision-icon" aria-hidden="true"><i class="fas fa-shield-halved"></i></div>
-                    <h3 class="ta-decision-title">عملية غير مكتملة</h3>
-                    <p class="ta-decision-subtitle">لديك تغييرات لم تُحفظ</p>
+                    <h3 class="ta-decision-title">هل تريد حفظ التغييرات قبل الخروج؟</h3>
                     <div class="ta-decision-actions">
-                        <button type="button" id="dlgSaveBtn" class="ta-decision-save"><i class="fas fa-floppy-disk ml-1" aria-hidden="true"></i> حفظ</button>
-                        <button type="button" id="dlgCancelBtn" class="ta-decision-stay"><i class="fas fa-arrow-rotate-right ml-1" aria-hidden="true"></i> البقاء</button>
-                        <button type="button" id="dlgDiscardBtn" class="ta-decision-discard"><i class="fas fa-trash-can ml-1" aria-hidden="true"></i> تجاهل التغييرات</button>
+                        <button type="button" id="dlgSaveBtn" class="ta-decision-save">نعم</button>
+                        <button type="button" id="dlgDiscardBtn" class="ta-decision-discard">لا</button>
                     </div>
                 `;
                 c.classList.remove('hidden');
@@ -4395,10 +4388,6 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                     c.classList.add('hidden');
                     c.removeAttribute('data-dialog-type');
                     if (onDiscard) onDiscard();
-                };
-                document.getElementById('dlgCancelBtn').onclick = () => {
-                    c.classList.add('hidden');
-                    c.removeAttribute('data-dialog-type');
                 };
             },
 
@@ -4857,15 +4846,15 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                             <div class="ta-section-head"><span class="ta-section-mark"></span><div><h3>العمليات السريعة</h3><p>ابدأ عملية جديدة بضغطة واحدة</p></div></div>
                             <div class="ta-action-grid ta-quick-3573">
                                 <button type="button" onclick="AppNav.navigate('invoice_form', { type: 'sale' })" class="ta-action-card ta-quick-sale">
-                                    <span class="ta-icon-box ta-tone-teal"><i class="fas fa-cart-plus" aria-hidden="true"></i></span>
+                                    <span class="ta-icon-box ta-tone-teal"><img class="ta-operation-art" src="static/sale.png" alt=""></span>
                                     <span class="ta-card-footer"><span><strong>فاتورة مبيعات</strong><span class="ta-card-description block">تسجيل عملية بيع</span></span><i class="fas fa-arrow-right ta-card-chevron" aria-hidden="true"></i></span>
                                 </button>
                                 <button type="button" onclick="AppNav.navigate('pos')" class="ta-action-card ta-quick-pos" aria-label="فتح نقطة البيع السريعة">
-                                    <span class="ta-icon-box ta-tone-teal"><i class="fas fa-cash-register"></i></span>
+                                    <span class="ta-icon-box ta-tone-teal"><img class="ta-operation-art" src="static/pos.png" alt=""></span>
                                     <span class="ta-card-footer"><span><strong>نقطة بيع</strong><span class="ta-card-description block">بيع سريع وإضافة بالشبكة</span></span><i class="fas fa-arrow-right ta-card-chevron"></i></span>
                                 </button>
                                 <button type="button" onclick="AppNav.navigate('invoice_form', { type: 'purchase' })" class="ta-action-card ta-quick-purchase">
-                                    <span class="ta-icon-box ta-tone-blue"><i class="fas fa-truck-ramp-box" aria-hidden="true"></i></span>
+                                    <span class="ta-icon-box ta-tone-blue"><img class="ta-operation-art" src="static/purchase.png" alt=""></span>
                                     <span class="ta-card-footer"><span><strong>فاتورة مشتريات</strong><span class="ta-card-description block">إضافة مواد للمخزون</span></span><i class="fas fa-arrow-right ta-card-chevron" aria-hidden="true"></i></span>
                                 </button>
                                 <button type="button" onclick="AppNav.navigate('voucher_form', { type: 'receipt' })" class="ta-action-card ta-quick-receipt">
