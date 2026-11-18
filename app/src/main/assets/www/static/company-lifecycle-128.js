@@ -14,7 +14,26 @@
       if(s.appProtection?.pinHash)return false; // legacy password-protected businesses retain their existing identity
       return true;
     },
-    showIfRequired() {if(this.needsSetup())this.show();},
+    showIfRequired() {this.installCapitalNotificationHandler();if(this.needsSetup())this.show();},
+    installCapitalNotificationHandler(){
+      if(typeof ManagerNotifications==='undefined'||typeof ManagerNotifications.open!=='function'||
+        ManagerNotifications._capitalSetupHandler153)return;
+      const oldOpen=ManagerNotifications.open;
+      ManagerNotifications.open=async function(id){
+        const entry=this.ensure().entries.find(x=>x.id===id);
+        if(entry?.type==='capital-setup'){
+          if(!entry.read){
+            entry.read=true;this.updateBadge();
+            try{await StorageEngine.saveState();}catch(err){entry.read=false;this.updateBadge();}
+          }
+          if(window.ShareholdersUI?.operationForm){
+            window.ShareholdersUI.operationForm(entry.ownerId,'contribution');return;
+          }
+        }
+        return oldOpen.call(this,id);
+      };
+      ManagerNotifications._capitalSetupHandler153=true;
+    },
     show() {
       if($('ta-company-setup-128'))return;
       const overlay=document.createElement('div');
@@ -125,6 +144,7 @@
         $('ta-company-setup-128')?.remove();
         AppNav.renderCurrent();
         if(typeof ManagerNotifications!=='undefined'){
+          this.installCapitalNotificationHandler();
           ManagerNotifications.bootstrap();
           ManagerNotifications.saved([notice]);
         }
