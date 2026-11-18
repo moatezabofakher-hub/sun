@@ -222,7 +222,16 @@ const Agent={
       const msg={kind:'operations',appVersion:'3.5.152',nonce,companyId:this.state.companyId,agentId:this.state.agentId,
         warehouseId:this.state.warehouseId,issuedAt:new Date().toISOString(),operations:ops,pendingTotal:this.pending.length,historyCursor:Number(this.state.historyCursor||0),warehouseHistoryCursor:Number(this.state.warehouseHistoryCursor||0)};
       const packet=await FieldLanCrypto.pack(msg,this.state.key,this.state.companyId,this.state.agentId);
-      const raw=JSON.stringify(packet);
+      this.lanFinalPacket=JSON.stringify(packet);
+      // Old managers ignore unknown version fields. Negotiate with a zero-operation
+      // encrypted frame FIRST, before any invoices/cash movements leave this device.
+      const probe={...msg,operations:[],pendingTotal:this.pending.length};
+      this.lanSyncStage='version-probe';
+      const raw=JSON.stringify(await FieldLanCrypto.pack(probe,this.state.key,this.state.companyId,this.state.agentId));
+      this.dispatchVersionedSync(raw);
+    }catch(e){this.lanSyncBusy=false;this.lanRequestNonce=null;this.lanSyncStage=null;this.lanFinalPacket=null;this.lanSyncMessage=e.message;if(!this.lanSyncQuiet)this.toast(e.message);this.syncPaint();this.finishAutoSync?.(false);}
+  },
+  dispatchVersionedSync(raw){
       if(window.TiqanyCloudAgent?.ready()){
         // Cloud first (no inbound firewall rule). Fail closed to LAN; never declare success without ACK.
         window.TiqanyCloudAgent.send(raw).then(answer=>this.onLocalSyncResult(JSON.stringify({data:answer,transport:'cloud'})))
@@ -232,7 +241,6 @@ const Agent={
             window.AndroidLocalSync.send(this.state.companyId,raw);
           });
       } else window.AndroidLocalSync.send(this.state.companyId,raw);
-    }catch(e){this.lanSyncBusy=false;this.lanRequestNonce=null;this.lanSyncMessage=e.message;if(!this.lanSyncQuiet)this.toast(e.message);this.syncPaint();this.finishAutoSync?.(false);}
   },
   syncPaint(){const el=document.getElementById('agentLanStatus');if(el)el.textContent=this.lanSyncMessage;
     const btn=document.getElementById('agentLanSyncButton');if(btn){btn.disabled=this.lanSyncBusy;btn.textContent=this.lanSyncBusy?'جارٍ المزامنة…':'⇄ مزامنة الآن — Wi-Fi محلي';}},
@@ -264,6 +272,13 @@ const Agent={
         throw error;
       }
       if(ack.appVersion!=='3.5.152')throw Error('اختلاف إصدار التطبيقات: يجب تحديث جميع الأجهزة إلى الإصدار 3.5.152 قبل الاتصال أو المزامنة. لم تُنقل أي بيانات.');
+      if(this.lanSyncStage==='version-probe'){
+        if(ack.kind!=='sync_result'||ack.requestNonce!==this.lanRequestNonce||ack.companyId!==this.state.companyId||ack.agentId!==this.state.agentId)throw Error('تأكيد توافق الإصدار غير صالح');
+        this.lanSyncStage='operations';
+        this.lanSyncMessage='✅ إصدار الجهازين متوافق؛ جارٍ نقل العمليات…';this.syncPaint();
+        this.dispatchVersionedSync(this.lanFinalPacket);
+        return;
+      }
       if(ack.kind!=='sync_result'||ack.requestNonce!==this.lanRequestNonce||ack.companyId!==this.state.companyId||ack.agentId!==this.state.agentId||!Array.isArray(ack.knownIds))throw Error('تأكيد استلام غير صالح');
       const catalog=ack.catalog;
       if(!catalog||catalog.kind!=='provision'||catalog.companyId!==this.state.companyId||catalog.agentId!==this.state.agentId||catalog.key!==this.state.key||!Array.isArray(catalog.items)||!Array.isArray(catalog.accounts)||!catalog.stock)throw Error('كشف تحديث غير صالح');
@@ -378,7 +393,8 @@ const Agent={
           (newCount||itemsChanged||accountsChanged||stockChanged||(!this.lanSyncQuiet&&this.screen==='sync')||changingWarehouse))await this.show(this.screen);
       success=true;
     }catch(e){this.lanSyncMessage='لم تكتمل المزامنة: '+e.message;if(!this.lanSyncQuiet)this.toast(this.lanSyncMessage);}
-    finally{this.lanSyncBusy=false;this.lanRequestNonce=null;this.lanSentCount=0;this.syncPaint();this.finishAutoSync?.(success);}
+    finally{if(this.lanSyncStage==='version-probe'&&this.lanSyncBusy)return;
+      this.lanSyncBusy=false;this.lanRequestNonce=null;this.lanSyncStage=null;this.lanFinalPacket=null;this.lanSentCount=0;this.syncPaint();this.finishAutoSync?.(success);}
   },
   async exportOutbox(){try{
     if(!this.ready())throw Error('موظف البيع غير مرتبط بالشركة');
