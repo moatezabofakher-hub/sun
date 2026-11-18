@@ -7,6 +7,12 @@
 const U=root.TiqanyFxUI,E=root.TiqanyCurrencyExchangeCore;
 if(!U||!E||typeof State==='undefined'||typeof UI==='undefined')return;
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','"':'&quot;',"'":'&#39;'}[c]));
+const trial={begin(consume){if(!consume||typeof LicenseManager==='undefined')return null;
+ if(!LicenseManager.canPerformOperation())throw Error('انتهى الحد المسموح للعمليات في النسخة التجريبية؛ فعّل التطبيق أو حدّث الترخيص');
+ const old=Number(State.license.opsUsedCount)||0;
+ State.license.opsUsedCount=LicenseManager.getTotalOpsUsed()+1;return old;
+},done(old){if(old!==null)LicenseManager.persistFallbackStorage();},
+undo(old){if(old!==null)State.license.opsUsedCount=old;}};
 const money=(x,c)=>Number(x||0).toLocaleString('en-US',{maximumFractionDigits:c==='SYP'?0:2})+' '+(c==='SYP'?'ل.س':c);
 const rates=()=>State.settings.currencyExchangeRatesSyp||{};
 const extra=()=>Array.isArray(State.settings.addedCurrencies)?State.settings.addedCurrencies:[];
@@ -113,11 +119,13 @@ async function saveTrade(){
   const changed=Number(oldRecord[side])!==price;
   if(changed)newRates[code]={...oldRecord,[side]:price};
   const candidate=[...before,entry];E.analyze(candidate);
+  const trialBefore=trial.begin(true);
   busy=true;
   State.currencyExchanges=candidate;
   if(changed)State.settings.currencyExchangeRatesSyp=newRates;
   try{await StorageEngine.saveState();}
-  catch(error){State.currencyExchanges=before;if(changed)State.settings.currencyExchangeRatesSyp=oldRates;throw error;}
+  catch(error){State.currencyExchanges=before;if(changed)State.settings.currencyExchangeRatesSyp=oldRates;trial.undo(trialBefore);throw error;}
+  trial.done(trialBefore);
   UI.forceCloseModal();
   UI.toast('تم حفظ '+(isBuy?'شراء ':'مبيع ')+code+' في الصندوقين واحتساب أرباح التصريف','success');
   if(typeof AppNav!=='undefined')AppNav.renderCurrent();
@@ -157,10 +165,12 @@ async function saveCurrencyRates(){
    const rate=Number(raw);if(!validPrice(rate))throw Error('سعر صرف غير صالح للعملة '+code);
    next[code]=rate;
   }
+  const trialBefore=trial.begin(usd!==Number(priorRate)||JSON.stringify(next)!==JSON.stringify(priorCurrencies||{}));
   State.settings.exchangeRate=usd;
   State.settings.currencyRatesSyp=next;
   try{await StorageEngine.saveState();}
-  catch(e){State.settings.exchangeRate=priorRate;State.settings.currencyRatesSyp=priorCurrencies;throw e;}
+  catch(e){State.settings.exchangeRate=priorRate;State.settings.currencyRatesSyp=priorCurrencies;trial.undo(trialBefore);throw e;}
+  trial.done(trialBefore);
   const badge=document.getElementById('topBarRate');
   if(badge)badge.textContent=usd.toLocaleString('en-US');
   UI.forceCloseModal();
@@ -204,9 +214,11 @@ async function saveRates(){
    if(!validPrice(buy)||!validPrice(sell))throw Error('سعر غير صالح للعملة '+c);
    next[c]={buy,sell};
   }
+  const trialBefore=trial.begin(JSON.stringify(next)!==JSON.stringify(prior));
   State.settings.currencyExchangeRatesSyp=next;
   try{await StorageEngine.saveState();}
-  catch(e){State.settings.currencyExchangeRatesSyp=prior;throw e;}
+  catch(e){State.settings.currencyExchangeRatesSyp=prior;trial.undo(trialBefore);throw e;}
+  trial.done(trialBefore);
   UI.forceCloseModal();
   UI.toast('تم حفظ أسعار الصرف لجميع العملات','success');
   if(typeof AppNav!=='undefined')AppNav.renderCurrent();
