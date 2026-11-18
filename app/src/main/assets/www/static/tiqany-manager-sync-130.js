@@ -485,7 +485,7 @@ const manager={
     const el=document.getElementById('ta-manager-phone-connection');if(!el)return;
     const now=Date.now();
     const active=(this.lastServer>0&&now-this.lastServer<20000)||(this.lastClient>0&&now-this.lastClient<20000);
-    el.hidden=!active;
+    el.hidden=false;
     el.classList.toggle('ta-manager-online',active);
     el.setAttribute('aria-label',active?'موبايل مدير آخر متصل':'موبايل مدير غير متصل');
     el.setAttribute('title',active?'مزامنة أجهزة مدير — متصل':'مزامنة أجهزة مدير');

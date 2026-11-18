@@ -1437,6 +1437,8 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
 <link rel="stylesheet" href="static/ta-unified-3d-152.css">
 <link rel="stylesheet" href="static/ta-3d-unified-152.css">
 <link rel="stylesheet" href="static/ta-settings-pages-152.css">
+<link rel="stylesheet" href="static/controls.css">
+<script defer src="static/controls.js"></script>
 </head>
 <body class="ta-premium-ui ta-3d-v3524 bg-slate-100 text-slate-800 min-h-screen flex flex-col w-full max-w-full overflow-x-hidden">
 
@@ -1452,13 +1454,13 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 </button>
                 <div id="ta-stable-connection-slots" class="ta-header-connections" aria-label="الأجهزة المتصلة">
                     <span class="ta-connection-slot" data-connection-slot="computer">
-                        <button id="ta-desktop-phone-connection" type="button" hidden class="ta-link-status ta-link-offline" onclick="TiqanyPeerSync.openSettingsFromHeader()" aria-label="فتح مزامنة الموبايل والكمبيوتر من الضبط" title="افتح مزامنة الموبايل والكمبيوتر"><span class="ta-link-devices" aria-hidden="true"><svg width="14" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8m-4-4v4"/></svg><i class="fas fa-mobile-screen"></i></span><span class="ta-link-dot" aria-hidden="true"></span></button>
+                        <button id="ta-desktop-phone-connection" type="button" class="ta-link-status ta-link-offline" onclick="TiqanyPeerSync.openSettingsFromHeader()" aria-label="فتح مزامنة الموبايل والكمبيوتر من الضبط" title="افتح مزامنة الموبايل والكمبيوتر"><span class="ta-link-devices" aria-hidden="true"><svg width="14" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8m-4-4v4"/></svg><i class="fas fa-mobile-screen"></i></span><span class="ta-link-dot" aria-hidden="true"></span></button>
                     </span>
                     <span class="ta-connection-slot" data-connection-slot="employee">
-                        <button id="salesStaffCounterButton" type="button" hidden class="ta-staff-counter" onclick="AppNav.navigate('agent_hub')" title="موظفو البيع المتصلون" aria-label="عدد موظفي البيع المتصلين"><i class="fas fa-users" aria-hidden="true"></i><strong id="salesStaffConnectedCount" aria-live="polite">0</strong></button>
+                        <button id="salesStaffCounterButton" type="button" class="ta-staff-counter" onclick="AppNav.navigate('agent_hub')" title="موظفو البيع المتصلون" aria-label="عدد موظفي البيع المتصلين"><i class="fas fa-users" aria-hidden="true"></i><strong id="salesStaffConnectedCount" aria-live="polite">0</strong></button>
                     </span>
                     <span class="ta-connection-slot" data-connection-slot="manager">
-                        <button id="ta-manager-phone-connection" type="button" hidden class="ta-link-status ta-manager-link" aria-label="مزامنة موبايلين مدير" title="مزامنة أجهزة مدير" onclick="TiqanyManagerSync.openSettings()"><span class="ta-link-devices" aria-hidden="true"><i class="fas fa-mobile-screen"></i><i class="fas fa-mobile-screen"></i></span><span class="ta-link-dot" aria-hidden="true"></span></button>
+                        <button id="ta-manager-phone-connection" type="button" class="ta-link-status ta-manager-link" aria-label="مزامنة موبايلين مدير" title="مزامنة أجهزة مدير" onclick="TiqanyManagerSync.openSettings()"><span class="ta-link-devices" aria-hidden="true"><i class="fas fa-mobile-screen"></i><i class="fas fa-mobile-screen"></i></span><span class="ta-link-dot" aria-hidden="true"></span></button>
                     </span>
                 </div>
                 <button id="headerBackBtn" onclick="AppNav.handleBackButton()" class="w-8 h-8 shrink-0 rounded-full flex items-center justify-center hover:bg-slate-800 active:bg-slate-700 transition" title="رجوع / خروج">
@@ -4867,11 +4869,11 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                                     <span class="ta-card-footer"><span><strong>فاتورة مشتريات</strong><span class="ta-card-description block">إضافة مواد للمخزون</span></span><i class="fas fa-arrow-right ta-card-chevron" aria-hidden="true"></i></span>
                                 </button>
                                 <button type="button" onclick="AppNav.navigate('voucher_form', { type: 'receipt' })" class="ta-action-card ta-quick-receipt">
-                                    <span class="ta-icon-box ta-tone-purple"><i class="fas fa-hand-holding-dollar" aria-hidden="true"></i></span>
+                                    <span class="ta-icon-box ta-tone-purple"><img class="ta-voucher-art" src="static/receipt.png" alt=""></span>
                                     <span class="ta-card-footer"><span><strong>سند قبض</strong><span class="ta-card-description block">تسجيل مبلغ وارد</span></span><i class="fas fa-arrow-right ta-card-chevron" aria-hidden="true"></i></span>
                                 </button>
                                 <button type="button" onclick="AppNav.navigate('voucher_form', { type: 'payment' })" class="ta-action-card ta-quick-payment">
-                                    <span class="ta-icon-box ta-tone-orange"><i class="fas fa-money-bill-transfer" aria-hidden="true"></i></span>
+                                    <span class="ta-icon-box ta-tone-orange"><img class="ta-voucher-art" src="static/payment.png" alt=""></span>
                                     <span class="ta-card-footer"><span><strong>سند دفع</strong><span class="ta-card-description block">تسجيل مبلغ مدفوع</span></span><i class="fas fa-arrow-right ta-card-chevron" aria-hidden="true"></i></span>
                                 </button>
                             </div>

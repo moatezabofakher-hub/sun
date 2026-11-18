@@ -1,0 +1,52 @@
+/* Distinguish money entering and leaving the cashbox at a glance. */
+:root {
+  --ta-receipt-surface:linear-gradient(150deg,#e7fff1,#a7e4c3);
+  --ta-payment-surface:linear-gradient(150deg,#fff0ed,#f4bcc3);
+  --ta-positive:linear-gradient(155deg,#208755,#085234);
+  --ta-negative:linear-gradient(155deg,#cd4758,#8d2334);
+}
+body #mainContent .ta-action-card:is(.ta-quick-receipt,[onclick*="'receipt'"]),
+#screen .tile[onclick*="startVoucher('receipt')"] {background:var(--ta-receipt-surface)!important;color:#123c2a!important}
+body #mainContent .ta-action-card:is(.ta-quick-payment,[onclick*="'payment'"]),
+#screen .tile[onclick*="startVoucher('payment')"] {background:var(--ta-payment-surface)!important;color:#5a1c29!important}
+body .ta-voucher-art {width:100%;height:100%;object-fit:contain;display:block;filter:drop-shadow(0 2px 1px #102f3740)}
+body #mainContent .ta-action-card .ta-icon-box:has(.ta-voucher-art),
+body .tile .glyph:has(.ta-voucher-art) {padding:2px!important;background:transparent!important;border:0!important;box-shadow:none!important}
+body .tile .glyph:has(.ta-voucher-art) {width:44px;height:44px;display:inline-flex}
+#dialogContainer .ta-decision-save,
+body button[data-ta-settings-save] {background:var(--ta-positive)!important;color:white!important;-webkit-text-fill-color:white!important}
+#dialogContainer .ta-decision-stay {background:linear-gradient(#f4f6f8,#d4dce1)!important;color:#253542!important;-webkit-text-fill-color:#253542!important}
+#dialogContainer .ta-decision-discard,#dialogContainer .ta-exit-leave,
+body #mainContent button[onclick*="confirmDelete"] {background:var(--ta-negative)!important;color:white!important;-webkit-text-fill-color:white!important}
+body #topAppBar #headerNotificationsBtn,body #agentHeader #agentManagerNotifications {overflow:visible!important;position:relative!important;isolation:isolate}
+body #topAppBar #headerNotificationsCount,body #agentHeader #agentManagerNotificationCount {
+  position:absolute!important;inset:auto!important;top:0!important;left:0!important;
+  width:auto!important;min-width:16px!important;height:15px!important;padding:0 2px!important;
+  box-sizing:border-box!important;border:1px solid #fff!important;border-radius:8px!important;
+  background:#a91937!important;color:white!important;font:800 10px/13px sans-serif!important;
+  text-align:center;white-space:nowrap;direction:ltr;transform:none!important;z-index:2;
+}
+body #topAppBar #headerNotificationsBtn:has(#headerNotificationsCount:not([hidden])) > i,
+body #agentHeader #agentManagerNotifications:has(b:not([hidden])) > span {transform:translate(3px,4px)}
+#topAppBar .ta-header-connections button {--lamp:#ff9b9f}
+#topAppBar .ta-header-connections :is(.ta-link-online,.ta-manager-online,.has-staff) {--lamp:#52e798}
+#topAppBar .ta-header-connections button .ta-link-dot,
+#topAppBar .ta-header-connections #salesStaffCounterButton::after {
+  content:"";display:inline-block!important;width:6px!important;height:6px!important;min-width:6px;
+  border-radius:50%;background:var(--lamp)!important;box-shadow:0 0 3px var(--lamp)!important
+}
+#topAppBar .ta-header-connections #salesStaffConnectedCount {display:none!important}
+body button[data-action-tone=positive],body #mainContent button[data-action-tone=positive],
+body #dialogContainer button[data-action-tone=positive],body #modalBox button[data-action-tone=positive] {
+  background:var(--ta-positive)!important;color:white!important;-webkit-text-fill-color:white!important
+}
+body button[data-action-tone=negative],body #mainContent button[data-action-tone=negative],
+body #dialogContainer button[data-action-tone=negative],body #modalBox button[data-action-tone=negative] {
+  background:var(--ta-negative)!important;color:white!important;-webkit-text-fill-color:white!important
+}
+body button[data-action-tone=neutral],body #mainContent button[data-action-tone=neutral],body #dialogContainer button[data-action-tone=neutral],body #modalBox button[data-action-tone=neutral] {
+  background:linear-gradient(#f5f7fa,#d5dfe6)!important;color:#263949!important;-webkit-text-fill-color:#263949!important
+}
+#agentHeader #agentSyncConnection {position:relative;display:inline-flex;align-items:center;gap:3px;justify-content:center;width:40px;min-height:32px;border-radius:9px;font-size:17px}
+#agentHeader #agentSyncConnection::after {content:"";width:7px;height:7px;border-radius:50%;background:#ff9b9f}
+#agentHeader #agentSyncConnection[data-connected=true]::after {background:#52e798}

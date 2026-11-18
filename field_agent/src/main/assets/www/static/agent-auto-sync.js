@@ -16,7 +16,7 @@
    const suffix=managerAddress ? ' · '+managerAddress : '';
    const text={connected:'● متصل بالمسؤول',connecting:'◌ جارٍ الاتصال',offline:'○ بانتظار المسؤول المتاح',waiting:'◌ بانتظار التفعيل'}[state]||state;
    const badge=document.getElementById('agentSyncConnection');
-   if(badge){badge.textContent=text;badge.style.background=state==='connected'?'#0c7b66':state==='offline'?'#6b637a':'#235c6c';}
+   if(badge){badge.dataset.connected=String(state==='connected');badge.setAttribute('aria-label',text);badge.title=text;badge.style.background=state==='connected'?'#0c7b66':state==='offline'?'#6b637a':'#235c6c';}
    const status=document.getElementById('agentAutoSyncStatus');
    if(status)status.textContent=state==='connected'?'✅ متصل بالمسؤول الحالي'+suffix+' — مزامنة كل 12 ثانية، والبديل عند الانقطاع':
       state==='connecting'?'جارٍ التحقق من المسؤول الحالي أو البحث عن بديل…':

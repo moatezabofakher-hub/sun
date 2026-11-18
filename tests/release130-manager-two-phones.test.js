@@ -76,11 +76,11 @@ test('Android bridge is separate, encrypted, and owns QR+two-way transport',()=>
  assert.match(java,/BarcodeFormat\.QR_CODE/);
  assert.match(activity,/addJavascriptInterface\(mainManagerPeerSync,"AndroidManagerPeer"\)/);
 });
-test('Manager settings panel and all three inline active-only header icons exist',()=>{
+test('Manager settings panel and three persistent connection buttons exist',()=>{
  assert.match(index,/مزامنة أجهزة مدير|tiqany-manager-sync-130.js/);
- assert.match(index,/id="ta-manager-phone-connection"[^>]*hidden/);
- assert.match(index,/id="salesStaffCounterButton"[^>]*hidden/);
- assert.match(index,/id="ta-desktop-phone-connection"[^>]*hidden/);
+ assert.doesNotMatch(index,/id="ta-manager-phone-connection"[^>]*hidden/);
+ assert.doesNotMatch(index,/id="salesStaffCounterButton"[^>]*hidden/);
+ assert.doesNotMatch(index,/id="ta-desktop-phone-connection"[^>]*hidden/);
  assert.doesNotMatch(index,/class="ta-staff-counter-label">متصل</);
  assert.match(source,/flex-direction:row!important;flex-wrap:nowrap!important/);
  assert.match(source,/#ta-manager-phone-connection\[hidden\]/);

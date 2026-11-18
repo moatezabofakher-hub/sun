@@ -3,7 +3,7 @@ name: Tiqany Acc - Agent Signed Release
 on:
   workflow_dispatch:
   push:
-    branches: [main, 'fix/scroll-behavior-144', 'feature/manager-finance-ui-from-152']
+    branches: ['feature/functional-icons-header', main, 'fix/scroll-behavior-144', 'feature/manager-finance-ui-from-152']
     paths:
       - 'field_agent/**'
       - 'tests/release138-no-outside-dismiss.test.js'
@@ -76,6 +76,10 @@ jobs:
 
       - name: Verify employee v152 settings pages and unsaved draft guard
         run: node --test tests/settings-pages-152.test.cjs
+      - name: Verify illustrated controls and header geometry
+        run: |
+          python -m pip install playwright==1.55.0
+          python tests/check_controls.py . employee
       - name: Build, sign, and verify field_agent release APK
         shell: bash
         env:
@@ -121,7 +125,7 @@ jobs:
           if-no-files-found: error
           retention-days: 30
       - name: Publish signed employee feature APK for direct download
-        if: github.ref == 'refs/heads/feature/manager-finance-ui-from-152'
+        if: github.ref == 'refs/heads/feature/manager-finance-ui-from-152' || github.ref == 'refs/heads/feature/functional-icons-header'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
