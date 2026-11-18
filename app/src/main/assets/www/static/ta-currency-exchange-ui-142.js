@@ -354,6 +354,8 @@ if(typeof oldReport==='function')Views.renderReports=function(main,params,...arg
 
    const details=matched.filter(e=>e.gainSyp!==0).slice().reverse();
    // This is a read-only projection of realized FX gains, never an additional posting.
+   // pendingSales is an unsettled-cost ledger inside the exchange analysis, not an expense.
+   // لا تُعد مبالغ شراء العملة مصاريف؛ يعرض هذا القسم الأرباح المحققة فقط دون تكرار قيود التكلفة.
    const detailsHtml=details.length?details.map(e=>
      '<div class="flex justify-between gap-2 text-xs border-b border-blue-100 py-2"><span>'+
      esc(window.TiqanyReportDate148?.calendarDate(e.date)||String(e.date||'').slice(0,10))+' · '+
