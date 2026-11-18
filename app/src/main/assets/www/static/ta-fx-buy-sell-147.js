@@ -36,14 +36,26 @@ function chooser(){
   return '<section class="rounded-xl border border-sky-200 bg-white p-3">'+
     '<div class="font-black text-slate-900 mb-2">'+title+'</div>'+
     '<div class="grid grid-cols-2 gap-3">'+
-    '<button type="button" onclick="TiqanyFx147.trade(\''+code+'\',\'buy\')" class="rounded-2xl border-2 border-emerald-400 bg-emerald-50 p-3 text-emerald-900 font-black flex flex-col items-center gap-2" aria-label="شراء '+title+'">'+
-      '<span class="text-3xl"><i class="fas fa-arrow-down text-emerald-600"></i><i class="fas fa-coins text-amber-500"></i></span><span>شراء '+esc(code)+'</span>'+
-      '<small class="font-medium text-xs">سعر الشراء '+money(current(code,'buy'),'SYP')+'</small></button>'+
-    '<button type="button" onclick="TiqanyFx147.trade(\''+code+'\',\'sell\')" class="rounded-2xl border-2 border-blue-400 bg-blue-50 p-3 text-blue-900 font-black flex flex-col items-center gap-2" aria-label="مبيع '+title+'">'+
-      '<span class="text-3xl"><i class="fas fa-arrow-up text-blue-600"></i><i class="fas fa-money-bill-wave text-emerald-500"></i></span><span>مبيع '+esc(code)+'</span>'+
-      '<small class="font-medium text-xs">سعر المبيع '+money(current(code,'sell'),'SYP')+'</small></button></div></section>';
+    '<button type="button" onclick="TiqanyFx147.trade(\''+code+'\',\'buy\')" class="ta-fx-choice-153 rounded-2xl border-2 border-emerald-400 bg-emerald-50 p-3 text-emerald-900 font-black" aria-label="شراء '+title+'">'+
+      '<span class="ta-fx-icon-153" aria-hidden="true"><i class="fas fa-arrow-down text-emerald-600"></i><i class="fas fa-coins text-amber-500"></i></span><strong class="ta-fx-title-153">شراء <bdi>'+esc(code)+'</bdi></strong>'+
+      '<small class="ta-fx-price-153">سعر الشراء <bdi>'+money(current(code,'buy'),'SYP')+'</bdi></small></button>'+
+    '<button type="button" onclick="TiqanyFx147.trade(\''+code+'\',\'sell\')" class="ta-fx-choice-153 rounded-2xl border-2 border-blue-400 bg-blue-50 p-3 text-blue-900 font-black" aria-label="مبيع '+title+'">'+
+      '<span class="ta-fx-icon-153" aria-hidden="true"><i class="fas fa-arrow-up text-blue-600"></i><i class="fas fa-money-bill-wave text-emerald-500"></i></span><strong class="ta-fx-title-153">مبيع <bdi>'+esc(code)+'</bdi></strong>'+
+      '<small class="ta-fx-price-153">سعر المبيع <bdi>'+money(current(code,'sell'),'SYP')+'</bdi></small></button></div></section>';
  }).join('');
+ const choiceStyle='<style>'+
+  '[data-ta-fx-desk] .ta-fx-choice-153{display:grid!important;grid-template-columns:minmax(0,1fr)!important;grid-template-rows:78px minmax(32px,auto) minmax(36px,auto)!important;justify-items:center!important;align-items:center!important;align-content:center!important;gap:10px!important;min-width:0!important;min-height:206px!important;padding:14px 8px!important;overflow:visible!important;text-align:center!important;}'+
+  '[data-ta-fx-desk] .ta-fx-icon-153{display:flex!important;flex-flow:row nowrap!important;align-items:center!important;justify-content:center!important;gap:7px!important;width:100%!important;height:78px!important;position:static!important;transform:none!important;}'+
+  '[data-ta-fx-desk] .ta-fx-icon-153 i{position:static!important;transform:none!important;flex-shrink:0!important;line-height:1.1!important;}'+
+  '[data-ta-fx-desk] .ta-fx-icon-153 i:first-child{font-size:30px!important;display:grid!important;place-items:center!important;width:55px!important;height:64px!important;border-radius:17px!important;background:linear-gradient(145deg,#e8f6ff,#98c2f0)!important;box-shadow:0 4px 0 #6899cd,0 7px 10px #18416c40!important;text-shadow:0 2px 2px #fff9;}'+
+  '[data-ta-fx-desk] .ta-fx-icon-153 i:last-child{font-size:28px!important;filter:drop-shadow(0 3px 3px #123b6240)!important;}'+
+  '[data-ta-fx-desk] .ta-fx-title-153{display:block!important;position:static!important;transform:none!important;z-index:1!important;margin:0!important;padding:0!important;min-height:30px!important;width:100%!important;font-size:clamp(15px,3.7vw,20px)!important;line-height:1.55!important;font-weight:900!important;white-space:nowrap!important;text-align:center!important;overflow:visible!important;}'+
+  '[data-ta-fx-desk] .ta-fx-price-153{display:block!important;position:static!important;transform:none!important;z-index:1!important;margin:0!important;padding:0!important;width:100%!important;min-height:32px!important;font-size:clamp(12px,2.9vw,15px)!important;line-height:1.45!important;font-weight:600!important;overflow-wrap:anywhere!important;text-align:center!important;}'+
+  '[data-ta-fx-desk] .ta-fx-choice-153 bdi{display:inline!important;unicode-bidi:isolate!important;}'+
+  '@media(max-width:370px){[data-ta-fx-desk] .ta-fx-choice-153{padding:10px 5px!important;gap:8px!important;}[data-ta-fx-desk] .ta-fx-icon-153{gap:4px!important;}[data-ta-fx-desk] .ta-fx-icon-153 i:first-child{width:48px!important;height:56px!important;font-size:26px!important;}[data-ta-fx-desk] .ta-fx-icon-153 i:last-child{font-size:23px!important;}}'+
+  '</style>';
  UI.openModal('<div dir="rtl" class="text-right space-y-3 max-h-[78vh] overflow-y-auto" data-ta-fx-desk="1">'+
+   choiceStyle+
    '<h2 class="text-xl font-black">تصريف عملة — شراء ومبيع</h2>'+
    '<p class="text-xs text-slate-700">اختر شراء أو مبيع للعملة المطلوبة. تُستخدم أسعار الصرف المحفوظة ويمكن تعديل سعر العملية.</p>'+
    cells+
