@@ -3,7 +3,7 @@ name: Tiqany Acc - Agent Signed Release
 on:
   workflow_dispatch:
   push:
-    branches: [main, 'fix/scroll-behavior-144']
+    branches: [main, 'fix/scroll-behavior-144', 'feature/manager-finance-ui-from-152']
     paths:
       - 'field_agent/**'
       - 'tests/release138-no-outside-dismiss.test.js'
@@ -74,6 +74,8 @@ jobs:
           grep -F "versionCode 152" field_agent/build.gradle
           grep -F "versionName '3.5.152'" field_agent/build.gradle
 
+      - name: Verify employee v152 settings pages and unsaved draft guard
+        run: node --test tests/settings-pages-152.test.cjs
       - name: Build, sign, and verify field_agent release APK
         shell: bash
         env:
