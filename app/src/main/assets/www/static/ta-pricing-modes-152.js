@@ -19,7 +19,7 @@ const P={
    const def=State.settings.defaultPriceTier;return this.validTier(def)?def:'wholesale';
  },
  setModes(next){State.settings.taPricingModes=next;},
- async persist(){const staged=window.TiqanySettingsDraft;if(staged?.isActive?.()){await staged.save('invoices');}else await StorageEngine.saveState();},
+ async persist(){const staged=window.TiqanySettingsDraft;if(staged?.isActive?.()){await staged.save('invoices');if(staged.isActive())throw Error('لم يتم حفظ إعدادات الفواتير');}else await StorageEngine.saveState();},
  isLinked(id){
    return (State.invoices||[]).some(i=>{
       if(i.priceTierOverride===id||i.priceTier===id)return true;
