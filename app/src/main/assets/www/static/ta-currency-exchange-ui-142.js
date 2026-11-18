@@ -6,6 +6,13 @@ if(!E||typeof Views==='undefined'||typeof UI==='undefined')return;
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt=(v,c)=>Number(v||0).toLocaleString('en-US',{maximumFractionDigits:c==='SYP'?0:2})+' '+c;
 const rows=()=>Array.isArray(State.currencyExchanges)?State.currencyExchanges:(State.currencyExchanges=[]);
+const trial={begin(consume){if(!consume||typeof LicenseManager==='undefined')return null;
+ if(!LicenseManager.canPerformOperation())throw Error('انتهى الحد المسموح للعمليات في النسخة التجريبية؛ فعّل التطبيق أو حدّث الترخيص');
+ const old=Number(State.license.opsUsedCount)||0;
+ State.license.opsUsedCount=LicenseManager.getTotalOpsUsed()+1;return old;
+},done(old){if(old!==null)LicenseManager.persistFallbackStorage();},
+undo(old){if(old!==null)State.license.opsUsedCount=old;}};
+
 const currencies=()=>{
   const standard=(typeof CurrencyCatalog!=='undefined'?CurrencyCatalog.active():['USD','SYP']);
   const extra=(State.settings.addedCurrencies||[]).map(c=>String(c.code||'').toUpperCase()).filter(c=>/^[A-Z]{3}$/.test(c));
@@ -42,9 +49,11 @@ async function saveRates(){
    next[c]={buy,sell};count++;
   }
   if(!count)throw Error('أدخل أسعار عملة واحدة على الأقل');
+  const trialBefore=trial.begin(JSON.stringify(next)!==JSON.stringify(existing));
   State.settings.currencyExchangeRatesSyp=next;
   try{await StorageEngine.saveState();}
-  catch(err){State.settings.currencyExchangeRatesSyp=existing;throw err;}
+  catch(err){State.settings.currencyExchangeRatesSyp=existing;trial.undo(trialBefore);throw err;}
+  trial.done(trialBefore);
   UI.toast('تم حفظ أسعار الشراء والمبيع','success');UI.forceCloseModal();
  }catch(err){UI.toast('تعذر حفظ سعر الصرف: '+err.message,'error');}
 }
@@ -232,10 +241,12 @@ async function save(){
   const previous=rows();
   const candidate=old?previous.map(x=>x.id===old.id?e:x):[...previous,e];
   E.analyze(candidate);
+  const trialBefore=trial.begin(!old);
   saving=true;State.currencyExchanges=candidate;
   if(rateChanged)State.settings.currencyExchangeRatesSyp=newRates;
   try{await StorageEngine.saveState();}
-  catch(err){State.currencyExchanges=previous;if(rateChanged)State.settings.currencyExchangeRatesSyp=ratesBefore;throw err;}
+  catch(err){State.currencyExchanges=previous;if(rateChanged)State.settings.currencyExchangeRatesSyp=ratesBefore;trial.undo(trialBefore);throw err;}
+  trial.done(trialBefore);
   UI.toast(old?'تم تحديث التصريف وأرصدة الصناديق والأرباح':'تم حفظ التصريف في الصندوقين','success');
   if(old)list();else UI.forceCloseModal();
   AppNav.renderCurrent();
