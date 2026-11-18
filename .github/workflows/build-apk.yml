@@ -103,6 +103,8 @@ jobs:
           node --check app/src/main/assets/www/static/ta-thermal-table-152.js
           node --test tests/manager-enhancements-152.test.cjs
           node --test tests/thermal-grid-152.test.cjs
+      - name: Verify v152 standalone settings pages and draft Back guard
+        run: node --test tests/settings-pages-152.test.cjs
       - name: Build, sign, and verify app release APK
         shell: bash
         env:
