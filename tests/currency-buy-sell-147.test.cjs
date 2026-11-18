@@ -132,3 +132,28 @@ test('Gross and net profits both include realized FX gains exactly once',()=>{
  assert.match(source,/Accounting\.format\(grossProfitUsd,'USD'\)/);
  assert.match(source,/invoiceProfits\.push\(\{id:'fx_profit_'/);
 });
+
+test('Editing FX through modern buy/sell page replaces historical operation exactly once',async()=>{
+ const x=sandbox();
+ x.fields({ta147Currency:'USD',ta147Side:'buy',ta147Amount:100,ta147Rate:15000,ta147Note:'شراء أصلي'});
+ await x.app.TiqanyFx147.saveTrade();
+ x.fields({ta147Currency:'USD',ta147Side:'sell',ta147Amount:50,ta147Rate:17000,ta147Note:'بيع أصلي'});
+ await x.app.TiqanyFx147.saveTrade();
+ assert.equal(engine.analyze(x.state.currencyExchanges).profitSyp,100000);
+ const original=x.state.currencyExchanges[1],id=original.id,date=original.date;
+ x.fields({ta147Currency:'USD',ta147Side:'sell',ta147Amount:50,ta147Rate:18000,
+   ta147EditId:id,ta147Note:'بيع معدل'});
+ for(const id of ['ta147Amount','ta147Rate','ta147Balance','ta147Preview','ta147Total']){
+   if(!x.ids[id])x.ids[id]={value:'',textContent:''};
+   x.ids[id].addEventListener=()=>{};
+ }
+ x.app.TiqanyFxUI.newForm(id);
+ assert.match(x.logs.at(-1),/تعديل مبيع USD/);
+ await x.app.TiqanyFx147.saveTrade();
+ assert.equal(x.state.currencyExchanges.length,2,'editing must not append a second FX operation');
+ assert.equal(x.state.currencyExchanges[1].id,id);
+ assert.equal(x.state.currencyExchanges[1].date,date);
+ assert.equal(x.state.currencyExchanges[1].note,'بيع معدل');
+ assert.equal(engine.analyze(x.state.currencyExchanges).profitSyp,150000);
+ assert.equal(x.state.settings.currencyExchangeRatesSyp.USD.sell,18000);
+});
