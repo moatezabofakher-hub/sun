@@ -220,15 +220,13 @@ const E={
  changePosUnit(index,unitName){
    const d=InvoiceController.draft,row=d?.rows?.[index],item=State.items.find(i=>i.id===row?.itemId),unit=item?.units?.find(u=>u.name===unitName);
    if(!row||!unit||!POSController.canChange())return;
-   // Preserve the physical base-stock quantity when the display unit changes.
-   const oldFactor=Number(row.unitFactor)>0?Number(row.unitFactor):1;
-   const newFactor=Number(unit.factor)>0?Number(unit.factor):1;
-   const qty=Number(row.qty);
-   if(!Number.isFinite(qty)||qty<=0)return UI.toast('كمية المادة غير صالحة','error');
-   const convertedQty=Math.round((qty/oldFactor*newFactor+Number.EPSILON)*1e6)/1e6;
-   if(!(convertedQty>0))return UI.toast('الكمية المحوّلة أصغر من الدقة المدعومة','error');
-   row.qty=convertedQty;
-   row.unitName=unit.name;row.unitFactor=newFactor;
+   // Keep the numeric quantity entered by the cashier unchanged.
+   // Stock consumption is recalculated using the NEW unitFactor on saving.
+   const originalQty=Number(row.qty),factor=Number(unit.factor);
+   if(!Number.isFinite(originalQty)||originalQty<=0||!Number.isFinite(factor)||factor<=0)
+     return UI.toast('تعذر تبديل الوحدة: تحقق من الكمية ومعامل الوحدة','error');
+   row.qty=originalQty;
+   row.unitName=unit.name;row.unitFactor=factor;
    row.baseCostPrice=Accounting.itemCostPrice(item,unit);
    row.baseCurrency=item.currency;
    row.basePrice=Accounting.itemSalePrice(item,unit,d.accountId,POSController.tier());
