@@ -10,14 +10,32 @@ const local=()=>A.state.currencyExchangeRatesSyp||{};
 const quoted=(c,side)=>Number(local()?.[c]?.[side])||(c==='USD'?Number(A.state.exchangeRate)||0:0);
 const canEdit=()=>A.can?.('fxSharedRate')===true;
 function renderMenu(){
- return '<div class="hero"><h2>تصريف عملة</h2><p>اختر شراء أو مبيع لكل عملة مفعّلة، بسعر الصرف المزامن من المدير.</p></div>'+
+ const styles='<style>'+
+ '.ta-fx-agent-choice-153{display:grid!important;grid-template-columns:minmax(0,1fr)!important;grid-template-rows:96px minmax(36px,auto) minmax(34px,auto)!important;justify-items:center!important;align-items:center!important;align-content:center!important;row-gap:12px!important;min-width:0!important;min-height:230px!important;padding:16px 9px!important;text-align:center!important;overflow:visible!important;}'+
+ '.ta-fx-agent-choice-153 .ta-fx-agent-icon-153{display:flex!important;flex-direction:row!important;align-items:center!important;justify-content:center!important;gap:10px!important;position:static!important;transform:none!important;width:100%!important;height:96px!important;font-size:initial!important;}'+
+ '.ta-fx-agent-choice-153 .ta-fx-agent-arrow-153{display:grid!important;place-items:center!important;flex:0 0 64px!important;height:72px!important;position:static!important;font-size:43px!important;line-height:1!important;border-radius:20px!important;background:linear-gradient(145deg,#e9f8ff,#98c9ef)!important;box-shadow:inset 0 2px #fff,0 5px 0 #7eb1d7,0 8px 12px #16486836!important;}'+
+ '.ta-fx-agent-choice-153 .ta-fx-agent-bill-153{position:static!important;flex:0 0 auto!important;font-size:34px!important;line-height:1!important;filter:drop-shadow(0 3px 3px #123b6240)!important;}'+
+ '.ta-fx-agent-choice-153 .ta-fx-agent-title-153{display:block!important;position:static!important;transform:none!important;z-index:1!important;min-height:36px!important;width:100%!important;margin:0!important;padding:0!important;line-height:1.5!important;font-size:clamp(16px,3.8vw,22px)!important;font-weight:900!important;white-space:nowrap!important;overflow:visible!important;text-align:center!important;}'+
+ '.ta-fx-agent-choice-153 .ta-fx-agent-price-153{display:block!important;position:static!important;transform:none!important;min-height:34px!important;width:100%!important;margin:0!important;padding:0!important;line-height:1.5!important;font-size:clamp(12px,2.8vw,15px)!important;font-weight:600!important;text-align:center!important;overflow-wrap:anywhere!important;}'+
+ '.ta-fx-agent-choice-153 bdi{display:inline!important;unicode-bidi:isolate!important;}'+
+ '@media(max-width:370px){.ta-fx-agent-choice-153{padding:11px 4px!important;row-gap:9px!important;}.ta-fx-agent-choice-153 .ta-fx-agent-icon-153{gap:5px!important;}.ta-fx-agent-choice-153 .ta-fx-agent-arrow-153{flex-basis:51px!important;height:60px!important;font-size:34px!important;}.ta-fx-agent-choice-153 .ta-fx-agent-bill-153{font-size:28px!important;}}'+
+ '</style>';
+ return styles+
+ '<div class="hero"><h2>تصريف عملة</h2><p>اختر شراء أو مبيع لكل عملة مفعّلة، بسعر الصرف المزامن من المدير.</p></div>'+
  '<section class="panel">'+allowed().map(code=>'<div style="background:#edf6ff;border:1px solid #97b5d3;border-radius:14px;margin:8px 0;padding:12px">'+
  '<strong>'+esc(label(code))+' ('+esc(code)+')</strong>'+
  '<div class="grid" style="grid-template-columns:repeat(2,minmax(0,1fr));margin-top:8px">'+
- '<button type="button" class="tile" onclick="Agent.openTrade147(\''+code+'\',\'buy\')" style="background:#d5f8e5;border:2px solid #19865c;color:#0d5541"><span class="glyph">⬇️💵</span><strong>شراء '+code+'</strong><small>'+fmt(quoted(code,'buy'),'SYP')+'</small></button>'+
- '<button type="button" class="tile" onclick="Agent.openTrade147(\''+code+'\',\'sell\')" style="background:#dcecff;border:2px solid #487fc1;color:#184881"><span class="glyph">⬆️💵</span><strong>مبيع '+code+'</strong><small>'+fmt(quoted(code,'sell'),'SYP')+'</small></button></div></div>').join('')+
+ '<button type="button" class="tile ta-fx-agent-choice-153" onclick="Agent.openTrade147(\''+code+'\',\'buy\')" style="background:#d5f8e5;border:2px solid #19865c;color:#0d5541" aria-label="شراء '+esc(label(code))+'">'+
+ '<span class="ta-fx-agent-icon-153" aria-hidden="true"><span class="ta-fx-agent-arrow-153">⬇️</span><span class="ta-fx-agent-bill-153">💵</span></span>'+
+ '<strong class="ta-fx-agent-title-153">شراء <bdi>'+esc(code)+'</bdi></strong>'+
+ '<small class="ta-fx-agent-price-153">سعر الشراء <bdi>'+fmt(quoted(code,'buy'),'SYP')+'</bdi></small></button>'+
+ '<button type="button" class="tile ta-fx-agent-choice-153" onclick="Agent.openTrade147(\''+code+'\',\'sell\')" style="background:#dcecff;border:2px solid #487fc1;color:#184881" aria-label="مبيع '+esc(label(code))+'">'+
+ '<span class="ta-fx-agent-icon-153" aria-hidden="true"><span class="ta-fx-agent-arrow-153">⬆️</span><span class="ta-fx-agent-bill-153">💵</span></span>'+
+ '<strong class="ta-fx-agent-title-153">مبيع <bdi>'+esc(code)+'</bdi></strong>'+
+ '<small class="ta-fx-agent-price-153">سعر المبيع <bdi>'+fmt(quoted(code,'sell'),'SYP')+'</bdi></small></button></div></div>').join('')+
  '<button type="button" class="secondary" onclick="Agent.goBack()">رجوع</button></section>';
 }
+
 A.openTrade147=function(currency,side){
  if(!allowed().includes(currency)||!['buy','sell'].includes(side))return this.toast('عملة غير مفعّلة');
  this.fx147Currency=currency;this.fx147Side=side;this.navigate('currency_exchange');
