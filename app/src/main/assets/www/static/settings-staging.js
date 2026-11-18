@@ -93,6 +93,29 @@ async function saveSection(key){
    State.settings.companyAddress=document.getElementById('setCompanyAddress')?.value.trim()||'';
    State.settings.footerNote=document.getElementById('setFooterNote')?.value.trim()||'';
   }
+  if(key==='currency'){
+   // Adding a currency is a staged settings change, never an immediate click-side effect.
+   const rawCode=String(document.getElementById('customCurrencyCode')?.value||'').trim();
+   const name=String(document.getElementById('customCurrencyName')?.value||'').trim();
+   const chosen=String(document.getElementById('catalogPopularCurrency')?.value||'').trim();
+   const custom=!!(rawCode||name);
+   let code='',title='';
+   if(custom){
+     code=CurrencyCatalog.safeCode(rawCode);title=name;
+     if(!/^[A-Z]{3}$/.test(code))throw Error('أدخل رمز العملة المخصصة من ثلاثة أحرف لاتينية');
+     if(title.length<2||title.length>60||/[<>]/.test(title))throw Error('أدخل اسماً صالحاً للعملة المخصصة');
+   }else if(chosen){
+     const found=CurrencyCatalog.popular.find(c=>c[0]===chosen);
+     if(!found||CurrencyCatalog.ledgerCurrencies.includes(chosen))throw Error('اختر عملة صالحة لإضافتها');
+     code=found[0];title=found[1];
+   }
+   if(code){
+     const added=Array.isArray(State.settings.addedCurrencies)?State.settings.addedCurrencies:[];
+     if(added.some(c=>c.code===code))throw Error('العملة '+code+' موجودة بالفعل ضمن العملات المضافة');
+     if(added.length>=50)throw Error('الحد الأقصى 50 عملة إضافية');
+     State.settings.addedCurrencies=[...added,{code,name:title}];
+   }
+  }
   if(key==='default_period'){
    const mode=TimeFilter.mode(document.getElementById('setDefaultViewPeriod')?.value);
    const start=document.getElementById('setDefaultViewStart')?.value||TimeFilter.localDate();
