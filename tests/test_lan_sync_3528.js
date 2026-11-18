@@ -31,7 +31,7 @@ const main=vmScope.FieldSyncUnderTest;
 const operation=(id)=>({id,kind:'sale',...namespace,date:'2026-11-13T09:00:00.000Z',currency:'USD',exchangeRate:15000,accountId:'c1',paidAmount:6,rows:[{itemId:'i1',unitName:'علبة',unitFactor:1,qty:2,price:3,total:6}]});
 let reqCounter=0;
 async function send(ops,nonce){
- const payload={kind:'operations',appVersion:'3.5.152',...namespace,issuedAt:new Date().toISOString(),nonce,operations:ops};
+ const payload={kind:'operations',appVersion:'3.5.153',...namespace,issuedAt:new Date().toISOString(),nonce,operations:ops};
  const packet=await FieldLanCrypto.pack(payload,key,namespace.companyId,namespace.agentId);
  await main.receiveLanPacket(String(++reqCounter),JSON.stringify(packet));
  return JSON.parse(vmScope.lastReply.data);

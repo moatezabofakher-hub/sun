@@ -145,15 +145,15 @@ jobs:
             exit 1
           fi
           mkdir -p output
-          cp "$apk" "output/Tiqany-Acc-Main-3.5.152-RELEASE.apk"
-          (cd output && sha256sum "Tiqany-Acc-Main-3.5.152-RELEASE.apk" > "Tiqany-Acc-Main-3.5.152-RELEASE.apk.sha256")
+          cp "$apk" "output/Tiqany-Acc-Main-3.5.153-RELEASE.apk"
+          (cd output && sha256sum "Tiqany-Acc-Main-3.5.153-RELEASE.apk" > "Tiqany-Acc-Main-3.5.153-RELEASE.apk.sha256")
       - name: Upload signed app APK and checksum
         uses: actions/upload-artifact@v4
         with:
-          name: Tiqany-Acc-Main-3.5.152-RELEASE
+          name: Tiqany-Acc-Main-3.5.153-RELEASE
           path: |
-            output/Tiqany-Acc-Main-3.5.152-RELEASE.apk
-            output/Tiqany-Acc-Main-3.5.152-RELEASE.apk.sha256
+            output/Tiqany-Acc-Main-3.5.153-RELEASE.apk
+            output/Tiqany-Acc-Main-3.5.153-RELEASE.apk.sha256
           if-no-files-found: error
           retention-days: 30
       - name: Publish isolated signed finance preview for direct download
@@ -163,9 +163,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          apk='output/Tiqany-Acc-Main-3.5.152-RELEASE.apk'
+          apk='output/Tiqany-Acc-Main-3.5.153-RELEASE.apk'
           checksum="${apk}.sha256"
           test -s "$apk" && test -s "$checksum"
           tag='tiqany-main-finance-preview-'"${GITHUB_SHA:0:10}"
-          gh release create "$tag" "$apk" "$checksum" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title 'المحاسب التقني المدير الرئيسي - معاينة تعديلات 3.5.152' --notes 'نسخة تطوير موقّعة مبنية على 3.5.152 تتضمن الوحدات، التسعير، الجرد الافتتاحي، حركة المواد، والطباعة. لم يُعدّل تطبيق الموظف. احتفظ بنسخة احتياطية واختبر على حساب تجريبي قبل الاستخدام الفعلي.' --prerelease
+          gh release create "$tag" "$apk" "$checksum" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title 'المحاسب التقني المدير الرئيسي - معاينة تعديلات 3.5.153' --notes 'الإصدار 3.5.153 بتحديثات الضبط والتقارير وعرض أزرار الحفظ.' --prerelease
           gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json url --jq '.url'

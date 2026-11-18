@@ -37,8 +37,12 @@ const E={
            '</select>';
        }).join('')+
        '<p class="text-[11px] text-slate-600">تُطبق الوحدة المختارة بالاسم على المادة التي تحتويها. عند عدم توفرها تُستخدم الوحدة الأساسية للمادة. لا تتغير الفواتير السابقة.</p></div>';
-     const foot=section.querySelector('.ta-settings-section-footer');
-     if(foot)foot.insertAdjacentHTML('beforebegin',html);else section.insertAdjacentHTML('beforeend',html);
+     const listType=section.querySelector('#setDefaultInvoiceListType')?.parentElement;
+     const pos=section.querySelector('#posInvoiceSettings');
+     if(listType){
+       listType.insertAdjacentHTML('beforebegin',html);
+       if(pos)listType.after(pos);
+     }else section.insertAdjacentHTML('afterbegin',html);
    }
  },
  setUnitDefault(key,value){

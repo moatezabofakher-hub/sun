@@ -43,7 +43,7 @@ Agent.renderSettings=function(){
     const label=s.querySelector('h3')?.textContent?.trim()||'قسم الضبط';
     return '<button type="button" class="ta-agent-settings-link" onclick="AgentSettingsPages152.open('+i+')">'+
        '<span class="ta-agent-settings-glyph"><i class="fas fa-gear" aria-hidden="true"></i></span>'+
-       '<strong>'+esc(label)+'</strong><i class="fas fa-chevron-left" aria-hidden="true"></i></button>';
+       '<strong>'+esc(label)+'</strong></button>';
   }).join('')+'</div>';
  }
  const section=sections[activeIndex];
@@ -53,7 +53,7 @@ Agent.renderSettings=function(){
    '<button type="button" onclick="AgentSettingsPages152.back()" aria-label="الرجوع إلى أقسام الضبط"><i class="fas fa-arrow-right"></i> رجوع</button>'+
    '<strong>'+esc(label)+'</strong></div>'+
    '<div id="taAgentSettingsBody">'+section.outerHTML+'</div>'+
-   '<div class="ta-agent-settings-footer" dir="rtl"><button type="button" class="primary" onclick="AgentSettingsPages152.save()">حفظ</button>'+
+   '<div class="ta-agent-settings-footer" dir="rtl"><button type="button" class="primary" onclick="AgentSettingsPages152.back()">حفظ أو خروج</button>'+
    '<button type="button" class="secondary" onclick="AgentSettingsPages152.back()">رجوع</button></div>';
 };
 async function open(index){
@@ -70,10 +70,10 @@ function decision(saveAction,discardAction){
  overlay.className='ta-agent-settings-mask';
  overlay.setAttribute('role','presentation');
  overlay.innerHTML='<div class="ta-agent-settings-dialog" dir="rtl" role="dialog" aria-modal="true" aria-labelledby="taAgentSettingsPrompt">'+
-   '<h3 id="taAgentSettingsPrompt">تغييرات غير محفوظة</h3><p>هل تريد حفظ التعديلات أو متابعة الإعداد أو تجاهلها؟</p>'+
+   '<h3 id="taAgentSettingsPrompt">تأكيد الخروج من الإعدادات</h3><p>هل تريد حفظ التعديلات أو متابعة الإعداد أو تجاهلها؟</p>'+
    '<div class="ta-agent-settings-choices"><button type="button" class="primary" data-answer="save">حفظ</button>'+
    '<button type="button" class="secondary" data-answer="continue">متابعة الإعداد</button>'+
-   '<button type="button" class="secondary" data-answer="discard">تجاهل</button></div></div>';
+   '<button type="button" class="secondary" data-answer="discard">الخروج بدون تعديل</button></div></div>';
  overlay.addEventListener('click',event=>{
   const button=event.target.closest('[data-answer]');if(!button)return;
   const answer=button.dataset.answer;
@@ -137,8 +137,7 @@ async function close(next){
 }
 function requestExit(next){
  if(busy)return;
- if(changed())decision(async()=>{const saved=await save();if(saved)await close(next);return saved;},()=>close(next));
- else close(next);
+ decision(async()=>{const saved=await save();if(saved)await close(next);return saved;},()=>close(next));
 }
 const oldBack=Agent.goBack;
 Agent.goBack=function(...args){

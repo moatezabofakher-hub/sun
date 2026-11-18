@@ -33,7 +33,7 @@ Agent.confirmAction=function(title,message,action){this.dialogAction=action;
  document.getElementById('dialogMessage').textContent=message;
  document.getElementById('agentDialog').classList.remove('hide');
  const leaving=title==='تأكيد الخروج من التطبيق';
- const accept=document.getElementById('dialogAccept');if(accept)accept.textContent=leaving?'نعم، خروج':'تأكيد';
+ const accept=document.getElementById('dialogAccept');if(accept)accept.classList.toggle('ta-exit-red',leaving);if(accept)accept.textContent=leaving?'نعم، خروج':'تأكيد';
  const cancel=document.getElementById('agentDialogCancel');if(cancel)cancel.textContent=leaving?'البقاء في التطبيق':'إلغاء';};
 Agent.acceptDialog=function(){const fn=this.dialogAction;this.dismissDialog();if(fn)fn();};
 Agent.bottomRoutes=['home','invoices','ops','reports','sync','settings'];

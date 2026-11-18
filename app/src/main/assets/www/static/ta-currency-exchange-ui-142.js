@@ -332,7 +332,7 @@ if(typeof oldReport==='function')Views.renderReports=function(main,params,...arg
    const label=code==='SYP'?'الرصيد ل.س':code==='USD'?'الرصيد دولار':'رصيد '+code;
    const value=code==='SYP'?netBoxes.sypCash:code==='USD'?netBoxes.usdCash:balances[code];
    const background=index===0?'bg-emerald-700':'bg-slate-900'; // Every added currency has exactly the same card design as USD.
-   return '<div class="'+background+' text-white p-3 rounded-2xl"><span class="block text-xs font-bold mb-1">'+esc(label)+'</span><strong class="block text-base sm:text-lg font-extrabold" dir="auto">'+esc(fmt(value||0,code))+'</strong></div>';
+   return '<div class="'+background+' ta-report-balance text-white p-3 rounded-2xl"><span class="block text-xs font-bold mb-1">'+esc(label)+'</span><strong class="block text-base sm:text-lg font-extrabold" dir="auto">'+esc(fmt(value||0,code))+'</strong></div>';
  }).join('');
  main.insertAdjacentHTML('afterbegin','<div class="space-y-2 mb-3">'+CapitalLedger.card()+
    '<div class="grid grid-cols-2 gap-2.5">'+cards+'</div></div>');

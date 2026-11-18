@@ -37,3 +37,13 @@
 #mainContent.ta-settings-standalone .ta-settings-section-footer .ta-settings-save{
   background:linear-gradient(145deg,#3693e4,#124f9f)!important;color:#fff!important;border-color:#7db4ed!important;
 }
+
+
+#mainContent summary.settings-section-heading .settings-section-arrow,
+#mainContent summary.settings-section-heading > i[class*="chevron"]{display:none!important}
+#mainContent [data-settings-section="invoices"] .settings-section-body div:not(.ta-settings-section-footer){border:0!important;box-shadow:none!important;background:transparent!important}
+#mainContent label:is([for="taDefaultSaleUnitName"],[for="taDefaultPurchaseUnitName"]){display:block;padding:6px 10px;border-radius:7px;background:#165892;color:white!important}
+#dialogContainer[data-dialog-type="exit"] :is(.ta-exit-icon,.ta-exit-leave){background:linear-gradient(150deg,#da3c44,#991c2c)!important;color:white!important}
+#mainContent [data-ta-fx-profit-report] > .ta-fx-profit-toggle,#mainContent .ta-usd-profit{background:linear-gradient(145deg,#168555,#075839)!important;color:white!important}
+#mainContent .ta-usd-profit *{color:white!important}
+#mainContent .ta-report-balance{box-shadow:inset 0 2px 2px #ffffff60, inset 0 -3px 4px #0003, 0 4px 0 #253a4c66,0 7px 12px #162d4329}

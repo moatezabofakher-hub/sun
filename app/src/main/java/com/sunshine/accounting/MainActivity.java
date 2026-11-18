@@ -226,15 +226,15 @@ public final class MainActivity extends FragmentActivity {
             Insets gestures = insets.getInsets(WindowInsetsCompat.Type.systemGestures());
             // The IME can hide the bottom part of the viewport: resize for it,
             // but do not reserve a second empty strip for Android navigation.
-            final int bottomMargin = keyboardVisible ? keyboard.bottom : 0;
+            final int systemBottom = Math.max(bars.bottom, gestures.bottom);
+            final int bottomMargin = Math.max(systemBottom, keyboardVisible ? keyboard.bottom : 0);
             FrameLayout.LayoutParams params = (FrameLayout.LayoutParams) webView.getLayoutParams();
             if (params.leftMargin != bars.left || params.topMargin != bars.top
                     || params.rightMargin != bars.right || params.bottomMargin != bottomMargin) {
                 params.setMargins(bars.left, bars.top, bars.right, bottomMargin);
                 webView.setLayoutParams(params);
             }
-            final float density = getResources().getDisplayMetrics().density;
-            final int safeBottomDp = keyboardVisible ? 0 : Math.round(Math.max(bars.bottom, gestures.bottom) / density);
+                        final int safeBottomDp = 0; // Native margins already exclude the system UI.
             if (nativeBottomInsetDp != safeBottomDp || nativeKeyboardVisible != keyboardVisible) {
                 nativeBottomInsetDp = safeBottomDp;
                 nativeKeyboardVisible = keyboardVisible;
@@ -561,12 +561,13 @@ public final class MainActivity extends FragmentActivity {
     }
 
     private void showNativeExitConfirmation() {
-        new AlertDialog.Builder(this)
+        AlertDialog exitDialog = new AlertDialog.Builder(this)
                 .setTitle("المحاسب التقني")
                 .setMessage("هل تريد الخروج من التطبيق؟")
                 .setPositiveButton("نعم، خروج", (dialog, which) -> finish())
                 .setNegativeButton("إلغاء", null)
                 .show();
+        exitDialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(Color.rgb(178, 28, 44));
     }
 
     @Override
