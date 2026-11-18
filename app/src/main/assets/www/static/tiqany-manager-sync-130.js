@@ -386,6 +386,7 @@ const manager={
     const link=this.nativeStatus();if(!link.approved||!link.host)return;
     try{
       const response=await this.call({action:'probe',clientId:this.serverStatus().serverId,companyUid:this.currentUid()});
+      if(response.appVersion!=='3.5.152')throw Error('اختلاف إصدار التطبيقات: يجب تحديث جميع الأجهزة إلى الإصدار 3.5.152 قبل الاتصال أو المزامنة. لم تُنقل أي بيانات.');
       if(!response.ok||response.serverId!==link.serverId)throw Error(response.error||'هوية الجهاز المقترن تغيرت');
       this.lastClient=Date.now();this.updateHeader();this.nextPoll=Date.now()+3000;
       const localVersion=core.digest([core.snapshot(State),this.portableSettings(),this.portablePin()]);
