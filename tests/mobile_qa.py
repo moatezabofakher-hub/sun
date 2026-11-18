@@ -42,7 +42,7 @@ with sync_playwright() as pw:
         for form in ('invoice','voucher'):
             p.evaluate("""form=>{Agent.state=Agent.blank;Agent.draft=[];Agent.screen=form;
               document.getElementById('screen').innerHTML=form==='invoice'?Agent.renderInvoice():Agent.renderVoucher();}""",form)
-            btn=p.locator('.ta-agent-invoice-save-footer button,.ta-agent-voucher-save-footer button').first
+            btn=p.locator('.ta-agent-invoice-save-footer button,.ta-agent-voucher-save').first
             btn.scroll_into_view_if_needed()
             box=btn.bounding_box()
             print('employee',form,w,h,box,flush=True)
