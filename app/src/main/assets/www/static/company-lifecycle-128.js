@@ -31,10 +31,9 @@
           <p style="color:#436175;font-size:13px;margin-bottom:21px;text-align:center">أدخل بيانات شركتك عند بدء استخدام المحاسب التقني. لن يتم إنشاء عمليات قبل حفظ البيانات.</p>
           <label for="ta-company-name-128" style="font-weight:800;display:block;margin:12px 0 6px">اسم الشركة</label>
           <input id="ta-company-name-128" required autocomplete="organization" maxlength="75" minlength="2" placeholder="أدخل اسم شركتك" style="width:100%;box-sizing:border-box;border:1px solid #a6bfd1;border-radius:12px;padding:13px;background:#f8fcff;color:#123;font:inherit"/>
-          <label for="ta-company-phone-128" style="font-weight:800;display:block;margin:12px 0 6px">رقم الهاتف</label>
-          <input id="ta-company-phone-128" required autocomplete="tel" inputmode="tel" maxlength="32" placeholder="رقم هاتف الشركة" style="width:100%;box-sizing:border-box;border:1px solid #a6bfd1;border-radius:12px;padding:13px;background:#f8fcff;color:#123;font:inherit;direction:ltr;text-align:right"/>
-          <label for="ta-company-address-128" style="font-weight:800;display:block;margin:12px 0 6px">العنوان</label>
-          <textarea id="ta-company-address-128" required maxlength="220" minlength="3" placeholder="العنوان الكامل للشركة" rows="3" style="width:100%;box-sizing:border-box;border:1px solid #a6bfd1;border-radius:12px;padding:13px;background:#f8fcff;color:#123;font:inherit"></textarea>
+          <label for="ta-owner-name-153" style="font-weight:800;display:block;margin:12px 0 6px">اسم المالك (المدير)</label>
+          <input id="ta-owner-name-153" required maxlength="120" minlength="2" autocomplete="name" placeholder="أدخل اسم المالك" style="width:100%;box-sizing:border-box;border:1px solid #a6bfd1;border-radius:12px;padding:13px;background:#f8fcff;color:#123;font:inherit"/>
+          <p style="font-size:12px;color:#597287;margin-top:10px">يمكنك إضافة رقم هاتف الشركة وعنوانها لاحقاً من الضبط.</p>
           <p id="ta-company-error-128" role="alert" style="display:none;color:#b91c1c;font-size:12px;margin-top:10px"></p>
           <button id="ta-company-save-128" type="submit" style="width:100%;margin-top:16px;padding:15px;border-radius:14px;border:1px solid #047857;background:linear-gradient(#10b981,#047857);color:white;font-size:16px;font-weight:900;box-shadow:0 4px 0 #065f46">حفظ بيانات الشركة والبدء</button>
           <button type="button" onclick="window.CompanyLifecycle.openManagerPhonePair()"
@@ -47,7 +46,7 @@
           </button>
         </form>`;
       document.body.appendChild(overlay);
-      $('ta-company-name-128')?.focus();
+      // Keep the keyboard closed until the user selects an input.
     },
     openManagerPhonePair() {
       // User explicitly chose import from a populated Android manager.
@@ -72,36 +71,70 @@
         UI.toast('تعذّر فتح الربط: '+String(error?.message||error),'error');
       }
     },
+    openCapitalFromReminder(){
+      const id=String(State.settings?.capitalSetupReminderOwnerId||'');
+      const found=(State.shareholderOwners||[]).find(o=>o.id===id);
+      if(!found)return UI.toast('لم يُعثر على المساهم الأول','warn');
+      UI.forceCloseModal();
+      ShareholdersUI.operationForm(found.id,'contribution');
+    },
+    showCapitalReminder(){
+      const id=String(State.settings?.capitalSetupReminderOwnerId||'');
+      if(!(State.shareholderOwners||[]).some(o=>o.id===id))return;
+      UI.openModal('<div dir="rtl" class="text-right space-y-3">'+
+       '<h3 class="text-lg font-black text-slate-900">إضافة رأس المال الافتتاحي</h3>'+
+       '<p class="text-sm">تمت إضافة المالك مديراً بنسبة أرباح 100%. يرجى إدخال مبالغ رأس المال لتسجيل الأرصدة الافتتاحية.</p>'+
+       '<button type="button" class="w-full rounded-xl bg-emerald-700 text-white font-black p-3" onclick="CompanyLifecycle.openCapitalFromReminder()">إضافة مبلغ إلى رأس المال</button>'+
+       '<button type="button" class="w-full rounded-xl bg-slate-100 font-bold p-3" onclick="UI.forceCloseModal()">لاحقاً</button></div>');
+    },
     async saveFirstRun() {
       if(this.busy)return;
       const name=String($('ta-company-name-128')?.value||'').trim();
-      const phone=String($('ta-company-phone-128')?.value||'').trim();
-      const address=String($('ta-company-address-128')?.value||'').trim();
+      const ownerName=String($('ta-owner-name-153')?.value||'').trim();
       const message=$('ta-company-error-128');
       const error=(text)=>{if(message){message.textContent=text;message.style.display='block';}};
       if(name.length<2||name.length>75||name===OLD_PLACEHOLDER)return error('أدخل اسم الشركة الحقيقي (من 2 إلى 75 حرفاً)');
-      if(phone.replace(/\D/g,'').length<6||phone.length>32)return error('أدخل رقم هاتف صحيحاً للشركة');
-      if(address.length<3||address.length>220)return error('أدخل العنوان الكامل للشركة');
+      if(ownerName.length<2||ownerName.length>120)return error('اسم المالك مطلوب (من 2 إلى 120 حرفاً)');
       if(!StorageEngine.db)return error('قاعدة البيانات غير متاحة. لا يمكن حفظ البيانات حالياً');
+      if(typeof TiqanyShareholders==='undefined'||typeof TiqanyShareholders.addOwnerWithDistribution!=='function')
+        return error('محرك المساهمين غير متاح. لا يمكن إكمال إنشاء الشركة');
       this.busy=true;
       const button=$('ta-company-save-128');
       if(button)button.disabled=true;
-      const previous={companyName:State.settings.companyName,companyPhone:State.settings.companyPhone,companyAddress:State.settings.companyAddress,companySetupCompleted:State.settings.companySetupCompleted};
+      const previousSettings=clone(State.settings),previousOwners=clone(State.shareholderOwners||[]);
+      const previousAlerts=clone(State.alertCenter||{entries:[]});
+      let notice=null;
       try {
+        // A new company must start with a single, properly allocated owner.
+        if((State.shareholderOwners||[]).length)throw Error('توجد بيانات مساهمين بالفعل؛ استخدم استعادة البيانات بدلاً من إنشاء شركة جديدة');
         State.settings.companyName=name;
-        State.settings.companyPhone=phone;
-        State.settings.companyAddress=address;
+        State.settings.companyPhone=String(State.settings.companyPhone||'');
+        State.settings.companyAddress=String(State.settings.companyAddress||'');
         State.settings.companySetupCompleted=true;
+        const created=TiqanyShareholders.addOwnerWithDistribution(State,
+          {name:ownerName,role:'manager',percentage:100,period:'all'},
+          {deviceId:'initial-company-setup'});
+        State.settings.capitalSetupReminderOwnerId=created.id;
+        if(!State.alertCenter||typeof State.alertCenter!=='object')State.alertCenter={entries:[]};
+        if(!Array.isArray(State.alertCenter.entries))State.alertCenter.entries=[];
+        notice={id:'capital-setup-'+created.id,type:'capital-setup',ownerId:created.id,
+          title:'أدخل رأس المال الافتتاحي',detail:'اضغط لإضافة مبلغ إلى رأس مال الشركة',
+          at:new Date().toISOString(),read:false};
+        State.alertCenter.entries.unshift(notice);
         await StorageEngine.saveState();
         $('ta-company-setup-128')?.remove();
         AppNav.renderCurrent();
-        if(typeof ManagerNotifications!=='undefined')ManagerNotifications.bootstrap();
+        if(typeof ManagerNotifications!=='undefined'){
+          ManagerNotifications.bootstrap();
+          ManagerNotifications.saved([notice]);
+        }
         if(typeof StockNotifications!=='undefined')StockNotifications.bootstrap();
         if(typeof FieldSync!=='undefined'&&!FieldSync.autoReceiverBooted)await FieldSync.bootAutoReceiver();
         await this.stageSnapshot();
-        UI.toast('تم حفظ بيانات الشركة بنجاح','success');
+        UI.toast('تم إنشاء الشركة وإضافة المالك بنسبة أرباح 100%','success');
+        this.showCapitalReminder();
       }catch(e){
-        Object.assign(State.settings,previous);
+        State.settings=previousSettings;State.shareholderOwners=previousOwners;State.alertCenter=previousAlerts;
         error('تعذر حفظ بيانات الشركة: '+String(e?.message||e));
       }finally{this.busy=false;if(button)button.disabled=false;}
     },
