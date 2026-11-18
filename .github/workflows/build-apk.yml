@@ -6,7 +6,7 @@ on:
     branches: [main, 'fix/scroll-behavior-144', 'feature/manager-finance-ui-from-152']
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   release:
@@ -152,3 +152,16 @@ jobs:
             output/Tiqany-Acc-Main-3.5.152-RELEASE.apk.sha256
           if-no-files-found: error
           retention-days: 30
+      - name: Publish isolated signed finance preview for direct download
+        if: github.ref == 'refs/heads/feature/manager-finance-ui-from-152'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk='output/Tiqany-Acc-Main-3.5.152-RELEASE.apk'
+          checksum="${apk}.sha256"
+          test -s "$apk" && test -s "$checksum"
+          tag='tiqany-main-finance-preview-'"${GITHUB_SHA:0:10}"
+          gh release create "$tag" "$apk" "$checksum" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title 'المحاسب التقني المدير الرئيسي - معاينة تعديلات 3.5.152' --notes 'نسخة تطوير موقّعة مبنية على 3.5.152 تتضمن الوحدات، التسعير، الجرد الافتتاحي، حركة المواد، والطباعة. لم يُعدّل تطبيق الموظف. احتفظ بنسخة احتياطية واختبر على حساب تجريبي قبل الاستخدام الفعلي.' --prerelease
+          gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json url --jq '.url'
