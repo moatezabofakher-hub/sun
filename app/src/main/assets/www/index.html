@@ -4162,7 +4162,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 }
                 ctx.font = `bold ${fMeta}px Cairo, sans-serif`;
                 ctx.textAlign = 'right';
-                ctx.fillText(`عدد الأصناف: ${inv.rows.length}`, widthDots - pad, y);
+                // Product lines remain numbered; the redundant item-count label is intentionally omitted.
                 y += fMeta + 12;
                 drawDoubleSep();
 
@@ -5365,7 +5365,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
 
                         <!-- 4. Items Table (# | اسم المادة | الوحدة | الكمية | الإفرادي | الاجمالي) -->
                         <div class="w-full my-1">
-                            <table class="w-full text-black border-collapse text-xs sm:text-sm">
+                            <table class="ta-enh-print-grid w-full text-black border-collapse text-xs sm:text-sm">
                                 <thead>
                                     <tr class="font-black">
                                         <th class="py-1 text-right w-[6%]">#</th>
@@ -5397,7 +5397,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                                     `).join('')}
                                 </tbody>
                             </table>
-                            <div class="font-black text-[11px] text-right mt-2 pt-1">عدد الأصناف: ${inv.rows.length}</div>
+                            
                         </div>
 
                         <div class="text-center font-mono font-bold text-xs sm:text-sm tracking-widest my-1.5 select-none overflow-hidden">
@@ -10848,5 +10848,6 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
 <script src="static/ta-scroll-144.js"></script>
 <script defer src="static/ta-fx-buy-sell-147.js"></script>
 <script defer src="static/ta-report-local-date-148.js"></script>
+<script src="static/ta-manager-enhancements-152.js"></script>
 </body>
 </html>
