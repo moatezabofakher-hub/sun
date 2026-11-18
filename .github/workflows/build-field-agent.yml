@@ -110,6 +110,13 @@ jobs:
           "$verifier" verify --verbose --print-certs "$apk"
           cert_digest=$("$verifier" verify --print-certs "$apk" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -n 1)
           [[ "$cert_digest" =~ ^[0-9a-fA-F]{64}$ ]] || { echo '::error::Could not read signing certificate SHA-256'; exit 1; }
+          # Pin the signer from previously verified signed releases. Android
+          # cannot update an installed package if this signing key rotates.
+          PINNED_CERT_SHA256="94d9512302e262c8a526651a6bc4c24e1797482dcdcb6f32a0638a8f958aaf9f"
+          if [[ "${cert_digest,,}" != "$PINNED_CERT_SHA256" ]]; then
+            echo '::error::Unexpected APK signing certificate. Refusing release to protect in-place updates.'
+            exit 1
+          fi
           if [[ -n "$EXPECTED_CERT_SHA256" && "${cert_digest,,}" != "${EXPECTED_CERT_SHA256,,}" ]]; then
             echo '::error::Signing certificate does not match pinned certificate. Update aborted to protect install continuity.'
             exit 1
