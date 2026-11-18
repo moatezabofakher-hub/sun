@@ -54,7 +54,7 @@ function fixture(){
  for(const file of ['ta-manager-enhancements-152.js','ta-pricing-modes-152.js','ta-print-customization-152.js']){
    vm.runInNewContext(fs.readFileSync(path.join(base,file),'utf8'),context,{filename:file});
  }
- return {state,item,accounting,invoice,notices,...context.window};
+ return {state,item,accounting,invoice,notices,ManagerNotifications:context.ManagerNotifications,...context.window};
 }
 test('Opening debit and credit totals keep SYP and USD separate and honor party orientation',()=>{
  const f=fixture(),t=f.TiqanyManager152.openingStats();
