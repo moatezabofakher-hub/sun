@@ -36,10 +36,10 @@ function chooser(){
   return '<section class="rounded-xl border border-sky-200 bg-white p-3">'+
     '<div class="font-black text-slate-900 mb-2">'+title+'</div>'+
     '<div class="grid grid-cols-2 gap-3">'+
-    '<button type="button" onclick="TiqanyFx147.trade(\''+code+'\',\'buy\')" class="ta-fx-choice-153 rounded-2xl border-2 border-emerald-400 bg-emerald-50 p-3 text-emerald-900 font-black" aria-label="شراء '+title+'">'+
+    '<button type="button" onclick="TiqanyFx147.trade(\''+code+'\',\'buy\')" class="ta-fx-choice-153 rounded-2xl border-2 border-emerald-400 bg-emerald-50 p-3 text-emerald-900 font-black" aria-label="شراء '+esc(code)+' — '+title+'">'+
       '<span class="ta-fx-icon-153" aria-hidden="true"><i class="fas fa-arrow-down text-emerald-600"></i><i class="fas fa-coins text-amber-500"></i></span><strong class="ta-fx-title-153">شراء <bdi>'+esc(code)+'</bdi></strong>'+
       '<small class="ta-fx-price-153">سعر الشراء <bdi>'+money(current(code,'buy'),'SYP')+'</bdi></small></button>'+
-    '<button type="button" onclick="TiqanyFx147.trade(\''+code+'\',\'sell\')" class="ta-fx-choice-153 rounded-2xl border-2 border-blue-400 bg-blue-50 p-3 text-blue-900 font-black" aria-label="مبيع '+title+'">'+
+    '<button type="button" onclick="TiqanyFx147.trade(\''+code+'\',\'sell\')" class="ta-fx-choice-153 rounded-2xl border-2 border-blue-400 bg-blue-50 p-3 text-blue-900 font-black" aria-label="مبيع '+esc(code)+' — '+title+'">'+
       '<span class="ta-fx-icon-153" aria-hidden="true"><i class="fas fa-arrow-up text-blue-600"></i><i class="fas fa-money-bill-wave text-emerald-500"></i></span><strong class="ta-fx-title-153">مبيع <bdi>'+esc(code)+'</bdi></strong>'+
       '<small class="ta-fx-price-153">سعر المبيع <bdi>'+money(current(code,'sell'),'SYP')+'</bdi></small></button></div></section>';
  }).join('');
