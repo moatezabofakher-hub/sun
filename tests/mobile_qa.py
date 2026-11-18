@@ -35,4 +35,16 @@ with sync_playwright() as pw:
     for count in (10,20,24):
         assert p.locator('#mainContent').inner_text().count('نقطة بيع نقدية ·')==count
         if count <24:p.get_by_role('button',name='المزيد',exact=True).evaluate('(e)=>e.click()')
+    p.goto(f'http://localhost:{server.server_port}/field_agent/src/main/assets/www/index.html')
+    p.wait_for_timeout(300)
+    for w,h in ((320,432),(432,272)):
+        p.set_viewport_size({'width':w,'height':h})
+        for form in ('invoice','voucher'):
+            p.evaluate("""form=>{Agent.state=Agent.blank;Agent.draft=[];Agent.screen=form;
+              document.getElementById('screen').innerHTML=form==='invoice'?Agent.renderInvoice():Agent.renderVoucher();}""",form)
+            btn=p.locator('.ta-agent-invoice-save-footer button,.ta-agent-voucher-save-footer button').first
+            btn.scroll_into_view_if_needed()
+            box=btn.bounding_box()
+            print('employee',form,w,h,box,flush=True)
+            assert box and box['y']>=0 and box['y']+box['height']<=h+1,box
     browser.close()
