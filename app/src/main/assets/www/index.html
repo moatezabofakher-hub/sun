@@ -6428,21 +6428,18 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                             <input id="setPrimaryOnlyMode" type="checkbox" ${State.settings.primaryOnlyMode ? 'checked' : ''} onchange="SettingsController.setPrimaryOnlyMode(this.checked)" class="w-5 h-5 accent-emerald-600">
                             <span class="text-xs font-bold">التشغيل بالعملة الرئيسية فقط</span>
                         </label>
-                        <p class="text-[11px] text-slate-600">عند التفعيل تقتصر العمليات الجديدة على العملة الرئيسية. تبقى سجلات الفواتير والأرصدة القديمة بعملاتها الأصلية.</p>
-                        <p class="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded-lg p-2">تدعم الحسابات والترحيلات المالية حالياً الدولار USD والليرة SYP فقط. إضافة عملة أخرى إلى القائمة لا تفعّل بها الفواتير قبل دعم ترحيلها المحاسبي.</p>
                     </div>
                     <div class="bg-white border border-slate-200 rounded-xl p-3 space-y-2 mb-3">
                         <h3 class="text-sm font-extrabold text-slate-800">إضافة عملات جديدة واختصاراتها</h3>
                         <label class="block text-xs font-bold">اختر عملة شائعة</label>
                         <select id="catalogPopularCurrency" class="w-full border border-slate-300 rounded-xl p-2.5 text-xs font-bold">
+                            <option value="" selected>اختر عملة لإضافتها عند الحفظ</option>
                             ${CurrencyCatalog.options('', false)}
                         </select>
-                        <button type="button" class="ta-currency-add-149 w-full rounded-xl p-2.5 text-xs font-black" style="background:#17263e!important;color:#fff!important;border:2px solid #0c1728!important;box-shadow:0 3px 0 #09121f!important" onclick="SettingsController.addPopularCurrency()">إضافة العملة المختارة إلى القائمة</button>
                         <div class="grid grid-cols-2 gap-2">
                             <div><label class="text-[11px] font-bold">رمز ISO من 3 أحرف</label><input id="customCurrencyCode" maxlength="3" dir="ltr" placeholder="مثال: SEK" class="w-full border border-slate-300 rounded-xl p-2 text-xs"></div>
                             <div><label class="text-[11px] font-bold">اسم العملة</label><input id="customCurrencyName" maxlength="60" placeholder="اسم العملة" class="w-full border border-slate-300 rounded-xl p-2 text-xs"></div>
                         </div>
-                        <button type="button" class="ta-currency-add-149 w-full rounded-xl p-2.5 text-xs font-black" style="background:#17263e!important;color:#fff!important;border:2px solid #0c1728!important;box-shadow:0 3px 0 #09121f!important" onclick="SettingsController.addCustomCurrency()">إضافة عملة مخصصة</button>
                         <div class="border-t border-slate-200 pt-2">${CurrencyCatalog.renderAdditional()}</div>
                     </div>
                     <div class="bg-white border border-slate-200 rounded-xl p-3 space-y-2">
