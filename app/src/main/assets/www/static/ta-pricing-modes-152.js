@@ -11,6 +11,8 @@ const P={
  active(){return this.modes().filter(m=>m&&m.disabled!==true);},
  validTier(v){return this.active().some(m=>m.id===v);},
  name(id){return this.modes().find(m=>m.id===id)?.name||id;},
+ label(id){const name=String(this.name(id)||'').trim();return name.startsWith('سعر ')?name:'سعر '+name;},
+ effectiveLabel(accountId,override){return this.label(this.resolve(accountId,override));},
  isBase(id){return this.defaults.some(m=>m.id===id);},
  resolve(accountId,override){
    if(this.validTier(override))return override;
@@ -188,7 +190,7 @@ const P={
        const tier=P.validTier(this.draft?.priceTierOverride)?this.draft.priceTierOverride:'account';
        P.fill(s,tier,true);
        const face=s.closest('.ta-quick-picker')?.querySelector('.ta-quick-picker__face span');
-       if(face)face.textContent=tier==='account'?'حسب إعدادات الحساب':P.name(tier);
+       if(face)face.textContent=P.effectiveLabel(this.draft?.accountId,this.draft?.priceTierOverride);
      }
      return out;
    };
@@ -200,7 +202,7 @@ const P={
    };
    if(typeof POSController!=='undefined'){
      POSController.tier=function(){const id=State.settings.posPriceTier;return P.validTier(id)?id:null;};
-     POSController.tierLabel=function(){return this.tier()?P.name(this.tier()):'حسب إعدادات الحساب';};
+     POSController.tierLabel=function(){return P.effectiveLabel(State.settings.posAccountId,this.tier()||'account');};
      POSController.saveSettings=async function(){
        const prior={posAccountId:State.settings.posAccountId,posPriceTier:State.settings.posPriceTier,posScanFromHome:State.settings.posScanFromHome,posAutoNextOnFinish:State.settings.posAutoNextOnFinish};
        const acc=document.getElementById('posAccountSetting')?.value||'';
