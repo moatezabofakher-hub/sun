@@ -38,7 +38,8 @@ Agent.renderSettings=function(){
  const title='<div class="hero"><h2>الضبط</h2><p>اختر القسم لفتحه في صفحة مستقلة.</p></div>';
  if(activeIndex===null){
   const version=Array.from(full.children).find(e=>e.matches?.('[data-app-build]'))?.outerHTML||'';
-  return title+version+'<div class="ta-agent-settings-menu" dir="rtl">'+sections.map((s,i)=>{
+  const extras=Array.from(full.children).filter(e=>!e.matches?.('.hero,section.panel')).map(e=>e.outerHTML).join('');
+  return title+version+extras+'<div class="ta-agent-settings-menu" dir="rtl">'+sections.map((s,i)=>{
     const label=s.querySelector('h3')?.textContent?.trim()||'قسم الضبط';
     return '<button type="button" class="ta-agent-settings-link" onclick="AgentSettingsPages152.open('+i+')">'+
        '<span class="ta-agent-settings-glyph"><i class="fas fa-gear" aria-hidden="true"></i></span>'+
@@ -122,11 +123,11 @@ async function close(next){
  const route=Agent.screen;
  if(route==='settings'&&activeIndex!==null){
    const node=document.getElementById('taAgentSettingsBody');
-   if(node?.querySelector('#agentPosSettings'))await Agent.cancelDraftSettings?.('pos');
+   if(node?.querySelector('#agentPosSettings'))Agent.discardSettingsDraftSilently?.('pos');
    activeIndex=null;baseline='';openedFromSettings=false;
    if(next)await next();else await Agent.show('settings');
  }else if(route==='printer'){
-   await Agent.cancelDraftSettings?.('printer');
+   Agent.discardSettingsDraftSilently?.('printer');
    printerBaseline=null;
    if(next)await next();else await oldBack.call(Agent);
  }else if(route==='backup'){
