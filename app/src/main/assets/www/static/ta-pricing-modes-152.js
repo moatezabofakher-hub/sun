@@ -200,6 +200,27 @@ const P={
      if(!P.validTier(tier))return;
      State.settings.defaultPriceTier=tier;this.markSettingsDirty?.();
    };
+   // Authenticated employee catalog receives the read-only pricing modes and unit prices.
+   if(typeof FieldSync!=='undefined'&&typeof FieldSync.catalog==='function'){
+     const previousCatalog=FieldSync.catalog;
+     FieldSync.catalog=function(...args){
+       const catalog=previousCatalog.apply(this,args);
+       catalog.taPricingModes=P.active().map(m=>({id:String(m.id),name:String(m.name)}));
+       catalog.defaultPriceTier=P.validTier(State.settings.defaultPriceTier)?State.settings.defaultPriceTier:'wholesale';
+       for(const item of catalog.items||[]){
+         const source=(State.items||[]).find(x=>x.id===item.id);
+         for(const unit of item.units||[]){
+           const sourceUnit=source?.units?.find(u=>u.name===unit.name);
+           if(!sourceUnit)continue;
+           unit.customTierPrices=Object.fromEntries(Object.entries(sourceUnit.customTierPrices||{})
+             .filter(([id,value])=>P.validTier(id)&&Number.isFinite(Number(value))&&Number(value)>=0)
+             .map(([id,value])=>[id,Number(value)]));
+           unit.costPrice=Number(sourceUnit.costPrice)||0;
+         }
+       }
+       return catalog;
+     };
+   }
    if(typeof POSController!=='undefined'){
      POSController.tier=function(){const id=State.settings.posPriceTier;return P.validTier(id)?id:null;};
      POSController.tierLabel=function(){return P.effectiveLabel(State.settings.posAccountId,this.tier()||'account');};
