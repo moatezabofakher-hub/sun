@@ -145,5 +145,7 @@ function cancelSection(key){
  AppNav.renderCurrent();
  oldToast('تم إلغاء التغييرات غير المحفوظة','info');
 }
-window.TiqanySettingsDraft={save:saveSection,cancel:cancelSection,isActive:()=>!!draft};
+window.TiqanySettingsDraft={save:saveSection,cancel:cancelSection,isActive:()=>!!draft,
+ discardSilently:()=>{rollback();shownSaved.clear();SettingsController.expandedSections?.clear?.();},
+ currentKey:()=>draft?.key||null};
 })();
