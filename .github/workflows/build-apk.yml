@@ -65,6 +65,7 @@ jobs:
         run: |
           node --test tests/release130-manager-two-phones.test.js
           node --test tests/shareholders-integration-133.test.js
+          node --test tests/onboarding-shareholders-153.test.cjs
           node --check app/src/main/assets/www/static/shareholders-integrated-133.js
           node --check app/src/main/assets/www/static/settings-revision-clock-133.js
       - name: Verify router rediscovery and dashboard-only navigation
