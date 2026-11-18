@@ -79,11 +79,12 @@ function open(section,approved=false){
 function discard(){
  const key=active;
  active=null;baseline=null;formBefore=null;
- draft.discardSilently?.();
+ // Discard is a real transaction rollback, not just a visual close.
  SettingsController.expandedSections?.clear?.();
  const root=main();root?.classList.remove('ta-settings-standalone');
  if(root)root.querySelector('#taSettingsPageHeader')?.remove();
- AppNav.renderCurrent();
+ if(draft.isActive())draft.cancel(key);
+ else AppNav.renderCurrent();
  return key;
 }
 async function saveAndClose(after){
@@ -125,7 +126,7 @@ function confirmExit(action){
 function back(){
  if(!active)return;
  const modal=document.getElementById('modalContainer');
- if(modal&&!modal.classList.contains('hidden'))return AppNav.handleBackButton();
+ if(modal&&!modal.classList.contains('hidden'))return originalBack.call(AppNav);
  confirmExit(null);
 }
 const originalToggle=SettingsController.onSectionToggle;
@@ -164,15 +165,16 @@ const originalBack=AppNav.handleBackButton;
 AppNav.handleBackButton=function(...args){
  if(active&&AppNav.current()?.screen==='settings'){
    const dialog=document.getElementById('dialogContainer');
-   if(dialog&&!dialog.classList.contains('hidden'))return originalBack.apply(this,args);
+   const modal=document.getElementById('modalContainer');
+   if((dialog&&!dialog.classList.contains('hidden'))||(modal&&!modal.classList.contains('hidden')))return originalBack.apply(this,args);
    back();return;
  }
  return originalBack.apply(this,args);
 };
 const originalNavigate=AppNav.navigate;
 AppNav.navigate=function(screen,...args){
- if(active&&AppNav.current()?.screen==='settings'&&screen!=='settings'){
-   confirmExit(()=>originalNavigate.call(this,screen,...args));
+ if(active&&AppNav.current()?.screen==='settings'){
+   confirmExit(screen==='settings'?null:()=>originalNavigate.call(this,screen,...args));
    return;
  }
  return originalNavigate.call(this,screen,...args);
