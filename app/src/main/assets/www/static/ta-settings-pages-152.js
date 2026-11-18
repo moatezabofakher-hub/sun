@@ -83,8 +83,10 @@ function discard(){
  SettingsController.expandedSections?.clear?.();
  const root=main();root?.classList.remove('ta-settings-standalone');
  if(root)root.querySelector('#taSettingsPageHeader')?.remove();
- if(draft.isActive())draft.cancel(key);
- else AppNav.renderCurrent();
+ if(draft.isActive()){
+   if(typeof draft.cancel==='function')draft.cancel(key);
+   else {draft.discardSilently?.();AppNav.renderCurrent();}
+ }else AppNav.renderCurrent();
  return key;
 }
 async function saveAndClose(after){
