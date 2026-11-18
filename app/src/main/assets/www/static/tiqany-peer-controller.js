@@ -609,6 +609,7 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
         this.message(warning,true);
         return reply({ok:false,code:'APP_VERSION_MISMATCH',appVersion:'3.5.152',error:warning});
       }
+      if(data.action==='probe')return reply({ok:true,appVersion:'3.5.152',serverId:this.server?.serverId,version:core.digest(this.snapshot())});
       if(this.busy)return reply({ok:false,code:'SYNC_BUSY',error:'الكمبيوتر ينفذ مزامنة أخرى الآن، ستتم إعادة المحاولة تلقائيًا'});
       if(this.blocked())return reply({ok:false,code:'UNSAVED_EDIT',error:this.blockReason()});
       if(data.action==='fetch'){
@@ -757,6 +758,7 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
     this.polling=true;
     try{
       const reply=await this.call({action:'probe'});
+      if(reply.appVersion!=='3.5.152')throw Error('اختلاف إصدار التطبيقات: يجب تحديث جميع الأجهزة إلى الإصدار 3.5.152 قبل الاتصال أو المزامنة. لم تُنقل أي بيانات.');
       if(!reply.ok||typeof reply.version!=='string'||reply.serverId!==link.serverId)throw Error('تعذر التحقق من هوية الكمبيوتر');
       this.probeFailures=0;this.nextProbeAt=0;this.lastSuccessfulAt=Date.now();this.recovered('transport');
       if(reply.version!==this.lastRemoteVersion){this.lastRemoteVersion=reply.version;
