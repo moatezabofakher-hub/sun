@@ -245,7 +245,7 @@ const Agent={
   syncPaint(){const el=document.getElementById('agentLanStatus');if(el)el.textContent=this.lanSyncMessage;
     const btn=document.getElementById('agentLanSyncButton');if(btn){btn.disabled=this.lanSyncBusy;btn.textContent=this.lanSyncBusy?'جارٍ المزامنة…':'⇄ مزامنة الآن — Wi-Fi محلي';}},
   async onLocalSyncResult(raw){
-    let success=false;
+    let success=false,probeApproved=false;
     try {
       if(!this.lanSyncBusy||!this.lanRequestNonce)throw Error('تأكيد مزامنة غير متوقع');
       const result=JSON.parse(raw);
@@ -277,6 +277,7 @@ const Agent={
         this.lanSyncStage='operations';
         this.lanSyncMessage='✅ إصدار الجهازين متوافق؛ جارٍ نقل العمليات…';this.syncPaint();
         this.dispatchVersionedSync(this.lanFinalPacket);
+        probeApproved=true;
         return;
       }
       if(ack.kind!=='sync_result'||ack.requestNonce!==this.lanRequestNonce||ack.companyId!==this.state.companyId||ack.agentId!==this.state.agentId||!Array.isArray(ack.knownIds))throw Error('تأكيد استلام غير صالح');
@@ -393,7 +394,7 @@ const Agent={
           (newCount||itemsChanged||accountsChanged||stockChanged||(!this.lanSyncQuiet&&this.screen==='sync')||changingWarehouse))await this.show(this.screen);
       success=true;
     }catch(e){this.lanSyncMessage='لم تكتمل المزامنة: '+e.message;if(!this.lanSyncQuiet)this.toast(this.lanSyncMessage);}
-    finally{if(this.lanSyncStage==='version-probe'&&this.lanSyncBusy)return;
+    finally{if(probeApproved)return;
       this.lanSyncBusy=false;this.lanRequestNonce=null;this.lanSyncStage=null;this.lanFinalPacket=null;this.lanSentCount=0;this.syncPaint();this.finishAutoSync?.(success);}
   },
   async exportOutbox(){try{
