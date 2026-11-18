@@ -352,6 +352,9 @@ if(typeof oldReport==='function')Views.renderReports=function(main,params,...arg
      (scope==='all'||scope===(e.agentId||'office')));
    const profit=Math.round(matched.reduce((n,e)=>n+e.gainSyp,0)*100)/100;
 
+   const pending=Object.entries(report.pendingSales||{}).filter(([,amount])=>Number(amount)>0);
+   // Foreign currency awaiting cost basis is shown in expanded details only;
+   // it is not treated as a realized gain or a business expense.
    const details=matched.filter(e=>e.gainSyp!==0).slice().reverse();
    // This is a read-only projection of realized FX gains, never an additional posting.
    // pendingSales is an unsettled-cost ledger inside the exchange analysis, not an expense.
@@ -366,7 +369,9 @@ if(typeof oldReport==='function')Views.renderReports=function(main,params,...arg
       '<summary class="ta-fx-profit-toggle flex justify-between items-center gap-3 p-3 cursor-pointer list-none" aria-label="عرض تفاصيل أرباح التصريف">'+
       '<strong class="font-black text-white text-sm"><i class="fas fa-chart-line ml-2" aria-hidden="true"></i>أرباح التصريف</strong>'+
       '<strong class="font-black text-base text-white" dir="auto">'+fmt(profit,'SYP')+'</strong></summary>'+
-      '<div class="px-3 pb-3 max-h-[52vh] overflow-y-auto"><h4 class="font-bold text-sm text-slate-700 pt-2">أرباح التصريف المحققة</h4>'+detailsHtml+'<div class="text-xs text-slate-500 border-t mt-2 pt-2">إجمالي أرباح التصريف لجميع الفترات: '+fmt(report.profitSyp,'SYP')+'</div></div></details>';
+      '<div class="px-3 pb-3 max-h-[52vh] overflow-y-auto"><h4 class="font-bold text-sm text-slate-700 pt-2">أرباح التصريف المحققة</h4>'+detailsHtml+'<div class="text-xs text-slate-500 border-t mt-2 pt-2">إجمالي أرباح التصريف لجميع الفترات: '+fmt(report.profitSyp,'SYP')+'</div>'+
+     (pending.length?'<div class="text-xs text-amber-700 pt-2">رصيد بانتظار تحديد تكلفة شراء: '+pending.map(([code,amount])=>esc(code)+' '+fmt(amount,code)).join(' · ')+'</div>':'')+
+     '<p class="text-xs text-slate-500 pt-2">لا تُعد مبالغ شراء العملة مصاريف، ولا تُحتسب أرباح البيع غير المغطاة بالتكلفة أرباحاً محققة.</p></div></details>';
    const expenses=main.querySelector('.bg-orange-50');
    const before=expenses?.parentElement;
    if(before?.parentElement===main)before.insertAdjacentHTML('beforebegin',body);
