@@ -28,3 +28,12 @@ test('Employee settings use standalone views and protect unsaved POS and print w
  assert.doesNotMatch(s,/State\.shareholderMovements\s*=/);
  assert.doesNotMatch(s,/State\.capitalMovements\s*=/);
 });
+
+test('Employee new invoices default percentage adjustments to currency amounts and label effective pricing',()=>{
+ const pathAgent=path.join(root,'field_agent/src/main/assets/www/static/agent-invoice-parity.js');
+ const source=fs.readFileSync(pathAgent,'utf8');
+ assert.match(source,/taxType:'amount'/);
+ assert.match(source,/taxType:m\.taxType\|\|'amount'/);
+ assert.match(source,/effectivePricingLabel/);
+ assert.match(source,/Agent\.changeRowUnit|A\.changeRowUnit/);
+});
