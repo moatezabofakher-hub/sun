@@ -37,6 +37,12 @@ with sync_playwright() as pw:
     assert vals['headerSettingsBtn'][0]>=bell[1]-1
     assert vals['topBarRateButton'][0] <= 25
     assert p.locator('.ta-rate-label').inner_text()=='سعر الصرف'
+   if ed=='employee':
+    # Large unread counts must stay entirely within the employee bell.
+    badge_geometry=p.evaluate("""()=>{const bell=document.getElementById('agentManagerNotifications'),count=document.getElementById('agentManagerNotificationCount');bell.hidden=false;count.hidden=false;count.textContent='99+';const a=bell.getBoundingClientRect(),b=count.getBoundingClientRect();return {bell:[a.left,a.right,a.top,a.bottom],badge:[b.left,b.right,b.top,b.bottom],overflow:getComputedStyle(bell).overflow};}""")
+    b=badge_geometry['bell'];n=badge_geometry['badge']
+    assert n[1]>n[0] and n[3]>n[2] and b[0]-1<=n[0] and n[1]<=b[1]+1 and b[2]-1<=n[2] and n[3]<=b[3]+1,badge_geometry
+    assert badge_geometry['overflow']=='visible',badge_geometry
    if ed!='employee':
     result=p.evaluate("""()=>{let saved=0,discarded=0;for(const id of ['dlgSaveBtn','dlgDiscardBtn']){UI.showUnsavedDialog(()=>saved++,()=>discarded++);let box=document.querySelector('#dialogBox');if(box.querySelector('.ta-decision-title').textContent!=='هل تريد حفظ التغييرات قبل الخروج؟')throw Error('Missing prompt');if(box.querySelector('#dlgSaveBtn').textContent!=='نعم'||box.querySelector('#dlgDiscardBtn').textContent!=='لا')throw Error('Wrong decisions');document.getElementById(id).click()}return [saved,discarded]}""")
     assert result==[1,1]
