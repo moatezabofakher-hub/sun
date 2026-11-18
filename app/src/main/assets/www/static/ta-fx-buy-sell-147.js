@@ -102,10 +102,12 @@ function trade(code,side,editId=''){
   display.textContent=money(totalRounded,'SYP');
   try{
    const fromCurrency=isBuy?'SYP':code,toCurrency=isBuy?code:'SYP';
-   const p=E.prepare({id:'fx_preview_147',date:new Date().toISOString(),
+   // Maintain the original ordering and date for accurate historical cost preview.
+   const p=E.prepare({id:old?.id||'fx_preview_147',date:old?.date||new Date().toISOString(),
        fromCurrency,toCurrency,fromAmount:isBuy?totalRounded:amountRounded,
        toAmount:isBuy?amountRounded:totalRounded,equivalentSyp:totalRounded},['SYP',code]);
-   const result=E.analyze([...(State.currencyExchanges||[]).filter(x=>x.id!==editId),p]).byId.get(p.id);
+   const ledger=old?(State.currencyExchanges||[]).map(e=>e.id===old.id?p:e):[...(State.currencyExchanges||[]),p];
+   const result=E.analyze(ledger).byId.get(p.id);
    document.getElementById('ta147Preview').textContent='الربح المحقق: '+money(result.gainSyp||0,'SYP')+
     (result.pendingAmount>0?' · كمية مؤجلة التكلفة: '+money(result.pendingAmount,code):'');
   }catch(e){document.getElementById('ta147Preview').textContent=e.message;}
