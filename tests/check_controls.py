@@ -13,9 +13,10 @@ with sync_playwright() as pw:
    if ed=='employee':
     # Let onload/IndexedDB finish, then render the real activated home screen.
     # Rendering a fragment before init has settled can be overwritten by setup.
-    p.evaluate("async()=>{Agent.state=Agent.blank;Agent.state.companyId='qa';Agent.state.key='qa';Agent.ready=()=>true;Agent.active=async()=>true;await Agent.show('home');Agent.markSyncState('connected');}")
-    assert p.locator('#agentSyncConnection').get_attribute('data-connected')=='true'
-    p.evaluate("Agent.markSyncState('offline')");assert p.locator('#agentSyncConnection').get_attribute('data-connected')=='false'
+    # Read both states atomically: automatic background sync can legitimately
+    # change the badge between separate browser automation commands.
+    status=p.evaluate("""async()=>{Agent.state=Agent.blank;Agent.state.companyId='qa';Agent.state.key='qa';Agent.ready=()=>true;Agent.active=async()=>true;await Agent.show('home');Agent.markSyncState('connected');const badge=document.getElementById('agentSyncConnection');const connected=badge?.dataset.connected;Agent.markSyncState('offline');const offline=badge?.dataset.connected;return {connected,offline}}""")
+    assert status=={'connected':'true','offline':'false'},status
    else:
     p.evaluate("()=>{State.settings.companyName='QA';State.settings.companySetupCompleted=true;document.querySelector('#ta-company-setup-128')?.remove();AppNav.stack=[{screen:'dashboard',params:{}}];AppNav.renderCurrent();}")
    p.wait_for_timeout(100)
