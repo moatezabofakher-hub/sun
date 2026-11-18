@@ -28,7 +28,7 @@ test('General USD plus foreign rates use independent editable fields; trade pric
 test('Exchange rate update is atomic and does not alter existing FX trading gains',()=>{
  assert.match(source,/priorRate=State\.settings\.exchangeRate/);
  assert.match(source,/priorCurrencies=State\.settings\.currencyRatesSyp/);
- assert.match(source,/catch\(e\)\{State\.settings\.exchangeRate=priorRate;State\.settings\.currencyRatesSyp=priorCurrencies;throw e;\}/);
+ assert.match(source,/catch\(e\)\{State\.settings\.exchangeRate=priorRate;State\.settings\.currencyRatesSyp=priorCurrencies;trial\.undo\(trialBefore\);throw e;\}/);
  assert.match(source,/badge\.textContent=usd\.toLocaleString/);
  const section=source.slice(source.indexOf('async function saveCurrencyRates(){'),source.indexOf('function unifiedRates(){'));
  assert.doesNotMatch(section,/State\.currencyExchanges\s*=/,'General rate changes cannot create or rewrite FX trades');
