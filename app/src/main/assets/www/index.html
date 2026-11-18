@@ -5988,11 +5988,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                     expenseByCategory[category] = (expenseByCategory[category] || 0) + usd;
                 });
                 const reportExchangeRate = Number(State.settings && State.settings.exchangeRate) || 1;
-                const fxDetailCard = `<details class="ta-fx-profit-card bg-white border border-blue-200 rounded-2xl mb-3 overflow-hidden shadow-sm">
-<summary class="flex items-center justify-between gap-3 p-3 cursor-pointer bg-blue-50"><span class="font-extrabold text-sm text-blue-950"><i class="fas fa-money-bill-trend-up ml-2"></i>أرباح التصريف</span><strong class="font-black text-blue-900" dir="ltr">${revealProfits?Accounting.format(exchangeProfitSyp,'SYP'):'••••••'}</strong></summary>
-${revealProfits?`<div class="divide-y divide-slate-100 text-xs">${fxPeriodEvents.filter(e=>Number.isFinite(e.gainSyp)&&e.gainSyp!==0).map(e=>`<div class="flex justify-between items-center gap-3 p-3"><div><b>تصريف ${AppEscape.text(e.fromCurrency||'')} / ${AppEscape.text(e.toCurrency||'')}</b><div class="text-[10px] text-slate-500">${AppEscape.text(String(e.date||'').replace('T',' ').slice(0,16))}</div></div><strong class="text-blue-900" dir="ltr">${Accounting.format(e.gainSyp,'SYP')}</strong></div>`).join('')||'<p class="p-3 text-slate-500">لا توجد أرباح تصريف في هذه الفترة.</p>'}</div>`:'<p class="p-3 text-xs text-slate-500">اضغط إظهار الأرباح لعرض تفاصيل العمليات.</p>'}
-</details>`;
-const moneyDual = usd => `<div class="font-extrabold text-emerald-700">${Accounting.format(usd, 'USD')}</div><div class="text-[10px] text-slate-500">${Accounting.format(usd * reportExchangeRate, 'SYP')}</div>`;
+                const moneyDual = usd => `<div class="font-extrabold text-emerald-700">${Accounting.format(usd, 'USD')}</div><div class="text-[10px] text-slate-500">${Accounting.format(usd * reportExchangeRate, 'SYP')}</div>`;
                 const active = (v, label) => `<button onclick="AppNav.navigate('reports',{tab:'pnl',period:'${period}',date:'${selectedDate}',end:'${endDate}',agentId:${agentArg},view:'${v}',reveal:${revealProfits}},true)" class="px-3 py-2 rounded-xl text-xs font-bold ${profitView === v ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 border'}">${label}</button>`;
 
                 main.innerHTML = `
@@ -6089,8 +6085,7 @@ const moneyDual = usd => `<div class="font-extrabold text-emerald-700">${Account
                                 ${revealProfits ? `<div class="font-extrabold ${netProfitUsd>=0?'text-emerald-300':'text-rose-300'}">${Accounting.format(netProfitUsd,'USD')}</div><div class="text-[10px] text-slate-300">${Accounting.format(netProfitUsd*reportExchangeRate,'SYP')}</div>` : `<div class="font-extrabold text-slate-300 tracking-widest mt-1">••••••</div>`}
                             </div>
                         </div>
-                        ${fxDetailCard}
-<div class="bg-white border border-slate-200 rounded-2xl p-3 mb-3">
+                        <div class="bg-white border border-slate-200 rounded-2xl p-3 mb-3">
                             <div class="flex items-center justify-between mb-2">
                                 <strong class="text-xs text-orange-900">تفاصيل المصاريف خلال الفترة</strong>
                                 <button onclick="AppNav.navigate('expenses')" class="text-xs text-orange-700 font-bold">إضافة مصروف</button>
