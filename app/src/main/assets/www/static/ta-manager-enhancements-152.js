@@ -7,8 +7,14 @@ if(typeof State==='undefined'||typeof Views==='undefined'||typeof Accounting==='
 const E={
  esc(v){return AppEscape.text(String(v==null?'':v));},
  money(v,c){return Accounting.format(Number(v)||0,c);},
- unitIndex(type){return Number(State.settings[type==='purchase'||type==='purchase_return'?'taDefaultPurchaseUnit':'taDefaultSaleUnit'])||0;},
- chosen(item,type){return item?.units?.[this.unitIndex(type)]||item?.units?.[0]||null;},
+ unitChoices(){return Array.from(new Set((State.items||[]).flatMap(item=>(item.units||[]).map(u=>String(u.name||'').trim())).filter(Boolean))).sort((a,b)=>a.localeCompare(b,'ar'));},
+ chosen(item,type){
+   const isBuy=['purchase','purchase_return'].includes(type);
+   const key=isBuy?'taDefaultPurchaseUnitName':'taDefaultSaleUnitName';
+   const selected=String(State.settings[key]||'__first__');
+   const units=item?.units||[];
+   return (selected==='__first__'?null:units.find(u=>u.name===selected))||units[0]||null;
+ },
  css(){
    const e=document.createElement('style');
    e.textContent='.ta-enh-btn{display:inline-flex;gap:8px;align-items:center;justify-content:center;min-height:42px;padding:10px 14px;border-radius:13px;color:#fff!important;font-size:13px;font-weight:900;text-shadow:0 1px 2px #132b44;box-shadow:inset 0 2px 2px #ffffff55,0 5px 0 #172c46,0 9px 15px #102d4d36;border:1px solid #ffffff60;background:linear-gradient(155deg,#2374ce,#144d9f 60%,#073371)}.ta-enh-indigo{background:linear-gradient(150deg,#7567db,#473296 70%,#312466);box-shadow:inset 0 2px 2px #ffffff55,0 5px 0 #28195e,0 9px 15px #17104735}.ta-enh-teal{background:linear-gradient(150deg,#198f96,#0a596e 75%,#084255);box-shadow:inset 0 2px 2px #ffffff55,0 5px 0 #053a47,0 9px 15px #102d4d36}.ta-enh-gold{background:linear-gradient(150deg,#b77b26,#795013 75%,#563208);box-shadow:inset 0 2px 2px #ffffff55,0 5px 0 #563208,0 9px 15px #102d4d36}.ta-enh-panel{background:#f8fbff;border:1px solid #c8d8eb;border-radius:14px;padding:12px;margin:10px 0}.ta-enh-panel label{font-weight:800;font-size:12px;color:#172d4b;display:block;margin:4px 0}.ta-enh-panel select,.ta-enh-panel input{background:#fff;border:1px solid #b3c9df;border-radius:9px;padding:8px;max-width:100%;min-height:36px}.ta-enh-table{width:100%;border-collapse:collapse;text-align:right;font-size:12px}.ta-enh-table th,.ta-enh-table td{padding:7px 5px;border:1px solid #bfd3e5;vertical-align:middle}.ta-enh-table thead{background:#143d71;color:#fff}.ta-enh-table input{width:90px;max-width:100%;border:1px solid #bcd1e4;border-radius:7px;padding:5px;font-size:13px}.ta-enh-scroll{max-height:53vh;overflow:auto}.ta-enh-balance{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:10px 0}.ta-enh-balance>div{background:#eef5ff;border:1px solid #b6d6f1;border-radius:12px;padding:9px;font-size:12px;font-weight:800}.ta-enh-balance b{display:block;color:#093c7d;margin-top:4px}.pos-line-label .ta-pos-unit-change{margin-inline:8px;padding:4px 6px;border-radius:8px;background:#fff;border:1px solid #1381ae;color:#0c3654;font-weight:800;min-width:72px}.ta-enh-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.receipt-paper .ta-enh-print-grid th,.receipt-paper .ta-enh-print-grid td{border:1px solid #333!important;padding:4px!important;overflow-wrap:anywhere}';
@@ -16,26 +22,28 @@ const E={
  },
  settings(){
    const section=document.querySelector('details[data-settings-section="invoices"] .settings-section-body');
-   if(section&&!section.querySelector('#taDefaultSaleUnit')){
+   if(section&&!section.querySelector('#taDefaultSaleUnitName')){
+     const names=this.unitChoices();
      const html='<div class="ta-enh-panel"><h3 class="font-black text-sm">الوحدة الافتراضية للفواتير</h3>'+
        ['sale','purchase'].map(type=>{
-         const key=type==='sale'?'taDefaultSaleUnit':'taDefaultPurchaseUnit';
-         const name=type==='sale'?'وحدة فواتير المبيعات':'وحدة فواتير المشتريات';
-         const value=Number(State.settings[key])||0;
-         return '<label for="'+key+'">'+name+'</label><select id="'+key+'" onchange="TiqanyManager152.setUnitDefault(\''+key+'\',this.value)">'+
-            [0,1,2,3,4].map((i)=>'<option value="'+i+'" '+(i===value?'selected':'')+'>'+(i===0?'الوحدة الكبرى (الأولى)':'الوحدة رقم '+(i+1))+'</option>').join('')+
+         const key=type==='sale'?'taDefaultSaleUnitName':'taDefaultPurchaseUnitName';
+         const title=type==='sale'?'الوحدة الافتراضية لفواتير المبيعات':'الوحدة الافتراضية لفواتير المشتريات';
+         const selected=String(State.settings[key]||'__first__');
+         const options=[{name:'__first__',label:'وحدة المادة الأساسية'}].concat(names.map(x=>({name:x,label:x})));
+         return '<label for="'+key+'">'+title+'</label><select id="'+key+'" onchange="TiqanyManager152.setUnitDefault(\''+key+'\',this.value)">'+
+            options.map(u=>'<option value="'+this.esc(u.name)+'" '+(u.name===selected?'selected':'')+'>'+this.esc(u.label)+'</option>').join('')+
            '</select>';
        }).join('')+
-       '<p class="text-[11px] text-slate-600">تُستخدم الوحدة المحددة إذا كانت معرّفة للمادة، وإلا تُستخدم وحدتها الأولى. لا تتغير الفواتير المحفوظة.</p></div>';
+       '<p class="text-[11px] text-slate-600">تُطبق الوحدة المختارة بالاسم على المادة التي تحتويها. عند عدم توفرها تُستخدم الوحدة الأساسية للمادة. لا تتغير الفواتير السابقة.</p></div>';
      const foot=section.querySelector('.ta-settings-section-footer');
      if(foot)foot.insertAdjacentHTML('beforebegin',html);else section.insertAdjacentHTML('beforeend',html);
    }
  },
  setUnitDefault(key,value){
-   if(!['taDefaultSaleUnit','taDefaultPurchaseUnit'].includes(key))return;
-   const n=Number(value);
-   if(!Number.isInteger(n)||n<0||n>4)return;
-   State.settings[key]=n;
+   if(!['taDefaultSaleUnitName','taDefaultPurchaseUnitName'].includes(key))return;
+   const selected=String(value||'__first__');
+   if(selected!=='__first__'&&!this.unitChoices().includes(selected))return;
+   State.settings[key]=selected;
    SettingsController.markSettingsDirty?.();
  },
  openingStats(){
