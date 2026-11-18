@@ -4009,7 +4009,14 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                     });
                 }
 
-                const estimatedHeight = Math.round((1600 + (inv.rows.length * 140)) * scale);
+                const taTableHeight=(typeof TiqanyThermalTable152!=='undefined'&&TiqanyThermalTable152?.estimateHeight)
+                    ?TiqanyThermalTable152.estimateHeight(ctx,inv,widthDots,pad,scale,State.settings.taPrintFields||{},{
+                     qty:v=>Accounting.formatItemQuantity(v),
+                     price:v=>Accounting.formatItemPriceNumber(v),
+                     total:(v,c)=>Accounting.formatNumberOnly(v,c)
+                 }):0;
+                const estimatedHeight=Math.max(Math.round((1600+inv.rows.length*140)*scale),
+                    Math.ceil(1150*Math.max(scale,0.75)+taTableHeight));
                 canvas.width = widthDots;
                 canvas.height = estimatedHeight;
 
@@ -4085,6 +4092,13 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 drawDoubleSep();
 
                 // 4. 5-Column Table Header (# | اسم المادة | الوحدة | الكمية | الإفرادي | الاجمالي)
+                if(typeof TiqanyThermalTable152!=='undefined' && TiqanyThermalTable152?.draw){
+                    y=TiqanyThermalTable152.draw(ctx,inv,widthDots,y,pad,scale,State.settings.taPrintFields||{},{
+                     qty:v=>Accounting.formatItemQuantity(v),
+                     price:v=>Accounting.formatItemPriceNumber(v),
+                     total:(v,c)=>Accounting.formatNumberOnly(v,c)
+                 });
+                }else{
                 const xIdx = widthDots - pad;
                 const xName = widthDots - pad - (is58 ? 24 : 34);
                 const xUnit = Math.round(widthDots * 0.50);
@@ -4170,6 +4184,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 for(const gx of [pad,widthDots*0.18,widthDots*0.30,widthDots*0.41,widthDots*0.56,widthDots*0.90,widthDots-pad]){ctx.beginPath();ctx.moveTo(gx,taPrintGridTop);ctx.lineTo(gx,y);ctx.stroke();}
                 for(const gy of taPrintGridRows){ctx.beginPath();ctx.moveTo(pad,gy);ctx.lineTo(widthDots-pad,gy);ctx.stroke();}
                 ctx.strokeStyle=taOldStroke;ctx.lineWidth=taOldWidth;
+                }
                 y += fMeta + 12;
                 drawDoubleSep();
 
@@ -10855,6 +10870,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
 <script src="static/ta-scroll-144.js"></script>
 <script defer src="static/ta-fx-buy-sell-147.js"></script>
 <script defer src="static/ta-report-local-date-148.js"></script>
+<script src="static/ta-thermal-table-152.js"></script>
 <script src="static/ta-manager-enhancements-152.js"></script>
 <script src="static/ta-pricing-modes-152.js"></script>
 <script src="static/ta-print-customization-152.js"></script>
