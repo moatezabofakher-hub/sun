@@ -192,13 +192,19 @@ A.remainingStockForItem=function(itemId){
  if(item.isBundle){const parts=item.bundleComponents||[];return parts.length?Math.max(0,Math.min(...parts.map(x=>Number(available[x.itemId]||0)/Number(x.quantity||1)))):0;}
  return Math.max(0,Number(available[itemId])||0);
 };
+A.defaultSaleUnit=function(item){
+ const preference=String(this.state?.defaultSaleUnitName||'__first__');
+ const units=item?.units||[];
+ const chosen=(preference==='__first__'?null:units.find(u=>u.name===preference))||units[0]||null;
+ return chosen&&Number(chosen.factor)>0?chosen:null;
+};
 A.checkPendingStock=function(proposed){
  if(this.draftKind!=='sale')return {ok:true};
  const usage=new Map();
  const catalog=new Map((this.state.items||[]).map(item=>[item.id,item]));
  for(const [id,qty] of Object.entries(proposed||{})){
   if(!(Number(qty)>0))continue;
-  const item=catalog.get(id),unit=item?.units?.[0];
+  const item=catalog.get(id),unit=this.defaultSaleUnit(item);
   if(!unit)return {ok:false,name:item?.name||id};
   const factor=Number(unit.factor)||1;
   const parts=item.isBundle?(item.bundleComponents||[]):[{itemId:id,quantity:1}];
@@ -217,7 +223,7 @@ A.checkPendingStock=function(proposed){
 };
 A.addGridItem=function(id){
  const it=this.state.items.find(x=>x.id===id);if(!it)return;
- const u=it.units?.[0];if(!u)return this.toast('لا توجد وحدة معتمدة للصنف');
+ const u=this.defaultSaleUnit(it);if(!u)return this.toast('لا توجد وحدة معتمدة للصنف');
  if(!this.gridPending)this.gridPending=Object.create(null);
  const next=Number(this.gridPending[id]||0)+1;
  const proposed={...this.gridPending,[id]:next};
@@ -246,7 +252,7 @@ A.applyInvoiceItemGrid=function(){
  const check=this.checkPendingStock(this.gridPending);
  if(!check.ok)return this.toast('الكمية المتاحة من «'+check.name+'» غير كافية');
  for(const [id,qty] of chosen){
-  const it=this.state.items.find(x=>x.id===id);const u=it?.units?.[0];if(!u)continue;
+  const it=this.state.items.find(x=>x.id===id);const u=this.defaultSaleUnit(it);if(!u)continue;
   let row=this.draft.find(r=>r.itemId===id&&r.unitName===u.name);
   if(row){row.qty=round(Number(row.qty)+Number(qty),'USD');row.total=round(row.qty*row.price,this.currency);}
   else{const price=this.unitPrice(it,u,this.currency);this.draft.push({itemId:id,itemName:it.name,unitName:u.name,unitFactor:Number(u.factor),qty:Number(qty),price,total:round(price*qty,this.currency),bomComponents:it.isBundle?JSON.parse(JSON.stringify(it.bundleComponents||[])):undefined});}
