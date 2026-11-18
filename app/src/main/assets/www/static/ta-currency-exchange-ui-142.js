@@ -351,23 +351,20 @@ if(typeof oldReport==='function')Views.renderReports=function(main,params,...arg
      e.gainSyp!==null&&TimeFilter.matches(e.date,period,date,end)&&
      (scope==='all'||scope===(e.agentId||'office')));
    const profit=Math.round(matched.reduce((n,e)=>n+e.gainSyp,0)*100)/100;
-   const currentRate=Number(State.settings.exchangeRate)||1;
-   const pending=Object.entries(report.pendingSales||{}).filter(([,v])=>v.quantity>0)
-     .map(([c,v])=>fmt(v.quantity,c)).join(' · ');
-   const details=matched.filter(e=>e.gainSyp!==0).slice(-12).reverse();
-   const body='<section data-ta-fx-profit-report="true" class="rounded-2xl border border-teal-300 bg-teal-50 p-3 mb-3 text-right" dir="rtl">'+
-      '<div class="flex justify-between gap-3 items-center"><strong class="text-teal-900 text-sm">أرباح التصريف</strong>'+
-      '<strong class="text-base '+(profit<0?'text-rose-700':'text-emerald-700')+'">'+fmt(profit,'SYP')+'</strong></div>'+
-      '<div class="text-xs text-teal-800">المقابل التوضيحي: '+fmt(profit/currentRate,'USD')+'</div>'+
-      '<div class="text-xs font-bold text-slate-700 mt-1">إجمالي أرباح التصريف لجميع الفترات: '+fmt(report.profitSyp,'SYP')+'</div>'+
-      '<p class="text-xs text-teal-800 mt-2">صافي الربح = أرباح المبيعات + أرباح التصريف المحققة − المصاريف. لا تُعد مبالغ شراء العملة مصاريف.</p>'+
-      (pending?'<p class="text-xs font-bold text-amber-800 mt-2">كمية تنتظر تسوية التكلفة: '+esc(pending)+'؛ ربحها الحالي صفر.</p>':'')+
-      (details.length?'<div class="mt-2 pt-2 border-t border-teal-200 space-y-1">'+
-      details.map(e=>'<div class="flex justify-between gap-2 text-xs border-b border-teal-100 py-1"><span>'+
-        esc(window.TiqanyReportDate148?.calendarDate(e.date)||String(e.date||'').slice(0,10))+' · '+(e.deferredCoveredAmount>0?'تسوية بيع سابق':'تصريف عملة')+
-        '</span><b class="'+(e.gainSyp<0?'text-rose-700':'text-emerald-800')+'">'+fmt(e.gainSyp,'SYP')+'</b></div>').join('')+
-      '</div>':'<p class="text-xs text-slate-600 mt-2">لا توجد أرباح تصريف محققة ضمن الفترة المحددة.</p>')+
-      '</section>';
+
+   const details=matched.filter(e=>e.gainSyp!==0).slice().reverse();
+   // This is a read-only projection of realized FX gains, never an additional posting.
+   const detailsHtml=details.length?details.map(e=>
+     '<div class="flex justify-between gap-2 text-xs border-b border-blue-100 py-2"><span>'+
+     esc(window.TiqanyReportDate148?.calendarDate(e.date)||String(e.date||'').slice(0,10))+' · '+
+     (e.deferredCoveredAmount>0?'تسوية بيع سابق':'تصريف عملة')+' · '+
+     esc(e.fromCurrency)+' / '+esc(e.toCurrency)+'</span><b class="'+(e.gainSyp<0?'text-rose-700':'text-emerald-800')+'">'+fmt(e.gainSyp,'SYP')+'</b></div>'
+   ).join(''):'<p class="text-xs text-slate-600 py-3">لا توجد أرباح تصريف محققة ضمن الفترة المحددة.</p>';
+   const body='<details data-ta-fx-profit-report="true" class="rounded-2xl border border-blue-300 bg-blue-50 mb-3 text-right overflow-hidden" dir="rtl">'+
+      '<summary class="ta-fx-profit-toggle flex justify-between items-center gap-3 p-3 cursor-pointer list-none" aria-label="عرض تفاصيل أرباح التصريف">'+
+      '<strong class="font-black text-white text-sm"><i class="fas fa-chart-line ml-2" aria-hidden="true"></i>أرباح التصريف</strong>'+
+      '<strong class="font-black text-base text-white" dir="auto">'+fmt(profit,'SYP')+'</strong></summary>'+
+      '<div class="px-3 pb-3 max-h-[52vh] overflow-y-auto">'+detailsHtml+'</div></details>';
    const expenses=main.querySelector('.bg-orange-50');
    const before=expenses?.parentElement;
    if(before?.parentElement===main)before.insertAdjacentHTML('beforebegin',body);
