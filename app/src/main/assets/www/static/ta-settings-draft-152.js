@@ -69,6 +69,12 @@ const controller={
    active=null;baseline=null;
    AppNav?.clearDirty?.();
  },
+ async cancel(key){
+   if(key&&active&&key!==active)return false;
+   this.discardSilently();
+   AppNav.renderCurrent?.();
+   return true;
+ },
  async save(section){
    if(!active||section!==active)throw Error('صفحة الإعداد غير متوافقة');
    syncFields();
