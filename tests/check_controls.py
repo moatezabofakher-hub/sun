@@ -11,13 +11,15 @@ with sync_playwright() as pw:
    p.set_viewport_size({'width':w,'height':700})
    p.goto((root/'index.html').resolve().as_uri());p.wait_for_timeout(130)
    if ed=='employee':
-    p.evaluate("()=>{Agent.state=Agent.blank;document.querySelector('#screen').innerHTML=Agent.renderHome(); Agent.markSyncState('connected');}")
+    # Let onload/IndexedDB finish, then render the real activated home screen.
+    # Rendering a fragment before init has settled can be overwritten by setup.
+    p.evaluate("async()=>{Agent.state=Agent.blank;Agent.state.companyId='qa';Agent.state.key='qa';Agent.ready=()=>true;Agent.active=async()=>true;await Agent.show('home');Agent.markSyncState('connected');}")
     assert p.locator('#agentSyncConnection').get_attribute('data-connected')=='true'
     p.evaluate("Agent.markSyncState('offline')");assert p.locator('#agentSyncConnection').get_attribute('data-connected')=='false'
    else:
     p.evaluate("()=>{State.settings.companyName='QA';State.settings.companySetupCompleted=true;document.querySelector('#ta-company-setup-128')?.remove();AppNav.stack=[{screen:'dashboard',params:{}}];AppNav.renderCurrent();}")
    p.wait_for_timeout(100)
-   assert p.locator('img.ta-voucher-art').evaluate_all('a=>a.length===2&&a.every(i=>i.complete&&i.naturalWidth>0)'),ed
+   p.wait_for_function("()=>{const images=[...document.querySelectorAll('img.ta-voucher-art')];return images.length===2&&images.every(i=>i.complete&&i.naturalWidth>0)}",timeout=5000)
    if ed in ('manager','win','solo'):
     vals=p.evaluate("""()=>{let ids=['headerExitBtn','headerSettingsBtn','headerNotificationsBtn','headerNotificationsCount','ta-desktop-phone-connection','salesStaffCounterButton','ta-manager-phone-connection','topBarRateButton'];let badge=document.querySelector('#headerNotificationsCount');badge.hidden=false;badge.textContent='99+';return Object.fromEntries(ids.map(k=>[k,document.getElementById(k)]).filter(([,e])=>e).map(([k,e])=>{let r=e.getBoundingClientRect();return [k,[Math.round(r.left),Math.round(r.right),Math.round(r.height)]]}));}""")
     print(ed,w,vals,flush=True)
