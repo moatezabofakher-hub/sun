@@ -60,6 +60,50 @@
      startDate:period==='all'?'0001-01-01':period==='added'?datePart(at):datePart(startDate),createdAt:at};
    list.push(o);return o;
  }
+
+ // Add an owner and rebalance all percentages as one transaction.
+ // Distribute the adjustment equally to keep existing percentage-point differences
+ // unless an owner reaches 0%.
+ function addOwnerWithDistribution(s,payload,opts={}){
+   ensure(s);
+   if(!payload||payload.percentage===undefined||payload.percentage===null||String(payload.percentage).trim()==='')
+     fail('نسبة الربح للمساهم الجديد مطلوبة');
+   const requested=Number(payload.percentage),units=Math.round(requested*10000);
+   if(!Number.isFinite(requested)||requested<0||requested>100||Math.abs(requested*10000-units)>1e-6)
+     fail('أدخل نسبة ربح صحيحة بين 0 و100 بأربع منازل عشرية كحد أقصى');
+   const previousOwners=owners(s).slice(),previousDistribution=clone(s.settings.shareholderDistribution);
+   const oldValues=percentages(s),ids=previousOwners.map(o=>o.id);
+   const values=ids.map(id=>Math.round(Number(oldValues[id]||0)*10000));
+   let remaining=1000000-units-values.reduce((a,b)=>a+b,0);
+   while(remaining!==0&&values.length){
+     const sign=Math.sign(remaining);
+     const eligible=values.map((v,i)=>({v,i})).filter(({v})=>sign>0?v<1000000:v>0);
+     if(!eligible.length)fail('تعذر توزيع النسب الجديدة مع الحفاظ على الحدود');
+     const base=Math.trunc(remaining/eligible.length);
+     let extra=Math.abs(remaining)%eligible.length,used=0;
+     for(const {i} of eligible){
+       const change=base+(extra-->0?sign:0);
+       const next=Math.max(0,Math.min(1000000,values[i]+change));
+       used+=next-values[i];values[i]=next;
+     }
+     if(!used)fail('تعذر إكمال إعادة توزيع نسب الأرباح');
+     remaining-=used;
+   }
+   if(remaining!==0)fail('لا يمكن توزيع النسبة المطلوبة');
+   try{
+     const created=addOwner(s,payload);
+     if(payload.role==='manager')created.role='manager';
+     const next=Object.fromEntries(ids.map((id,i)=>[id,values[i]/10000]));
+     next[created.id]=units/10000;
+     setDistribution(s,next,opts);
+     return created;
+   }catch(err){
+     s.shareholderOwners=previousOwners;
+     s.settings.shareholderDistribution=previousDistribution;
+     throw err;
+   }
+ }
+
  function editOwner(s,id,{name,phone,period,startDate}={}){
    const list=owners(s),idx=list.findIndex(o=>o.id===id);
    if(idx<0)fail('المساهم غير موجود');
@@ -207,7 +251,7 @@
    const kb=String(b.deviceId||'')+'|'+String(b.changeId||'')+'|'+JSON.stringify(b.values);
    return clone(ka>=kb?a:b);
  }
- return {ensure,owners,movements,owner,percentages,addOwner,editOwner,setDistribution,event,editEvent,deleteEvent,
+ return {ensure,owners,movements,owner,percentages,addOwner,addOwnerWithDistribution,editOwner,setDistribution,event,editEvent,deleteEvent,
    operatingEntries,operatingProfit,accrued,availableProfit,profitDrawn,contributed,retainedCapital,reserve,
    cashMovements,report,validate,mergeShareholderSettings,fixed,major,text,uuid};
 });
@@ -302,6 +346,7 @@
    this._enter('addOwner');
     modal('<h2 class="ta-share-heading">إضافة مساهم</h2>'+
       '<label>اسم المالك<input id="taShareName" maxlength="120" required></label>'+
+       '<label>نسبة الربح (%)<input id="taShareNewPct" type="number" min="0" max="100" step="0.0001" placeholder="مثال: 25" required></label>'+
       '<label>رقم الهاتف<input id="taSharePhone" type="tel" maxlength="40"></label>'+
       '<label>فترة احتساب الأرباح<select id="taSharePeriod"><option value="all">كل المدة</option><option value="added">من تاريخ الإضافة</option><option value="date">تاريخ محدد</option></select></label>'+
       '<label>تاريخ البداية عند اختيار تاريخ محدد<input id="taShareStart" type="date" value="'+today()+'"></label>'+
@@ -309,9 +354,13 @@
     const b=document.querySelector('[data-ta-action="saveOwner"]');b.addEventListener('click',async()=>{
       if(busy)return;
       const before=S.owners(State).slice();
-      try{S.addOwner(State,{name:formValue('taShareName'),phone:formValue('taSharePhone'),period:formValue('taSharePeriod'),startDate:formValue('taShareStart')});
-       busy=true;await StorageEngine.saveState();busy=false;this.open();ok('تمت إضافة المساهم');}
-      catch(e){State.shareholderOwners=before;busy=false;problem(e)}
+      const previousDistribution=JSON.parse(JSON.stringify(State.settings.shareholderDistribution));
+      try{
+       S.addOwnerWithDistribution(State,{name:formValue('taShareName'),percentage:formValue('taShareNewPct'),
+        phone:formValue('taSharePhone'),period:formValue('taSharePeriod'),startDate:formValue('taShareStart')},
+        {deviceId:localDeviceId()});
+       busy=true;await StorageEngine.saveState();busy=false;this.open();ok('تمت إضافة المساهم وتوزيع النسب إلى 100%');}
+      catch(e){State.shareholderOwners=before;State.settings.shareholderDistribution=previousDistribution;busy=false;problem(e)}
     });
   },
   percentagesForm(){
