@@ -1,0 +1,62 @@
+/* Tiqany Acc 3.5.152 — consistent layered surfaces across manager, solo, Windows and employee.
+   Visual only: no finance, navigation, field permissions, hitboxes or print markup changed. */
+:root{
+  --ta3d-gloss:inset 0 2px 2px rgba(255,255,255,.58);
+  --ta3d-edge:0 3px 0 rgba(18,57,95,.24);
+  --ta3d-soft:0 9px 17px rgba(12,45,83,.13);
+  --ta3d-blue:linear-gradient(155deg,#4ba6f8 0%,#1870cf 40%,#0e4d9b 78%,#06356e 100%);
+}
+:is(button,[role="button"],.tile,.ta-action-card,.ta-module-card,.ta-service-button,.ta-stock-card,.ta-transfer-card,.ta-bundle-grid-card,.ta-quick-picker__face,.report-card,summary):not([hidden]){
+  transition:transform .15s ease,box-shadow .15s ease,filter .15s ease;
+  box-shadow:var(--ta3d-gloss),var(--ta3d-edge),var(--ta3d-soft);
+  border-radius:var(--ta3d-radius,12px);
+}
+:is(button,[role="button"],.tile,.ta-action-card,.ta-module-card,.ta-service-button,.ta-stock-card,.ta-transfer-card,.ta-bundle-grid-card,summary):not([disabled]):not([hidden]):active{
+  transform:translateY(2px);
+  box-shadow:inset 0 2px 4px rgba(0,19,40,.16),0 1px 0 rgba(15,52,87,.24),0 4px 8px rgba(0,37,74,.10);
+}
+:is(button,[role="button"],.tile,.ta-action-card,.ta-module-card,.ta-service-button,summary):not([disabled]):focus-visible{
+  outline:3px solid #4ca8ff;outline-offset:3px;
+}
+:is(.ta-app-header,header.top,#agentHeader,.ta-bottom-nav,nav.bottom,#bottom,.ta-invoice-save-footer,.ta-voucher-save-footer,.ta-agent-invoice-save-footer,.ta-agent-pos-footer,.ta-transfer-footer-buttons){
+  box-shadow:inset 0 2px 0 rgba(255,255,255,.16),0 4px 0 rgba(14,50,91,.18),0 11px 23px rgba(8,37,68,.15);
+}
+:is(#modalBox,#dialogBox,.dialog-card,.panel,.hero,.ta-enh-panel,.ta-capital-modal,.ta-transfer-summary-tile,.ta-balance-tile,.ta-voucher-balance-tile){
+  border-radius:var(--ta3d-panel-radius,16px);
+  box-shadow:inset 0 2px 0 rgba(255,255,255,.72),0 4px 0 rgba(74,117,156,.18),0 15px 28px rgba(11,42,78,.17);
+}
+:is(.ta-glossy-icon-button,.ta-capital-icon,.ta-card-icon,.ta-icon-box,.glyph,.ta-module-card i,.ta-action-card i,.ta-enh-btn i) {
+  filter:drop-shadow(0 2px 1px rgba(5,35,80,.27));
+}
+:is(.ta-enh-btn,.ta-enh-btn.ta-enh-gold,.ta-enh-btn.ta-enh-indigo,.ta-enh-btn.ta-enh-teal,
+ .ta-capital-card .ta-capital-icon,.pos-line-label .ta-pos-unit-change) {
+  background:var(--ta3d-blue)!important;color:white!important;
+  border:1px solid #91ccff!important;
+  text-shadow:0 1px 2px #052f64!important;
+  box-shadow:inset 0 2px 2px rgba(255,255,255,.54),0 5px 0 #07346e,0 10px 18px rgba(6,55,115,.27)!important;
+}
+:is(.ta-enh-btn,.ta-capital-icon) :is(i,svg){color:#fff!important;fill:currentColor;}
+/* Give otherwise flat navigation controls their tactile face, without restyling semantic danger buttons. */
+:is(.ta-bottom-nav,nav.bottom,#bottom) button:not([disabled]):not([hidden]),
+:is(.settings-section-heading,summary,.header-tool,.ta-header-settings-button,.ta-header-notifications){
+  border:1px solid rgba(140,185,225,.38);
+  box-shadow:inset 0 2px 2px rgba(255,255,255,.36),0 3px 0 rgba(6,45,82,.14),0 6px 12px rgba(7,45,90,.10);
+}
+:is(.dialog-actions,.ta-footer-actions,.ta-agent-pos-actions,.ta-transfer-footer-buttons) button:not([disabled]){
+  box-shadow:inset 0 2px 2px rgba(255,255,255,.36),0 5px 0 rgba(9,42,77,.26),0 9px 16px rgba(13,46,74,.15);
+}
+/* Repaint employee action and POS tiles in deep, readable blue when new. */
+.agent-pos-actions button,.agent-pos-save button,.ta-agent-pos-actions button,.agent-pos-currency,
+#agentPosSettings button,.ta-agent-new-control{
+  background:var(--ta3d-blue)!important;color:#fff!important;
+  border:1px solid #91ccff!important;
+  box-shadow:inset 0 2px 2px #ffffff82,0 5px 0 #083977,0 10px 17px #0d3a7840!important;
+  text-shadow:0 1px 2px #042c62!important;
+}
+button:disabled,[aria-disabled="true"]{filter:saturate(.65);cursor:not-allowed}
+@media(prefers-reduced-motion:reduce){
+  :is(button,[role="button"],.tile,.ta-action-card,.ta-module-card,.ta-service-button,summary){transition:none}
+}
+@media print{
+  #printableReceiptArea *,#printableReceiptArea{box-shadow:none!important;text-shadow:none!important;filter:none!important;transform:none!important}
+}
