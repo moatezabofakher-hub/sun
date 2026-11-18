@@ -31,18 +31,18 @@
   box-shadow:inset 0 2px 3px #061d3955,0 2px 0 var(--ta-depth-blue-edge),0 5px 8px #062f6350!important;
 }
 /* The partnership picture belongs to Capital only: contrast is white on deep blue. */
-.ta-capital-card {
+html body .ta-capital-card {
   background:linear-gradient(150deg,#3079d2 0%,#1654ad 58%,#0a3472 100%)!important;
   border:2px solid #77bcf4!important;
   border-radius:20px!important;
   color:#fff!important;
   box-shadow:inset 0 2px 2px #ffffff6d,0 6px 0 #06295e,0 12px 23px #0c2c5760!important;
 }
-.ta-capital-card .ta-capital-card-text strong,
+html body .ta-capital-card .ta-capital-card-text strong,
 .ta-capital-card .ta-capital-card-text small,
 .ta-capital-card .ta-capital-amount,.ta-capital-card .ta-capital-divider,
 .ta-capital-card>i {color:#fff!important;-webkit-text-fill-color:#fff!important;}
-.ta-capital-card .ta-capital-icon {
+html body .ta-capital-card .ta-capital-icon {
   background:linear-gradient(150deg,#3889db,#134b9d)!important;
   border:1px solid #9cd3ff!important;
   border-radius:16px!important;
@@ -120,3 +120,10 @@
 @media (prefers-reduced-motion:reduce) {
   :is(button,.ta-enh-btn,.tile,.ta-action-card,.ta-module-card){transition:none!important}
 }
+
+/* Fallback coverage for every native action control, including less common settings pages. */
+button:not([hidden]),[role="button"],summary{box-shadow:var(--ta-depth-raised);border-radius:12px;transition:transform .14s ease,box-shadow .14s ease,filter .14s ease}
+button:not([hidden]):not([disabled]):active,[role="button"]:active,summary:active{transform:translateY(2px)}
+:is(.top,.panel,.ta-modal-dialog,.modal-content,.ta-settings-panel,.settings-section,.modal-card,[class*="dialog-card"]){border-radius:17px;box-shadow:inset 0 1px 0 #fff8,0 4px 0 #9bbad155,0 11px 22px #102c4d28}
+:is(nav.bottom,#bottom,.bottom-nav,#bottomNav,#topBar,.top-bar,.ta-invoice-save-footer){background-image:linear-gradient(180deg,#ffffff25 0%,transparent 55%,#06274717 100%);}
+button:disabled{filter:grayscale(.18);cursor:not-allowed}
