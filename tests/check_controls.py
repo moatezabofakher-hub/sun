@@ -28,6 +28,9 @@ with sync_playwright() as pw:
     if ed=='manager':
      slots=[vals[k] for k in ('ta-desktop-phone-connection','salesStaffCounterButton','ta-manager-phone-connection')]
      assert all(v[2]>0 for v in slots) and slots[0][0]>=slots[1][1] and slots[1][0]>=slots[2][1]
+     # The three fixed slots retain a visible pale-red offline lamp and bright-green online lamp.
+     lamps=p.evaluate("""()=>{const entries=[['ta-desktop-phone-connection','ta-link-online'],['salesStaffCounterButton','has-staff'],['ta-manager-phone-connection','ta-manager-online']];return entries.map(([id,flag])=>{const btn=document.getElementById(id);btn.classList.remove(flag);const offline=getComputedStyle(btn).getPropertyValue('--lamp').trim();btn.classList.add(flag);const online=getComputedStyle(btn).getPropertyValue('--lamp').trim();btn.classList.remove(flag);return {id,offline,online};});}""")
+     assert all(v['offline']=='#ff9b9f' and v['online']=='#52e798' for v in lamps),lamps
    if ed=='win':
     assert vals['headerExitBtn'][0]>=vals['headerSettingsBtn'][1]-1
     assert vals['headerSettingsBtn'][0]>=bell[1]-1
