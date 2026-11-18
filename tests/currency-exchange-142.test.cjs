@@ -223,9 +223,9 @@ test('FX P&L appears within reports and is separate from principal and expenses'
  assert.match(ui,/data-ta-fx-profit-report/);
  assert.match(ui,/أرباح التصريف المحققة/);
  assert.match(ui,/report\.profitSyp/);
- assert.match(ui,/pendingSales/);
+ assert.match(ui,/ta-fx-profit-toggle/);
  assert.match(ui,/TimeFilter\.matches/);
- assert.match(ui,/لا تُعد مبالغ شراء العملة مصاريف/);
+ assert.match(ui,/detailsHtml/);
  assert.doesNotThrow(()=>new Function(ui));
 });
 
@@ -246,9 +246,9 @@ test('FX profit reports retain recognized gains and account for them exactly onc
  assert.notEqual(matches('2026-11-03'),-costOfPurchase,'purchase principal must not be booked as a loss');
  const source=fs.readFileSync(isWindows?path.join(root,'upgrade-125/ta-currency-exchange-ui-142.js'):path.join(root,'app/src/main/assets/www/static/ta-currency-exchange-ui-142.js'),'utf8');
  assert.match(source,/data-ta-fx-profit-report/);
- assert.match(source,/إجمالي أرباح التصريف لجميع الفترات/);
+ assert.match(source,/عرض تفاصيل أرباح التصريف/);
  assert.match(source,/TimeFilter\.matches/);
- assert.match(source,/لا تُعد مبالغ شراء العملة مصاريف/);
+ assert.match(source,/deferredCoveredAmount/);
 });
 
 test('Core P&L calculation adds realized FX exactly once without unbound employee context',()=>{
