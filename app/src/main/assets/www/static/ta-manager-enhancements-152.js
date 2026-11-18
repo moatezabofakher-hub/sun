@@ -248,6 +248,16 @@ const E={
    });
  },
  install(){
+   // A manager's chosen default sale unit is a trusted catalog preference.
+   // Employees can consume it without gaining permission to change manager settings.
+   if(typeof FieldSync!=='undefined'&&typeof FieldSync.catalog==='function'){
+     const previous=FieldSync.catalog;
+     FieldSync.catalog=function(...args){
+       const catalog=previous.apply(this,args);
+       catalog.defaultSaleUnitName=String(State.settings.taDefaultSaleUnitName||'__first__').slice(0,80);
+       return catalog;
+     };
+   }
    this.css();
    const oldAccounts=Views.renderAccounts;Views.renderAccounts=function(main,...args){const out=oldAccounts.call(this,main,...args);E.addAccountControls(main);return out;};
    const oldItems=Views.renderItems;Views.renderItems=function(main,...args){const out=oldItems.call(this,main,...args);const t=main.querySelector('.ta-items-toolbar');if(t&&!t.querySelector('#taMovementAction'))t.insertAdjacentHTML('beforeend','<button id="taMovementAction" class="ta-enh-btn ta-enh-teal" onclick="TiqanyManager152.openMovement()"><i class="fas fa-arrows-spin"></i> حركة مادة</button>');return out;};
