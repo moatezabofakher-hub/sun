@@ -99,3 +99,14 @@ test('Sync silence filters ordinary offline and repeated conflict notices',async
  await notice('تعارض في البيانات يحتاج تدخلاً');
  assert.deepEqual(f.notices,['تعارض في البيانات يحتاج تدخلاً']);
 });
+
+test('Cash POS unit replacement retains cashier-entered quantity and recalculates per-unit price',()=>{
+ const f=fixture(),row={itemId:'i1',itemName:'صنف تجريبي',unitName:'كرتونة',
+   unitFactor:1,qty:7,price:140,basePrice:140,baseCurrency:'SYP'};
+ f.invoice.draft.rows=[row];
+ f.TiqanyManager152.changePosUnit(0,'قطعة');
+ assert.equal(row.qty,7);
+ assert.equal(row.unitName,'قطعة');
+ assert.equal(row.unitFactor,10);
+ assert.equal(row.price,14);
+});
