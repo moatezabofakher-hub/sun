@@ -7,7 +7,7 @@ function fixture(){
    {name:'كرتونة',factor:1,costPrice:100,wholesalePrice:140},
    {name:'قطعة',factor:10,costPrice:10,wholesalePrice:14}
  ]};
- const state={settings:{taDefaultSaleUnit:1,taDefaultPurchaseUnit:0,defaultPriceTier:'wholesale',exchangeRate:15000},
+ const state={settings:{taDefaultSaleUnitName:'قطعة',taDefaultPurchaseUnitName:'كرتونة',defaultPriceTier:'wholesale',exchangeRate:15000},
   items:[item],accounts:[{id:'c',name:'عميل',type:'customer',openingSyp:100,openingUsd:-5},
    {id:'s',name:'مورد',type:'supplier',openingSyp:200,openingUsd:-10}],
   invoices:[{id:'p',date:'2026-11-15',number:'1',type:'purchase',warehouseId:'wh_main',
