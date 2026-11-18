@@ -115,7 +115,7 @@ function trade(code,side,editId=''){
  const fields=['ta147Amount','ta147Rate','ta147Note'].map(id=>document.getElementById(id));
  const signature=()=>JSON.stringify(fields.map(el=>el.value));
  const baseline=signature();
- fields.forEach(el=>el.addEventListener('input',()=>{
+ fields.forEach(el=>el.addEventListener?.('input',()=>{
     if(signature()===baseline)AppNav.clearModalDirty();
     else AppNav.markModalDirty(saveTrade);
  }));

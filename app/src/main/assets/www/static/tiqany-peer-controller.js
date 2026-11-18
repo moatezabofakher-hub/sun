@@ -757,7 +757,9 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
     if(!link.approved||!link.host)return;
     this.polling=true;
     try{
-      const reply=await this.call({action:'probe'});
+      const now=Date.now(), manager=window.TiqanyManagerSync;
+      const seen=Math.max(manager?.lastClient||0,manager?.lastServer||0);
+      const reply=await this.call({action:'probe',managerPhoneLinked:seen>0 && now-seen<20000,presenceCompany:this.companyUid()});
       if(reply.appVersion!=='3.5.153')throw Error('اختلاف إصدار التطبيقات: يجب تحديث جميع الأجهزة إلى الإصدار 3.5.153 قبل الاتصال أو المزامنة. لم تُنقل أي بيانات.');
       if(!reply.ok||typeof reply.version!=='string'||reply.serverId!==link.serverId)throw Error('تعذر التحقق من هوية الكمبيوتر');
       this.probeFailures=0;this.nextProbeAt=0;this.lastSuccessfulAt=Date.now();this.recovered('transport');
