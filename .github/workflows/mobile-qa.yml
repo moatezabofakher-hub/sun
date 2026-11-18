@@ -1,0 +1,13 @@
+name: Verify release 153 on small viewports
+on:
+  push:
+    branches: [qa/mobile-viewport-153]
+permissions:
+  contents: read
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install playwright --quiet
+      - run: python tests/mobile_qa.py
