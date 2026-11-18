@@ -152,7 +152,7 @@ const E={
    const item=State.items.find(i=>i.id===itemId);if(!item)return null;
    const wh=warehouse||'all',all=wh==='all', isMain=wh==='wh_main',entries=[];
    const open=Number(item.openingStockBase)||0;
-   if(open&&(all||isMain))entries.push({date:'0000-01-01',desc:'رصيد أول المدة',inQty:open,outQty:0,id:'opening'});
+   if(open&&(all||isMain))entries.push({date:'0000-01-01',kind:'opening',desc:'رصيد أول المدة',inQty:open,outQty:0,id:'opening'});
    for(const doc of State.invoices||[]){
      if(!all&&(doc.warehouseId||'wh_main')!==wh)continue;
      const sign=['purchase','sale_return'].includes(doc.type)?1:['sale','purchase_return'].includes(doc.type)?-1:0;
@@ -166,36 +166,55 @@ const E={
          if(['sale','sale_return'].includes(doc.type))for(const p of parts||[])if(p.itemId===item.id)qty+=(Number(r.qty)||0)/(Number(r.unitFactor)||1)*(Number(p.quantity)||0);
        }
      }
-     if(qty)entries.push({date:doc.date||'',desc:'فاتورة '+Accounting.getInvoiceTypeAr(doc.type)+' #'+doc.number,inQty:sign>0?qty:0,outQty:sign<0?qty:0,id:doc.id,invoice:true});
+     if(qty)entries.push({date:doc.date||'',desc:'فاتورة '+Accounting.getInvoiceTypeAr(doc.type)+' #'+doc.number,inQty:sign>0?qty:0,outQty:sign<0?qty:0,id:doc.id,kind:doc.type,invoice:true});
    }
    if(!all)for(const tr of State.transfers||[]){
      if(tr.itemId!==item.id)continue;
      const qty=Number(tr.quantityBase)||0;
-     if(tr.toWarehouseId===wh)entries.push({date:tr.date||'',desc:'مناقلة واردة '+WarehouseController.name(tr.fromWarehouseId),inQty:qty,outQty:0,id:tr.id});
-     if(tr.fromWarehouseId===wh)entries.push({date:tr.date||'',desc:'مناقلة صادرة '+WarehouseController.name(tr.toWarehouseId),inQty:0,outQty:qty,id:tr.id});
+     if(tr.toWarehouseId===wh)entries.push({date:tr.date||'',desc:'مناقلة واردة '+WarehouseController.name(tr.fromWarehouseId),inQty:qty,outQty:0,id:tr.id,kind:'transfer_in'});
+     if(tr.fromWarehouseId===wh)entries.push({date:tr.date||'',desc:'مناقلة صادرة '+WarehouseController.name(tr.toWarehouseId),inQty:0,outQty:qty,id:tr.id,kind:'transfer_out'});
    }
    entries.sort((a,b)=>String(a.date).localeCompare(String(b.date))||String(a.id).localeCompare(String(b.id)));
    let running=0,totalIn=0,totalOut=0;for(const x of entries){running+=x.inQty-x.outQty;totalIn+=x.inQty;totalOut+=x.outQty;x.balance=running;}
    return {item,entries,totalIn,totalOut,actual:Accounting.getItemBaseStock(item.id,null,all?null:wh)};
  },
- openMovement(itemId,warehouse){
+ movementFiltered(data,start='',end='',kind='all'){
+   const selected=(data?.entries||[]).filter(entry=>{
+     const date=String(entry.date||'').slice(0,10);
+     return (!start||date>=start)&&(!end||date<=end)&&(kind==='all'||entry.kind===kind);
+   });
+   return {entries:selected,totalIn:selected.reduce((n,x)=>n+x.inQty,0),totalOut:selected.reduce((n,x)=>n+x.outQty,0)};
+ },
+ openMovement(itemId,warehouse,start='',end='',kind='all'){
    const current=itemId||State.items[0]?.id||'',wh=warehouse||State.settings.selectedWarehouseId||'wh_main';
-   const data=this.movement(current,wh);
+   const data=this.movement(current,wh),filtered=this.movementFiltered(data,start,end,kind);
    const itemSelect=(State.items||[]).map(i=>'<option value="'+this.esc(i.id)+'" '+(current===i.id?'selected':'')+'>'+this.esc(i.name)+'</option>').join('');
    const warehouseSelect='<option value="all" '+(wh==='all'?'selected':'')+'>جميع المستودعات</option>'+
       (State.warehouses||[]).map(w=>'<option value="'+this.esc(w.id)+'" '+(wh===w.id?'selected':'')+'>'+this.esc(w.name)+'</option>').join('');
-   const rows=(data?.entries||[]).map((e,i)=>'<tr><td>'+this.esc(e.date.replace('T',' '))+'</td><td>'+this.esc(e.desc)+'</td>'+
+   const types=[['all','كل العمليات'],['opening','أول المدة'],['purchase','شراء'],['purchase_return','مردود شراء'],['sale','مبيع'],['sale_return','مردود مبيع'],['transfer_in','مناقلة واردة'],['transfer_out','مناقلة صادرة']];
+   const options=types.map(([val,title])=>'<option value="'+val+'" '+(kind===val?'selected':'')+'>'+title+'</option>').join('');
+   const rows=(filtered.entries||[]).map(e=>'<tr><td>'+this.esc(String(e.date||'').replace('T',' '))+'</td><td>'+
+     (e.invoice?'<button type="button" style="color:#005eaa;text-decoration:underline;font-weight:800" onclick="TiqanyManager152.openInvoiceMovement(\''+this.esc(e.id)+'\')">'+this.esc(e.desc)+'</button>':this.esc(e.desc))+'</td>'+
      '<td>'+Accounting.formatItemQuantity(e.inQty)+'</td><td>'+Accounting.formatItemQuantity(e.outQty)+'</td><td>'+Accounting.formatItemQuantity(e.balance)+'</td></tr>').join('');
    UI.openModal('<div dir="rtl"><h2 class="text-lg font-black">حركة مادة</h2>'+
-     '<div class="ta-enh-panel"><label>المادة</label><select id="taMovementItem" onchange="TiqanyManager152.reloadMovement()">'+itemSelect+'</select>'+
-     '<label>المستودع</label><select id="taMovementWarehouse" onchange="TiqanyManager152.reloadMovement()">'+warehouseSelect+'</select></div>'+
-     '<div class="ta-enh-balance"><div>إجمالي الوارد<b>'+Accounting.formatItemQuantity(data?.totalIn||0)+'</b></div><div>إجمالي الصادر<b>'+Accounting.formatItemQuantity(data?.totalOut||0)+'</b></div>'+
-     '<div>الرصيد الحالي<b>'+Accounting.formatItemQuantity(data?.actual||0)+'</b></div><div>عدد الحركات<b>'+(data?.entries.length||0)+'</b></div></div>'+
+     '<div class="ta-enh-panel"><div class="ta-enh-row"><label>المادة<select id="taMovementItem" onchange="TiqanyManager152.reloadMovement()">'+itemSelect+'</select></label>'+
+     '<label>المستودع<select id="taMovementWarehouse" onchange="TiqanyManager152.reloadMovement()">'+warehouseSelect+'</select></label>'+
+     '<label>العملية<select id="taMovementKind" onchange="TiqanyManager152.reloadMovement()">'+options+'</select></label></div>'+
+     '<div class="ta-enh-row mt-2"><label>من تاريخ<input type="date" id="taMovementFrom" value="'+this.esc(start)+'" onchange="TiqanyManager152.reloadMovement()"></label>'+
+     '<label>إلى تاريخ<input type="date" id="taMovementTo" value="'+this.esc(end)+'" onchange="TiqanyManager152.reloadMovement()"></label></div></div>'+
+     '<div class="ta-enh-balance"><div>الوارد ضمن التصفية<b>'+Accounting.formatItemQuantity(filtered.totalIn)+'</b></div><div>الصادر ضمن التصفية<b>'+Accounting.formatItemQuantity(filtered.totalOut)+'</b></div>'+
+     '<div>الرصيد الحالي للمادة<b>'+Accounting.formatItemQuantity(data?.actual||0)+'</b></div><div>عدد الحركات المعروضة<b>'+filtered.entries.length+'</b></div></div>'+
+     '<p class="text-[11px] text-slate-500">الرصيد بعد كل حركة محسوب من بداية المدة، حتى عند إخفاء بعض العمليات بالتصفية. اضغط على فاتورة لعرضها.</p>'+
      '<div class="ta-enh-scroll"><table class="ta-enh-table"><thead><tr><th>التاريخ</th><th>العملية</th><th>وارد</th><th>صادر</th><th>الرصيد</th></tr></thead><tbody>'+
-     (rows||'<tr><td colspan="5">لا توجد حركة لهذه المادة</td></tr>')+'</tbody></table></div>'+
+     (rows||'<tr><td colspan="5">لا توجد حركة لهذه المادة ضمن التصفية</td></tr>')+'</tbody></table></div>'+
      '<button class="ta-enh-btn ta-enh-gold mt-3" onclick="UI.forceCloseModal()">إغلاق</button></div>');
  },
- reloadMovement(){this.openMovement(document.getElementById('taMovementItem')?.value,document.getElementById('taMovementWarehouse')?.value);},
+ reloadMovement(){
+   this.openMovement(document.getElementById('taMovementItem')?.value,document.getElementById('taMovementWarehouse')?.value,
+     document.getElementById('taMovementFrom')?.value,document.getElementById('taMovementTo')?.value,
+     document.getElementById('taMovementKind')?.value);
+ },
+ openInvoiceMovement(id){InvoiceController.openSavedInvoice(id,'view');},
  changePosUnit(index,unitName){
    const d=InvoiceController.draft,row=d?.rows?.[index],item=State.items.find(i=>i.id===row?.itemId),unit=item?.units?.find(u=>u.name===unitName);
    if(!row||!unit||!POSController.canChange())return;
