@@ -3,7 +3,7 @@ name: Tiqany Acc - Main Signed Release
 on:
   workflow_dispatch:
   push:
-    branches: [main, 'fix/scroll-behavior-144']
+    branches: [main, 'fix/scroll-behavior-144', 'feature/manager-finance-ui-from-152']
 
 permissions:
   contents: read
@@ -94,6 +94,13 @@ jobs:
           node --check app/src/main/assets/www/static/ta-report-local-date-148.js
           node --check app/src/main/assets/www/static/ta-fx-buy-sell-147.js
           node --check app/src/main/assets/www/static/field-protocol.js
+      - name: Test manager-only v152 financial UI enhancements
+        run: |
+          set -euo pipefail
+          node --check app/src/main/assets/www/static/ta-manager-enhancements-152.js
+          node --check app/src/main/assets/www/static/ta-pricing-modes-152.js
+          node --check app/src/main/assets/www/static/ta-print-customization-152.js
+          node --test tests/manager-enhancements-152.test.cjs
       - name: Build, sign, and verify app release APK
         shell: bash
         env:
