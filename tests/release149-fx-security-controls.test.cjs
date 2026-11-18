@@ -33,8 +33,8 @@ test('Adding currency uses navy background and white text; top-bar general USD r
   assert.match(installer,/generalInvoiceRateModal/);
  }else{
   const html=fs.readFileSync(path.join(root,'app/src/main/assets/www/index.html'),'utf8');
-  assert.match(html,/ta-currency-add-149/);
-  assert.match(html,/background:#17263e!important;color:#fff!important/);
+  assert.doesNotMatch(html,/ta-currency-add-149/,'Currency settings now have only the group Save button');
+  assert.match(html,/اختر عملة لإضافتها عند الحفظ/);
   assert.match(html,/TiqanyFx147\.generalInvoiceRateModal\(\)/);
   assert.match(html,/id="topBarRate"/);
  }
