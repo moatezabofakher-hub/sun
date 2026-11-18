@@ -19,6 +19,7 @@ const P={
    const def=State.settings.defaultPriceTier;return this.validTier(def)?def:'wholesale';
  },
  setModes(next){State.settings.taPricingModes=next;},
+ async persist(){const staged=window.TiqanySettingsDraft;if(staged?.isActive?.()){await staged.save('invoices');}else await StorageEngine.saveState();},
  isLinked(id){
    return (State.invoices||[]).some(i=>{
       if(i.priceTierOverride===id||i.priceTier===id)return true;
@@ -55,7 +56,7 @@ const P={
    const id='custom_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,7);
    next.push({id,name});
    this.setModes(next);
-   try{await StorageEngine.saveState();UI.toast('تمت إضافة نمط التسعير. يمكنك الآن إدخال أسعاره للمواد.','success');this.openPrices(id);}
+   try{await this.persist();UI.toast('تمت إضافة نمط التسعير. يمكنك الآن إدخال أسعاره للمواد.','success');this.openPrices(id);}
    catch(e){State.settings.taPricingModes=prior;UI.toast('فشل الحفظ: '+e.message,'error');}
  },
  edit(id){
@@ -70,7 +71,7 @@ const P={
    if(name.length<2||name.length>40||/[<>]/.test(name)||this.active().some(x=>x.name===name&&x.id!==id))return UI.toast('اسم غير صالح أو مكرر','error');
    const prior=State.settings.taPricingModes;
    this.setModes(this.modes().map(m=>m.id===id?{...m,name}:{...m}));
-   try{await StorageEngine.saveState();UI.toast('تم تعديل الاسم دون المساس بأسعار أو فواتير سابقة','success');this.open();}
+   try{await this.persist();UI.toast('تم تعديل الاسم دون المساس بأسعار أو فواتير سابقة','success');this.open();}
    catch(e){State.settings.taPricingModes=prior;UI.toast('تعذر حفظ الاسم: '+e.message,'error');}
  },
  remove(id){
@@ -89,7 +90,7 @@ const P={
    if(State.settings.defaultPriceTier===id)State.settings.defaultPriceTier=this.validTier('wholesale')?'wholesale':this.active()[0].id;
    if(State.settings.posPriceTier===id)State.settings.posPriceTier='account';
    for(const a of State.accounts)if(a.priceTier===id)a.priceTier='settings';
-   try{await StorageEngine.saveState();UI.forceCloseModal();UI.toast('تم إخفاء التسعيرة غير المستخدمة','success');this.open();}
+   try{await this.persist();UI.forceCloseModal();UI.toast('تم إخفاء التسعيرة غير المستخدمة','success');this.open();}
    catch(e){State.settings.taPricingModes=oldModes;State.settings.defaultPriceTier=oldDefault;State.settings.posPriceTier=oldPos;for(const x of priorAccounts){const a=State.accounts.find(a=>a.id===x.id);if(a)a.priceTier=x.tier;}UI.toast('تعذر الحفظ: '+e.message,'error');}
  },
  openPrices(id){
@@ -116,7 +117,7 @@ const P={
      updates.push({unit,old:unit.customTierPrices?{...unit.customTierPrices}:undefined,value});
    }
    for(const u of updates)u.unit.customTierPrices={...(u.unit.customTierPrices||{}),[id]:u.value};
-   try{await StorageEngine.saveState();UI.toast('تم حفظ أسعار النمط الجديد','success');this.open();}
+   try{await this.persist();UI.toast('تم حفظ أسعار النمط الجديد','success');this.open();}
    catch(e){for(const u of updates){if(u.old)u.unit.customTierPrices=u.old;else delete u.unit.customTierPrices;}UI.toast('تعذر حفظ الأسعار: '+e.message,'error');}
  },
  fill(select,selected,includeAccount){
