@@ -13,7 +13,7 @@ function sandbox(){
  let seq=0;
  const app={
   State:state,document:{getElementById:id=>ids[id]||null},
-  UI:{openModal:html=>{logs.push(html);},forceCloseModal(){},toast(m){logs.push(m);},openRateModal(){}},
+  UI:{openModal:html=>{logs.push(html);},forceCloseModal(){},toast(m){logs.push(m);},openRateModal(){logs.push('TRANSACTION_RATE_MODAL');}},
   Views:{renderReports(){return true;}},StorageEngine:{async saveState(){}},
   AppNav:{renderCurrent(){},current:()=>({screen:'dashboard'})},
   FieldCash:{summary:()=>({sypCash:9000000,usdCash:100,otherCurrencies:{EUR:100}})},
@@ -64,9 +64,11 @@ test('A foreign currency is synchronized with its name, code and quotation table
  assert.equal(payload.currencyExchangeRatesSyp.EUR.buy,18000);
  assert.match(app.CurrencyCatalog.renderAdditional(),/سعر صرف/);
 });
-test('Top bar presents general exchange rates for USD and EUR, not trading buy/sell rates',async()=>{
+test('Top bar retains the old transaction exchange-rate modal, while currency setup stays separately available',async()=>{
  const {app,state,fields,logs}=sandbox();
  app.UI.openRateModal();
+ assert.equal(logs[logs.length-1],'TRANSACTION_RATE_MODAL');
+ app.TiqanyFx147.generalInvoiceRateModal();
  const markup=logs[logs.length-1];
  assert.match(markup,/أسعار صرف العملات/);
  assert.match(markup,/ta150General_USD/);
