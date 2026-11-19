@@ -520,3 +520,17 @@ html[data-ta-theme="royal"] body :is(nav.ta-bottom-nav,#bottom.bottom) button:is
     -webkit-text-fill-color:#b8ffeb!important;
   }
 }
+
+/* Final audit: keep employee field names, button captions and headings crisp. */
+@media screen{
+  html body #screen :is(h1,h2,h3,h4,h5,h6,p,label,legend,summary,strong,button,.label,.tiny),
+  html body #agentHeader :is(h1,h2,h3,p,span,button),
+  html body #agentDialog :is(h2,h3,p,span,button){
+    text-shadow:none!important;
+    -webkit-text-stroke:0!important;
+  }
+  html[data-ta-theme="royal"] body #screen :is(.tiny,.muted,.stat small,.label){
+    color:#c5e2ee!important;
+    -webkit-text-fill-color:#c5e2ee!important;
+  }
+}
