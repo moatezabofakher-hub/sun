@@ -176,3 +176,20 @@ jobs:
           tag='tiqany-main-finance-preview-'"${GITHUB_SHA:0:10}"
           gh release create "$tag" "$apk" "$checksum" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title 'المحاسب التقني المدير الرئيسي - معاينة تعديلات 3.5.153' --notes 'الإصدار 3.5.153 بتحديثات الضبط والتقارير وعرض أزرار الحفظ.' --prerelease
           gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json url --jq '.url'
+      - name: Publish signed main branch artifact for two-theme update
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          apk='output/Tiqany-Acc-Main-3.5.153-RELEASE.apk'
+          checksum="${apk}.sha256"
+          test -s "$apk" && test -s "$checksum"
+          tag='tiqany-main-themes-'"${GITHUB_SHA:0:10}"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$tag" "$apk" "$checksum" --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$tag" "$apk" "$checksum" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title 'المحاسب التقني المدير Android — الثيمات والصور 3.5.153' --notes 'النسخة المبنية من main: الضبط ← الثيمات (الحالي أو التصميم الأول الكحلي)، وصور 3D مستقلة لكل قسم. اجتازت فحوصات البناء الآلية. اختبارات المزامنة والطباعة على الأجهزة الفعلية ليست مشمولة.' --prerelease
+          fi
+          gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json url --jq '.url'
