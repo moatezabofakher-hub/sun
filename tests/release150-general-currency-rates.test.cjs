@@ -19,7 +19,9 @@ test('General USD plus foreign rates use independent editable fields; trade pric
  assert.match(source,/currencyRatesSyp/);
  assert.match(source,/exchangeRate=usd/);
  assert.match(source,/root\.TiqanyFx147=\{[^}]*generalInvoiceRateModal:currencyRates/);
- assert.match(source,/UI\.openRateModal=currencyRates/);
+ assert.match(source,/UI\.openRateModal=originalInvoiceRateModal/);
+ assert.match(source,/U\.openGeneralRateModal=currencyRates/);
+ assert.doesNotMatch(source,/UI\.openRateModal=currencyRates/);
  assert.match(source,/U\.ratesForm=unifiedRates/);
  assert.match(source,/ta147Buy_/);
  assert.match(source,/ta147Sell_/);
