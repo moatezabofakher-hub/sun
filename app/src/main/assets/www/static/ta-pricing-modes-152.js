@@ -55,7 +55,7 @@ const P={
    if(this.active().some(x=>x.name===name))return UI.toast('اسم التسعيرة مستخدم بالفعل','error');
    const prior=State.settings.taPricingModes;
    const next=this.modes().map(x=>({...x}));
-   const id='custom_'+Date.now().toString(36)+'_'+Math.random().toString(36).slice(2,7);
+   const id='custom_' + FieldProtocol.uuid();
    next.push({id,name});
    this.setModes(next);
    try{await this.persist();UI.toast('تمت إضافة نمط التسعير. يمكنك الآن إدخال أسعاره للمواد.','success');this.openPrices(id);}

@@ -112,6 +112,7 @@ jobs:
       - name: Verify illustrated controls and header geometry
         run: |
           python -m pip install playwright==1.55.0
+          python tests/check_ledger_identifiers.py app/src/main/assets/www
           python tests/check_peer_resume.py app/src/main/assets/www
           python tests/check_controls.py . manager
           python tests/check_cash_settings.py app/src/main/assets/www

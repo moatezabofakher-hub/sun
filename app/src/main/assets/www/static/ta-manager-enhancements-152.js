@@ -273,7 +273,7 @@ const E={
       if(matching){matching.qty=(Number(matching.qty)||0)+1;if(repaint){this.markModified();this.recalculate();this.paintForm(document.getElementById('mainContent'));}return;}
       const start=d.rows.length,baseRow=d.rows.find(r=>r.itemId===itemId&&r.unitName===item.units[0].name);
       if(baseRow){
-         const clone={...baseRow,rowId:'r_'+Date.now()+'_'+Math.random().toString(36).slice(2),qty:1,discount:0,priceManuallySet:false};
+         const clone={...baseRow,rowId:'r_' + FieldProtocol.uuid(),qty:1,discount:0,priceManuallySet:false};
          d.rows.push(clone);
       }else oldAdd.call(this,itemId,false);
       const row=d.rows[d.rows.length-1];if(!row)return;

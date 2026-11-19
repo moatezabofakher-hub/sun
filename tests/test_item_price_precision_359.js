@@ -16,7 +16,7 @@ const els={
   // The inputs display 2 decimal places; saving must still preserve full model precision.
   unitCost_0:{value:'1.23'},unitSale_0:{value:'12.35'}
 };
-const ctx={console,Map,Set,Math,Number,Date,JSON,String,Array,Promise,Intl,
+const ctx={FieldProtocol:require('../app/src/main/assets/www/static/field-protocol.js'),console,Map,Set,Math,Number,Date,JSON,String,Array,Promise,Intl,
   StorageEngine:{saveState:async()=>{saves++;}},
   AppNav:{renderCurrent:()=>{renders++;}},
   UI:{forceCloseModal:()=>{},toast:()=>{}},

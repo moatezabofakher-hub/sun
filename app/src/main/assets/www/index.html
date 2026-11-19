@@ -7359,7 +7359,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                     }
                 } else {
                     State.items.push({
-                        id: 'itm_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+                        id: 'itm_' + FieldProtocol.uuid(),
                         name, category, currency, openingStockBase, minStockBase, barcode,isBundle,bundleComponents,bundlePricing,
                         photoData: this.safePhotoData(this.tempPhotoData),
                         units: this.tempUnits
@@ -7535,7 +7535,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 if (!name || name.length < 2 || name.length > 80) return UI.toast('اسم المستودع يجب أن يكون بين حرفين و80 حرفاً', 'error');
                 if ((State.warehouses||[]).some(w => w.name.trim().toLowerCase() === name.toLowerCase()))
                     return UI.toast('يوجد مستودع بالاسم نفسه', 'error');
-                State.warehouses.push({ id: 'wh_' + Date.now() + '_' + Math.random().toString(36).slice(2,7), name });
+                State.warehouses.push({ id: 'wh_' + FieldProtocol.uuid(), name });
                 await StorageEngine.saveState();
                 UI.toast('تم إنشاء المستودع بنجاح', 'success');
                 AppNav.renderCurrent();
@@ -7887,11 +7887,11 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                     }
                     if(neededOps>0&&!LicenseManager.canPerformOperation())return;
                     const now=new Date().toISOString();
-                    const batchId=originalDoc?.id||('tb_'+Date.now()+'_'+Math.random().toString(36).slice(2,8));
+                    const batchId=originalDoc?.id||('tb_' + FieldProtocol.uuid());
                     const previousByItem=new Map(originalLines.map(t=>[t.itemId,t]));
-                    const transfers=validated.map((row,index)=>{
+                    const transfers=validated.map(row=>{
                         const previous=previousByItem.get(row.itemId);
-                        return {...previous,id:previous?.id||('tr_'+Date.now()+'_'+index+'_'+Math.random().toString(36).slice(2,7)),
+                        return {...previous,id:previous?.id||('tr_' + FieldProtocol.uuid()),
                             batchId,...row,fromWarehouseId:from,toWarehouseId:to,date,note,
                             createdAt:originalDoc?.createdAt||now,updatedAt:now,createdOnDevice:previous?previous.createdOnDevice:'main_phone'};
                     });
@@ -8041,7 +8041,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 if (!(safeAmount > 0)) return UI.toast('القيمة بعد التقريب يجب أن تكون أكبر من صفر', 'error');
                 const idx = (State.expenses||[]).findIndex(e=>e.id===id);
                 if (idx < 0 && !LicenseManager.canPerformOperation()) return;
-                const expense = { id: idx>=0 ? id : 'exp_' + Date.now() + '_' + Math.random().toString(36).slice(2,8),
+                const expense = { id: idx>=0 ? id : 'exp_' + FieldProtocol.uuid(),
                     amount:safeAmount, currency, category, date, note, exchangeRate,
                     updatedAt:new Date().toISOString() };
                 if (idx>=0) State.expenses[idx] = {...State.expenses[idx], ...expense};
@@ -8321,7 +8321,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                     const nextNum = State.invoices.length > 0 ? Math.max(...State.invoices.map(i => Number(i.number) || 0)) + 1 : 1;
                     const nowIso = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
                     this.draft = {
-                        id: 'inv_' + Date.now(),
+                        id: 'inv_' + FieldProtocol.uuid(),
                         number: nextNum,
                         type: params.type || 'sale',
                         warehouseId: State.settings.selectedWarehouseId || 'wh_main',
@@ -8817,7 +8817,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                     existingRow.qty = Number(existingRow.qty) + 1;
                 } else {
                     this.draft.rows.push({
-                        rowId: 'r_' + Date.now() + '_' + Math.random().toString(36).substring(2, 5),
+                        rowId: 'r_' + FieldProtocol.uuid(),
                         itemId: item.id,
                         itemName: item.name,
                         bomComponents:item.isBundle?JSON.parse(JSON.stringify(item.bundleComponents||[])):undefined,
@@ -9431,7 +9431,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                         State.accounts[idx] = { ...State.accounts[idx], name, type, phone, address, creditLimitUsd, openingSyp, openingUsd, paymentTerms, priceTier };
                     }
                 } else {
-                    targetId = 'acc_' + Date.now();
+                    targetId = 'acc_' + FieldProtocol.uuid();
                     State.accounts.push({
                         id: targetId,
                         name, type, phone, address, creditLimitUsd, openingSyp, openingUsd, paymentTerms, priceTier,
@@ -9498,7 +9498,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
             openAccountVoucherModal(type, accountId) {
                 const nextNum = State.vouchers.length > 0 ? Math.max(...State.vouchers.map(v => Number(v.number) || 0)) + 1 : 1;
                 const nowIso = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-                this.draft = { id: 'vch_' + Date.now(), number: nextNum, type, date: nowIso, accountId, currency: CurrencyCatalog.primary(), amount: 0, exchangeRate: State.settings.exchangeRate || 15000, accountCurrency: CurrencyCatalog.primary(), accountAmount: 0, note: '', isEditing: false };
+                this.draft = { id: 'vch_' + FieldProtocol.uuid(), number: nextNum, type, date: nowIso, accountId, currency: CurrencyCatalog.primary(), amount: 0, exchangeRate: State.settings.exchangeRate || 15000, accountCurrency: CurrencyCatalog.primary(), accountAmount: 0, note: '', isEditing: false };
                 this.modalMode = true;
                 UI.openModal(`
                     <div class="flex items-center justify-between border-b pb-2 mb-3">
@@ -9521,7 +9521,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                     const nextNum = State.vouchers.length > 0 ? Math.max(...State.vouchers.map(v => Number(v.number) || 0)) + 1 : 1;
                     const nowIso = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
                     this.draft = {
-                        id: 'vch_' + Date.now(),
+                        id: 'vch_' + FieldProtocol.uuid(),
                         number: nextNum,
                         type: params.type || 'receipt',
                         date: nowIso,

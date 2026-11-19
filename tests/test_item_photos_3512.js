@@ -37,7 +37,7 @@ const document={
 class MockImage{constructor(){this.naturalWidth=1920;this.naturalHeight=1280;}
  set src(_) {this.onload?.();}}
 class MockFileReader{readAsDataURL(file){this.result='data:'+file.type+';base64,YWFh';this.onload?.();}}
-const ctx={console,Map,Set,Math,Number,Date,JSON,String,Array,Promise,Intl,FileReader:MockFileReader,Image:MockImage,
+const ctx={FieldProtocol:require('../app/src/main/assets/www/static/field-protocol.js'),console,Map,Set,Math,Number,Date,JSON,String,Array,Promise,Intl,FileReader:MockFileReader,Image:MockImage,
  document,
  UI:{toast:(...a)=>toast.push(a),openModal:x=>opened=x,forceCloseModal:()=>{}},
  StorageEngine:{saveState:async()=>{saves++;}},

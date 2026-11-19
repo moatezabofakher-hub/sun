@@ -8,7 +8,7 @@ const html = fs.readFileSync(path.join(__dirname,'../app/src/main/assets/www/ind
 const read=(start,end)=> html.slice(html.indexOf(start),html.indexOf(end,html.indexOf(start)));
 const inputs = {};
 let toasts=[];
-const context = {
+const context = {FieldProtocol:require('../app/src/main/assets/www/static/field-protocol.js'),
   console,
   Map, Date, Math, Number, String, JSON, Array, Object, Set, Promise,
   UI: {

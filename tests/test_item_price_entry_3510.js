@@ -13,7 +13,7 @@ function cut(start, end) {
 let saved = 0, modal = '';
 const elements = new Map();
 const ui = {getElementById: id => elements.get(id) || null, activeElement: null};
-const ctx = {console,Map,Set,Math,Number,Date,JSON,String,Array,Promise,Intl,
+const ctx = {FieldProtocol:require('../app/src/main/assets/www/static/field-protocol.js'),console,Map,Set,Math,Number,Date,JSON,String,Array,Promise,Intl,
  document: ui,
  StorageEngine: {saveState:async()=>{saved++;}},
  LicenseManager: {canPerformOperation:()=>true, recordNewOperation:async()=>{}},

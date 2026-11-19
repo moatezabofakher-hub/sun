@@ -46,7 +46,7 @@ function makeFixture(){
         }
     };
     const document={getElementById:id=>dom.get(id)||null,querySelectorAll:()=>[],querySelector:()=>null,documentElement:{style:{setProperty(){},removeProperty(){}}}};
-    const ctx={console,Date,Math,Number,String,JSON,Map,Set,Array,Object,Promise,document,TiqanyTransferCost,
+    const ctx={FieldProtocol:require('../app/src/main/assets/www/static/field-protocol.js'),console,Date,Math,Number,String,JSON,Map,Set,Array,Object,Promise,document,TiqanyTransferCost,
         UI:{toast:(message)=>toasts.push(message),setHeader(){},openModal(){}},
         AppNav:{renderCurrent(){},markDirty(){},clearDirty(){}},
         StorageEngine:{async saveState(){}},

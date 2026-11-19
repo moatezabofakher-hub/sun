@@ -10,7 +10,7 @@ let saveCount=0, renderCount=0, failSave=false;
 function el(id){return elements[id]||(elements[id]={value:'',innerHTML:'',textContent:'',hidden:true,disabled:false,isConnected:true,
  classList:{toggle(){}},focus(){},scrollIntoView(){},setAttribute(){}});}
 const document={getElementById:el,querySelectorAll:()=>[]};
-const env={console,Date,Math,Number,String,JSON,Map,Set,Array,Object,Promise,document,
+const env={FieldProtocol:require('../app/src/main/assets/www/static/field-protocol.js'),console,Date,Math,Number,String,JSON,Map,Set,Array,Object,Promise,document,
  UI:{toast:(text,type)=>messages.push([text,type]),setHeader(){},showDeleteConfirm(){},openModal(){}},
  StorageEngine:{async saveState(){saveCount++;if(failSave)throw Error('disk full');}},
  AppNav:{renderCurrent(){renderCount++;},markDirty(){},clearDirty(){},navigate(){},enableOperationGuard(){}},

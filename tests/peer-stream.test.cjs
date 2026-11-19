@@ -238,3 +238,75 @@ if(fs.existsSync(path.join(root,'src/peer-lan-server.js'))) {
     }
   });
 }
+
+test('two manager profiles at the same millisecond keep independent documents through Windows commit and replay',async()=>{
+  const field=require(path.join(web,'static/field-protocol.js'));
+  class SameTime extends Date {
+    constructor(...args){super(...(args.length?args:[SameTime.now()]));}
+    static now(){return 1790000000000;}
+  }
+  const windowsState=fixture(2).state, shared=core.snapshot(windowsState);
+  // Old records, remote event targets and their account references must survive intact.
+  const legacy=shared.invoices[0].id;
+  const replies=new Map(),issued=new Set();
+  const pc=desktop(windowsState,memory(),(id,v)=>replies.get(id)(v));
+  let seq=0;
+  function send(m){
+    if(m.action==='probe')return Promise.resolve({ok:true,streamVersion:2,serverId});
+    const id=++seq;
+    return new Promise((resolve,reject)=>{
+      replies.set(id,v=>{replies.delete(id);resolve(v);});
+      pc.handleRequest({requestId:id,data:{...m,appVersion:'3.5.153'}}).catch(reject);
+    });
+  }
+  function editor(ctx,name){
+    const first=html.indexOf('const '+name+' = {'),last=html.indexOf('\n        };',first);
+    assert.ok(first>=0 && last>first);
+    return vm.runInContext(html.slice(first,last+11)+';'+name,ctx);
+  }
+  function manager(id){
+    const state=copy(windowsState),peer={handleRequest(){}};
+    stream.install(peer,{core,store:memory(),profile:()=>id,send,reply(){},locked:()=>false});
+    const ctx=vm.createContext({Date:SameTime,State:state,FieldProtocol:field,
+      CurrencyCatalog:{primary:()=>'USD'},Accounting:{getInvoiceTypeAr:()=>''},
+      UI:{openModal(){},setHeader(){}},AppNav:{current:()=>({screen:'home'}),enableOperationGuard(){}},
+      document:{getElementById:()=>null}});
+    const inv=editor(ctx,'InvoiceController'),vch=editor(ctx,'VoucherController');
+    inv.paintForm=()=>{};vch.paintVoucherForm=()=>{};
+    inv.renderForm(null,{id:legacy});assert.equal(inv.draft.id,legacy);
+    inv.renderForm(null,{type:'sale'});
+    const invoice={...copy(state.invoices[1]),id:inv.draft.id,number:inv.draft.number};
+    vch.renderForm(null,{type:'receipt'});
+    const voucher={...copy(state.vouchers[0]),id:vch.draft.id,number:vch.draft.number};
+    vch.openAccountVoucherModal('receipt',voucher.accountId);
+    assert.notEqual(vch.draft.id,voucher.id);
+    for(let i=0;i<5000;i++){
+      inv.renderForm(null,{type:'sale'}); vch.renderForm(null,{type:'receipt'});
+      for(const generated of [inv.draft.id,vch.draft.id]){
+        assert.ok(!issued.has(generated),'a frozen-clock ID was reused');issued.add(generated);
+      }
+    }
+    state.invoices.push(invoice);state.vouchers.push(voucher);
+    let base=copy(shared);
+    return {invoice,voucher,async prepare(){
+      const f=await peer.call({...request,phoneProfileId:id},{profileId:id,serverId,serverProfileId:'desktop',snapshot:base});
+      const merged=core.merge(base,core.snapshot(state),f.snapshot);assert.equal(merged.ok,true);
+      return async()=>{await peer.call(commit(f,merged.snapshot));core.apply(state,merged.snapshot);base=merged.snapshot;};
+    }};
+  }
+  const a=manager('phone-a'),b=manager('phone-b');
+  for(const name of ['invoice','voucher']){
+    assert.equal(a[name].number,b[name].number);
+    assert.match(a[name].id,name==='invoice'?/^inv_[0-9a-f]{32}$/:/^vch_[0-9a-f]{32}$/);
+    assert.notEqual(a[name].id,b[name].id);
+  }
+  const commitA=await a.prepare(),staleB=await b.prepare();
+  await commitA();await assert.rejects(staleB,/تغير|تغيّر/);
+  await (await b.prepare())();await (await a.prepare())();await (await b.prepare())();
+  for(const [key,name] of [['invoices','invoice'],['vouchers','voucher']]){
+    const docs=windowsState[key];assert.equal(docs.length,shared[key].length+2);
+    for(const phone of [a,b])assert.equal(docs.filter(x=>x.id===phone[name].id).length,1);
+    assert.equal(new Set(docs.map(x=>x.number)).size,docs.length);
+  }
+  assert.deepEqual(windowsState.invoices.find(d=>d.id===legacy),shared.invoices[0]);
+});
