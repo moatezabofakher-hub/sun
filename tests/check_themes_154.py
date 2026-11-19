@@ -1,5 +1,6 @@
 """3.5.154 visual QA: unique illustrations, retained Classic and Royal theme, and Back safety."""
 from pathlib import Path
+import base64
 import os
 import shutil
 import sys
@@ -13,6 +14,66 @@ assert (root/'static/ta-themes-154.css').is_file()
 assets=['desktop-link','managers-link','profiles','company','backup','themes','activation','data-reset']
 for asset in assets:
     assert (root/'static'/('ta-art-'+asset+'-154.svg')).is_file(),asset
+def check_nav_contrast(page, theme, screen):
+    """Sample the painted background beneath each caption, including transparent buttons and gradients."""
+    nav = page.locator('#bottom.bottom' if employee else 'nav.ta-bottom-nav')
+    nav.scroll_into_view_if_needed()
+    labels = nav.evaluate(r"""nav => {
+        const origin = nav.getBoundingClientRect();
+        return [...nav.querySelectorAll('button')].filter(b => b.checkVisibility() && b.offsetWidth).map(b => {
+            const label = b.matches('.nav-btn') ? b.querySelector(':scope > span') : b;
+            const node = [...label.childNodes].find(n => n.nodeType === 3 && n.textContent.trim());
+            const range = document.createRange();
+            range.selectNodeContents(node);
+            const points = [...range.getClientRects()].flatMap(r => [0.15, 0.5, 0.85].map(x =>
+                [r.left - origin.left + x*r.width, r.top - origin.top + r.height/2]));
+            const style = getComputedStyle(label);
+            const opacity = Number(style.opacity) * (label === b ? 1 : Number(getComputedStyle(b).opacity));
+            const ink = style.webkitTextFillColor.match(/[\d.]+/g).map(Number);
+            return {caption: node.textContent.trim(), ink, opacity, points, selected: b.matches('.active,.is-active,[aria-current="page"]')};
+        });
+    }""")
+    assert any(row['selected'] for row in labels) and any(not row['selected'] for row in labels), (theme, screen, labels)
+    # Make only the characters transparent for one capture, leaving the real painted surfaces intact.
+    captions = nav.locator('button' if employee else 'button.nav-btn > span')
+    old_styles = captions.evaluate_all("""nodes => nodes.map(e => {
+        const old = e.getAttribute('style');
+        e.style.setProperty('-webkit-text-fill-color', 'transparent', 'important');
+        return old;
+    })""")
+    try:
+        png = base64.b64encode(nav.screenshot(animations='disabled', scale='css')).decode('ascii')
+    finally:
+        captions.evaluate_all("""(nodes, old) => nodes.forEach((e,i) => {
+            if (old[i] === null) e.removeAttribute('style');
+            else e.setAttribute('style', old[i]);
+        })""", old_styles)
+    ratios = page.evaluate("""async ({png, labels}) => {
+        const image = new Image();
+        image.src = 'data:image/png;base64,' + png;
+        await image.decode();
+        const canvas = document.createElement('canvas');
+        canvas.width = image.width;
+        canvas.height = image.height;
+        const ctx = canvas.getContext('2d', {willReadFrequently:true});
+        ctx.drawImage(image, 0, 0);
+        const luminance = rgb => {
+            const channels = rgb.slice(0,3).map(v => v/255).map(v => v <= 0.04045 ? v/12.92 : ((v+0.055)/1.055)**2.4);
+            return 0.2126*channels[0] + 0.7152*channels[1] + 0.0722*channels[2];
+        };
+        return labels.map(({ink, opacity, points}) => Math.min(...points.map(([x,y]) => {
+            const bg = Array.from(ctx.getImageData(Math.floor(x),Math.floor(y),1,1).data);
+            const alpha = opacity * (ink[3] ?? 1);
+            const a = luminance(ink.slice(0,3).map((v,i) => alpha*v + (1-alpha)*bg[i]));
+            const b = luminance(bg);
+            return (Math.max(a,b)+0.05)/(Math.min(a,b)+0.05);
+        })));
+    }""", {'png': png, 'labels': labels})
+    for label, ratio in zip(labels, ratios):
+        assert ratio >= 4.5, (theme, screen, label['caption'], ratio)
+    print('Nav contrast', theme, screen, page.viewport_size['width'], round(min(ratios), 2), flush=True)
+
+
 with sync_playwright() as playwright:
     browser=playwright.chromium.launch(executable_path=exe,args=['--no-sandbox','--allow-file-access-from-files'])
     page=browser.new_page(viewport={'width':390 if employee else 420,'height':840})
@@ -147,17 +208,12 @@ with sync_playwright() as playwright:
                 }""",screen)
             surface=page.locator('#screen' if employee else '#mainContent')
             assert surface.is_visible() and surface.inner_text().strip(),screen
-            if screen=='home':
-                # Regression: light theme uses dark ink on pale navigation cards.
-                # Dark/Royal preserves light ink. Check both color and WebKit text fill.
-                if employee:
-                    nav_text=page.locator('#bottom.bottom button:not(.active):not(.is-active):not([aria-current="page"])').first
-                else:
-                    nav_text=page.locator('nav.ta-bottom-nav button.nav-btn:not(.active):not(.is-active):not([aria-current="page"]) > span').first
-                assert nav_text.count(), 'Bottom navigation missing'
-                expect='rgb(23, 60, 80)' if theme=='classic' else 'rgb(245, 251, 255)'
-                actual=nav_text.evaluate('e=>[getComputedStyle(e).color,getComputedStyle(e).webkitTextFillColor]')
-                assert actual==[expect,expect],('Unreadable bottom labels',theme,actual,expect)
+            if screen in ('home', 'reports'):
+                initial_size = page.viewport_size
+                for width in (320, 390, 432):
+                    page.set_viewport_size(dict(initial_size, width=width))
+                    check_nav_contrast(page, theme, screen)
+                page.set_viewport_size(initial_size)
             if theme=='royal' and screen=='invoice':
                 field=surface.locator('.ta-invoice-field').first
                 assert field.is_visible()

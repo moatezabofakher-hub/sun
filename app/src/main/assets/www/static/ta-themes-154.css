@@ -427,7 +427,8 @@ html[data-ta-theme="royal"] body :is(nav.ta-bottom-nav,#bottom.bottom) button:is
     height:100%!important;
     filter:none!important;
   }
-  html body nav.ta-bottom-nav button.nav-btn > span {
+  html body nav.ta-bottom-nav button.nav-btn > span,
+  html body.ta-3d-v3524 nav.ta-bottom-nav button.nav-btn > span {
     display:block!important;
     width:100%!important;
     max-width:100%!important;
@@ -446,16 +447,19 @@ html[data-ta-theme="royal"] body :is(nav.ta-bottom-nav,#bottom.bottom) button:is
     filter:none!important;
     transform:none!important;
     opacity:1!important;
-    color:#173c50!important;
-    -webkit-text-fill-color:#173c50!important;
+    color:var(--ta-nav-label)!important;
+    -webkit-text-fill-color:currentColor!important;
   }
-  html[data-ta-theme="royal"] body nav.ta-bottom-nav button.nav-btn > span {
-    color:#f5fbff!important;
-    -webkit-text-fill-color:#f5fbff!important;
+  nav.ta-bottom-nav {
+    --ta-nav-label:#173c50;
+    --ta-nav-selected-label:#075047;
   }
-  html[data-ta-theme="royal"] body nav.ta-bottom-nav button.nav-btn.active > span {
-    color:#b4ffe9!important;
-    -webkit-text-fill-color:#b4ffe9!important;
+  html[data-ta-theme="royal"] nav.ta-bottom-nav {
+    --ta-nav-label:#f5fbff;
+    --ta-nav-selected-label:#b4ffe9;
+  }
+  nav.ta-bottom-nav button.nav-btn:is(.active,.is-active,[aria-current="page"]) {
+    --ta-nav-label:var(--ta-nav-selected-label);
   }
   /* Titles and form control labels must be optically crisp in both palettes.
      These rules never flatten actual button backgrounds/borders/shadows. */
@@ -501,27 +505,8 @@ html[data-ta-theme="royal"] body :is(nav.ta-bottom-nav,#bottom.bottom) button:is
     -webkit-text-stroke:0!important;
     filter:none!important;
     transform:none!important;
-    color:#173c50!important;
-    -webkit-text-fill-color:#173c50!important;
   }
   html body.ta-3d-v3524 nav.ta-bottom-nav .nav-btn > i {
     font-size:0!important;
-  }
-}
-
-/* Light theme: dark, readable labels over the light dock cards. Royal remains luminous. */
-@media screen {
-  html:not([data-ta-theme="royal"]) body nav.ta-bottom-nav button.nav-btn:is(.active,.is-active,[aria-current="page"]) > span,
-  html:not([data-ta-theme="royal"]) body.ta-3d-v3524 nav.ta-bottom-nav button.nav-btn:is(.active,.is-active,[aria-current="page"]) > span {
-    color:#075e55!important;
-    -webkit-text-fill-color:#075e55!important;
-  }
-  html[data-ta-theme="royal"] body.ta-3d-v3524 nav.ta-bottom-nav button.nav-btn > span {
-    color:#f5fbff!important;
-    -webkit-text-fill-color:#f5fbff!important;
-  }
-  html[data-ta-theme="royal"] body.ta-3d-v3524 nav.ta-bottom-nav button.nav-btn:is(.active,.is-active,[aria-current="page"]) > span {
-    color:#b4ffe9!important;
-    -webkit-text-fill-color:#b4ffe9!important;
   }
 }
