@@ -76,7 +76,7 @@ with sync_playwright() as playwright:
     page.locator('[data-theme-choice="classic"]').click()
     # Native Back must cancel the unsaved preview without navigating out of Settings.
     if employee:
-        page.evaluate("Agent.back()")
+        page.evaluate("Agent.goBack()")
     else:
         page.evaluate("AppNav.handleBackButton()")
     assert page.evaluate("TiqanyTheme154.current()")=='royal'
