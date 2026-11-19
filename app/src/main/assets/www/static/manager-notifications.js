@@ -171,9 +171,9 @@ const ManagerNotifications = {
         <button type="button" class="bg-slate-100 border rounded-xl px-3 py-2 text-xs font-bold" onclick="ManagerNotifications.readAll()">تحديد الكل كمقروء</button>
       </div>
       ${list.length?list.map(entry=>`<button type="button" class="ta-alert-item ${entry.read?'':'unread'} ${entry.type==='stock'?'stock-alert':''}" onclick="ManagerNotifications.open(${JSON.stringify(entry.id).replace(/"/g,'&quot;')})">
-        <div class="flex items-center gap-2 justify-between"><strong class="text-sm text-slate-800">${entry.type==='stock'?'⚠️':'🔔'} ${this.escape(entry.title)}</strong>${entry.read?'':'<span class="rounded-full bg-rose-500 text-white text-[10px] px-2 py-0.5">جديد</span>'}</div>
-        <p class="text-xs text-slate-600 mt-1">${this.escape(entry.detail)}</p>
-        <p class="text-[10px] text-slate-400 mt-2">${this.escape(this.formatTime(entry.at))} · اضغط لعرض المعاملة</p>
+        <div class="flex items-center gap-2 justify-between"><strong class="ta-alert-title text-sm"><span aria-hidden="true">${entry.type==='stock'?'⚠️':'🔔'}</span> ${this.escape(entry.title)}</strong>${entry.read?'':'<span class="ta-alert-badge rounded-full px-2 py-0.5">جديد</span>'}</div>
+        <p class="ta-alert-detail text-xs mt-1">${this.escape(entry.detail)}</p>
+        <p class="ta-alert-meta mt-2"><bdi dir="ltr">${this.escape(this.formatTime(entry.at))}</bdi> · اضغط لعرض المعاملة</p>
       </button>`).join(''):'<div class="rounded-2xl bg-white border p-8 text-center text-sm text-slate-500">لا توجد إشعارات بعد. ستظهر هنا العمليات الجديدة بعد المزامنة وتنبيهات نفاد المخزون.</div>'}
     </div>`;
   },

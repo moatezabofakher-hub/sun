@@ -321,6 +321,52 @@ html[data-ta-theme="royal"] body :is(nav.ta-bottom-nav,#bottom.bottom) button:is
   background: #f8f3e9 url("partners.webp") center/cover no-repeat!important;
  }
 }
+/* Keep each notification's surface and text paired when the theme changes. */
+@media screen {
+  #mainContent .ta-alert-item {
+    --alert-surface:linear-gradient(145deg,#fff,#edf5fa);
+    --alert-edge:#a6bfce;
+    --alert-title:#13364b;
+    --alert-detail:#294655;
+    --alert-meta:#405d6d;
+    background:var(--alert-surface)!important;
+    border-inline-start:4px solid var(--alert-edge)!important;
+    overflow-wrap:anywhere;
+  }
+  #mainContent .ta-alert-item.unread {
+    --alert-surface:linear-gradient(145deg,#f4fffc,#e1f5ee);
+    --alert-edge:#087c6a;
+  }
+  #mainContent .ta-alert-item.stock-alert { --alert-edge:#986211; }
+  html[data-ta-theme="royal"] #mainContent .ta-alert-item {
+    --alert-surface:var(--ta-royal-panel);
+    --alert-edge:#527b96;
+    --alert-title:#f1f8ff;
+    --alert-detail:#d4e6f1;
+    --alert-meta:#b6cfe0;
+    border-color:#456580;
+    box-shadow:inset 0 1px 1px #93bbcf44,0 3px 0 #07192b,0 6px 12px #0004;
+  }
+  html[data-ta-theme="royal"] #mainContent .ta-alert-item.unread {
+    --alert-surface:linear-gradient(145deg,#123e48,#102c41);
+    --alert-edge:#55d7c0;
+  }
+  html[data-ta-theme="royal"] #mainContent .ta-alert-item.stock-alert { --alert-edge:#f0bb58; }
+  #mainContent .ta-alert-title { color:var(--alert-title)!important; min-width:0; }
+  #mainContent .ta-alert-detail { color:var(--alert-detail)!important; }
+  #mainContent .ta-alert-meta { color:var(--alert-meta)!important; font-size:12px; line-height:1.5; }
+  #mainContent .ta-alert-badge {
+    background:#a71f47!important;
+    color:#fff!important;
+    font-size:11px;
+    font-weight:700;
+    flex-shrink:0;
+  }
+  #mainContent .ta-alert-item :is(.ta-alert-title,.ta-alert-detail,.ta-alert-meta,.ta-alert-badge) {
+    -webkit-text-fill-color:currentColor!important;
+    text-shadow:none!important;
+  }
+}
 @media print{
  .ta-theme154-page,.ta-theme154-page::backdrop{display:none!important}
 }

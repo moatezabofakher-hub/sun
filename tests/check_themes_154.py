@@ -15,34 +15,37 @@ assets=['desktop-link','managers-link','profiles','company','backup','themes','a
 for asset in assets:
     assert (root/'static'/('ta-art-'+asset+'-154.svg')).is_file(),asset
 def check_nav_contrast(page, theme, screen):
-    """Sample the painted background beneath each caption, including transparent buttons and gradients."""
     nav = page.locator('#bottom.bottom' if employee else 'nav.ta-bottom-nav')
-    nav.scroll_into_view_if_needed()
-    labels = nav.evaluate(r"""nav => {
-        const origin = nav.getBoundingClientRect();
-        return [...nav.querySelectorAll('button')].filter(b => b.checkVisibility() && b.offsetWidth).map(b => {
-            const label = b.matches('.nav-btn') ? b.querySelector(':scope > span') : b;
-            const node = [...label.childNodes].find(n => n.nodeType === 3 && n.textContent.trim());
-            const range = document.createRange();
-            range.selectNodeContents(node);
-            const points = [...range.getClientRects()].flatMap(r => [0.15, 0.5, 0.85].map(x =>
-                [r.left - origin.left + x*r.width, r.top - origin.top + r.height/2]));
-            const style = getComputedStyle(label);
-            const opacity = Number(style.opacity) * (label === b ? 1 : Number(getComputedStyle(b).opacity));
-            const ink = style.webkitTextFillColor.match(/[\d.]+/g).map(Number);
-            return {caption: node.textContent.trim(), ink, opacity, points, selected: b.matches('.active,.is-active,[aria-current="page"]')};
-        });
-    }""")
-    assert any(row['selected'] for row in labels) and any(not row['selected'] for row in labels), (theme, screen, labels)
-    # Make only the characters transparent for one capture, leaving the real painted surfaces intact.
-    captions = nav.locator('button' if employee else 'button.nav-btn > span')
+    states = nav.locator('button:visible').evaluate_all("""buttons =>
+        buttons.map(b => b.matches('.active,.is-active,[aria-current="page"]'))""")
+    assert any(states) and not all(states), (theme, screen, states)
+    captions = nav.locator('button:visible' if employee else 'button.nav-btn:visible > span')
+    check_text_contrast(page, nav, captions, ('Nav contrast', theme, screen))
+
+def check_text_contrast(page, surface, captions, context):
+    """Measure the text against the rendered surface directly behind it."""
+    surface.scroll_into_view_if_needed()
+    labels = captions.evaluate_all(r"""(nodes, origin) => nodes.map(label => {
+        const node = [...label.childNodes].find(n => n.nodeType === 3 && n.textContent.trim());
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        const points = [...range.getClientRects()].filter(r => r.width && r.height).flatMap(r =>
+            [0.15, 0.5, 0.85].map(x => [r.left-origin.x+x*r.width, r.top-origin.y+r.height/2]));
+        const style = getComputedStyle(label);
+        const button = label.closest('button');
+        const opacity = Number(style.opacity) * (button && label !== button ? Number(getComputedStyle(button).opacity) : 1);
+        const ink = style.webkitTextFillColor.match(/[\d.]+/g).map(Number);
+        return {caption:node.textContent.trim(), ink, opacity, points};
+    })""", surface.bounding_box())
+    assert labels and all(label['points'] for label in labels), (context, labels)
+    # Mask only the characters so gradients and badge backgrounds remain measurable.
     old_styles = captions.evaluate_all("""nodes => nodes.map(e => {
         const old = e.getAttribute('style');
         e.style.setProperty('-webkit-text-fill-color', 'transparent', 'important');
         return old;
     })""")
     try:
-        png = base64.b64encode(nav.screenshot(animations='disabled', scale='css')).decode('ascii')
+        png = base64.b64encode(surface.screenshot(animations='disabled', scale='css')).decode('ascii')
     finally:
         captions.evaluate_all("""(nodes, old) => nodes.forEach((e,i) => {
             if (old[i] === null) e.removeAttribute('style');
@@ -70,8 +73,8 @@ def check_nav_contrast(page, theme, screen):
         })));
     }""", {'png': png, 'labels': labels})
     for label, ratio in zip(labels, ratios):
-        assert ratio >= 4.5, (theme, screen, label['caption'], ratio)
-    print('Nav contrast', theme, screen, page.viewport_size['width'], round(min(ratios), 2), flush=True)
+        assert ratio >= 4.5, (context, label['caption'], ratio)
+    print(*context, page.viewport_size['width'], round(min(ratios), 2), flush=True)
 
 
 with sync_playwright() as playwright:
@@ -231,5 +234,34 @@ with sync_playwright() as playwright:
                 assert page.evaluate("""async()=>{const img=new Image();img.src='static/partners.webp';
                     await img.decode();return img.naturalWidth>0;}""")
             capture(theme+'-'+screen)
+    if not employee:
+        page.evaluate("""() => {
+            const at = '2026-11-18T20:56:24Z';
+            ManagerNotifications.ensure().entries = [
+                {id:'qa-read', type:'sync', read:true, at, title:'توقفت مزامنة المدير والكمبيوتر', detail:'تعذّر الاتصال بالكمبيوتر على الشبكة المحلية.'},
+                {id:'qa-new', type:'sync', read:false, at, title:'انقطع اتصال موظف البيع', detail:'سيحاول التطبيق المزامنة بعد عودة الاتصال بالشبكة.'},
+                {id:'qa-stock', type:'stock', read:false, at, title:'نفدت كمية مادة', detail:'المستودع الرئيسي · الرصيد الحالي صفر'}
+            ];
+            AppNav.stack = [{screen:'dashboard',params:{}}];
+            AppNav.renderCurrent();
+        }""")
+        page.locator('#headerNotificationsBtn').click()
+        cards = page.locator('#mainContent .ta-alert-item')
+        assert cards.count() == 3
+        variants = ('.ta-alert-item:not(.unread)', '.ta-alert-item.unread:not(.stock-alert)', '.ta-alert-item.stock-alert')
+        for theme in ('classic', 'royal'):
+            page.evaluate("theme => document.documentElement.dataset.taTheme = theme", theme)
+            for width in (320, 390):
+                page.set_viewport_size({'width': width, 'height': 840})
+                for variant in variants:
+                    card = page.locator('#mainContent').locator(variant)
+                    captions = card.locator('.ta-alert-title, .ta-alert-detail, .ta-alert-meta, .ta-alert-meta bdi, .ta-alert-badge')
+                    assert card.locator('.ta-alert-badge').count() == int('unread' in card.get_attribute('class').split())
+                    check_text_contrast(page, card, captions, ('Notification contrast', theme, variant))
+            cards.first.scroll_into_view_if_needed()
+            capture(theme+'-notifications')
+        page.get_by_role('button', name='تحديد الكل كمقروء').click()
+        page.wait_for_function("document.querySelectorAll('#mainContent .ta-alert-item.unread').length === 0")
+        assert cards.count() == 3 and page.locator('.ta-alert-badge').count() == 0
     print('PASS themes/icons',root,flush=True)
     browser.close()
