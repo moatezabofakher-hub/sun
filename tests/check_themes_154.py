@@ -51,7 +51,7 @@ with sync_playwright() as playwright:
         if os.environ.get('CI'):
             folder=Path(os.environ['RUNNER_TEMP'])/'theme-review'
             folder.mkdir(exist_ok=True)
-            page.screenshot(path=str(folder/(name+'.png')))
+            page.screenshot(path=str(folder/(name+'.png')), animations='disabled')
     capture('classic-settings')
     before=page.evaluate("JSON.stringify(typeof State==='undefined'?Agent.state:State.settings)")
     entry.click()
@@ -84,6 +84,8 @@ with sync_playwright() as playwright:
           document.querySelector('#ta-company-setup-128')?.remove();
           AppNav.stack=[{screen:'settings',params:{}}];AppNav.renderCurrent();}""")
     page.wait_for_selector('#taTheme154Entry')
+    support=page.locator('button.ta-support-launch').first
+    assert 'rgb(25, 62, 96)' in support.evaluate('e=>getComputedStyle(e).backgroundImage')
     capture('royal-settings')
     if employee:
         hero=page.locator('#screen .hero').first
@@ -98,7 +100,19 @@ with sync_playwright() as playwright:
         page.evaluate("document.getElementById('topBarRateButton').click()")
         assert page.locator('#modalRateInput').is_visible()
         assert 'rgb(25, 62, 96)' in page.locator('#modalBox').evaluate('e=>getComputedStyle(e).backgroundImage')
+        title=page.locator('#modalBox h3').first
+        assert title.evaluate('e=>getComputedStyle(e).color')=='rgb(239, 250, 255)'
         capture('royal-transaction-rate')
+        # Failure must leave both the active rate and the form available for retry.
+        page.evaluate("""async()=>{const save=StorageEngine.saveState,previous=State.settings.exchangeRate;
+          try{
+            StorageEngine.saveState=async()=>{throw Error('write failed')};
+            document.querySelector('#modalRateInput').value=Number(previous)+1;
+            await UI.saveQuickRate();
+            if(State.settings.exchangeRate!==previous||!document.querySelector('#modalRateInput')?.isConnected)
+              throw Error('Rate changed after failed persistence');
+          }finally{StorageEngine.saveState=save;}
+        }""")
         page.evaluate("UI.forceCloseModal()")
     page.locator('#taTheme154Entry').click()
     page.locator('[data-theme-choice="classic"]').click()

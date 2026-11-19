@@ -254,6 +254,23 @@ html[data-ta-theme="royal"] :is(#screen,#mainContent.ta-settings-standalone) :is
  background:var(--ta-royal-neutral)!important;color:#edf8ff!important;-webkit-text-fill-color:#edf8ff!important
 }
 html[data-ta-theme="royal"] .ta-theme154-page button:focus-visible{outline-color:#f6d78e}
+html[data-ta-theme="royal"] :is(#mainContent,#screen) button.ta-support-launch,
+html[data-ta-theme="royal"] :is(#modalBox,.ta-support-overlay) .ta-support-dialog{
+ background:var(--ta-royal-panel)!important;border-color:#538aa6!important;color:#effaff!important;
+ box-shadow:inset 0 1px #79acbc55,0 4px 0 #081a2c,0 8px 15px #06131f55!important
+}
+html[data-ta-theme="royal"] :is(#mainContent,#screen) .ta-support-copy strong,
+html[data-ta-theme="royal"] :is(#modalBox,.ta-support-overlay) #taSupportTitle,
+html[data-ta-theme="royal"] #modalBox:has(#modalRateInput) h3,
+html[data-ta-theme="royal"] #dialogBox :is(.ta-decision-title,.ta-exit-title){
+ color:#effaff!important;-webkit-text-fill-color:currentColor!important
+}
+html[data-ta-theme="royal"] :is(#mainContent,#screen) .ta-support-copy small,
+html[data-ta-theme="royal"] :is(#modalBox,.ta-support-overlay) .ta-support-dialog p,
+html[data-ta-theme="royal"] #dialogBox .ta-decision-subtitle{color:#bbdaea!important}
+html[data-ta-theme="royal"] .ta-support-dialog .ta-support-group{background:#123453;color:#edfaff;border-color:#538aa6}
+html[data-ta-theme="royal"] .ta-support-dialog .ta-support-link{background:#0d453c;color:#a4f6d7;border-color:#558f80;box-shadow:0 3px 0 #062d2a}
+html[data-ta-theme="royal"] #screen [data-app-build] > div{color:#96e8db!important}
 }
 @media print{
  .ta-theme154-page,.ta-theme154-page::backdrop{display:none!important}

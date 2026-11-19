@@ -4570,13 +4570,30 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
             },
 
             async saveQuickRate() {
-                const val = Number(document.getElementById('modalRateInput').value);
-                if (!val || val <= 0) {
+                const input = document.getElementById('modalRateInput');
+                if (!input || this.savingQuickRate) return;
+                const val = Number(input.value);
+                if (!Number.isFinite(val) || val <= 0) {
                     this.toast('يرجى إدخال سعر صرف صحيح أكبر من الصفر', 'error');
                     return;
                 }
-                State.settings.exchangeRate = val;
-                await StorageEngine.saveState();
+                const settings = State.settings;
+                const previous = settings.exchangeRate;
+                const button = input.closest('#modalBox')?.querySelector('button[onclick="UI.saveQuickRate()"]');
+                this.savingQuickRate = true;
+                if (button) button.disabled = true;
+                try {
+                    settings.exchangeRate = val;
+                    await StorageEngine.saveState();
+                } catch (error) {
+                    if (settings.exchangeRate === val) settings.exchangeRate = previous;
+                    this.toast('تعذّر حفظ سعر الصرف. أعد المحاولة.', 'error');
+                    return;
+                } finally {
+                    this.savingQuickRate = false;
+                    if (button) button.disabled = false;
+                }
+                if (State.settings !== settings || !input.isConnected) return;
                 document.getElementById('topBarRate').textContent = val.toLocaleString('en-US');
                 this.forceCloseModal();
                 this.toast(`تم تحديث سعر الصرف العام إلى ${val.toLocaleString('en-US')} ل.س`, 'success');

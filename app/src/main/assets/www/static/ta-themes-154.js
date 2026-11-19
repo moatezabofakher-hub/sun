@@ -23,11 +23,11 @@ function classify(el){
  if(k==='company'||/إعدادات الشركة|بيانات الشركة/.test(label))return 'company';
  if(k==='backup'||/النسخ الاحتياطي|استعادة النسخة/.test(label))return 'backup';
  if(k==='activation'||/التفعيل|ترخيص/.test(label))return 'activation';
- if(k==='currency'||/العملة وسعر الصرف|أسعار الصرف|العملة/.test(label))return 'currency';
+ if(k==='currency'||/العملة وسعر الصرف|أسعار الصرف|سعر الصرف|العملة/.test(label))return 'currency';
  if(k==='printing'||/الطباعة|الطابعة/.test(label))return 'printing';
  if(k==='invoices'||/الفواتير|نقطة البيع/.test(label))return 'invoices';
  if(k==='items'||/المواد|المستودع/.test(label))return 'items';
- if(k==='security'||/الحماية|الحساب وكلمة السر|كلمة المرور/.test(label))return 'security';
+ if(k==='security'||/الحماية|الحساب وكلمة السر|كلمة المرور|بصمة/.test(label))return 'security';
  if(k==='default_period'||/الفترة الافتراضية/.test(label))return 'default_period';
  if(k==='data'||/إعادة ضبط|حذف البيانات|تصفير/.test(label))return 'data';
  if(/مزامنة|الاتصال/.test(label))return 'desktop-link';
