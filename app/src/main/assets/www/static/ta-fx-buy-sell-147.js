@@ -325,11 +325,13 @@ U.newForm=function(editId=''){
  return trade(code,buy?'buy':'sell',editId);
 };
 U.ratesForm=unifiedRates;
-// Keep a separate, explicit settings action for the GENERAL invoice exchange
-// rate, without displaying it when the user clicks the top-bar FX quotation.
+// The top-bar exchange-rate control belongs to transaction/invoice settings.
+// Preserve the original single USD rate dialog and its saveQuickRate() logic.
+// The full multi-currency general rates dialog stays accessible ONLY from
+// the currency settings. Buy/sell FX quotations remain independent.
 const originalInvoiceRateModal=typeof UI.openRateModal==='function'?UI.openRateModal.bind(UI):null;
 U.openGeneralRateModal=currencyRates;
-UI.openRateModal=currencyRates;
+if(originalInvoiceRateModal)UI.openRateModal=originalInvoiceRateModal;
 if(typeof Views!=='undefined'&&typeof Views.renderReports==='function'){
  const previous=Views.renderReports;
  Views.renderReports=function(main,params,...args){
