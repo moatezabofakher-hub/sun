@@ -208,7 +208,9 @@ with sync_playwright() as playwright:
                 }""",screen)
             surface=page.locator('#screen' if employee else '#mainContent')
             assert surface.is_visible() and surface.inner_text().strip(),screen
-            if screen in ('home', 'reports'):
+            # Manager variants reserve some secondary screens for the workspace and hide the dock.
+            nav = page.locator('#bottom.bottom' if employee else 'nav.ta-bottom-nav')
+            if screen == 'home' or (screen == 'reports' and nav.is_visible()):
                 initial_size = page.viewport_size
                 for width in (320, 390, 432):
                     page.set_viewport_size(dict(initial_size, width=width))
