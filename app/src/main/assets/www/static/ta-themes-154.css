@@ -324,3 +324,165 @@ html[data-ta-theme="royal"] body :is(nav.ta-bottom-nav,#bottom.bottom) button:is
 @media print{
  .ta-theme154-page,.ta-theme154-page::backdrop{display:none!important}
 }
+
+
+/* v3.5.155 visual legibility regression: typography is flat, illustrated tiles retain 3D. */
+@media screen {
+  html body #mainContent .ta-module-grid .ta-module-card .ta-icon-box {
+    width:clamp(49px,12vw,61px)!important;
+    height:clamp(49px,12vw,61px)!important;
+    min-width:49px!important;
+    flex:0 0 auto!important;
+    padding:0!important;
+    border:0!important;
+    border-radius:17px!important;
+    background:transparent!important;
+    box-shadow:none!important;
+    filter:none!important;
+    overflow:visible!important;
+    position:relative!important;
+  }
+  /* The picture supplied by controls.css is the *only* visible icon. Its old
+     FontAwesome glyph must not show through or sit over the 3D illustration. */
+  html body #mainContent .ta-module-grid .ta-module-card .ta-icon-box > i {
+    display:none!important;
+  }
+  html body #mainContent .ta-module-grid .ta-module-card .ta-icon-box::after {
+    display:block!important;
+    width:100%!important;
+    height:100%!important;
+    border-radius:16px!important;
+    opacity:1!important;
+    filter:none!important;
+  }
+  html body #mainContent .ta-module-grid .ta-module-card {
+    gap:8px!important;
+    padding:11px 5px 13px!important;
+  }
+  html body #mainContent .ta-module-grid .ta-module-card > strong {
+    font-family:system-ui,"Noto Sans Arabic",Tahoma,sans-serif!important;
+    font-size:clamp(11.5px,2.9vw,14px)!important;
+    font-weight:850!important;
+    line-height:1.5!important;
+    letter-spacing:0!important;
+    text-shadow:none!important;
+    -webkit-text-stroke:0!important;
+    filter:none!important;
+    overflow-wrap:normal!important;
+    word-break:normal!important;
+    text-wrap:pretty;
+    color:#173c50!important;
+    -webkit-text-fill-color:#173c50!important;
+  }
+  html[data-ta-theme="royal"] body #mainContent .ta-module-grid .ta-module-card > strong {
+    color:#f7fcff!important;
+    -webkit-text-fill-color:#f7fcff!important;
+  }
+  html body #mainContent .ta-module-grid .ta-small-alert {
+    z-index:2!important;
+  }
+  /* A nav cell is only one sixth of a phone. Labels may wrap onto two lines;
+     give them space rather than clipping and glow. */
+  html body nav.ta-bottom-nav > div {
+    height:auto!important;
+    min-height:82px!important;
+    align-items:stretch!important;
+  }
+  html body nav.ta-bottom-nav button.nav-btn {
+    min-width:0!important;
+    min-height:79px!important;
+    height:auto!important;
+    padding:6px 1px 8px!important;
+    display:flex!important;
+    flex-direction:column!important;
+    justify-content:center!important;
+    align-items:center!important;
+    gap:3px!important;
+    overflow:visible!important;
+  }
+  html body nav.ta-bottom-nav button.nav-btn > i {
+    flex:0 0 auto!important;
+    display:inline-block!important;
+    width:clamp(36px,10vw,49px)!important;
+    height:clamp(36px,10vw,49px)!important;
+    min-width:36px!important;
+    border-radius:13px!important;
+    line-height:0!important;
+    font-size:0!important;
+    color:transparent!important;
+    -webkit-text-fill-color:transparent!important;
+    text-shadow:none!important;
+    -webkit-text-stroke:0!important;
+    filter:none!important;
+    background-size:contain!important;
+    background-position:center!important;
+    background-repeat:no-repeat!important;
+  }
+  html body nav.ta-bottom-nav button.nav-btn > i::before{
+    content:none!important;
+    display:none!important;
+  }
+  html body nav.ta-bottom-nav button.nav-btn > i::after {
+    width:100%!important;
+    height:100%!important;
+    filter:none!important;
+  }
+  html body nav.ta-bottom-nav button.nav-btn > span {
+    display:block!important;
+    width:100%!important;
+    max-width:100%!important;
+    min-width:0!important;
+    font:850 clamp(11px,2.8vw,13px)/1.45 system-ui,"Noto Sans Arabic",Tahoma,sans-serif!important;
+    letter-spacing:0!important;
+    word-spacing:normal!important;
+    text-align:center!important;
+    white-space:normal!important;
+    overflow:visible!important;
+    overflow-wrap:normal!important;
+    word-break:keep-all!important;
+    text-wrap:balance;
+    text-shadow:none!important;
+    -webkit-text-stroke:0!important;
+    filter:none!important;
+    transform:none!important;
+    opacity:1!important;
+    color:#f7fcff!important;
+    -webkit-text-fill-color:#f7fcff!important;
+  }
+  html[data-ta-theme="royal"] body nav.ta-bottom-nav button.nav-btn > span {
+    color:#f5fbff!important;
+    -webkit-text-fill-color:#f5fbff!important;
+  }
+  html[data-ta-theme="royal"] body nav.ta-bottom-nav button.nav-btn.active > span {
+    color:#b4ffe9!important;
+    -webkit-text-fill-color:#b4ffe9!important;
+  }
+  /* Titles and form control labels must be optically crisp in both palettes.
+     These rules never flatten actual button backgrounds/borders/shadows. */
+  html body #mainContent :is(h1,h2,h3,h4,h5,h6,p,label,legend,summary,strong),
+  html body #modalBox :is(h1,h2,h3,h4,h5,h6,p,label,legend,summary,strong),
+  html body #dialogBox :is(h1,h2,h3,h4,h5,h6,p,label,legend,summary,strong),
+  html body #mainContent button,
+  html body #modalBox button,
+  html body #dialogBox button {
+    text-shadow:none!important;
+    -webkit-text-stroke:0!important;
+  }
+  html body #mainContent .ta-section-head :is(h2,h3,h4,p) {
+    text-shadow:none!important;
+    -webkit-text-stroke:0!important;
+    filter:none!important;
+  }
+  html[data-ta-theme="royal"] body #mainContent .ta-section-head :is(h2,h3,h4) {
+    color:#f6fbff!important;
+    -webkit-text-fill-color:#f6fbff!important;
+  }
+  html[data-ta-theme="royal"] body #mainContent .ta-section-head p {
+    color:#c2e2f1!important;
+    -webkit-text-fill-color:#c2e2f1!important;
+  }
+  @media(max-width:375px){
+    html body nav.ta-bottom-nav button.nav-btn > span {font-size:11px!important}
+    html body #mainContent .ta-module-grid .ta-module-card > strong {font-size:11.5px!important}
+  }
+}
