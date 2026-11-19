@@ -316,6 +316,11 @@ html[data-ta-theme="royal"] body :is(nav.ta-bottom-nav,#bottom.bottom) button:is
  background:linear-gradient(145deg,#165850,#0d393e)!important;color:#adfae7!important;border-color:#61baaa!important
 }
 }
+@media screen{
+ html[data-ta-theme] body #mainContent .ta-capital-card .ta-capital-icon{
+  background: #f8f3e9 url("partners.webp") center/cover no-repeat!important;
+ }
+}
 @media print{
  .ta-theme154-page,.ta-theme154-page::backdrop{display:none!important}
 }

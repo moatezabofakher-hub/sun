@@ -154,6 +154,13 @@ with sync_playwright() as playwright:
                 balance=surface.locator('.ta-balance-tile').first
                 assert balance.is_visible()
                 assert 'rgb(25, 62, 96)' in balance.evaluate('e=>getComputedStyle(e).backgroundImage')
+            if screen=='reports' and not employee:
+                badge=surface.locator('.ta-capital-card .ta-capital-icon').first
+                assert badge.is_visible(), 'Missing shareholder badge'
+                art=badge.evaluate("e=>getComputedStyle(e).backgroundImage")
+                assert 'partners.webp' in art, (theme,art)
+                assert page.evaluate("""async()=>{const img=new Image();img.src='static/partners.webp';
+                    await img.decode();return img.naturalWidth>0;}""")
             capture(theme+'-'+screen)
     print('PASS themes/icons',root,flush=True)
     browser.close()
