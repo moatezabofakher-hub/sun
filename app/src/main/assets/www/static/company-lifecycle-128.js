@@ -53,6 +53,8 @@
           <label for="ta-owner-name-153" style="font-weight:800;display:block;margin:12px 0 6px">اسم المالك (المدير)</label>
           <input id="ta-owner-name-153" required maxlength="120" minlength="2" autocomplete="name" placeholder="أدخل اسم المالك" style="width:100%;box-sizing:border-box;border:1px solid #a6bfd1;border-radius:12px;padding:13px;background:#f8fcff;color:#123;font:inherit"/>
           <p style="font-size:12px;color:#597287;margin-top:10px">يمكنك إضافة رقم هاتف الشركة وعنوانها لاحقاً من الضبط.</p>
+          ${window.TiqanyDatabaseFolder?.supported() ? `<button id="ta-company-folder" type="button" style="display:block;width:100%;min-height:58px;box-sizing:border-box;margin:14px 0 6px;padding:15px;border:2px solid #134e4a;border-radius:14px;background:#075e65;color:white;font:inherit;font-size:17px;font-weight:900;cursor:pointer" onclick="CompanyLifecycle.pickDatabaseFolder()">📁 اختيار مسار حفظ النسخة الاحتياطية</button>
+          <p id="ta-company-folder-status" role="status" dir="auto" style="color:#244350;font-size:14px">${window.TiqanyDatabaseFolder.selected?'تم اختيار مجلد النسخ الاحتياطية':'سيُنشأ في المسار المختار مجلد «النسخة الاحتياطية لتطبيق المحاسبة».'}</p>` : ''}
           <p id="ta-company-error-128" role="alert" style="display:none;color:#b91c1c;font-size:12px;margin-top:10px"></p>
           <button id="ta-company-save-128" type="submit" style="width:100%;margin-top:16px;padding:15px;border-radius:14px;border:1px solid #047857;background:linear-gradient(#10b981,#047857);color:white;font-size:16px;font-weight:900;box-shadow:0 4px 0 #065f46">حفظ بيانات الشركة والبدء</button>
           <button type="button" onclick="window.CompanyLifecycle.openManagerPhonePair()"
@@ -106,6 +108,13 @@
        '<button type="button" class="w-full rounded-xl bg-emerald-700 text-white font-black p-3" onclick="CompanyLifecycle.openCapitalFromReminder()">إضافة مبلغ إلى رأس المال</button>'+
        '<button type="button" class="w-full rounded-xl bg-slate-100 font-bold p-3" onclick="UI.forceCloseModal()">لاحقاً</button></div>');
     },
+    async pickDatabaseFolder() {
+      const picker=window.TiqanyDatabaseFolder;
+      const result=await picker.pick();
+      const status=$('ta-company-folder-status');
+      if(status)status.textContent=picker.message(result);
+      return result.status==='selected';
+    },
     async saveFirstRun() {
       if(this.busy)return;
       const name=String($('ta-company-name-128')?.value||'').trim();
@@ -124,6 +133,7 @@
       const previousAlerts=clone(State.alertCenter||{entries:[]});
       let notice=null;
       try {
+        if(window.TiqanyDatabaseFolder?.supported() && !window.TiqanyDatabaseFolder.selected && !(await this.pickDatabaseFolder()))return;
         // A new company must start with a single, properly allocated owner.
         if((State.shareholderOwners||[]).length)throw Error('توجد بيانات مساهمين بالفعل؛ استخدم استعادة البيانات بدلاً من إنشاء شركة جديدة');
         State.settings.companyName=name;
@@ -141,6 +151,7 @@
           at:new Date().toISOString(),read:false};
         State.alertCenter.entries.unshift(notice);
         await StorageEngine.saveState();
+        window.TiqanyRecovery?.completeNewDatabase?.();
         $('ta-company-setup-128')?.remove();
         AppNav.renderCurrent();
         if(typeof ManagerNotifications!=='undefined'){

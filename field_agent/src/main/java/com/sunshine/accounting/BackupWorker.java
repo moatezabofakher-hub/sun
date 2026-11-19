@@ -116,7 +116,8 @@ public final class BackupWorker extends Worker {
         String saved = prefs.getString("localFolder", "");
         if (saved.isEmpty()) throw new IOException("Local backup folder not selected");
         Uri uri = Uri.parse(saved);
-        DocumentFile dir = DocumentFile.fromTreeUri(context, uri);
+        DocumentFile dir = prefs.getBoolean("localDatabaseFolder", false)
+            ? AutoBackupManager.databaseDirectory(context, uri) : DocumentFile.fromTreeUri(context, uri);
         if (dir == null || !dir.isDirectory() || !dir.canWrite())
             throw new IOException("Backup folder permission was lost");
         DocumentFile doc = dir.createFile("application/json", name);

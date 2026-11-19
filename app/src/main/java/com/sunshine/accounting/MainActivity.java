@@ -94,6 +94,35 @@ public final class MainActivity extends FragmentActivity {
     private volatile boolean reportPdfBusy;
 
     // Local Storage Access Framework folder (persisted permission) and Drive authorization.
+    private void databaseFolderResult(String status, String detail) {
+        runOnUiThread(() -> {
+            if (webView == null || !isLocalPage()) return;
+            webView.evaluateJavascript("window.__tiqanyDatabaseFolder && window.__tiqanyDatabaseFolder("
+                + org.json.JSONObject.quote(status) + "," + org.json.JSONObject.quote(detail) + ")", null);
+            pushBackupStatus();
+        });
+    }
+
+    private final ActivityResultLauncher<Intent> databaseFolderLauncher = registerForActivityResult(
+        new ActivityResultContracts.StartActivityForResult(), result -> {
+            Intent data = result.getData();
+            if (result.getResultCode() != Activity.RESULT_OK || data == null || data.getData() == null) {
+                databaseFolderResult("cancelled", ""); return;
+            }
+            final Uri parent = data.getData();
+            int required = Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION;
+            int granted = data.getFlags() & required;
+            new Thread(() -> {
+                try {
+                    if (granted != required) throw new java.io.IOException("يحتاج المجلد إلى إذن القراءة والكتابة");
+                    getContentResolver().takePersistableUriPermission(parent, granted);
+                    databaseFolderResult("selected", AutoBackupManager.selectDatabaseParent(this, parent));
+                } catch (Exception ex) {
+                    databaseFolderResult("error", "تعذّر إعداد مجلد النسخ. اختر مساراً قابلاً للكتابة.");
+                }
+            }, "tiqany-database-folder").start();
+        });
+
     private final ActivityResultLauncher<Intent> folderLauncher = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(), result -> {
                 if (result.getResultCode() != Activity.RESULT_OK || result.getData() == null
@@ -733,6 +762,17 @@ public final class MainActivity extends FragmentActivity {
             return error;
         }
 
+        @JavascriptInterface public void chooseDatabaseFolder() {
+            runOnUiThread(() -> {
+                if (!isLocalPage()) return;
+                Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                    | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+                try { databaseFolderLauncher.launch(intent); }
+                catch (Exception ex) { databaseFolderResult("error", "تعذّر فتح اختيار المجلد"); }
+            });
+        }
+
         @JavascriptInterface public void chooseLocalFolder() {
             runOnUiThread(() -> {
                 if (!isLocalPage()) return;
@@ -906,7 +946,13 @@ public final class MainActivity extends FragmentActivity {
                     androidx.documentfile.provider.DocumentFile.fromTreeUri(this, folder);
                 if (dir == null || !dir.isDirectory()) throw new java.io.IOException("Backup folder unavailable");
                 java.util.List<androidx.documentfile.provider.DocumentFile> found = new java.util.ArrayList<>();
-                for (androidx.documentfile.provider.DocumentFile f : dir.listFiles()) {
+                java.util.List<androidx.documentfile.provider.DocumentFile> candidates = new java.util.ArrayList<>();
+                java.util.Collections.addAll(candidates, dir.listFiles());
+                if (!AutoBackupManager.DATABASE_FOLDER.equals(dir.getName())) {
+                    androidx.documentfile.provider.DocumentFile nested = dir.findFile(AutoBackupManager.DATABASE_FOLDER);
+                    if (nested != null && nested.isDirectory()) java.util.Collections.addAll(candidates, nested.listFiles());
+                }
+                for (androidx.documentfile.provider.DocumentFile f : candidates) {
                     String name = f.getName();
                     if (f.isFile() && name != null && name.startsWith("AlMohaseb_")
                             && name.toLowerCase(java.util.Locale.ROOT).endsWith(".json")

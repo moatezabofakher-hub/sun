@@ -190,12 +190,60 @@ F.open=function(){
  <button class="w-full p-3 bg-slate-100 rounded-xl font-bold" onclick="UI.forceCloseModal()">إغلاق</button></div>`);
  if(window.AndroidLocalSync)this.startLanReceiver(true);
 };
+F.changeCreateWarehouse=function(select){
+ const panel=document.getElementById('fieldWarehouseEditor');
+ if(select.value!=='__create_warehouse__'){
+   select.dataset.previous=select.value;
+   panel.hidden=true;
+   return;
+ }
+ select.value=select.dataset.previous||'';
+ panel.hidden=false;
+ document.getElementById('fieldWarehouseError').textContent='';
+};
+F.cancelCreateWarehouse=function(){
+ document.getElementById('fieldWarehouseEditor').hidden=true;
+ document.getElementById('fieldWarehouseName').value='';
+ document.getElementById('fieldWarehouseError').textContent='';
+};
+F.saveCreateWarehouse=async function(){
+ const select=document.getElementById('fieldNewWarehouse');
+ const input=document.getElementById('fieldWarehouseName');
+ const message=document.getElementById('fieldWarehouseError');
+ const panel=document.getElementById('fieldWarehouseEditor');
+ if(!select||!input||panel.disabled)return;
+ const name=input.value.trim();
+ if(name.length<2||name.length>80){message.textContent='اسم المستودع يجب أن يكون بين حرفين و80 حرفاً';return;}
+ const warehouses=State.warehouses;
+ if(warehouses.some(w=>w.name.trim().toLowerCase()===name.toLowerCase())){message.textContent='يوجد مستودع بالاسم نفسه';return;}
+ const record={id:'wh_'+FieldProtocol.uuid(),name};
+ panel.disabled=true;
+ warehouses.push(record);
+ try{
+   await StorageEngine.saveState();
+ }catch(error){
+   const index=warehouses.findIndex(w=>w.id===record.id);
+   if(index>=0)warehouses.splice(index,1);
+   message.textContent='تعذّر حفظ المستودع. أعد المحاولة.';
+   return;
+ }finally{panel.disabled=false;}
+ select.add(new Option(name,record.id));
+ select.value=record.id;
+ select.dataset.previous=record.id;
+ this.cancelCreateWarehouse();
+};
 F.showCreateAgent=function(){
- const opts=(State.warehouses||[]).map(w=>`<option value="${esc(w.id)}">${esc(w.name)}</option>`).join('');
+ const opts=(State.warehouses||[]).map((w,i)=>`<option ${i===0?'selected':''} value="${esc(w.id)}">${esc(w.name)}</option>`).join('');
  UI.openModal(`<div dir="rtl" class="ta-field-panel text-right space-y-3"><h3 class="font-black text-lg">إنشاء موظف بيع</h3>
  <input id="fieldNewAgent" class="w-full border rounded-xl p-3" placeholder="اسم موظف البيع" maxlength="70"/>
  <input id="fieldNewVehicle" class="w-full border rounded-xl p-3" placeholder="السيارة / خط التوزيع" maxlength="70"/>
- <select id="fieldNewWarehouse" class="w-full border rounded-xl p-3">${opts}</select>
+ <select id="fieldNewWarehouse" aria-label="مستودع موظف البيع" data-previous="${esc(State.warehouses?.[0]?.id||'')}" onchange="FieldSync.changeCreateWarehouse(this)" class="w-full border rounded-xl p-3"><option value="__create_warehouse__">＋ إنشاء مستودع</option>${opts||'<option value="" selected hidden>اختر المستودع</option>'}</select>
+ <fieldset id="fieldWarehouseEditor" class="border rounded-xl p-3" hidden>
+ <label for="fieldWarehouseName">اسم المستودع الجديد</label>
+ <input id="fieldWarehouseName" maxlength="80" class="w-full border rounded-xl p-3">
+ <p id="fieldWarehouseError" role="alert"></p>
+ <button type="button" class="ta-primary-3d rounded-xl p-3" onclick="FieldSync.saveCreateWarehouse()">إنشاء المستودع واختياره</button>
+ <button type="button" class="rounded-xl p-3" onclick="FieldSync.cancelCreateWarehouse()">إلغاء</button></fieldset>
  <p class="text-xs text-slate-600">اختر مستودع السيارة الخاص بموظف البيع؛ تُنقل المواد إليه من شاشة المناقلات.</p>
  <button class="ta-primary-3d w-full p-3 rounded-xl font-black" onclick="FieldSync.addAgent()">حفظ موظف البيع</button>
  <button class="w-full p-3 rounded-xl bg-slate-100" onclick="FieldSync.open()">رجوع</button></div>`);
@@ -254,6 +302,12 @@ F.showSyncTools=function(){
  <button class="w-full p-3 bg-slate-100 rounded-xl" onclick="FieldSync.open()">رجوع</button></div>`);
 };
 // Mutations triggered in nested panels return to their logical parent.
-const oldAdd=F.addAgent.bind(F);F.addAgent=async function(){await oldAdd();};
+const oldAdd=F.addAgent.bind(F);F.addAgent=async function(){
+ const panel=document.getElementById('fieldWarehouseEditor');
+ if(panel && !panel.hidden){
+   document.getElementById('fieldWarehouseError').textContent='احفظ المستودع أو ألغِ إنشاؤه أولاً';return;
+ }
+ return oldAdd();
+};
 const oldEdit=F.saveAgentEdit.bind(F);F.saveAgentEdit=async function(id){await oldEdit(id);};
 })();

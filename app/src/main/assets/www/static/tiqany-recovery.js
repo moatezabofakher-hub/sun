@@ -1,3 +1,40 @@
+// The Android bridge completes through a callback. Electron returns a promise.
+(function installDatabaseFolderPicker() {
+  let pending;
+  const picker = {
+    supported() { return typeof window.AndroidAutoBackup?.chooseDatabaseFolder === 'function'; },
+    selected: false,
+    pick() {
+      if (pending) return pending;
+      const bridge = window.AndroidAutoBackup;
+      if (!this.supported()) return Promise.resolve({status: 'unavailable'});
+      let resolve;
+      pending = new Promise(done => { resolve = done; });
+      const request = pending;
+      const finish = (status, detail = '') => {
+        if (pending !== request) return;
+        pending = null;
+        delete window.__tiqanyDatabaseFolder;
+        if (status === 'selected') this.selected = true;
+        resolve({status, detail});
+      };
+      window.__tiqanyDatabaseFolder = finish;
+      try {
+        const action = bridge.chooseDatabaseFolder();
+        if (action && typeof action.then === 'function') {
+          action.then(r => finish(r.status, r.detail)).catch(() => finish('error'));
+        }
+      } catch (_) { finish('error'); }
+      return request;
+    },
+    message(result) {
+      if (result.status === 'selected') return 'مجلد النسخ جاهز: ' + (result.detail || 'النسخة الاحتياطية لتطبيق المحاسبة');
+      if (result.status === 'cancelled') return 'أُغلق اختيار المجلد. يمكنك اختيار المسار مجدداً.';
+      return result.detail || 'تعذّر فتح المجلد. اختر مساراً تسمح فيه بحفظ الملفات.';
+    }
+  };
+  window.TiqanyDatabaseFolder = picker;
+})();
 /* First-run restore chooser. External SAF folders are not destroyed by uninstall;
    Android revokes access on uninstall, so the user must grant the folder again. */
 (function(){
@@ -20,20 +57,30 @@ const Recovery={
     const old=isAgent?!!(Agent.state&&(Agent.ready()||(Agent.state.ops||[]).length)):
       !!(typeof State!=='undefined'&&(['invoices','vouchers','items','accounts','expenses','categories'].some(k=>(State[k]||[]).length>0)||(State.settings?.companyName&&State.settings.companyName!=='المحاسب التقني'&&State.settings.companyName!=='مؤسسة')));
     if(old){localStorage.setItem(KEY,'existing');return;}
-    show(heading()+footer()+`<p>${t('يمكنك البحث عن النسخ التي احتفظت بها سابقاً، أو إنشاء قاعدة بيانات جديدة.','You may recover a previously saved backup or start with a new database.')}</p><button onclick="TiqanyRecovery.chooseFolder()">${t('اختيار مجلد النسخ القديمة','Choose previous backup folder')}</button><button class="secondary" onclick="TiqanyRecovery.newDatabase()">${t('إنشاء قاعدة بيانات جديدة','Create new database')}</button>`);
+    show(heading()+footer()+`<p>${t('يمكنك البحث عن النسخ التي احتفظت بها سابقاً، أو إنشاء قاعدة بيانات جديدة.','You may recover a previously saved backup or start with a new database.')}</p><button onclick="TiqanyRecovery.chooseFolder()">${t('اختيار مجلد النسخ القديمة','Choose previous backup folder')}</button><button style="display:block;width:100%;min-height:58px;box-sizing:border-box;margin:14px 0 6px;padding:15px;border:2px solid #134e4a;border-radius:14px;background:#075e65;color:white;font:inherit;font-size:17px;font-weight:900;cursor:pointer" onclick="TiqanyRecovery.newDatabase()">${t('إنشاء قاعدة بيانات جديدة واختيار مسار الحفظ','Create new database')}</button>`);
   },
   chooseFolder(){if(!window.AndroidRecovery)return;window.AndroidRecovery.chooseBackupFolder();},
-  newDatabase(){localStorage.setItem(KEY,'new');hide();
-    if(!window.AndroidAutoBackup?.getStatus)return;
-    try{const s=JSON.parse(AndroidAutoBackup.getStatus());if(s.localFolderConfigured){AndroidAutoBackup.configure('local',true,6);(typeof BackupController!=='undefined'&&BackupController.stageLatest?.());}
-    else if(window.confirm(t('للحفاظ على بياناتك بعد حذف التطبيق، اختر الآن مجلداً خارجياً لنسخها الاحتياطية. فتح اختيار المجلد؟','To keep data after uninstall, choose an external backup folder now. Open folder picker?'))){AndroidAutoBackup.chooseLocalFolder();}}
-    catch(e){console.warn(e);}
+  completeNewDatabase(){localStorage.setItem(KEY,'new');hide();},
+  async newDatabase(){
+    const picker=window.TiqanyDatabaseFolder;
+    if(picker.supported()){
+      const result=await picker.pick();
+      if(result.status!=='selected'){
+        let status=document.getElementById('ta-recovery-folder-status');
+        const card=document.getElementById('ta-recovery-card');
+        if(!status && card){status=document.createElement('p');status.id='ta-recovery-folder-status';status.setAttribute('role','status');card.appendChild(status);}
+        if(status)status.textContent=picker.message(result);
+        return;
+      }
+    }
+    this.completeNewDatabase();
+    if(typeof BackupController!=='undefined')BackupController.stageLatest?.();
   },
   list(items){selectedFolder=true;
-    if(!Array.isArray(items)||!items.length){show(heading()+`<p>${t('لم تُعثر على نسخ محاسبية صالحة في المجلد المختار. يمكنك اختيار مجلد آخر.','No valid accounting backups found in this folder. You may choose another one.')}</p><button onclick="TiqanyRecovery.chooseFolder()">${t('مجلد آخر','Choose another folder')}</button><button class="secondary" onclick="TiqanyRecovery.newDatabase()">${t('إنشاء قاعدة جديدة','Start new database')}</button>`);return;}
+    if(!Array.isArray(items)||!items.length){show(heading()+`<p>${t('لم تُعثر على نسخ محاسبية صالحة في المجلد المختار. يمكنك اختيار مجلد آخر.','No valid accounting backups found in this folder. You may choose another one.')}</p><button onclick="TiqanyRecovery.chooseFolder()">${t('مجلد آخر','Choose another folder')}</button><button style="display:block;width:100%;min-height:58px;box-sizing:border-box;margin:14px 0 6px;padding:15px;border:2px solid #134e4a;border-radius:14px;background:#075e65;color:white;font:inherit;font-size:17px;font-weight:900;cursor:pointer" onclick="TiqanyRecovery.newDatabase()">${t('إنشاء قاعدة جديدة','Start new database')}</button>`);return;}
     show(heading()+`<p>${t('اختر النسخة المراد استعادتها. الأحدث تظهر أولاً؛ لا تتم استعادة أي نسخة قبل اختيارها.','Choose the backup to restore. Newest appears first; nothing is restored until selected.')}</p>`+
     items.map((item,i)=>`<button type="button" class="ta-recovery-file" onclick="TiqanyRecovery.restore('${escape(item.id)}')"><strong>${i===0?t('الأحدث · ','Newest · '):''}${escape(item.name)}</strong><br><small>${new Date(item.date).toLocaleString(ar()?'ar-SY':'en-US')} · ${Math.round((item.size||0)/1024)} KB</small></button>`).join('')+
-    `<button class="secondary" onclick="TiqanyRecovery.chooseFolder()">${t('مجلد آخر','Choose another folder')}</button><button class="secondary" onclick="TiqanyRecovery.newDatabase()">${t('بدء قاعدة جديدة دون استعادة','Start new database without restoring')}</button>`);
+    `<button class="secondary" onclick="TiqanyRecovery.chooseFolder()">${t('مجلد آخر','Choose another folder')}</button><button style="display:block;width:100%;min-height:58px;box-sizing:border-box;margin:14px 0 6px;padding:15px;border:2px solid #134e4a;border-radius:14px;background:#075e65;color:white;font:inherit;font-size:17px;font-weight:900;cursor:pointer" onclick="TiqanyRecovery.newDatabase()">${t('بدء قاعدة جديدة دون استعادة','Start new database without restoring')}</button>`);
   },
   restore(id){if(loading)return;loading=true;show(heading()+`<p>${t('جارٍ التحقق من ملف النسخة قبل الاستعادة...','Checking backup before restore...')}</p>`);window.AndroidRecovery?.restoreChoice(String(id));},
   async accept(json){loading=false;
@@ -54,7 +101,7 @@ const Recovery={
     localStorage.setItem(KEY,'restored');hide();
     try{if(selectedFolder&&window.AndroidAutoBackup?.configure){AndroidAutoBackup.configure('local',true,6);(typeof BackupController!=='undefined'&&BackupController.stageLatest?.());}}catch(_){}
   },
-  error(message){loading=false;show(heading()+`<p class="ta-recovery-warning">${escape(message)}</p><button onclick="TiqanyRecovery.chooseFolder()">${t('اختيار مجلد آخر','Choose another folder')}</button><button class="secondary" onclick="TiqanyRecovery.newDatabase()">${t('قاعدة جديدة','New database')}</button>`);}
+  error(message){loading=false;show(heading()+`<p class="ta-recovery-warning">${escape(message)}</p><button onclick="TiqanyRecovery.chooseFolder()">${t('اختيار مجلد آخر','Choose another folder')}</button><button style="display:block;width:100%;min-height:58px;box-sizing:border-box;margin:14px 0 6px;padding:15px;border:2px solid #134e4a;border-radius:14px;background:#075e65;color:white;font:inherit;font-size:17px;font-weight:900;cursor:pointer" onclick="TiqanyRecovery.newDatabase()">${t('قاعدة جديدة','New database')}</button>`);}
 };
 window.TiqanyRecovery=Recovery;
 window.__tiqanyRecoveryList=items=>Recovery.list(items);

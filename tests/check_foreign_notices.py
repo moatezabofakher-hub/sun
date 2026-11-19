@@ -72,5 +72,61 @@ with sync_playwright() as pw:
         names=sorted(set(__import__('re').findall(r'\bfa-[a-z][\w-]*',' '.join(p.read_text(encoding='utf8') for p in [root/'index.html',*(root/'static').glob('*.js')] if p.name!='icons.js'))))
         page.evaluate("""names=>{const box=document.createElement('div');box.id='icon-audit';for(const n of names){const i=document.createElement('i');i.className='fas '+n;box.append(i)}document.body.append(box)}""",names)
         page.wait_for_function("()=>[...document.querySelectorAll('#icon-audit i')].every(i=>i.querySelector('svg'))")
+    if edition in ('manager','win'):
+        page.evaluate('()=>{UI.forceCloseModal();FieldSync.showCreateAgent()}')
+        select=page.locator('#fieldNewWarehouse')
+        assert 'إنشاء مستودع' in select.locator('option').first.inner_text()
+        current=select.input_value()
+        page.locator('#fieldNewAgent').fill('موظف اختبار')
+        page.locator('#fieldNewVehicle').fill('سيارة اختبار')
+        select.select_option('__create_warehouse__')
+        page.locator('#fieldWarehouseName').fill('مسودة')
+        page.get_by_role('button',name='إلغاء',exact=True).last.click()
+        assert not page.locator('#fieldWarehouseEditor').is_visible() and select.input_value()==current
+        select.select_option('__create_warehouse__')
+        page.locator('#fieldWarehouseName').fill('مستودع اختبار')
+        page.get_by_role('button',name='إنشاء المستودع واختياره').click()
+        page.wait_for_function("()=>document.getElementById('fieldWarehouseEditor').hidden")
+        new_id=select.input_value()
+        assert new_id!=current and page.evaluate("id=>State.warehouses.find(w=>w.id===id)?.name",new_id)=='مستودع اختبار'
+        select.select_option('__create_warehouse__')
+        page.locator('#fieldWarehouseName').fill('مستودع اختبار')
+        page.get_by_role('button',name='إنشاء المستودع واختياره').click()
+        assert 'بالاسم نفسه' in page.locator('#fieldWarehouseError').inner_text()
+        assert page.locator('#fieldNewVehicle').input_value()=='سيارة اختبار' and page.locator('#fieldNewAgent').input_value()=='موظف اختبار'
+        page.evaluate('()=>UI.forceCloseModal()')
+    # Exercise cancellation and acceptance through the actual UI on a separate first-run page.
+    start=browser.new_page(viewport={'width':390,'height':700})
+    start.add_init_script("""window.folderRequests=0;
+      window.AndroidAutoBackup={getStatus:()=>'{}',chooseDatabaseFolder(){window.folderRequests++;}};
+      window.AndroidRecovery={chooseBackupFolder(){}};""")
+    start.goto((root/'index.html').resolve().as_uri())
+    if agent:
+        button=start.locator('#ta-recovery-card button[onclick="TiqanyRecovery.newDatabase()"]').first
+        button.wait_for()
+        button.click()
+        start.evaluate("()=>window.__tiqanyDatabaseFolder('cancelled','')")
+        assert button.is_visible() and 'أُغلق' in start.locator('#ta-recovery-folder-status').inner_text()
+        button.click()
+        start.evaluate("()=>window.__tiqanyDatabaseFolder('selected','تنزيلات / النسخة الاحتياطية لتطبيق المحاسبة')")
+        assert not button.is_visible()
+    else:
+        button=start.locator('#ta-company-folder')
+        button.wait_for()
+        assert button.bounding_box()['height']>=56
+        start.locator('#ta-company-name-128').fill('شركة اختبار')
+        start.locator('#ta-owner-name-153').fill('مالك اختبار')
+        start.locator('#ta-company-save-128').click()
+        start.wait_for_function('()=>window.folderRequests===1')
+        start.evaluate("()=>window.__tiqanyDatabaseFolder('cancelled','')")
+        assert 'أُغلق' in start.locator('#ta-company-folder-status').inner_text()
+        assert start.locator('#ta-company-name-128').input_value()=='شركة اختبار'
+        button.click()
+        start.evaluate("()=>window.__tiqanyDatabaseFolder('selected','تنزيلات / النسخة الاحتياطية لتطبيق المحاسبة')")
+        assert 'النسخة الاحتياطية لتطبيق المحاسبة' in start.locator('#ta-company-folder-status').inner_text()
+        start.locator('#ta-company-save-128').click()
+        start.wait_for_function("()=>!document.getElementById('ta-company-setup-128')")
+    assert start.evaluate('()=>window.folderRequests')==2
+    start.close()
     print('PASS',edition,'currency values, 10/20/26, re-entry, both themes, applicable header and employee controls')
     browser.close()

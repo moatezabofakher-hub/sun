@@ -121,8 +121,35 @@ public final class AutoBackupManager {
         e.apply();
     }
 
+    static final String DATABASE_FOLDER = "النسخة الاحتياطية لتطبيق المحاسبة";
+
+    static synchronized androidx.documentfile.provider.DocumentFile databaseDirectory(Context ctx, Uri parent) throws IOException {
+        androidx.documentfile.provider.DocumentFile root = androidx.documentfile.provider.DocumentFile.fromTreeUri(ctx, parent);
+        if (root == null || !root.isDirectory() || !root.canWrite()) throw new IOException("لا يمكن الكتابة في المسار المختار");
+        androidx.documentfile.provider.DocumentFile target = root;
+        if (!DATABASE_FOLDER.equals(root.getName())) {
+            target = root.findFile(DATABASE_FOLDER);
+            if (target == null) target = root.createDirectory(DATABASE_FOLDER);
+        }
+        if (target == null || !target.isDirectory() || !target.canWrite() || !DATABASE_FOLDER.equals(target.getName()))
+            throw new IOException("تعذّر إنشاء مجلد النسخ الاحتياطية في المسار المختار");
+        return target;
+    }
+
+    static String selectDatabaseParent(Context ctx, Uri parent) throws IOException {
+        databaseDirectory(ctx, parent);
+        SharedPreferences p = prefs(ctx);
+        if (!p.edit().putString("localFolder", parent.toString()).putBoolean("localDatabaseFolder", true)
+                .putBoolean("localEnabled", true).putInt("localHours", p.getBoolean("localEnabled", false) ? p.getInt("localHours", 6) : 6)
+                .remove("localError").commit()) throw new IOException("تعذّر حفظ مسار النسخ");
+        schedule(ctx, "local");
+        androidx.documentfile.provider.DocumentFile root = androidx.documentfile.provider.DocumentFile.fromTreeUri(ctx, parent);
+        String name = root == null ? null : root.getName();
+        return name == null || DATABASE_FOLDER.equals(name) ? DATABASE_FOLDER : name + " / " + DATABASE_FOLDER;
+    }
+
     public static void folderSelected(Context ctx, Uri uri) {
-        prefs(ctx).edit().putString("localFolder", uri.toString()).remove("localError").apply();
+        prefs(ctx).edit().putString("localFolder", uri.toString()).putBoolean("localDatabaseFolder", false).remove("localError").apply();
         if (prefs(ctx).getBoolean("localEnabled", false)) schedule(ctx, "local");
     }
 
