@@ -12,7 +12,16 @@ with sync_playwright() as pw:
     page=browser.new_page(viewport={'width':390,'height':800})
     page.goto((web/'index.html').as_uri())
     page.wait_for_timeout(450)
+    sizes=page.evaluate("""async()=>Object.fromEntries(await Promise.all(
+        ['modules.webp','gear.webp','report.webp','sale.png','pos.png'].map(async name=>{
+            const image=new Image();
+            image.src='static/'+name;
+            await image.decode();
+            return [name,image.naturalWidth];
+        })))""")
+    assert all(width>=128 for width in sizes.values())
     if employee:
+        assert 'report.webp' in page.locator('#nav-reports > span').evaluate("e=>getComputedStyle(e).backgroundImage")
         page.evaluate("""()=>{Agent.state=Agent.blank;Agent.state.ops=[
             {id:'cash',kind:'sale',localNumber:'CHECK-CASH',netTotal:42,paidAmount:42,currency:'USD'},
             {id:'pos',kind:'sale',localNumber:'CHECK-POS',source:'agent-pos',netTotal:7,paidAmount:7,currency:'USD'},

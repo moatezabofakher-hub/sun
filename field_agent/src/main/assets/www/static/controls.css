@@ -131,3 +131,10 @@ body .tile[onclick*="ItemForm"] .glyph{position:relative}
 body .tile[onclick*="ItemForm"] .glyph::after{content:'';position:absolute;inset:0;border-radius:22%;background:center/cover url('stock.webp');pointer-events:none}
 body .tile[onclick*="sales_summary"] .glyph{position:relative}
 body .tile[onclick*="sales_summary"] .glyph::after{content:'';position:absolute;inset:0;border-radius:22%;background:center/cover url('report.webp');pointer-events:none}
+/* Employee dock uses text glyphs inside fixed icon slots. */
+#bottom :is(#nav-home,#nav-invoices,#nav-ops,#nav-reports,#nav-settings)>span{display:inline-block;width:1.45em;height:1.45em;border-radius:22%;color:transparent!important;text-shadow:none!important}
+#bottom #nav-home>span{background:url('modules.webp') 0 0/300% 300% no-repeat!important}
+#bottom #nav-invoices>span{background:center/cover no-repeat url('sale.png')!important}
+#bottom #nav-ops>span{background:url('modules.webp') 50% 50%/300% 300% no-repeat!important}
+#bottom #nav-reports>span{background:center/cover no-repeat url('report.webp')!important}
+#bottom #nav-settings>span{background:center/cover no-repeat url('gear.webp')!important}
