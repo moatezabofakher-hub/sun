@@ -437,7 +437,7 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
   },
   call(message){return new Promise((resolve,reject)=>{
       if(this.pending)return reject(Error(t("هناك اتصال قيد التنفيذ","A connection is already active")));
-      const timer=setTimeout(()=>{this.pending=null;reject(Error(t("انتهت مهلة الاتصال بالكمبيوتر","Connection to the computer timed out")));},43000);
+      const timer=setTimeout(()=>{this.pending=null;reject(Error(t("انتهت مهلة الاتصال بالكمبيوتر","Connection to the computer timed out")));},message.action==='stream'?150000:43000);
       this.pending={resolve,reject,timer};
       try{AndroidPeerSync.request(JSON.stringify({protocol:'TIQANY-PEER-1',appVersion:'3.5.153',...message}));}
       catch(e){clearTimeout(timer);this.pending=null;reject(e);}
@@ -451,6 +451,7 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
     if(silent&&!info.approved)return;
     this.busy=true;
     try {
+      const initialProfile=ProfileManager.activeId;
       const stateBefore=this.snapshot(),origin=core.canonical(stateBefore);
       this.message(t("جارٍ الاتصال بالكمبيوتر...","Connecting to computer..."));
       const existingBase=await this.base();
@@ -458,7 +459,7 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
       const phoneEmpty=core.emptyLedger(stateBefore);
       const fetched=await this.call({action:'fetch',profileName:State.settings.companyName,phoneProfileId:ProfileManager.activeId,
         phoneCompanyUid:outgoingUid,phoneEmpty,knownServerId:existingBase?.serverId||'',
-        knownServerProfileId:existingBase?.serverProfileId||''});
+        knownServerProfileId:existingBase?.serverProfileId||''},existingBase);
       if(!fetched.ok){if(fetched.code==='SYNC_BUSY'){this.message('الكمبيوتر مشغول بمزامنة أخرى، ستجري إعادة المحاولة.',false);return false;}throw Error(fetched.error||t('فشل قراءة بيانات الكمبيوتر','Could not read data from the computer'));}
       if(fetched.appVersion!=='3.5.153')throw Error('اختلاف إصدار التطبيقات: يجب تحديث جميع الأجهزة إلى الإصدار 3.5.153 قبل الاتصال أو المزامنة. لم تُنقل أي بيانات.');
       if(!fetched.snapshot||!fetched.ticket||!fetched.serverId)throw Error(t("رد غير مكتمل من الكمبيوتر","Incomplete response from computer"));
@@ -536,7 +537,7 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
         this.message(disagreements.length?'توجد اختيارات متعارضة بين الهاتف والكمبيوتر؛ يجب توحيدها في سجل التعارض.':'تعذّرت المزامنة بسبب '+merged.conflicts.length+' تعارض. افتح «سجل التعارض» لمراجعتها.',!silent);
         return false;
       }
-      if(this.blocked()||core.canonical(this.snapshot())!==origin)throw Error(t("تغيرت بيانات الهاتف أثناء المزامنة. أعد المحاولة.","Phone data changed during sync. Try again."));
+      if(ProfileManager.activeId!==initialProfile||this.blocked()||core.canonical(this.snapshot())!==origin)throw Error(t("تغيرت بيانات الهاتف أثناء المزامنة. أعد المحاولة.","Phone data changed during sync. Try again."));
       // Send approved receipts with the atomic ledger commit. A receipt remains
       // usable after a phone reinstall/re-pair and on the computer's next fetch.
       const explicitApprovals=merged.resolvedReceipts.filter(r=>
@@ -550,9 +551,10 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
       const committed=await this.call({action:'commit',ticket:fetched.ticket,serverId:fetched.serverId,profileId:fetched.profileId,phoneCompanyUid:outgoingUid,
         snapshot:merged.snapshot,resolvedReceipts:appliedReceipts,explicitApprovals,provision});
       if(!committed.ok){if(committed.code==='SYNC_BUSY'){this.message('الكمبيوتر مشغول بمزامنة أخرى، ستتم إعادة المحاولة دون فقدان البيانات.',false);return false;}throw Error(committed.error||t("رفض الكمبيوتر حفظ الدمج","Windows rejected the merged data"));}
-      if(this.blocked()||core.canonical(this.snapshot())!==origin)throw Error(t("حفظ الكمبيوتر الدمج لكن بيانات الهاتف تغيرت. أعد المزامنة قبل أي تعديل آخر.","Windows saved the merge, but phone data changed. Sync again before editing."));
+      if(ProfileManager.activeId!==initialProfile||this.blocked()||core.canonical(this.snapshot())!==origin)throw Error(t("حفظ الكمبيوتر الدمج لكن بيانات الهاتف تغيرت. أعد المزامنة قبل أي تعديل آخر.","Windows saved the merge, but phone data changed. Sync again before editing."));
       if(core.canonical(merged.snapshot)!==origin||companyMatch.adopt||(bootstrap&&State.fieldSync?.companyId!==fieldCompanyId)){
         await ProfileManager.makeCheckpoint('before-windows-peer-sync');
+        if(ProfileManager.activeId!==initialProfile||this.blocked()||core.canonical(this.snapshot())!==origin)throw Error('تغيّر دفتر الهاتف أثناء النقل؛ أعد المزامنة');
         const notificationBefore=clone(State.alertCenter||{entries:[]});
         const incoming=window.TiqanyPeerEvents?.records(stateBefore,merged.snapshot,'windows');
         core.apply(State,merged.snapshot);
@@ -598,9 +600,9 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
     }
     finally{this.busy=false;this.renderConnection();}
   },
-  async handleRequest(request){if(!desktop)return;
+  async handleRequest(request, respond){if(!desktop)return;
     const {requestId,data}=request;
-    const reply=x=>WindowsPeerSync.reply(requestId,x);
+    const reply=respond || (x=>WindowsPeerSync.reply(requestId,x));
     try{
       if(data?.appVersion!=='3.5.153'){
         const warning='اختلاف إصدار التطبيقات: يجب تحديث جميع الأجهزة إلى الإصدار 3.5.153 قبل الاتصال أو المزامنة. لم تُنقل أي بيانات.';

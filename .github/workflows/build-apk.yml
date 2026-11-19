@@ -16,6 +16,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+      - name: Verify resumable ledger transport and accounting under load
+        run: node --test tests/peer-stream.test.cjs
       - name: Java 17
         uses: actions/setup-java@v4
         with:
@@ -110,6 +112,7 @@ jobs:
       - name: Verify illustrated controls and header geometry
         run: |
           python -m pip install playwright==1.55.0
+          python tests/check_peer_resume.py app/src/main/assets/www
           python tests/check_controls.py . manager
           python tests/check_cash_settings.py app/src/main/assets/www
           node --check app/src/main/assets/www/static/ta-themes-154.js

@@ -255,17 +255,52 @@ function itemStock(s,id,warehouse){
  }
  return total;
 }
+function ledgerStock(snapshot){
+ const items=new Map(snapshot.items.map(item=>[item.id,item]));
+ const stock=new Map();
+ function add(warehouse,id,amount){
+   let balances=stock.get(warehouse);
+   if(!balances){balances=new Map();stock.set(warehouse,balances);}
+   balances.set(id,(balances.get(id)||0)+amount);
+ }
+ for(const item of snapshot.items)add('wh_main',item.id,Number(item.openingStockBase)||0);
+ for(const inv of snapshot.invoices){
+   const sale=inv.type==='sale'||inv.type==='sale_return';
+   const sign=inv.type==='purchase'||inv.type==='sale_return'?1:inv.type==='sale'||inv.type==='purchase_return'?-1:0;
+   if(!sign)continue;
+   const warehouse=inv.warehouseId||'wh_main';
+   for(const row of inv.rows||[]){
+     const qty=(Number(row.qty)||0)/(Number(row.unitFactor)>0?Number(row.unitFactor):1);
+     add(warehouse,row.itemId,sign*qty);
+     if(!sale)continue;
+     const kit=items.get(row.itemId);
+     const parts=Array.isArray(row.bomComponents)?row.bomComponents:(kit?.isBundle?kit.bundleComponents:null);
+     if(!Array.isArray(parts))continue;
+     const seen=new Set([row.itemId]);
+     for(const part of parts){
+       if(seen.has(part.itemId))continue;
+       seen.add(part.itemId);
+       add(warehouse,part.itemId,sign*qty*(Number(part.quantity)||0));
+     }
+   }
+ }
+ for(const t of snapshot.transfers){
+   const qty=Number(t.quantityBase)||0;
+   add(t.fromWarehouseId,t.itemId,-qty);add(t.toWarehouseId,t.itemId,qty);
+ }
+ return (id,wh)=>items.has(id)?(stock.get(wh)?.get(id)||0):0;
+}
 function negativeNewStock(local,remote,merged){
  if(merged.sharedSettings.allowNegativeStockSales===true)return [];
- const issues=[];
+ const combined=ledgerStock(merged), issues=[];
+ let phone,computer;
  for(const item of merged.items){if(item.isBundle)continue;
-  for(const wh of merged.warehouses){
-   const combined=itemStock(merged,item.id,wh.id);
-   if(combined>=-1e-5)continue;
-   // Only flag a new overdraw introduced by the merge, not an old negative stock.
-   if(itemStock(local,item.id,wh.id)>=-1e-5&&itemStock(remote,item.id,wh.id)>=-1e-5)
-     issues.push('inventory: '+String(item.name||item.id).slice(0,55)+' @ '+wh.id);
-  }
+   for(const wh of merged.warehouses){
+     if(combined(item.id,wh.id)>=-1e-5)continue;
+     phone??=ledgerStock(local);computer??=ledgerStock(remote);
+     if(phone(item.id,wh.id)>=-1e-5&&computer(item.id,wh.id)>=-1e-5)
+       issues.push('inventory: '+String(item.name||item.id).slice(0,55)+' @ '+wh.id);
+   }
  }
  return issues;
 }
@@ -274,7 +309,7 @@ function merge(base,local,remote,resolutions={},history=[]){
  const out={},conflicts=[],details=[],resolved=[],stats={added:0,updated:0,deleted:0,renumbered:0,deduplicated:0,settingsFromDesktop:0};
  for(const type of COLLECTIONS){
   const b=keyed(type,base?.[type]||[]),a=keyed(type,local[type]||[]),r=keyed(type,remote[type]||[]);
-  const order=[...r.keys(),...a.keys().filter(k=>!r.has(k)),...b.keys().filter(k=>!r.has(k)&&!a.has(k))];
+  const order=[...r.keys(),...Array.from(a.keys()).filter(k=>!r.has(k)),...Array.from(b.keys()).filter(k=>!r.has(k)&&!a.has(k))];
   const merged=[];
   for(const id of order){
    const B=b.get(id),A=a.get(id),R=r.get(id);
@@ -371,7 +406,7 @@ function merge(base,local,remote,resolutions={},history=[]){
  for(const type of ['invoices','vouchers']){
   const used=new Map(),all=out[type],remoteKeys=new Set(remote[type].map(v=>recordKey(type,v)));
   const numberOf=v=>{const n=Number(v.number);return Number.isSafeInteger(n)&&n>0?n:null;};
-  let next=Math.max(0,...all.map(v=>numberOf(v)||0));
+  let next=all.reduce((max,v)=>Math.max(max,numberOf(v)||0),0);
   // prioritize remote (Windows) to avoid renumbering already printed desktop receipts
   const prioritized=all.slice().sort((x,y)=>Number(remoteKeys.has(recordKey(type,y)))-Number(remoteKeys.has(recordKey(type,x))));
   for(const item of prioritized){

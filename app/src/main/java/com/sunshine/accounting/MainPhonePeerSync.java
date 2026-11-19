@@ -179,15 +179,17 @@ public final class MainPhonePeerSync {
             // After Wi-Fi changes, discover the previously paired computer before trying old IP.
             InetSocketAddress discovered=networkChanged?discover(serverId):null;
             InetSocketAddress remembered=new InetSocketAddress(host,port);
-            InetSocketAddress[] candidates=discovered==null
-                ? new InetSocketAddress[]{remembered,discover(serverId)}
-                : new InetSocketAddress[]{discovered,remembered};
+            boolean streaming="stream".equals(new JSONObject(raw).optString("action"));
+            // Try the cached address immediately; a healthy link needs no new discovery per page.
             Exception failure=null;boolean succeeded=false;
-            for(InetSocketAddress target:candidates){
+            for(int attempt=0;attempt<2&&!succeeded;attempt++){
+                InetSocketAddress target;
+                if(discovered!=null) target=attempt==0?discovered:remembered;
+                else target=attempt==0?remembered:discover(serverId);
                 if(target==null||succeeded)continue;
                 try(Socket sock=new Socket()){
                     bindToWifi(sock);
-                    sock.connect(target,4500);sock.setSoTimeout(18500);
+                    sock.connect(target,4500);sock.setSoTimeout(streaming?125000:18500);
                     DataOutputStream out=new DataOutputStream(sock.getOutputStream());out.writeInt(request.length);out.write(request);out.flush();
                     DataInputStream in=new DataInputStream(sock.getInputStream());int size=in.readInt();
                     if(size<1||size>MAX_FRAME)throw new Exception("حجم الاستجابة غير صالح");
