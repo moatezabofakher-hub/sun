@@ -31,6 +31,18 @@ with sync_playwright() as pw:
         page.evaluate("""()=>{State.settings.companyName='QA';State.settings.companySetupCompleted=true;
             document.querySelector('#ta-company-setup-128')?.remove();
             AppNav.stack=[{screen:'settings',params:{}}];AppNav.renderCurrent();}""")
+        # The header is for the transaction/invoice default USD rate, not
+        # the all-currency or trading buy/sell quotation editors.
+        page.evaluate("document.getElementById('topBarRateButton').click()")
+        assert page.locator('#modalRateInput').is_visible(), 'Old transaction rate modal is missing'
+        assert page.locator('[data-ta150-currency-rates]').count()==0
+        assert page.locator('[id^="ta147Buy_"]').count()==0
+        assert 'تحديث سعر الصرف اللحظي' in page.locator('#modalContainer').inner_text()
+        page.evaluate("UI.forceCloseModal()")
+        page.evaluate("TiqanyFx147.generalInvoiceRateModal()")
+        assert page.locator('[data-ta150-currency-rates]').is_visible(), 'Separate all-currency general rates were lost'
+        assert page.locator('#modalRateInput').count()==0
+        page.evaluate("UI.forceCloseModal()")
         category=page.locator('.ta-category-link[data-category="invoices"]')
         category.click()
         assert page.locator('#taSettingsPageHeader').is_visible()
