@@ -501,8 +501,8 @@ html[data-ta-theme="royal"] body :is(nav.ta-bottom-nav,#bottom.bottom) button:is
     text-shadow:none!important;
     -webkit-text-stroke:0!important;
     filter:none!important;
-    color:#f8fcff!important;
-    -webkit-text-fill-color:#f8fcff!important;
+    color:#173c50!important;
+    -webkit-text-fill-color:#173c50!important;
   }
   html body #bottom.bottom button > span {
     flex:0 0 auto!important;
@@ -532,5 +532,21 @@ html[data-ta-theme="royal"] body :is(nav.ta-bottom-nav,#bottom.bottom) button:is
   html[data-ta-theme="royal"] body #screen :is(.tiny,.muted,.stat small,.label){
     color:#c5e2ee!important;
     -webkit-text-fill-color:#c5e2ee!important;
+  }
+}
+
+/* Light employee dock labels contrast with pale cards; dark/selected buttons keep light text. */
+@media screen {
+  html[data-ta-theme="royal"] body #bottom.bottom button {
+    color:#f5fbff!important;
+    -webkit-text-fill-color:#f5fbff!important;
+  }
+  html body #bottom.bottom button:is(.active,.is-active,[aria-current="page"]) {
+    color:#f8fcff!important;
+    -webkit-text-fill-color:#f8fcff!important;
+  }
+  html[data-ta-theme="royal"] body #bottom.bottom button:is(.active,.is-active,[aria-current="page"]) {
+    color:#b8ffeb!important;
+    -webkit-text-fill-color:#b8ffeb!important;
   }
 }
