@@ -10,7 +10,7 @@ employee='field_agent' in root.parts
 exe=shutil.which('google-chrome') or shutil.which('chromium') or str(Path(os.environ.get('PROGRAMFILES(X86)',''))/'Microsoft/Edge/Application/msedge.exe')
 assert (root/'static/ta-themes-154.js').is_file()
 assert (root/'static/ta-themes-154.css').is_file()
-assets=['desktop-link','managers-link','profiles','company','backup','themes','activation']
+assets=['desktop-link','managers-link','profiles','company','backup','themes','activation','data-reset']
 for asset in assets:
     assert (root/'static'/('ta-art-'+asset+'-154.svg')).is_file(),asset
 with sync_playwright() as playwright:
