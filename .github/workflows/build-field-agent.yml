@@ -8,6 +8,7 @@ on:
       - 'field_agent/**'
       - 'tests/check_controls.py'
       - 'tests/check_cash_settings.py'
+      - 'tests/check_themes_154.py'
       - 'tests/test_lan_sync_3528.js'
       - 'app/src/main/assets/www/static/ta-fx-buy-sell-147.js'
       - 'tests/release138-no-outside-dismiss.test.js'
