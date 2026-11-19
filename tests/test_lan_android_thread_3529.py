@@ -23,10 +23,13 @@ stub={
 'android/os/Looper.java':'package android.os; public class Looper {private static final Thread MAIN=Thread.currentThread();private static final Looper INSTANCE=new Looper();public static Looper myLooper(){return Thread.currentThread()==MAIN?INSTANCE:null;}public static Looper getMainLooper(){return INSTANCE;}}',
 'android/webkit/WebView.java': 'package android.webkit;public class WebView {public String getUrl(){throw new IllegalStateException("getUrl must not be called by JavaBridge");}public void evaluateJavascript(String js,Object cb){} }',
 'android/webkit/JavascriptInterface.java':'package android.webkit;import java.lang.annotation.*;@Retention(RetentionPolicy.RUNTIME) @Target(ElementType.METHOD) public @interface JavascriptInterface {}',
-'android/net/Network.java':'package android.net;public class Network{}',
-'android/net/NetworkCapabilities.java':'package android.net;public class NetworkCapabilities{public static final int TRANSPORT_WIFI=1;}',
+'android/net/Network.java':'package android.net;public class Network{public java.net.Socket lastSocket; public void bindSocket(java.net.Socket s) throws java.io.IOException{lastSocket=s;}}',
+'android/net/NetworkCapabilities.java':'package android.net;public class NetworkCapabilities{public static final int TRANSPORT_WIFI=1, TRANSPORT_VPN=4; public boolean hasTransport(int t){return t==TRANSPORT_WIFI;}}',
+'android/net/LinkProperties.java':'package android.net;public class LinkProperties{public java.util.List<LinkAddress> getLinkAddresses(){return java.util.Collections.emptyList();}}',
+'android/net/LinkAddress.java':'package android.net;public class LinkAddress{public java.net.InetAddress getAddress(){return null;} public int getPrefixLength(){return 24;}}',
+'org/json/JSONArray.java':'package org.json;public class JSONArray{public JSONArray(java.util.Collection<?> c){} public String toString(){return "[]";}}',
 'android/net/NetworkRequest.java':'package android.net;public class NetworkRequest{public static class Builder{public Builder addTransportType(int t){return this;} public NetworkRequest build(){return new NetworkRequest();}}}',
-'android/net/ConnectivityManager.java':'package android.net;public class ConnectivityManager{public static class NetworkCallback{public void onAvailable(Network n){} public void onLost(Network n){}}public void registerNetworkCallback(NetworkRequest r,NetworkCallback c){} public void unregisterNetworkCallback(NetworkCallback c){} }',
+'android/net/ConnectivityManager.java':'package android.net;public class ConnectivityManager{public Network[] getAllNetworks(){return new Network[0];} public NetworkCapabilities getNetworkCapabilities(Network n){return new NetworkCapabilities();} public LinkProperties getLinkProperties(Network n){return new LinkProperties();} public static class NetworkCallback{public void onAvailable(Network n){} public void onLost(Network n){}}public void registerNetworkCallback(NetworkRequest r,NetworkCallback c){} public void unregisterNetworkCallback(NetworkCallback c){} }',
 'android/net/wifi/WifiManager.java':'package android.net.wifi;public class WifiManager{public static class MulticastLock {public void setReferenceCounted(boolean b){}public void acquire(){}public void release(){}public boolean isHeld(){return false;}}public MulticastLock createMulticastLock(String n){return new MulticastLock();}}',
 'android/net/nsd/NsdServiceInfo.java':'package android.net.nsd;import java.net.InetAddress;public class NsdServiceInfo{private String name;private int port;public void setServiceType(String s){}public void setServiceName(String s){name=s;}public void setPort(int p){port=p;}public String getServiceName(){return name;}public int getPort(){return port;}public InetAddress getHost(){return null;}}',
 'android/net/nsd/NsdManager.java':'package android.net.nsd;public class NsdManager{public static final int PROTOCOL_DNS_SD=1;public interface RegistrationListener{void onServiceRegistered(NsdServiceInfo s);void onRegistrationFailed(NsdServiceInfo s,int c);void onServiceUnregistered(NsdServiceInfo s);void onUnregistrationFailed(NsdServiceInfo s,int c);}public interface DiscoveryListener{void onDiscoveryStarted(String s);void onServiceFound(NsdServiceInfo n);void onServiceLost(NsdServiceInfo n);void onDiscoveryStopped(String s);void onStartDiscoveryFailed(String s,int c);void onStopDiscoveryFailed(String s,int c);}public interface ResolveListener{void onResolveFailed(NsdServiceInfo i,int c);void onServiceResolved(NsdServiceInfo s);}public void registerService(NsdServiceInfo i,int p,RegistrationListener l){l.onServiceRegistered(i);}public void unregisterService(RegistrationListener l){}public void discoverServices(String s,int p,DiscoveryListener l){l.onStartDiscoveryFailed(s,0);}public void stopServiceDiscovery(DiscoveryListener l){}public void resolveService(NsdServiceInfo i,ResolveListener l){} }',
@@ -97,8 +100,12 @@ for module in ['app','field_agent']:
             p=d/name;p.parent.mkdir(parents=True,exist_ok=True);p.write_text(source,'utf-8')
         bridge=root/module/'src/main/java/com/sunshine/accounting/NativeLocalSync.java'
         cmd=['javac','-d',str(d/'classes'),*[str(p) for p in d.rglob('*.java')],str(bridge)]
+        if module == 'field_agent':
+            cmd.extend([str(bridge.with_name('EmployeeLanRoute.java')), str(root/'tests/EmployeeHotspotRegression.java')])
         x=subprocess.run(cmd,capture_output=True,text=True,timeout=20)
         assert x.returncode==0,(module,x.stderr)
         x=subprocess.run(['java','-cp',str(d/'classes'),'com.sunshine.accounting.Regression'],capture_output=True,text=True,timeout=20)
         assert x.returncode==0,(module,x.stderr,x.stdout)
         print(module,x.stdout.strip())
+        if module == 'field_agent':
+            subprocess.run(['java','-cp',str(d/'classes'),'com.sunshine.accounting.EmployeeHotspotRegression'],check=True,timeout=15)

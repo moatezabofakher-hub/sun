@@ -13,6 +13,7 @@
  const oldSetup=A.renderSetup.bind(A),oldActivation=A.renderActivation.bind(A);
  const controls=()=>`<div class="panel"><h3>🔗 الربط التلقائي مع التطبيق الرئيسي</h3>
    <p class="tiny">شغّل التطبيق الرئيسي على شبكة Wi-Fi نفسها؛ سيظهر طلب جهازك للإدارة تلقائياً. بعد مطابقة رمز الأمان وموافقة المسؤول تُستلم بيانات موظف البيع وتُفعّل تلقائياً، دون ملفات أو رموز طويلة.</p>
+   <div data-agent-network role="group" aria-label="عناوين الاتصال"></div>
    <div id="agentPairStatus" class="field" aria-live="polite">جارٍ البحث عن الإدارة على الشبكة المحلية…</div>
    <div id="agentPairCode" class="hide" style="text-align:center;border:1px solid #99d6cd;border-radius:14px;padding:12px;margin-top:10px;background:#eefefa"><p class="tiny" style="margin:0">طابق هذا الرقم مع الرقم لدى الإدارة قبل الموافقة</p><strong id="agentPairCodeDigits" style="display:block;direction:ltr;letter-spacing:.2em;font-size:28px;color:#056e68"></strong></div>
    <button class="primary ta-agent-primary-scanner" onclick="AgentPairing.scanQr()"><span class="ta-agent-scanner-icon"><i class="fas fa-qrcode"></i></span> مسح الباركود الرئيسي</button>
@@ -23,7 +24,30 @@
  const Pair={
    requestId:null,ephemeral:null,sessionKey:null,companyId:'',companyName:'',code:'',waiting:false,inFlight:false,done:false,
    timer:null,watchdog:null,startedAt:0,status:'سيبدأ البحث عن التطبيق الرئيسي تلقائياً…',
-   paint(){const status=document.getElementById('agentPairStatus');if(status)status.textContent=this.status;
+   paintNetwork(){
+     const panel=document.querySelector?.('[data-agent-network]');
+     if(!panel)return;
+     let ips=[];
+     try{ips=JSON.parse(window.AndroidLocalSync?.employeeLanAddresses?.()||'[]');}catch(_){}
+     if(!Array.isArray(ips))ips=[];
+     const qr=A.state?.localQrTarget;
+     const row=(label,value)=>{
+       const p=document.createElement('p');p.className='tiny';
+       p.append(label+' ');
+       const ip=document.createElement('bdi');ip.dir='ltr';ip.textContent=value;p.append(ip);
+       return p;
+     };
+     const nodes=[];
+     if(ips.length)nodes.push(row(ips.length===1?'عنوان هاتف الموظف':'عناوين هاتف الموظف',ips.join(' / ')));
+     else{
+       const p=document.createElement('p');p.className='tiny';
+       p.textContent='عنوان الهاتف غير ظاهر. إذا كان الهاتف يوزّع نقطة الاتصال، يظهر عنوانه على الكمبيوتر في خانة البوابة الافتراضية لشبكة Wi-Fi.';
+       nodes.push(p);
+     }
+     if(qr?.host)nodes.push(row('عنوان الإدارة في آخر باركود',qr.host+':'+qr.port));
+     panel.replaceChildren(...nodes);
+   },
+   paint(){this.paintNetwork();const status=document.getElementById('agentPairStatus');if(status)status.textContent=this.status;
      const box=document.getElementById('agentPairCode');if(box)box.classList.toggle('hide',!this.code);
      const code=document.getElementById('agentPairCodeDigits');if(code)code.textContent=this.code;
    },
@@ -66,7 +90,7 @@
      const msg={pairingProtocol:P.VERSION,kind,requestId:this.requestId,deviceId:A.state.deviceId};
      if(publicKey)msg.publicKey=publicKey;
      if(kind==='confirm')return; // confirm is sent separately with encrypted acknowledgement
-     try {window.AndroidLocalSync.requestPairing(this.companyId,JSON.stringify(msg));}
+     try {window.AndroidLocalSync.requestPairing(this.companyId||A.state.localQrTarget?.company||'',JSON.stringify(msg));}
      catch(e){this.inFlight=false;this.status='تعذر إرسال الطلب: '+e.message;this.paint();this.schedule(12000);return;}
      this.watchdog=setTimeout(()=>{if(this.inFlight){this.inFlight=false;this.status='انتهت مهلة البحث؛ ستُعاد المحاولة تلقائياً';this.paint();this.schedule(12000);}},49000);
    },
@@ -77,9 +101,11 @@
      this.send(this.companyId?'poll':'hello',this.companyId?null:this.ephemeral?.publicKey);
    },
    async onNetworkReply(raw){
+     let result;
+     try{result=JSON.parse(raw);}catch(_){return;}
+     if(result.requestId && result.requestId!==this.requestId)return;
      clearTimeout(this.watchdog);this.inFlight=false;
      try{
-       const result=JSON.parse(raw);
        if(result.error)throw Error(result.error);
        const data=JSON.parse(result.data);
        if(data.pairingProtocol!==P.VERSION||data.requestId!==this.requestId)throw Error('رد الربط لا يطابق الطلب');
@@ -87,7 +113,8 @@
        if(data.kind==='done'){this.done=true;return;}
        if(!['pending','approved'].includes(data.kind))throw Error('رد غير متوقع');
        if(!/^company_[a-zA-Z0-9_-]{8,128}$/.test(data.companyId||''))throw Error('تعريف الشركة غير صحيح');
-       if(this.companyId && this.companyId!==data.companyId)throw Error('تغيّر التطبيق الرئيسي أثناء الربط');
+       const expectedCompany=this.companyId||A.state.localQrTarget?.company;
+       if(expectedCompany && expectedCompany!==data.companyId)throw Error('تغيّر التطبيق الرئيسي أثناء الربط');
        this.companyId=data.companyId;this.companyName=String(data.companyName||'المركز الرئيسي').slice(0,100);
        if(!this.sessionKey){
          if(!P.validPub(data.managerPublic))throw Error('مفتاح الإدارة غير صحيح');
@@ -139,7 +166,7 @@
    }
  };
  window.AgentPairing=Pair;
- document.addEventListener('visibilitychange',()=>{if(!document.hidden && !Pair.done && A.state)A.active().then(active=>{if(!active)Pair.schedule(1000);}).catch(()=>{});});
+ document.addEventListener('visibilitychange',()=>{if(!document.hidden)Pair.paintNetwork();if(!document.hidden && !Pair.done && A.state)A.active().then(active=>{if(!active)Pair.schedule(1000);}).catch(()=>{});});
  const init=A.init.bind(A);
  A.init=async function(){await init();
    const qr=this.state?.localQrTarget;

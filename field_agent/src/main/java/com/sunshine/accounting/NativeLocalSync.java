@@ -24,6 +24,11 @@ import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.NetworkInterface;
+import java.net.InterfaceAddress;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.LinkedHashSet;
+import org.json.JSONArray;
 import java.util.Enumeration;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -115,7 +120,7 @@ public final class NativeLocalSync {
         // The next sync probes it before starting NSD discovery, but never assumes
         // a reachable socket is authenticated until the encrypted ACK is verified.
         lastConfirmedAt=0;
-        js("window.Agent&&Agent.scheduleAutoSync&&Agent.scheduleAutoSync(300);");
+        js("window.Agent&&Agent.scheduleAutoSync&&Agent.scheduleAutoSync(300);if(window.AgentPairing)AgentPairing.paintNetwork();");
     }
 
     // JavascriptInterface methods execute on WebView's private JavaBridge thread,
@@ -299,9 +304,9 @@ public final class NativeLocalSync {
         js("typeof Agent!=='undefined' && Agent.onLocalSyncResult(" + JSONObject.quote(result.toString()) + ");");
     }
 
-    private void pairingResult(String error, String data) {
+    private void pairingResult(String requestId, String error, String data) {
         final JSONObject result = new JSONObject();
-        try { if (error == null) result.put("data", data); else result.put("error", error); }
+        try { result.put("requestId", requestId); if (error == null) result.put("data", data); else result.put("error", error); }
         catch (Exception ignored) { }
         js("typeof AgentPairing!=='undefined' && AgentPairing.onNetworkReply(" + JSONObject.quote(result.toString()) + ");");
     }
@@ -466,16 +471,16 @@ public final class NativeLocalSync {
                         // A probe is only a locator, not authentication.
                         InetSocketAddress stable = failedDestination == null ? null :
                             new InetSocketAddress(failedDestination.getHostString(), PREFERRED_LAN_PORT);
-                        destination = stable != null && !stable.equals(failedDestination)
+                        InetSocketAddress qr = companyId.equals(directCompany) ? directEndpoint : null;
+                        if (qr != null && !qr.equals(failedDestination) && probeManager(qr, companyId)) destination = qr;
+                        else destination = stable != null && !stable.equals(failedDestination)
                             && probeManager(stable, companyId) ? stable : findServer(companyId, failedDestination);
                     }
                     if (destination == null || destination.equals(failedDestination)) {
                         lastError = new IOException("لم يُعثر على المدير المرتبط على شبكة Wi-Fi. تحقق من أن هاتف المدير مفتوح وأن الراوتر لا يمنع التواصل بين الأجهزة (AP Isolation)؛ لا حاجة لإعادة تصوير QR.");
                         break;
                     }
-                    try (Socket socket = new Socket()) {
-                        bindToWifiIfAvailable(socket);
-                        socket.connect(destination, 6000);
+                    try (Socket socket = connectLocal(destination, 6000)) {
                         socket.setSoTimeout(44000);
                         DataOutputStream output = new DataOutputStream(socket.getOutputStream());
                         byte[] bytes = encryptedRequest.getBytes(StandardCharsets.UTF_8);
@@ -512,24 +517,84 @@ public final class NativeLocalSync {
         });
     }
 
-    /** Local sockets must follow the Wi-Fi path even when a full-tunnel VPN owns the default route.
-     * This does not bypass VPN policy: if LAN is blocked, the connection still fails normally. */
-    private void bindToWifiIfAvailable(Socket socket) {
-        if (connectivity == null || socket == null) return;
-        try {
-            // Public Android networking APIs through reflection keep the simple offline
-            // Java regression harness compatible with older SDK stubs.
-            Object networks = android.net.ConnectivityManager.class.getMethod("getAllNetworks").invoke(connectivity);
-            if (!(networks instanceof Object[])) return;
-            for (Object network : (Object[]) networks) {
-                Object caps = android.net.ConnectivityManager.class.getMethod("getNetworkCapabilities", Network.class).invoke(connectivity, network);
-                if (caps != null && Boolean.TRUE.equals(caps.getClass().getMethod("hasTransport", int.class)
-                        .invoke(caps, NetworkCapabilities.TRANSPORT_WIFI))) {
-                    network.getClass().getMethod("bindSocket", Socket.class).invoke(network, socket);
-                    return;
+    private List<EmployeeLanRoute<Network>> localRoutes() {
+        List<EmployeeLanRoute<Network>> routes = new ArrayList<>();
+        if (connectivity != null) {
+            try {
+                for (Network network : connectivity.getAllNetworks()) {
+                    NetworkCapabilities caps = connectivity.getNetworkCapabilities(network);
+                    if (caps == null || !caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
+                            || caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) continue;
+                    LinkProperties links = connectivity.getLinkProperties(network);
+                    if (links == null) continue;
+                    for (LinkAddress link : links.getLinkAddresses()) {
+                        InetAddress ip = link.getAddress();
+                        if (ip instanceof java.net.Inet4Address && ip.isSiteLocalAddress())
+                            routes.add(new EmployeeLanRoute<>(ip, link.getPrefixLength(), network));
+                    }
                 }
+            } catch (RuntimeException ignored) { /* Network may disappear during enumeration. */ }
+        }
+        // Android may expose the hotspot only as a downstream interface, even with Wi-Fi sharing active.
+        try {
+            Enumeration<NetworkInterface> all = NetworkInterface.getNetworkInterfaces();
+            while (all != null && all.hasMoreElements()) {
+                NetworkInterface iface = all.nextElement();
+                if (!EmployeeLanRoute.isWifiInterface(iface.getName())) continue;
+                try {
+                    // Some Android builds expose the address but withhold its prefix.
+                    // Keep that address visible without using it to force a route.
+                    for (InetAddress ip : java.util.Collections.list(iface.getInetAddresses())) {
+                        if (ip instanceof java.net.Inet4Address && ip.isSiteLocalAddress())
+                            routes.add(new EmployeeLanRoute<>(ip, 0, null));
+                    }
+                    for (InterfaceAddress link : iface.getInterfaceAddresses()) {
+                        if (link == null) continue;
+                        InetAddress ip = link.getAddress();
+                        if (ip instanceof java.net.Inet4Address && ip.isSiteLocalAddress())
+                            routes.add(new EmployeeLanRoute<>(ip, link.getNetworkPrefixLength(), null));
+                    }
+                } catch (RuntimeException ignored) { /* Other interfaces may remain visible. */ }
             }
-        } catch (Exception ignored) { /* keep normal OS route as fallback */ }
+        } catch (Exception ignored) { /* Use the OS route if interface details are restricted. */ }
+        return routes;
+    }
+
+    @JavascriptInterface
+    public String employeeLanAddresses() {
+        if (manager || !isTrustedPage()) return "[]";
+        LinkedHashSet<String> addresses = new LinkedHashSet<>();
+        for (EmployeeLanRoute<Network> route : localRoutes()) addresses.add(route.address.getHostAddress());
+        return new JSONArray(addresses).toString();
+    }
+
+    private static void bindLocal(Socket socket, EmployeeLanRoute<Network> route) throws IOException {
+        if (route == null) return;
+        if (route.network != null) route.network.bindSocket(socket);
+        else socket.bind(new InetSocketAddress(route.address, 0));
+    }
+
+    private Socket connectLocal(InetSocketAddress target, int timeout) throws IOException {
+        EmployeeLanRoute<Network> route = EmployeeLanRoute.forPeer(localRoutes(), target.getAddress());
+        try {
+            return openSocket(target, timeout, route);
+        } catch (IOException failure) {
+            if (route == null) throw failure;
+            // An interface may have changed since enumeration. Retry the OS route before any bytes are sent.
+            return openSocket(target, timeout, null);
+        }
+    }
+
+    private static Socket openSocket(InetSocketAddress target, int timeout, EmployeeLanRoute<Network> route) throws IOException {
+        Socket socket = new Socket();
+        try {
+            bindLocal(socket, route);
+            socket.connect(target, timeout);
+            return socket;
+        } catch (IOException | RuntimeException e) {
+            socket.close();
+            throw e;
+        }
     }
 
     /** Discover the manager automatically and exchange onboarding messages.
@@ -537,25 +602,40 @@ public final class NativeLocalSync {
     @JavascriptInterface
     public void requestPairing(String companyId, String requestJson) {
         if (manager || closing || !isTrustedPage()) return;
-        if (companyId == null || !(companyId.isEmpty() || isCompany(companyId)) || requestJson == null || requestJson.length() > 12000) {
-            pairingResult("طلب الربط غير صحيح", null); return;
-        }
+        String parsedId = "";
         try {
+            if (companyId == null || !(companyId.isEmpty() || isCompany(companyId)) || requestJson == null
+                    || requestJson.length() > 12000) throw new IOException();
             JSONObject packet = new JSONObject(requestJson);
-            if (!"TA-PAIR-1".equals(packet.optString("pairingProtocol"))) throw new IOException("invalid protocol");
-            if (!java.util.Arrays.asList("hello", "poll", "confirm").contains(packet.optString("kind"))) throw new IOException("invalid request");
-        } catch (Exception e) { pairingResult("طلب الربط غير صحيح", null); return; }
-        if (!pairingSending.compareAndSet(false, true)) return;
+            parsedId = packet.optString("requestId");
+            if (!"TA-PAIR-1".equals(packet.optString("pairingProtocol"))
+                    || !java.util.Arrays.asList("hello", "poll", "confirm").contains(packet.optString("kind")))
+                throw new IOException();
+        } catch (Exception e) { pairingResult(parsedId, "طلب الربط غير صحيح", null); return; }
+        final String requestId = parsedId;
+        if (!pairingSending.compareAndSet(false, true)) {
+            pairingResult(requestId, "طلب الربط السابق قيد الإنهاء، ستُعاد المحاولة تلقائياً", null);
+            return;
+        }
         io.execute(() -> {
             try {
-                InetSocketAddress target = directEndpoint != null && (companyId.isEmpty() || companyId.equals(directCompany))
-                    ? directEndpoint : findServer(companyId.isEmpty() ? null : companyId);
-                if (target != null && !probeManager(target, companyId) && !companyId.isEmpty())
-                    target = findServer(companyId, target);
-                if (target == null) throw new IOException("لم يُعثر على التطبيق الرئيسي على شبكة Wi-Fi المحلية");
-                try (Socket socket = new Socket()) {
-                    bindToWifiIfAvailable(socket);
-                    socket.connect(target, 5500);
+                InetSocketAddress scanned = directEndpoint;
+                String company = companyId.isEmpty() && scanned != null ? directCompany : companyId;
+                if (!company.equals(directCompany)) scanned = null;
+                InetSocketAddress target = scanned != null ? scanned : findServer(company.isEmpty() ? null : company);
+                if (target == null) throw new IOException("لم يُعثر على الإدارة. صِل الكمبيوتر بشبكة الهاتف وافتح باركود ربط موظف البيع.");
+                Socket connected;
+                try {
+                    connected = connectLocal(target, 5500);
+                } catch (IOException unavailable) {
+                    // Only retry before sending a frame, and only for the QR-selected company's advertised service.
+                    InetSocketAddress alternate = scanned == null || company.isEmpty() ? null : advertisedServer(company, scanned);
+                    if (alternate == null) throw new IOException("تعذّر الوصول إلى " + target.getHostString() + ":" + target.getPort()
+                            + ". تحقق من اتصال الكمبيوتر بنقطة الهاتف واختر عنوان Wi-Fi للكمبيوتر في باركود موظف البيع.", unavailable);
+                    connected = connectLocal(alternate, 5500);
+                    if (directEndpoint == scanned && company.equals(directCompany)) directEndpoint = alternate;
+                }
+                try (Socket socket = connected) {
                     socket.setSoTimeout(43000);
                     DataOutputStream out = new DataOutputStream(socket.getOutputStream());
                     byte[] bytes = requestJson.getBytes(StandardCharsets.UTF_8);
@@ -564,9 +644,9 @@ public final class NativeLocalSync {
                     int size = in.readInt();
                     if (size <= 0 || size > MAX_FRAME) throw new IOException("رد ربط غير صحيح");
                     byte[] answer = new byte[size];in.readFully(answer);
-                    pairingResult(null, new String(answer, StandardCharsets.UTF_8));
+                    pairingResult(requestId, null, new String(answer, StandardCharsets.UTF_8));
                 }
-            } catch (Exception e) { pairingResult(e.getMessage() == null ? "تعذر ربط الجهاز" : e.getMessage(), null); }
+            } catch (Exception e) { pairingResult(requestId, e.getMessage() == null ? "تعذر ربط الجهاز" : e.getMessage(), null); }
             finally { pairingSending.set(false); }
         });
     }
@@ -577,6 +657,12 @@ public final class NativeLocalSync {
 
     /** Ignore the manager that just failed when seeking its standby replacement. */
     private InetSocketAddress findServer(String companyId, InetSocketAddress excluded) throws InterruptedException {
+        InetSocketAddress result = advertisedServer(companyId, excluded);
+        if (result != null || companyId == null) return result;
+        return findOnLocalSubnet(companyId, excluded);
+    }
+
+    private InetSocketAddress advertisedServer(String companyId, InetSocketAddress excluded) throws InterruptedException {
         final CountDownLatch completed = new CountDownLatch(1);
         final AtomicBoolean resolving = new AtomicBoolean(false);
         final AtomicReference<InetSocketAddress> address = new AtomicReference<>();
@@ -612,19 +698,18 @@ public final class NativeLocalSync {
             try { nsd.stopServiceDiscovery(discovery); } catch (Exception ignored) { }
             releaseMulticast();
         }
-        InetSocketAddress result = address.get();
-        if (result != null || companyId == null) return result;
-        // Some routers suppress mDNS. On a previously paired company only,
-        // query our own Wi-Fi /24 for the dedicated TCP service. A responding
-        // endpoint is still untrusted until its encrypted ACK is validated.
-        return findOnLocalSubnet(companyId, excluded);
+        return address.get();
     }
 
     /** Probe a single candidate without sending invoices, passwords or tokens. */
     private boolean probeManager(InetSocketAddress endpoint, String companyId) {
+        return probeManager(endpoint, companyId, localRoutes());
+    }
+
+    private boolean probeManager(InetSocketAddress endpoint, String companyId, List<EmployeeLanRoute<Network>> routes) {
         if (endpoint == null || !isCompany(companyId) || !safeLocalAddress(endpoint.getHostString())) return false;
         try (Socket socket = new Socket()) {
-            bindToWifiIfAvailable(socket);
+            bindLocal(socket, EmployeeLanRoute.forPeer(routes, endpoint.getAddress()));
             socket.connect(endpoint, 360);
             socket.setSoTimeout(650);
             JSONObject hello = new JSONObject().put("discoveryProtocol", DISCOVERY_PROTOCOL)
@@ -648,7 +733,8 @@ public final class NativeLocalSync {
         try {
             for (Network network: connectivity.getAllNetworks()) {
                 NetworkCapabilities caps = connectivity.getNetworkCapabilities(network);
-                if (caps == null || !caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)) continue;
+                if (caps == null || !caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
+                        || caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) continue;
                 LinkProperties props = connectivity.getLinkProperties(network);
                 if (props == null) continue;
                 for (LinkAddress link: props.getLinkAddresses()) {
@@ -666,6 +752,7 @@ public final class NativeLocalSync {
         InetAddress wifi = currentWifiIPv4();
         if (wifi == null || !isCompany(companyId)) return null;
         lastSubnetSweepAt = now;
+        final List<EmployeeLanRoute<Network>> routes = localRoutes();
         final byte[] octets = wifi.getAddress();
         final int own = octets[3] & 0xff;
         final AtomicReference<InetSocketAddress> result = new AtomicReference<>();
@@ -680,7 +767,7 @@ public final class NativeLocalSync {
                         byte[] ip = new byte[]{octets[0], octets[1], octets[2], (byte)n};
                         InetSocketAddress candidate = new InetSocketAddress(InetAddress.getByAddress(ip), PREFERRED_LAN_PORT);
                         if (candidate.equals(excluded)) continue;
-                        if (probeManager(candidate, companyId) && result.compareAndSet(null, candidate)) {
+                        if (probeManager(candidate, companyId, routes) && result.compareAndSet(null, candidate)) {
                             found.countDown(); return;
                         }
                     } catch (Exception ignored) { }

@@ -11,6 +11,7 @@
     <p class="tiny">تحديث أرصدة ${s.stockChanged} مادة · إجمالي الأصناف ${s.materials} · العملاء ${s.customers}</p></section>`:'';
   const main=`<section class="panel" style="background:#e7fbf6;border:1px solid #a6e0d4" aria-label="المزامنة المباشرة">
    <h3>⇄ مزامنة تلقائية مستمرة</h3>
+   <div data-agent-network role="group" aria-label="عناوين الاتصال"></div>
    <p class="tiny">عند تشغيل التطبيقين على شبكة Wi-Fi نفسها يبدأ الربط تلقائيًا. تُرسل الفواتير والسندات الجديدة وتُستقبل <b>المواد والأسعار والعملاء ورصيد السيارة</b> كل 12 ثانية أثناء الاتصال. يمكنك أيضًا طلب المزامنة فورًا بالزر.</p>
    <p class="tiny" id="agentAutoSyncStatus" role="status">جارٍ تهيئة المزامنة التلقائية…</p>
    <button type="button" id="agentLanSyncButton" class="primary" onclick="Agent.syncOneTap()" ${this.lanSyncBusy?'disabled':''}>${this.lanSyncBusy?'جارٍ تبادل البيانات…':'⇄ مزامنة فورية'}</button>

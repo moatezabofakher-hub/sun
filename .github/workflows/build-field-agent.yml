@@ -7,6 +7,9 @@ on:
     paths:
       - 'field_agent/**'
       - 'tests/agent-posting-rights.test.cjs'
+      - 'tests/employee-hotspot-ui.test.cjs'
+      - 'tests/EmployeeHotspotRegression.java'
+      - 'tests/test_lan_android_thread_3529.py'
       - 'tests/check_controls.py'
       - 'tests/check_cash_settings.py'
       - 'tests/check_themes_154.py'
@@ -58,6 +61,12 @@ jobs:
           node tests/test_lan_sync_3528.js
           node tests/test_lan_agent_3528.js
           node --check field_agent/src/main/assets/www/static/agent.js
+      - name: Test employee hotspot routes, socket source and pairing screens
+        run: |
+          python3 tests/test_lan_android_thread_3529.py
+          node --test tests/employee-hotspot-ui.test.cjs
+          node tests/test_auto_pairing_3534.js
+          node tests/test_single_manager_exclusivity_3586.js
       - name: Verify employee popup backdrops
         run: node --test tests/release138-no-outside-dismiss.test.js
       - name: Verify keyboard remains closed until input is tapped
@@ -142,6 +151,7 @@ jobs:
           cp "$apk" "output/Tiqany-Acc-Agent-3.5.153-RELEASE.apk"
           (cd output && sha256sum "Tiqany-Acc-Agent-3.5.153-RELEASE.apk" > "Tiqany-Acc-Agent-3.5.153-RELEASE.apk.sha256")
       - name: Upload signed field_agent APK and checksum
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: Tiqany-Acc-Agent-3.5.153-RELEASE
@@ -177,6 +187,6 @@ jobs:
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$tag" "$apk" "$checksum" --clobber --repo "$GITHUB_REPOSITORY"
           else
-            gh release create "$tag" "$apk" "$checksum" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title 'المحاسب التقني موظف البيع — الثيمات والصور 3.5.153' --notes 'النسخة المبنية من main: الضبط ← الثيمات (الحالي أو التصميم الأول الكحلي)، وصور 3D مستقلة لكل قسم. اجتازت فحوصات البناء الآلية. اختبارات المزامنة والطباعة على الأجهزة الفعلية ليست مشمولة.' --prerelease
+            gh release create "$tag" "$apk" "$checksum" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title 'المحاسب التقني — موظف البيع 3.5.153' --notes 'تحديث موظف البيع يدعم ربط الكمبيوتر بنقطة اتصال هاتف الموظف، ويعرض عنوان الهاتف منفصلاً عن عنوان الإدارة المحدد في رمز QR.' --prerelease
           fi
           gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json url --jq '.url'

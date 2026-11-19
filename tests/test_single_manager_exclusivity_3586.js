@@ -20,7 +20,7 @@ const companyId='company_1234567890',agentId='agent_1234567890';
 const key=protocol.b64u(crypto.randomBytes(32));
 const confirmed=[];
 const sandbox={console,crypto:crypto.webcrypto,TextEncoder,TextDecoder,atob,btoa,setTimeout,clearTimeout,
- FieldProtocol:protocol,FieldLanCrypto:encryption,
+ FieldProtocol:protocol,FieldLanCrypto:encryption,TiqanyEmployeeAuth:require('../app/src/main/assets/www/static/employee-password-auth.js'),
  window:{AndroidLocalSync:{send:(id,packet)=>{sandbox.lastFrame=packet;},confirmVerifiedSync:(id)=>confirmed.push(id)}},
  document:{getElementById:()=>null}};
 vm.createContext(sandbox);
@@ -31,23 +31,28 @@ agent.show=async()=>{};agent.toast=()=>{};agent.syncPaint=()=>{};agent.active=as
 const catalog={kind:'provision',companyId,agentId,key,companyName:'X',agentName:'A',vehicleName:'Van',warehouseId:'wh_1',items:[],accounts:[],stock:{},knownIds:[],exchangeRate:15000};
 async function reply(build,transport){
  const request=await encryption.open(JSON.parse(sandbox.lastFrame),key,companyId,agentId);
- const ack=build(request);
+ const ack={...build(request),appVersion:'3.5.153'};
  const cipher=await encryption.pack(ack,key,companyId,agentId);
  await agent.onLocalSyncResult(JSON.stringify({data:JSON.stringify(cipher),...(transport?{transport}:{})}));
 }
-(async()=>{
+async function connect(){
  await agent.syncOneTap();
+ await reply(req=>({kind:'sync_result',companyId,agentId,requestNonce:req.nonce}));
+ assert.equal(agent.lanSyncStage,'operations');
+}
+(async()=>{
+ await connect();
  await reply(req=>({kind:'sync_result',companyId,agentId,requestNonce:req.nonce,knownIds:[],catalog}));
  assert.deepEqual(confirmed,[companyId],'only committed/verified reply pins a manager');
- await agent.syncOneTap();
+ await connect();
  await reply(req=>({kind:'sync_result',companyId,agentId,requestNonce:'old_nonce',knownIds:[],catalog}));
  assert.deepEqual(confirmed,[companyId],'replayed ACK cannot pin a new manager');
- await agent.syncOneTap();
+ await connect();
  await reply(req=>({kind:'sync_result',companyId,agentId,requestNonce:req.nonce,knownIds:[],catalog}),'cloud');
  assert.deepEqual(confirmed,[companyId],'cloud ACK cannot verify or persist a stale LAN endpoint');
  agent.save=async()=>{throw Error('disk full');};
  agent.state.companyName='Different';
- await agent.syncOneTap();
+ await connect();
  await reply(req=>({kind:'sync_result',companyId,agentId,requestNonce:req.nonce,knownIds:[],catalog}));
  assert.deepEqual(confirmed,[companyId],'failed catalog commit cannot pin manager');
  console.log('PASS: sticky manager transport, excluded failed endpoint, no parallel discovery while active, verified ACK and durable-save gate.');
