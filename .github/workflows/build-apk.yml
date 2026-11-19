@@ -115,6 +115,7 @@ jobs:
           node --check app/src/main/assets/www/static/ta-themes-154.js
           python tests/check_themes_154.py app/src/main/assets/www
       - name: Archive theme review screens
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: theme-review-manager

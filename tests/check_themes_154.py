@@ -127,5 +127,24 @@ with sync_playwright() as playwright:
     page.locator('[data-theme-choice="classic"]').click()
     page.locator('.ta-theme154-save').click()
     assert page.evaluate("localStorage.getItem('tiqany.ui.theme.154')")=='classic'
+    if employee:
+        page.evaluate("Agent.ready=()=>true;Agent.active=async()=>true")
+    for theme in ('classic','royal'):
+        page.evaluate("theme=>document.documentElement.dataset.taTheme=theme",theme)
+        for screen in ('home','reports','invoice'):
+            if employee:
+                if screen=='invoice':
+                    page.evaluate("async()=>{Agent.startInvoice('sale');await Agent.show('invoice')}")
+                else:
+                    page.evaluate("route=>Agent.show(route)",screen)
+            else:
+                page.evaluate("""screen=>{
+                  const route={home:'dashboard',invoice:'invoice_form',reports:'reports'}[screen];
+                  AppNav.stack=[{screen:route,params:screen==='reports'?{tab:'pnl',period:'all'}:{type:'sale'}}];
+                  AppNav.renderCurrent();
+                }""",screen)
+            surface=page.locator('#screen' if employee else '#mainContent')
+            assert surface.is_visible() and surface.inner_text().strip(),screen
+            capture(theme+'-'+screen)
     print('PASS themes/icons',root,flush=True)
     browser.close()

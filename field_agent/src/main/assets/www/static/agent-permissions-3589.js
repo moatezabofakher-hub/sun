@@ -117,7 +117,7 @@ A.saveNewItem=async function(){if(!this.requireRight('createItems')||this.busy)r
 // Delete only unsynchronized locally generated operations. Posted ledger records are immutable
 // from the phone and must be reversed or corrected by the manager to preserve double entry.
 A.deleteLocalOperation=async function(id){if(!this.requireRight('deleteOperations'))return;
- if(this.lanSyncBusy)return this.toast('انتظر انتهاء المزامنة قبل حذف العمليات');
+ if(this.busy||this.lanSyncBusy)return this.toast('انتظر انتهاء الحفظ أو المزامنة قبل حذف العملية');
  const target=(this.state.ops||[]).find(x=>x.id===id);if(!target)return;
  if(this.state.knownIds.includes(id)||this.state.snapshotIds?.includes(id))return this.toast('العملية مرحّلة إلى الرئيسي؛ احذفها أو صححها من الإدارة للحفاظ على القيود المحاسبية');
  const accountId=target.kind==='customer_create'&&target.account?.id;
@@ -128,8 +128,10 @@ A.deleteLocalOperation=async function(id){if(!this.requireRight('deleteOperation
  if(!confirm('حذف هذه العملية المحلية غير المرحّلة؟'))return;
  const old=this.state,ops=old.ops.filter(x=>x.id!==id),accounts=target.kind==='customer_create'?old.accounts.filter(x=>x.id!==target.account?.id):old.accounts;
  const items=target.kind==='item_create'?old.items.filter(x=>x.id!==target.item?.id):old.items;
+ this.busy=true;
  try{this.state={...old,ops,accounts,items};await this.save();this.toast('حُذفت العملية غير المرحّلة');this.show('ops');}
  catch(e){this.state=old;this.toast('فشل حذف العملية: '+e.message);}
+ finally{this.busy=false;}
 };
 const oldOpsView=A.renderOps.bind(A);
 A.renderOps=function(){let html=oldOpsView();if(!this.can('deleteOperations'))return html;
