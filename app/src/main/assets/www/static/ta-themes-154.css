@@ -46,7 +46,7 @@
 }
 .ta-theme154-trigger strong{font-size:1.05rem}
 /* Full settings page: no outside-dismiss, save/cancel and native Back are explicit. */
-.ta-theme154-page{position:fixed;inset:0;z-index:2140000000;overflow:auto;
+.ta-theme154-page{position:fixed;inset:0;margin:0;border:0;width:100%;height:100%;max-width:none;max-height:none;z-index:2140000000;overflow:auto;
  background:linear-gradient(150deg,#f1f8fb,#e6f0f5);color:#123c52;
  padding:env(safe-area-inset-top,0px) 12px env(safe-area-inset-bottom,0px);
  direction:rtl;box-sizing:border-box;overscroll-behavior:contain}
@@ -58,7 +58,7 @@
 .ta-theme154-header button{background:#d6eef5;color:#15374d;border-radius:12px;
  border:1px solid #8fbccc;padding:9px 14px;font-weight:900}
 .ta-theme154-note{font-weight:700;font-size:.92rem;line-height:1.9;margin:18px 5px;color:inherit}
-.ta-theme154-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+.ta-theme154-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr));gap:14px}
 .ta-theme154-option{border:3px solid transparent;border-radius:21px;padding:12px;
  background:linear-gradient(155deg,#fff,#eaf4f8);color:#14354b;text-align:right;
  box-shadow:0 6px 0 #b2cdd8,0 15px 25px #193d4926;cursor:pointer}
@@ -88,6 +88,9 @@
 .ta-theme154-actions button{flex:1;min-height:52px;border-radius:14px;font-weight:950;font-size:1rem}
 .ta-theme154-save{border:1px solid #5fe9be;color:#fff;background:linear-gradient(160deg,#149d73,#075b57);box-shadow:0 4px 0 #034b45}
 .ta-theme154-cancel{border:1px solid #a4bbca;color:#173c57;background:linear-gradient(160deg,#fff,#dbeaf2);box-shadow:0 4px 0 #93b6c8}
+.ta-theme154-page button:focus-visible{outline:3px solid #036780;outline-offset:2px}
+.ta-theme154-page .ta-theme154-option[aria-pressed]::after{content:none}
+@media screen{
 /* The first saved design: royal navy, electric blue, turquoise and metallic gold. */
 html[data-ta-theme="royal"]{color-scheme:dark;--ta-silver:#527797;--ta-positive:#108d79}
 html[data-ta-theme="royal"] body{
@@ -180,15 +183,6 @@ html[data-ta-theme="royal"] .ta-theme154-option{background:linear-gradient(145de
 html[data-ta-theme="royal"] .ta-theme154-option[aria-pressed="true"]{border-color:#e0bc6e;box-shadow:0 0 0 3px #dbb35b5c,0 4px 0 #534122,0 0 21px #33dcfb5e}
 html[data-ta-theme="royal"] .ta-theme154-option small{color:#c4dce7}
 html[data-ta-theme="royal"] .ta-theme154-cancel{background:linear-gradient(#315776,#113456);border-color:#87aec8;color:#fff}
-@media print{
- html[data-ta-theme="royal"] body,html[data-ta-theme="royal"] body *{color:#111!important;text-shadow:none!important}
- html[data-ta-theme="royal"] body{background:#fff!important}
- html[data-ta-theme="royal"] body .bg-white,
- html[data-ta-theme="royal"] body .panel{background:#fff!important;border-color:#ccc!important;box-shadow:none!important}
- .ta-theme154-page{display:none!important}
-}
-
-
 /* Royal theme accessibility pass: existing light-theme utility colors must stay legible. */
 html[data-ta-theme="royal"] body :is(.bg-gray-100,.bg-gray-200,.bg-slate-100,.bg-slate-200){
  background:linear-gradient(145deg,#1e4565,#0c2746)!important
@@ -219,4 +213,48 @@ html[data-ta-theme="royal"] body :is(.text-amber-600,.text-amber-800,.text-yello
 }
 html[data-ta-theme="royal"] body :is(.text-rose-600,.text-rose-800,.text-red-600,.text-red-700,.text-red-800){
  color:#ff9eb4!important
+}
+
+/* Shared surfaces for controls that have their own component-level styles. */
+html[data-ta-theme="royal"]{
+ --ta-pearl:#112e4c;
+ --ta-heading:#e4f6ff;
+ --ta-positive:linear-gradient(155deg,#097667,#064d48);
+ --ta-negative:linear-gradient(155deg,#ad384f,#76243c);
+ --ta-royal-panel:linear-gradient(145deg,#193e60,#102a48);
+ --ta-royal-neutral:linear-gradient(145deg,#284d6a,#16334f);
+ --ta-receipt-surface:linear-gradient(150deg,#165847,#0c3936);
+ --ta-payment-surface:linear-gradient(150deg,#673449,#3d2334);
+}
+html[data-ta-theme="royal"] body:has(#agentHeader){
+ background:linear-gradient(160deg,#09162f,#102743 52%,#08152c)!important
+}
+html[data-ta-theme="royal"] :is(#mainContent,#screen) :is(.ta-quick-receipt,.ta-action-card[onclick*="'receipt'"],.tile[onclick*="startVoucher('receipt')"]),
+html[data-ta-theme="royal"] :is(#mainContent,#screen) :is(.ta-quick-payment,.ta-action-card[onclick*="'payment'"],.tile[onclick*="startVoucher('payment')"]){
+ color:#f0fbff!important
+}
+html[data-ta-theme="royal"] :is(#screen .hero,#agentDialog .dialog-card,#agentQuickFxMask .dialog-card,
+ #taAgentSettingsDecision .ta-agent-settings-dialog,#mainContent.ta-settings-standalone .ta-settings-section-footer,
+ #screen .ta-agent-settings-footer,#modalBox,#dialogBox){
+ background:var(--ta-royal-panel)!important;color:#effaff!important;border-color:#538aa6!important
+}
+html[data-ta-theme="royal"] :is(#screen .hero h2,#agentDialog #dialogTitle,#agentQuickFxMask h3,#taAgentSettingsPrompt){
+ color:var(--ta-heading)!important
+}
+html[data-ta-theme="royal"] :is(#screen .hero p,#agentDialog #dialogMessage,#taAgentSettingsDecision p){color:#bfddeb!important}
+html[data-ta-theme="royal"] body :is(#mainContent,#screen) thead{background:#1c415c!important;color:#eaf8ff!important}
+html[data-ta-theme="royal"] :is(#screen,#mainContent.ta-settings-standalone) :is(.ta-settings-section-footer .ta-settings-save,.ta-agent-settings-footer .primary),
+html[data-ta-theme="royal"] #taAgentSettingsDecision button[data-answer="save"]{
+ background:var(--ta-positive)!important;color:white!important;-webkit-text-fill-color:white!important
+}
+html[data-ta-theme="royal"] body :is(#mainContent,#modalBox,#dialogContainer,#screen,#agentDialog) button[data-action-tone="neutral"],
+html[data-ta-theme="royal"] #dialogContainer[data-dialog-type="unsaved"] #dlgDiscardBtn,
+html[data-ta-theme="royal"] #taAgentSettingsDecision button[data-answer="discard"],
+html[data-ta-theme="royal"] :is(#screen,#mainContent.ta-settings-standalone) :is(.ta-settings-section-footer .ta-settings-cancel,.ta-agent-settings-footer .secondary){
+ background:var(--ta-royal-neutral)!important;color:#edf8ff!important;-webkit-text-fill-color:#edf8ff!important
+}
+html[data-ta-theme="royal"] .ta-theme154-page button:focus-visible{outline-color:#f6d78e}
+}
+@media print{
+ .ta-theme154-page,.ta-theme154-page::backdrop{display:none!important}
 }

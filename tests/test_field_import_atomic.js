@@ -26,6 +26,13 @@ const op={id:'op_abcdefgh001',agentId:'agent_12345678',companyId:'co1',warehouse
   a.sandbox.FieldSync.staged={agent:a.State.fieldSync.agents[0],ops:[o]};
   await a.sandbox.FieldSync.confirmImport();
   assert.equal(a.State.invoices.length,1,'Duplicate cannot post again');
+  const revoked=make();
+  const manager=revoked.sandbox.FieldSync;
+  manager.staged={agent:{...revoked.State.fieldSync.agents[0]},ops:[o]};
+  revoked.State.fieldSync.agents[0]={...revoked.State.fieldSync.agents[0],disabled:true};
+  await manager.confirmImport();
+  assert.equal(revoked.State.invoices.length,0);
+  assert.equal(revoked.saved.length,0);
   const b=make();b.fail();b.sandbox.FieldSync.staged={agent:b.State.fieldSync.agents[0],ops:[o]};
   await b.sandbox.FieldSync.confirmImport();
   assert.equal(b.State.invoices.length,0);assert.equal(b.State.fieldSync.imported.length,0,'Atomic rollback on save failure');

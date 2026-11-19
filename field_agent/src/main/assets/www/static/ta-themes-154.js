@@ -83,12 +83,13 @@ function show(){
  const onAgent=typeof Agent!=='undefined'&&Agent.screen==='settings';
  if(!onManager&&!onAgent)return;
  open=true;pending=saved;
- const node=document.createElement('section');
+ const node=document.createElement('dialog');
  node.id='taTheme154Page';node.className='ta-theme154-page';
- node.setAttribute('role','region');node.setAttribute('aria-label','الثيمات');
+ node.setAttribute('aria-labelledby','taTheme154Title');
+ node.addEventListener('cancel',event=>{event.preventDefault();cancel();});
  node.innerHTML='<div class="ta-theme154-wrap">'+
   '<div class="ta-theme154-header"><button type="button" class="ta-theme154-back" aria-label="الرجوع إلى الضبط">رجوع</button>'+
-  '<h2>الثيمات</h2></div>'+
+  '<h2 id="taTheme154Title">الثيمات</h2></div>'+
   '<p class="ta-theme154-note">اختر التصميم الذي تفضله. تظهر المعاينة مباشرة، ثم اضغط حفظ لاعتماده على هذا الجهاز فقط.</p>'+
   '<div class="ta-theme154-grid">'+
   '<button type="button" class="ta-theme154-option" data-theme-choice="classic" aria-pressed="false">'+mini('classic')+
@@ -104,12 +105,12 @@ function show(){
    if(ev.target.closest('.ta-theme154-save')){save();return;}
    if(ev.target.closest('.ta-theme154-cancel,.ta-theme154-back'))cancel();
  });
- dialog=node;document.body.appendChild(node);mark();
+ dialog=node;document.body.appendChild(node);node.showModal();mark();
  node.querySelector('.ta-theme154-back')?.focus({preventScroll:true});
 }
 function close(){
  open=false;
- if(dialog){dialog.remove();dialog=null;}
+ if(dialog){dialog.close();dialog.remove();dialog=null;}
 }
 function save(){
  if(!open)return;

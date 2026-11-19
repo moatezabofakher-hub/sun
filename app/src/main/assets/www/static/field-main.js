@@ -531,10 +531,9 @@ const FieldSync = {
          (payload.warehouseId!==agent.warehouseId&&!confirmingSwitch)||typeof payload.nonce!=='string'||!/^[a-zA-Z0-9_-]{8,90}$/.test(payload.nonce))throw Error('بيانات موظف البيع غير مطابقة');
       // Keep the previous warehouse active until the PHONE confirms it saved the new inventory.
       const effectiveAgent=confirmingSwitch?{...agent,warehouseId:agent.pendingWarehouseId}:agent;
-      const all=FieldProtocol.validateOps(payload.operations,agent.id,config.companyId,payload.warehouseId,State.items,State.accounts,(this.historyFor?.(agent)||this.data().operationHistory||[]));
-      this.assertAuthorizedOps(all,agent);
-      const known=new Set(config.imported.map(x=>x.id));
-      const fresh=all.filter(x=>!known.has(x.id));
+      const pending=this.unpostedOperations(agent,payload.operations);
+      const fresh=FieldProtocol.validateOps(pending,agent.id,config.companyId,payload.warehouseId,State.items,State.accounts,(this.historyFor?.(agent)||this.data().operationHistory||[]));
+      this.assertAuthorizedOps(fresh,agent);
       const count=await this.commitLanOperations(effectiveAgent,fresh);
       if(confirmingSwitch){
         const previousWarehouseId=agent.warehouseId;
@@ -578,6 +577,18 @@ const FieldSync = {
       seen.push(account);
     }
   },
+  unpostedOperations(agent,ops){
+    if(!Array.isArray(ops)||ops.length>2000)throw Error('عدد العمليات غير صالح');
+    const posted=new Map(this.data().imported.map(entry=>[entry.id,entry.agentId]));
+    const batch=new Set();
+    return ops.filter(op=>{
+      if(!op||typeof op.id!=='string'||batch.has(op.id))throw Error('معرّف مفقود أو مكرر داخل الملف');
+      batch.add(op.id);
+      if(!posted.has(op.id))return true;
+      if(posted.get(op.id)!==agent.id)throw Error('تعارض في معرّف العملية بين موظفين');
+      return false;
+    });
+  },
   enforceAccountScope(agent,ops){
     if(!Array.isArray(agent.allowedAccountIds))return;
     const allowed=new Set(agent.allowedAccountIds);
@@ -588,11 +599,11 @@ const FieldSync = {
         throw Error('لا يملك موظف البيع صلاحية التعامل مع الحساب المحدد. حدّث صلاحياته من الرئيسي.');
     }
   },
-  async commitLanOperations(agent,ops){
+  async commitLanOperations(agent,ops,mode='wifi'){
     if(!ops.length)return 0;
     this.assertAuthorizedOps(ops,agent);
-    if(ops.some(op=>op.kind==='document_edit'))return this.commitOperationsWithRevisions(agent,ops);
-    const config=this.data(),old={items:State.items,accounts:State.accounts,invoices:State.invoices,vouchers:State.vouchers,expenses:Array.isArray(State.expenses)?State.expenses:[],imported:config.imported,events:config.events,history:config.operationHistory,exchanges:State.currencyExchanges,fxRates:JSON.parse(JSON.stringify(State.settings.currencyExchangeRatesSyp||{})),used:State.license.opsUsedCount};
+    if(ops.some(op=>op.kind==='document_edit'))return this.commitOperationsWithRevisions(agent,ops,mode);
+    const config=this.data(),old={items:State.items,accounts:State.accounts,invoices:State.invoices,vouchers:State.vouchers,expenses:Array.isArray(State.expenses)?State.expenses:[],imported:config.imported,events:config.events,history:config.operationHistory,exchanges:State.currencyExchanges,fxRates:State.settings.currencyExchangeRatesSyp,used:State.license.opsUsedCount};
     const existing=new Set(config.imported.map(x=>x.id));
     const fresh=ops.filter(x=>!existing.has(x.id));
     if(!fresh.length)return 0;
@@ -621,7 +632,7 @@ const FieldSync = {
       State.accounts=[...old.accounts,...docs.customers];
       State.invoices=[...old.invoices,...docs.invoices];State.vouchers=[...old.vouchers,...docs.vouchers];State.expenses=[...old.expenses,...docs.expenses];
       config.imported=[...old.imported,...fresh.map(x=>({id:x.id,agentId:agent.id,receivedAt:new Date().toISOString(),kind:x.kind}))];
-      config.events=[...old.events,{id:FieldProtocol.uuid(),agentId:agent.id,at:new Date().toISOString(),count:fresh.length,mode:'wifi'}].slice(-3000);
+      config.events=[...old.events,{id:FieldProtocol.uuid(),agentId:agent.id,at:new Date().toISOString(),count:fresh.length,mode}].slice(-3000);
       config.operationHistory=[...old.history,...fresh.map(op=>JSON.parse(JSON.stringify(op)))];
       if(!State.license.isActivated)State.license.opsUsedCount+=fresh.length;
       await StorageEngine.saveState();
@@ -639,15 +650,14 @@ const FieldSync = {
       const payload=await FieldProtocol.unseal(envelope,a.key);
       if(payload.appVersion!=='3.5.153')throw Error('اختلاف إصدار التطبيقات: يجب تحديث جميع الأجهزة إلى الإصدار 3.5.153 قبل الاتصال أو المزامنة. لم تُنقل أي بيانات.');
       if(payload.warehouseId!==a.warehouseId)throw Error('مستودع ملف موظف البيع لا يطابق سجل السيارة');
-      const all=FieldProtocol.validateOps(payload.operations,a.id,c.companyId,a.warehouseId,State.items,State.accounts,(this.historyFor?.(a)||this.data().operationHistory||[]));
-      this.assertAuthorizedOps(all,a);
-      const known=new Set(c.imported.map(x=>x.id));
-      const fresh=all.filter(x=>!known.has(x.id));
+      const pending=this.unpostedOperations(a,payload.operations);
+      const fresh=FieldProtocol.validateOps(pending,a.id,c.companyId,a.warehouseId,State.items,State.accounts,(this.historyFor?.(a)||this.data().operationHistory||[]));
+      this.assertAuthorizedOps(fresh,a);
       const invoiceCount=fresh.filter(x=>x.kind==='sale'||x.kind==='sale_return').length;
       const customers=fresh.filter(x=>x.kind==='customer_create').length;
       const revisions=fresh.filter(x=>x.kind==='document_edit').length;
       const vouchers=fresh.length-invoiceCount-customers-revisions;
-      this.staged={agent:a,ops:fresh,duplicates:all.length-fresh.length};
+      this.staged={agent:{id:a.id,key:a.key},ops:fresh,duplicates:payload.operations.length-fresh.length};
       UI.openModal(`<div class="ta-field-panel space-y-3 text-right" dir="rtl">
         <h3 class="font-black text-lg">معاينة استلام عمليات ${this.escape(a.name)}</h3>
         <p class="text-xs">السيارة: ${this.escape(a.vehicleName)} · المستودع: ${this.escape(WarehouseController.name(a.warehouseId))}</p>
@@ -668,49 +678,23 @@ const FieldSync = {
   async confirmImport(){
     if(this.busy||this.lanBusy||!this.staged?.ops?.length)return;
     this.busy=true;
-    const {agent,ops}=this.staged,c=this.data();
-    const old={items:State.items,accounts:State.accounts,invoices:State.invoices,vouchers:State.vouchers,expenses:Array.isArray(State.expenses)?State.expenses:[],imported:c.imported,events:c.events,history:c.operationHistory,exchanges:State.currencyExchanges,fxRates:JSON.parse(JSON.stringify(State.settings.currencyExchangeRatesSyp||{})),opsUsedCount:State.license.opsUsedCount};
     try {
-      if(ops.some(op=>op.kind==='document_edit')){
-        const count=await this.commitLanOperations(agent,ops);
-        this.staged=null;UI.forceCloseModal();UI.toast('تم ترحيل '+count+' عملية أو تعديل من '+agent.name,'success');
-        await this.exportAck(agent.id);return;
-      }
-      const known=new Set(c.imported.map(x=>x.id));
-      const fresh=ops.filter(x=>!known.has(x.id));
+      const {agent:preview,ops}=this.staged;
+      const config=this.data();
+      const agent=config.agents.find(a=>a.id===preview.id&&!a.disabled&&!a.archived);
+      if(!agent||agent.key!==preview.key)throw Error('تغيّر ربط الموظف. أعد فتح ملف العمليات.');
+      const fresh=this.unpostedOperations(agent,ops);
       if(!fresh.length)throw Error('سبق استلام جميع العمليات');
-      this.enforceAccountScope(agent,fresh);
-      if(!State.license.isActivated && Number(State.license.opsUsedCount||0)+fresh.length>LicenseManager.MAX_TRIAL_OPS)throw Error('وصلت إلى حد النسخة التجريبية؛ يلزم تفعيل التطبيق الرئيسي');
-      // Validate stock as a batch, before changing State. Vehicle stock is not deducted twice.
-      const deltas={};
-      for(const op of fresh){if(!['sale','sale_return'].includes(op.kind))continue;
-        for(const row of op.rows){const item=State.items.find(x=>x.id===row.itemId);const parts=item?.isBundle?item.bundleComponents:[{itemId:row.itemId,quantity:1}];for(const b of parts||[]){deltas[b.itemId]=(deltas[b.itemId]||0)+(op.kind==='sale_return'?1:-1)*row.qty/row.unitFactor*Number(b.quantity);}}}
-      if(!State.settings.allowNegativeStockSales){for(const [id,delta] of Object.entries(deltas)){
-        const stock=Accounting.getItemBaseStock(id,null,agent.warehouseId);
-        if(stock+delta < -0.0001)throw Error('رصيد سيارة موظف البيع غير كافٍ للمادة: '+(State.items.find(x=>x.id===id)?.name||id));}}
-      const latestInvoice=Math.max(0,...State.invoices.map(x=>Number(x.number)||0));
-      const latestVoucher=Math.max(0,...State.vouchers.map(x=>Number(x.number)||0));
-      const docs=FieldProtocol.toLedgerDocuments(fresh,agent,latestInvoice,latestVoucher);
-      docs.invoices.forEach(inv=>(inv.rows||[]).forEach(row=>{const it=State.items.find(x=>x.id===row.itemId);if(it?.isBundle){const u=it.units?.find(x=>x.name===row.unitName)||it.units?.[0];row.baseCostPrice=Accounting.itemCostPrice(it,u);}}));
-      this.checkNewCustomers(docs.customers,old.accounts);
-      for(const item of docs.items||[]){
-        if(old.items.some(x=>String(x.name).trim().toLowerCase()===String(item.name).trim().toLowerCase()||x.id===item.id))
-          throw Error('المادة موجودة مسبقًا على الرئيسي؛ لم تُقبل الإضافة المكررة');
-      }
-      window.TiqanyFxUI?.stageAgentExchanges(fresh,agent);
-      State.items=[...old.items,...(docs.items||[])];
-      State.accounts=[...old.accounts,...docs.customers];
-      State.invoices=[...old.invoices,...docs.invoices];State.vouchers=[...old.vouchers,...docs.vouchers];State.expenses=[...old.expenses,...docs.expenses];
-      c.imported=[...old.imported,...fresh.map(x=>({id:x.id,agentId:agent.id,receivedAt:new Date().toISOString(),kind:x.kind}))];
-      c.events=[...old.events,{id:FieldProtocol.uuid(),agentId:agent.id,at:new Date().toISOString(),count:fresh.length}].slice(-3000);
-      c.operationHistory=[...old.history,...fresh.map(op=>JSON.parse(JSON.stringify(op)))];
-      if(!State.license.isActivated)State.license.opsUsedCount+=fresh.length;
-      await StorageEngine.saveState();
-      this.staged=null;UI.forceCloseModal();UI.toast('تم استلام وترحيل '+fresh.length+' عملية باسم '+agent.name,'success');
+      const validated=FieldProtocol.validateOps(fresh,agent.id,config.companyId,agent.warehouseId,
+        State.items,State.accounts,this.historyFor?.(agent)||config.operationHistory);
+      const count=await this.commitLanOperations(agent,validated,'file');
+      this.staged=null;
+      UI.forceCloseModal();
+      UI.toast('تم ترحيل '+count+' عملية من '+agent.name,'success');
       if(typeof AppNav!=='undefined')AppNav.refreshAfterSync?.();
-      // Let owner transfer ACK back to agent through Quick Share / Bluetooth.
-      await this.exportAck(agent.id);
-    }catch(e){State.items=old.items;State.accounts=old.accounts;State.invoices=old.invoices;State.vouchers=old.vouchers;State.expenses=old.expenses;c.imported=old.imported;c.events=old.events;c.operationHistory=old.history;State.currencyExchanges=old.exchanges;State.settings.currencyExchangeRatesSyp=old.fxRates;State.license.opsUsedCount=old.opsUsedCount;UI.toast('لم يتم ترحيل البيانات: '+e.message,'error');}
+      try {await this.exportAck(agent.id);}
+      catch(error){UI.toast('حُفظت العمليات. تعذّر إرسال تأكيد الاستلام: '+error.message,'warn');}
+    }catch(error){UI.toast('تعذّر اعتماد ملف العمليات: '+error.message,'error');}
     finally{this.busy=false;}
   }
 };

@@ -88,6 +88,12 @@ jobs:
           python tests/check_cash_settings.py field_agent/src/main/assets/www
           node --check field_agent/src/main/assets/www/static/ta-themes-154.js
           python tests/check_themes_154.py field_agent/src/main/assets/www
+      - name: Archive theme review screens
+        uses: actions/upload-artifact@v4
+        with:
+          name: theme-review-employee
+          path: ${{ runner.temp }}/theme-review/
+          retention-days: 5
       - name: Build, sign, and verify field_agent release APK
         shell: bash
         env:

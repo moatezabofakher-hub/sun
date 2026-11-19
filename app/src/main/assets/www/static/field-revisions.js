@@ -1,12 +1,13 @@
 /* 3.5.44 — Authenticated, idempotent document revisions applied without duplicate bookkeeping. */
 (function(){'use strict';
 const F=FieldSync;
-F.commitOperationsWithRevisions=async function(agent,ops){
+F.commitOperationsWithRevisions=async function(agent,ops,mode='wifi'){
  this.assertAuthorizedOps(ops,agent);
  const cfg=this.data();const known=new Set(cfg.imported.map(x=>x.id));
  const fresh=ops.filter(x=>!known.has(x.id));if(!fresh.length)return 0;
+ this.enforceAccountScope(agent,fresh);
  const original={items:State.items,accounts:State.accounts,invoices:State.invoices,vouchers:State.vouchers,expenses:State.expenses||[],
-    exchanges:State.currencyExchanges,imported:cfg.imported,events:cfg.events,history:cfg.operationHistory,used:State.license.opsUsedCount};
+    fxRates:State.settings.currencyExchangeRatesSyp,audit:cfg.revisionAudit,exchanges:State.currencyExchanges,imported:cfg.imported,events:cfg.events,history:cfg.operationHistory,used:State.license.opsUsedCount};
  if(!State.license.isActivated&&Number(original.used||0)+fresh.length>LicenseManager.MAX_TRIAL_OPS)
    throw Error('تجاوز الحد التجريبي للتطبيق الرئيسي');
  // Validate again before any write, using canonical history and the current ledger.
@@ -21,7 +22,14 @@ F.commitOperationsWithRevisions=async function(agent,ops){
  const changes=[];const deltas={};
  const stockDelta=(op,mul)=>{if(!['sale','sale_return'].includes(op.kind||op.type))return;
    for(const row of op.rows||[]){const d=(op.kind||op.type)==='sale_return'?1:-1;
-     deltas[row.itemId]=(deltas[row.itemId]||0)+d*Number(row.qty)/Number(row.unitFactor)*mul;}};
+     const item=State.items.find(it=>it.id===row.itemId);
+     const components=item?.isBundle?item.bundleComponents:[{itemId:row.itemId,quantity:1}];
+     for(const part of components||[]){
+       const quantity=Number(row.qty)/Number(row.unitFactor)*Number(part.quantity);
+       deltas[part.itemId]=(deltas[part.itemId]||0)+d*quantity*mul;
+     }
+   }
+ };
  for(const op of novel)stockDelta(op,1);
  const archived=[...(original.history||[])];
  for(const edit of edits){
@@ -30,6 +38,7 @@ F.commitOperationsWithRevisions=async function(agent,ops){
    const index=coll.findIndex(x=>x.id===docId&&x.fieldOrigin?.agentId===agent.id);
    if(index<0)throw Error('المستند المطلوب تعديله غير موجود أو ليس لهذا موظف البيع');
    const old=coll[index],next=edit.replacement;
+   this.enforceAccountScope(agent,[old]);
    if(Number(old.fieldRevision||0)!==edit.baseRevision)throw Error('تعارض مراجعة: المستند تغير منذ آخر مزامنة');
    if(!isInvoice&&old.type!==next.kind||isInvoice&&old.type!==next.kind)throw Error('نوع المستند مختلف');
    if(isInvoice){
@@ -71,7 +80,7 @@ F.commitOperationsWithRevisions=async function(agent,ops){
    State.accounts=[...original.accounts,...docs.customers];State.invoices=invoices;State.vouchers=vouchers;
    State.expenses=[...original.expenses,...docs.expenses];
    cfg.imported=[...original.imported,...fresh.map(x=>({id:x.id,agentId:agent.id,receivedAt:new Date().toISOString(),kind:x.kind}))];
-   cfg.events=[...original.events,{id:FieldProtocol.uuid(),agentId:agent.id,at:new Date().toISOString(),count:fresh.length,edits:edits.length,mode:'wifi'}].slice(-3000);
+   cfg.events=[...original.events,{id:FieldProtocol.uuid(),agentId:agent.id,at:new Date().toISOString(),count:fresh.length,edits:edits.length,mode}].slice(-3000);
    cfg.operationHistory=[...archived,...novel.map(op=>JSON.parse(JSON.stringify(op)))];
    cfg.revisionAudit=[...(cfg.revisionAudit||[]),...changes].slice(-5000);
    if(!State.license.isActivated)State.license.opsUsedCount+=fresh.length;
@@ -79,7 +88,8 @@ F.commitOperationsWithRevisions=async function(agent,ops){
  }catch(err){
    State.items=original.items;State.accounts=original.accounts;State.invoices=original.invoices;State.vouchers=original.vouchers;State.expenses=original.expenses;State.currencyExchanges=original.exchanges;
    cfg.imported=original.imported;cfg.events=original.events;cfg.operationHistory=original.history;
-   cfg.revisionAudit=(cfg.revisionAudit||[]).filter(x=>!changes.some(y=>y.id===x.id));
+   cfg.revisionAudit=original.audit;
+   State.settings.currencyExchangeRatesSyp=original.fxRates;
    State.license.opsUsedCount=original.used;throw err;
  }
 };

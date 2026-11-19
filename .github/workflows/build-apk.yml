@@ -41,6 +41,8 @@ jobs:
           set -euo pipefail
           python3 tests/check_project.py
           python3 tests/test_scan_options_java.py
+          node tests/test_field_import_atomic.js
+          node tests/test_dual_currency_and_revisions_3544.js
           node tests/test_accounting.js
           node tests/test_invoice_date_price_visible_3564.js
           node tests/test_draft_invoice_balance_3555.js
@@ -112,6 +114,12 @@ jobs:
           python tests/check_cash_settings.py app/src/main/assets/www
           node --check app/src/main/assets/www/static/ta-themes-154.js
           python tests/check_themes_154.py app/src/main/assets/www
+      - name: Archive theme review screens
+        uses: actions/upload-artifact@v4
+        with:
+          name: theme-review-manager
+          path: ${{ runner.temp }}/theme-review/
+          retention-days: 5
       - name: Build, sign, and verify app release APK
         shell: bash
         env:

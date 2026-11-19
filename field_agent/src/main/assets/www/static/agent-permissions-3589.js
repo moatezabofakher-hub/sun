@@ -120,7 +120,11 @@ A.deleteLocalOperation=async function(id){if(!this.requireRight('deleteOperation
  if(this.lanSyncBusy)return this.toast('انتظر انتهاء المزامنة قبل حذف العمليات');
  const target=(this.state.ops||[]).find(x=>x.id===id);if(!target)return;
  if(this.state.knownIds.includes(id)||this.state.snapshotIds?.includes(id))return this.toast('العملية مرحّلة إلى الرئيسي؛ احذفها أو صححها من الإدارة للحفاظ على القيود المحاسبية');
- if(this.state.ops.some(o=>o.id!==id&&(o.targetOperationId===id||o.linkedInvoiceOpId===id||o.accountId===target.account?.id||o.rows?.some(r=>r.itemId===target.item?.id))))return this.toast('لا يمكن حذف هذه العملية لأنها مرتبطة بعملية أخرى');
+ const accountId=target.kind==='customer_create'&&target.account?.id;
+ const itemId=target.kind==='item_create'&&target.item?.id;
+ const dependsOnTarget=o=>o.targetOperationId===id||o.linkedInvoiceOpId===id||
+   (accountId&&o.accountId===accountId)||(itemId&&o.rows?.some(row=>row.itemId===itemId));
+ if(this.state.ops.some(o=>o.id!==id&&(dependsOnTarget(o)||(o.replacement&&dependsOnTarget(o.replacement)))))return this.toast('لا يمكن حذف هذه العملية لأنها مرتبطة بعملية أخرى');
  if(!confirm('حذف هذه العملية المحلية غير المرحّلة؟'))return;
  const old=this.state,ops=old.ops.filter(x=>x.id!==id),accounts=target.kind==='customer_create'?old.accounts.filter(x=>x.id!==target.account?.id):old.accounts;
  const items=target.kind==='item_create'?old.items.filter(x=>x.id!==target.item?.id):old.items;

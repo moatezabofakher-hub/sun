@@ -7,7 +7,7 @@ const src=html.slice(html.indexOf('        const AppNav = {'),html.indexOf('    
 assert(src.startsWith('        const AppNav = {'));
 const field=fs.readFileSync('app/src/main/assets/www/static/field-main.js','utf8');
 assert(field.includes("if(count && typeof AppNav!=='undefined') AppNav.refreshAfterSync?.();"),'LAN must refresh the visible screen');
-assert(field.includes("this.staged=null;UI.forceCloseModal();UI.toast('تم استلام وترحيل"),'file approval remains');
+assert.match(field,/async confirmImport\(\)[\s\S]+await this.commitLanOperations\(agent,validated,'file'\);\s*this.staged=null;/,'file approval follows a committed write');
 assert(field.includes("if(typeof AppNav!=='undefined')AppNav.refreshAfterSync?.();"),'file sync must refresh');
 const notify=fs.readFileSync('app/src/main/assets/www/static/manager-notifications.js','utf8');
 assert(notify.includes("if(created.length && AppNav.current().screen==='notifications')AppNav.refreshAfterSync?.();"));

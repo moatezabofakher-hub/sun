@@ -47,10 +47,21 @@ with sync_playwright() as playwright:
        const a=new Image();a.src='static/ta-art-'+k+'-154.svg';await a.decode();return [k,a.naturalWidth,a.naturalHeight]
     }))""")
     assert all(w>=100 and h>=100 for _,w,h in icons),icons
+    def capture(name):
+        if os.environ.get('CI'):
+            folder=Path(os.environ['RUNNER_TEMP'])/'theme-review'
+            folder.mkdir(exist_ok=True)
+            page.screenshot(path=str(folder/(name+'.png')))
+    capture('classic-settings')
     before=page.evaluate("JSON.stringify(typeof State==='undefined'?Agent.state:State.settings)")
     entry.click()
     assert page.locator('#taTheme154Page').is_visible()
     assert page.locator('[data-theme-choice]').count()==2
+    assert page.locator('#taTheme154Page:modal').count()==1
+    entry.evaluate("e=>e.focus()")
+    assert page.evaluate("document.querySelector('#taTheme154Page').contains(document.activeElement)")
+    page.keyboard.press('Tab')
+    assert page.evaluate("!document.activeElement.closest('#mainContent,#screen')")
     page.locator('[data-theme-choice="royal"]').click()
     assert page.evaluate("TiqanyTheme154.current()")=='royal'
     assert 'gradient' in page.evaluate("getComputedStyle(document.body).backgroundImage")
@@ -72,6 +83,23 @@ with sync_playwright() as playwright:
         page.evaluate("""()=>{State.settings.companyName='QA';State.settings.companySetupCompleted=true;
           document.querySelector('#ta-company-setup-128')?.remove();
           AppNav.stack=[{screen:'settings',params:{}}];AppNav.renderCurrent();}""")
+    page.wait_for_selector('#taTheme154Entry')
+    capture('royal-settings')
+    if employee:
+        hero=page.locator('#screen .hero').first
+        assert 'rgb(25, 62, 96)' in hero.evaluate('e=>getComputedStyle(e).backgroundImage')
+    else:
+        invoices=page.locator('.ta-category-link[data-category="invoices"]')
+        invoices.click()
+        footer=page.locator('.ta-settings-active-section .ta-settings-section-footer').first
+        assert 'rgb(25, 62, 96)' in footer.evaluate('e=>getComputedStyle(e).backgroundImage')
+        capture('royal-invoice-settings')
+        page.locator('.ta-settings-page-back').click()
+        page.evaluate("document.getElementById('topBarRateButton').click()")
+        assert page.locator('#modalRateInput').is_visible()
+        assert 'rgb(25, 62, 96)' in page.locator('#modalBox').evaluate('e=>getComputedStyle(e).backgroundImage')
+        capture('royal-transaction-rate')
+        page.evaluate("UI.forceCloseModal()")
     page.locator('#taTheme154Entry').click()
     page.locator('[data-theme-choice="classic"]').click()
     # Native Back must cancel the unsaved preview without navigating out of Settings.

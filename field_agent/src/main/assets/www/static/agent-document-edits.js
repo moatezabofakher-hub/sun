@@ -53,7 +53,9 @@ A.renderVoucher=function(){let s=renderVoucher(),op=this.state.ops.find(o=>o.id=
 const append=A.appendOperation.bind(A);
 A.appendOperation=async function(next){
  const existing=this.editingId&&this.state.ops.find(o=>o.id===this.editingId);
- if(!existing)return append(next);
+ if(!this.editingId)return append(next);
+ if(!existing)throw Error('لم تعد العملية موجودة. أعد فتح قائمة العمليات.');
+ if(!this.can('editOperations'))throw Error('لم تعد صلاحية تعديل العمليات متاحة.');
  if(!eligible(existing)||existing.kind!==next.kind)throw Error('لا يمكن تغيير نوع السند أو الفاتورة أثناء التعديل');
  const beforeState=this.state.ops.slice(),target=clone(existing);
  const pending=unackedRevision(existing.id),isSynced=this.state.knownIds.includes(existing.id);

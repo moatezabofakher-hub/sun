@@ -37,6 +37,10 @@ sandbox.window=sandbox;vm.createContext(sandbox);
 for(const f of ['field-main.js','field-cash.js','field-revisions.js'])vm.runInContext(file('app/src/main/assets/www/static/'+f),sandbox,{filename:f});
 const FieldSync=vm.runInContext('FieldSync',sandbox);const agent=state.fieldSync.agents[0];
 (async()=>{
+ agent.allowedAccountIds=[];
+ await assert.rejects(FieldSync.commitLanOperations(agent,validated),/صلاحية/);
+ assert.equal(saves,0);
+ agent.allowedAccountIds=['a1'];
  assert.equal(await FieldSync.commitLanOperations(agent,validated),1);
  assert.equal(state.invoices.length,1,'edit must not duplicate original invoice');
  assert.equal(state.invoices[0].netTotal,20);
@@ -48,8 +52,11 @@ const FieldSync=vm.runInContext('FieldSync',sandbox);const agent=state.fieldSync
  assert.equal(saves,1);
  const next={...replacement,revision:2,rows:[row(3)],subTotal:30,netTotal:30};
  const newEd={...op,id:'op_abcdefabcdefabcdefabcdefabcdefab',baseRevision:1,revision:2,description:'second edit',date:'2026-11-13T11:00:00Z',before:replacement,replacement:next};
+ state.settings.currencyExchangeRatesSyp={USD:{buy:100}};
+ sandbox.TiqanyFxUI={stageAgentExchanges(){state.settings.currencyExchangeRatesSyp={USD:{buy:120}};}};
  fail=true;
  await assert.rejects(FieldSync.commitLanOperations(agent,[newEd]),/save failed/);
+ assert.equal(state.settings.currencyExchangeRatesSyp.USD.buy,100);
  assert.equal(state.invoices[0].netTotal,20,'failed save leaves previous posted doc unchanged');
  assert.equal(state.fieldSync.revisionAudit.length,1,'failed save does not retain new audit');
  fail=false;
