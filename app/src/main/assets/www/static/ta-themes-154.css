@@ -486,3 +486,25 @@ html[data-ta-theme="royal"] body :is(nav.ta-bottom-nav,#bottom.bottom) button:is
     html body #mainContent .ta-module-grid .ta-module-card > strong {font-size:11.5px!important}
   }
 }
+
+/* v155: override the older body.ta-3d-v3524 small-screen 9px rule explicitly. */
+@media screen {
+  html body.ta-3d-v3524 nav.ta-bottom-nav .nav-btn > span,
+  html body.ta-3d-v3524 nav.ta-bottom-nav button.nav-btn > span {
+    font-size:clamp(11px,3vw,13px)!important;
+    font-weight:850!important;
+    line-height:1.45!important;
+    white-space:normal!important;
+    word-break:keep-all!important;
+    overflow-wrap:normal!important;
+    text-shadow:none!important;
+    -webkit-text-stroke:0!important;
+    filter:none!important;
+    transform:none!important;
+    color:#f7fcff!important;
+    -webkit-text-fill-color:#f7fcff!important;
+  }
+  html body.ta-3d-v3524 nav.ta-bottom-nav .nav-btn > i {
+    font-size:0!important;
+  }
+}
