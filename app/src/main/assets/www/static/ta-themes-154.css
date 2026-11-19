@@ -19,7 +19,7 @@
 .ta-category-link[data-ta-art="currency"]::before{background-image:url("exchange.webp")!important}
 .ta-category-link[data-ta-art="security"]::before{background-image:url("safe.webp")!important}
 .ta-category-link[data-ta-art="default_period"]::before{background:url("modules.webp") 100% 100%/300% 300% no-repeat!important}
-.ta-category-link[data-ta-art="data"]::before{background-image:url("ta-art-activation-154.svg")!important}
+.ta-category-link[data-ta-art="data"]::before{background-image:url("ta-art-data-reset-154.svg")!important}
 .ta-agent-settings-link[data-ta-art] .ta-agent-settings-glyph{
  flex:none!important;display:inline-block!important;width:52px!important;height:52px!important;
  background-size:contain!important;background-position:center!important;
