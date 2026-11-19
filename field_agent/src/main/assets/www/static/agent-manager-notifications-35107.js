@@ -200,7 +200,19 @@ A.onLocalSyncResult=async function(raw){
   if(!incoming.length)return badge();
   const stamp=new Date().toISOString();
   const previous=noticeList();
-  const fresh=incoming.map((n,i)=>({...n,id:noticeKey(n)+':'+stamp+':'+i,at:stamp,read:false}));
+  // For large catalog changes keep the individual field differences together so every tap has a saved target.
+  let notices=incoming;
+  if(incoming.length>32){
+    const groups=new Map();
+    for(const n of incoming){
+      if(!groups.has(n.kind))groups.set(n.kind,[]);
+      groups.get(n.kind).push(n);
+    }
+    notices=[...groups.values()].map(group=>group.length===1?group[0]:{...group[0],
+      targetId:null,title:group[0].title+' وتغييرات أخرى ('+group.length+')',
+      detail:group.map(n=>n.title+'\n'+n.detail).join('\n\n')});
+  }
+  const fresh=notices.map((n,i)=>({...n,id:noticeKey(n)+':'+stamp+':'+i,at:stamp,read:false}));
   const all=[...fresh,...previous].slice(0,200);
   this.state.managerNotifications=all;
   let persisted=false;
@@ -208,7 +220,13 @@ A.onLocalSyncResult=async function(raw){
   // Deliver device notifications only for newly committed, authenticated sync updates.
   // Never claim an update arrived when synchronization or local persistence failed.
   if(persisted && typeof window!=='undefined' && window.AndroidManagerNotifications?.postUpdates){
-    try{window.AndroidManagerNotifications.postUpdates(JSON.stringify(fresh.map(n=>({id:n.id,title:n.title,detail:(n.detail.slice(0,176)+' · وقت الوصول '+displayTime(n.at).split(' ').pop()).slice(0,240)}))));}catch(_){/* In-app notices remain available when system notifications are disabled. */}
+    try{
+      for(let offset=0;offset<fresh.length;offset+=16){
+        const batch=fresh.slice(offset,offset+16).map(n=>({id:n.id,title:n.title.slice(0,100),
+          detail:n.detail.length<=240?n.detail:n.detail.slice(0,235)+' …'}));
+        window.AndroidManagerNotifications.postUpdates(JSON.stringify(batch));
+      }
+    }catch(_){/* The saved in-app notice still contains every change. */}
   }
   badge();if(persisted && this.screen==='manager_notifications')await this.show(this.screen);
 };

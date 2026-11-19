@@ -236,7 +236,8 @@ with sync_playwright() as playwright:
             assert bell.is_visible() and page.locator('#agentSyncConnection').is_visible()
             page.evaluate('Agent.goBack()')
             assert page.locator('.ta-manager-notification').count()==2
-        assert page.locator('#agentManagerNotificationCount').is_hidden()
+        badge=page.locator('#agentManagerNotificationCount')
+        assert badge.is_visible() and badge.inner_text()=='0'
         page.evaluate('Agent.goBack()')
 
     if not employee:

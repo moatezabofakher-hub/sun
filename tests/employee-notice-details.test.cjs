@@ -13,6 +13,14 @@ test('employee receives exact settings, rights and item changes on committed syn
  const n=posted.length;await A.onLocalSyncResult(update);assert.equal(posted.length,n);
  await A.onLocalSyncResult({permissions:{editPrices:true,stock:true}});await A.onLocalSyncResult(update);
  assert.equal(posted.filter(x=>x.detail.includes('تعديل الأسعار ضمن الفاتورة من مسموح إلى غير مسموح')).length,2);
+ const more=Array.from({length:18},(_,i)=>({id:'more'+i,name:'مادة '+i,barcode:String(i)}));
+ const prior=posted.length;
+ const sizes=[];win.AndroidManagerNotifications.postUpdates=x=>{const batch=JSON.parse(x);assert(batch.length<=16);sizes.push(batch.length);posted.push(...batch);};
+ await A.onLocalSyncResult({items:more});
+ assert(posted.length>=prior+18);assert(sizes.length>=2);
+ const large=Array.from({length:48},(_,i)=>({id:'many'+i,name:'مادة جديدة '+i}));
+ await A.onLocalSyncResult({items:large});
+ assert(A.state.managerNotifications[0].detail.includes('مادة جديدة 47'));
  const shelf=A.state.managerNotifications;A.save=async()=>{throw Error('storage')};await A.readAllManagerNotifications();
  assert(shelf.every(x=>!x.read));A.save=async()=>{};await A.readAllManagerNotifications();assert(shelf.every(x=>x.read));
 });
