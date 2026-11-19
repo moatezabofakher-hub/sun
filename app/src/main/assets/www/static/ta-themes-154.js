@@ -141,9 +141,9 @@ function install(){
    }
  }
  if(typeof Agent!=='undefined'){
-   if(typeof Agent.back==='function'){
-     const previous=Agent.back;
-     Agent.back=function(...args){if(open){cancel();return;}return previous.apply(this,args);};
+   if(typeof Agent.goBack==='function'){
+     const previous=Agent.goBack;
+     Agent.goBack=function(...args){if(open){cancel();return;}return previous.apply(this,args);};
    }
    if(typeof Agent.navigate==='function'){
      const previous=Agent.navigate;
