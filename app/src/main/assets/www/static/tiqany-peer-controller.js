@@ -13,6 +13,7 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
   headerRequestedSettings:false,
   qrRevealExpiresAt:0,qrRevealProfile:null,qrRevealTimer:null,scanApproval:null,bootstrapApproval:null,
   openSettingsFromHeader(){
+    if(window.TiqanySettingsPages152)return window.TiqanySettingsPages152.openConnection('mobile-computer-sync');
     if(AppNav.current()?.screen==='settings'){this.requestHeaderAccess();return;}
     this.headerRequestedSettings=true;
     AppNav.navigate('settings');

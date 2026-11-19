@@ -41,7 +41,12 @@ const Agent={
     const e=document.getElementById('screen');
     if(!this.ready()){e.innerHTML=this.renderSetup();return;}
     if(!active){e.innerHTML=this.renderActivation();return;}
-    if(where==='invoice')e.innerHTML=this.renderInvoice();
+    if(where==='manager_notifications')e.innerHTML=this.renderManagerNotifications();
+    else if(where==='manager_notification_detail'){
+      const detail=await this.renderManagerNotificationDetail();
+      if(this.screen===where)e.innerHTML=detail;
+    }
+    else if(where==='invoice')e.innerHTML=this.renderInvoice();
     else if(where==='ops')e.innerHTML=this.renderOps();
     else if(where==='reports')e.innerHTML=this.renderReports();
     else if(where==='report_preview')e.innerHTML=this.renderReportPreview();

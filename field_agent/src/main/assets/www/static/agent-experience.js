@@ -303,7 +303,7 @@ Agent.show=async function(route){
  }else await previousShow(route);
  const active=this.ready()&&await this.active();const back=document.getElementById('agentBack');
  back?.classList.toggle('hide',!active||this.stack.length<2);
- const header=document.getElementById('agentScreenTitle');if(header)header.textContent=this.screen==='home'?'المحاسب التقني':({invoice:'الفاتورة',ops:'الفواتير والسندات',sync:'المزامنة',voucher:'سند مالي',printer:'الطابعة',settings:'الضبط',backup:'النسخ الاحتياطي',stock:'مستودع السيارة',payment:'تسجيل دفعة'})[this.screen]||'المحاسب التقني';
+ const header=document.getElementById('agentScreenTitle');if(header)header.textContent=this.screen==='home'?'المحاسب التقني':({manager_notifications:'الإشعارات',manager_notification_detail:'تفاصيل الإشعار',invoice:'الفاتورة',ops:'الفواتير والسندات',sync:'المزامنة',voucher:'سند مالي',printer:'الطابعة',settings:'الضبط',backup:'النسخ الاحتياطي',stock:'مستودع السيارة',payment:'تسجيل دفعة'})[this.screen]||'المحاسب التقني';
  const sub=document.getElementById('agentScreenSubtitle');if(sub)sub.textContent=active?'نسخة موظف البيع · '+this.state.companyName:'نسخة موظف البيع · تطبيق التوزيع';
  const vehicle=document.getElementById('agentVehicleHeader');if(vehicle)vehicle.textContent=this.state.vehicleName||'جهاز موظف البيع';
  document.body.classList.toggle('ta-agent-voucher-open',active && this.screen==='voucher');

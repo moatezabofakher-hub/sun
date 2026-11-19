@@ -15,7 +15,7 @@ const stamp=()=>new Date().toISOString();
 const manager={
   pending:null,busy:false,serverBusy:false,locks:new Map(),server:null,
   lastClient:0,lastServer:0,lastResult:'',lastRemoteVersion:'',
-  approvedFirst:null,conflicts:null,nextPoll:0,settingsOpened:false,qrTimer:null,
+  approvedFirst:null,conflicts:null,nextPoll:0,qrTimer:null,
   nextReconnect:0,autoPaused:false,searching:false,
   currentUid(){return String(State.settings?.companyUid||'');},
   async ensureUid(){if(isUid(this.currentUid()))return this.currentUid();
@@ -491,10 +491,7 @@ const manager={
     el.setAttribute('title',active?'مزامنة أجهزة مدير — متصل':'مزامنة أجهزة مدير');
   },
   openSettings(){
-    if(AppNav.current()?.screen!=='settings')AppNav.navigate('settings');
-    this.settingsOpened=true;
-    setTimeout(()=>{const panel=document.getElementById('ta-manager-settings-section');
-      if(panel){panel.open=true;panel.scrollIntoView?.({block:'start'});}},80);
+    window.TiqanySettingsPages152.openConnection('manager-manager-sync');
   },
   renderPanel(){
     const host=document.getElementById('ta-manager-connection-status');
@@ -535,7 +532,6 @@ const manager={
         <p id="ta-manager-status" role="status"></p>
       </section></div></details>`);
     this.renderPanel();this.showConflicts();
-    if(this.settingsOpened){this.settingsOpened=false;this.openSettings();}
   },
   onSave(){
     this.ensureNativeProfile();

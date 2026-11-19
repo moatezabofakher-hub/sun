@@ -182,6 +182,12 @@ AppNav.renderCurrent=function(...args){
  const form=active&&AppNav.current()?.screen==='settings'?captureValues():null;
  const result=originalRender.apply(this,args);
  if(active&&AppNav.current()?.screen==='settings'){applyView();restoreValues(form);}
+ const route=AppNav.current();
+ if(route?.screen==='settings' && route.params?.connectionPage){
+   const key=route.params.connectionPage;
+   delete route.params.connectionPage;
+   openConnection(key);
+ }
  return result;
 };
 const originalBack=AppNav.handleBackButton;
@@ -202,7 +208,18 @@ AppNav.navigate=function(screen,...args){
  }
  return originalNavigate.call(this,screen,...args);
 };
-window.TiqanySettingsPages152={current:()=>active,isModified:hasChanges,openByKey:key=>{
+function openConnection(key){
+ if(!['mobile-computer-sync','manager-manager-sync'].includes(key) || busy)return;
+ if(AppNav.current()?.screen!=='settings'){
+   AppNav.navigate('settings',{connectionPage:key});
+   return;
+ }
+ if(active===key)return;
+ if(active){confirmExit(()=>openConnection(key));return;}
+ const section=main()?.querySelector('details[data-settings-section="'+key+'"]');
+ if(section)open(section);
+}
+window.TiqanySettingsPages152={openConnection,current:()=>active,isModified:hasChanges,openByKey:key=>{
  const section=Array.from(document.querySelectorAll('details.settings-section')).find(s=>s.dataset.settingsSection===key);
  if(section)open(section);
 },back};

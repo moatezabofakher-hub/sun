@@ -5,6 +5,10 @@ with sync_playwright() as pw:
  browser=pw.chromium.launch(executable_path=(shutil.which('google-chrome') or shutil.which('chromium') or str(Path(os.environ.get('PROGRAMFILES(X86)',''))/'Microsoft/Edge/Application/msedge.exe')),args=['--no-sandbox','--allow-file-access-from-files'])
  for ed in sys.argv[2:]:
   p=browser.new_page()
+  if ed=='manager':
+   p.add_init_script("""window.AndroidManagerPeer={
+        selectProfile:()=> 'selected', start:()=> 'ready', serverConfig:()=> '{}', clientStatus:()=> '{}'
+   }""")
   p.on('pageerror',lambda e: print('ERROR',str(e)[:100],flush=True))
   root=Path(sys.argv[1])/('web' if ed=='win' else ('field_agent' if ed=='employee' else 'app')+'/src/main/assets/www')
   for w in ((800,1366) if ed=='win' else (320,360,432)):
@@ -59,4 +63,12 @@ with sync_playwright() as pw:
     assert decision.locator('[data-answer=save]').inner_text()=='نعم'
     decision.locator('[data-answer=discard]').evaluate('(e)=>e.click()')
     p.wait_for_function("Agent.screen==='home'")
+   if ed=='manager':
+    for button,category in [('ta-desktop-phone-connection','mobile-computer-sync'),('ta-manager-phone-connection','manager-manager-sync'),('ta-desktop-phone-connection','mobile-computer-sync')]:
+     p.locator('#'+button).click()
+     panel=p.locator('details.ta-settings-active-section[data-settings-section="'+category+'"] .settings-section-body')
+     assert panel.is_visible(),(ed,w,category,p.locator('#mainContent').inner_text()[:220])
+     assert p.locator('details.ta-settings-active-section:visible').count()==1
+    p.locator('.ta-settings-page-back').click()
+    assert p.locator('.ta-category-link[data-category="mobile-computer-sync"]').is_visible()
    print('PASS',ed,w,flush=True)

@@ -78,8 +78,8 @@ function noticeKey(item){
  return 'manager:v2:'+(h>>>0).toString(36)+'-'+(k>>>0).toString(36);
 }
 function badge(){const el=document.getElementById('agentManagerNotifications');if(!el)return;
-  const home=A.screen==='home'&&!!A.state?.companyId;
-  el.hidden=!home;
+  el.hidden=false;
+  el.disabled=!A.state?.companyId;
   const count=document.getElementById('agentManagerNotificationCount');if(count){const total=noticeList().filter(n=>!n.read).length;count.hidden=!total;count.textContent=String(Math.min(99,total))+(total>99?'+':'');}
 }
 A.managerNotificationItems=noticeList;
@@ -115,24 +115,27 @@ A.onLocalSyncResult=async function(raw){
   }
   badge();
 };
-function render(){const history=noticeList();return `<section class="ta-manager-notification-panel" dir="rtl"><h2>🔔 إشعارات المسؤول</h2>
+A.renderManagerNotifications=function(){const history=noticeList();return `<section class="ta-manager-notification-panel" dir="rtl"><h2>🔔 إشعارات المسؤول</h2>
  <p class="tiny">تظهر التحديثات التي استُلمت عبر مزامنة موثَّقة، ولا تؤثر على أرصدة أو عمليات الموظف.</p>
- ${history.length?history.map(n=>`<button type="button" class="ta-manager-notification ${n.read?'':'unread'}" onclick="Agent.openManagerNotification('${A.escape(n.id)}')"><strong>${A.escape(n.title)}</strong><small>${A.escape(n.detail)} · ${A.escape(displayTime(n.at))}</small></button>`).join(''):'<p class="muted">لا توجد تحديثات واردة حتى الآن</p>'}
- <button class="secondary" onclick="Agent.show('home')">العودة إلى الرئيسية</button></section>`;}
+ ${history.length?history.map(n=>`<button type="button" class="ta-manager-notification ${n.read?'':'unread'}" onclick="Agent.openManagerNotification('${A.escape(n.id)}')"><strong>${A.escape(n.title)}</strong><small>${A.escape(n.detail)}</small><time dir="ltr">${A.escape(displayTime(n.at))}</time></button>`).join(''):'<p class="muted">لا توجد تحديثات واردة حتى الآن</p>'}
+ <button class="secondary" onclick="Agent.goBack()">رجوع</button></section>`;};
 A.openManagerNotifications=async function(){
   if(!this.ready())return;
-  this.screen='manager_notifications';
-  document.getElementById('screen').innerHTML=render();
-  document.getElementById('bottom')?.classList.remove('hide');
-  badge();
+  if(this.screen==='manager_notification_detail' && this.stack.at(-2)==='manager_notifications')return this.goBack();
+  return this.navigate('manager_notifications');
 };
 A.openManagerNotification=async function(id){
   const hit=noticeList().find(n=>n.id===id);if(!hit)return;
+  this.managerNotificationId=id;
+  return this.navigate('manager_notification_detail');
+};
+A.renderManagerNotificationDetail=async function(){
+  const hit=noticeList().find(n=>n.id===this.managerNotificationId);
+  if(!hit)return this.renderManagerNotifications();
   if(!hit.read){hit.read=true;try{await this.save();}catch(error){hit.read=false;this.toast('تعذر حفظ قراءة الإشعار');}}
   badge();
-  this.screen='manager_notifications';
-  document.getElementById('screen').innerHTML=`<section class="panel" dir="rtl"><h3>${A.escape(hit.title)}</h3>
-    <p>${A.escape(hit.detail)}</p><p class="tiny">وقت الاستلام: ${A.escape(displayTime(hit.at))}</p>
+  return `<section class="panel ta-manager-notification-panel ta-notification-detail" dir="rtl"><h3>${A.escape(hit.title)}</h3>
+    <p>${A.escape(hit.detail)}</p><p class="tiny">وقت الاستلام: <bdi dir="ltr">${A.escape(displayTime(hit.at))}</bdi></p>
     <button class="primary" onclick="Agent.openManagerNotificationRoute('${A.escape(hit.id)}')">الانتقال لعرض التفاصيل</button>
     ${hit.kind==='ops'&&hit.targetId&&this.can?.('editOperations')&&this.state.ops?.some(o=>o.id===hit.targetId&&['sale','sale_return','receipt','payment'].includes(o.kind))?`<button class="secondary" onclick="Agent.editManagerNotificationOperation('${A.escape(hit.id)}')">تعديل العملية (حسب الصلاحية)</button>`:''}
     <button class="secondary" onclick="Agent.openManagerNotifications()">الرجوع إلى الإشعارات</button></section>`;
@@ -154,7 +157,5 @@ A.openManagerNotificationRoute=async function(id){
 };
 const savedShow=A.show.bind(A);
 A.show=async function(...args){const result=await savedShow(...args);badge();return result;};
-const oldBack=A.goBack?.bind(A);
-if(oldBack)A.goBack=async function(...args){if(this.screen==='manager_notifications'){await this.show('home');return;}return oldBack(...args);};
 document.addEventListener('DOMContentLoaded',badge);
 })();

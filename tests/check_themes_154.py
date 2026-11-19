@@ -194,7 +194,51 @@ with sync_playwright() as playwright:
     assert page.evaluate("localStorage.getItem('tiqany.ui.theme.154')")=='classic'
     page.evaluate("document.querySelector('#toastContainer')?.replaceChildren()")
     if employee:
-        page.evaluate("Agent.ready=()=>true;Agent.active=async()=>true")
+        page.evaluate("""async()=>{
+            Agent.ready=()=>true;Agent.active=async()=>true;
+            Agent.state.companyId='qa';
+            Agent.state.managerNotifications=[
+              {id:'received',title:'تعديل سعر الصرف',detail:'حدّث المدير سعر الصرف',at:'2026-11-18T09:10:00Z',read:false},
+              {id:'seen',title:'تحديث مستودع السيارة',detail:'وصلت مناقلة المواد إلى مستودع الموظف',at:'2026-11-18T08:00:00Z',read:true}
+            ];
+            await Agent.navigate('home');
+        }""")
+        bell=page.locator('#agentManagerNotifications')
+        for width in (320,390,432):
+            page.set_viewport_size({'width':width,'height':840})
+            first=None
+            for route in ('home','invoice','reports','settings'):
+                page.evaluate('route=>Agent.show(route)',route)
+                rects=page.evaluate("""()=>['.mark','#agentManagerNotifications','#agentSyncConnection','.brandcopy','#agentRateQuick'].map(selector=>{
+                    const el=document.querySelector('#agentHeader .brand '+selector), r=el.getBoundingClientRect();
+                    return {x:r.x,y:r.y,r:r.right,b:r.bottom,w:r.width,h:r.height};
+                })""")
+                truck,alarm,link=rects[:3]
+                assert all(el['w']>0 and el['h']>0 and el['x']>=0 and el['r']<=width+1 for el in rects), (route,rects)
+                assert truck['x']>=alarm['r'] and alarm['x']>=link['r'], (route,rects)
+                assert all(a['x']>=b['r'] or b['x']>=a['r'] or a['y']>=b['b'] or b['y']>=a['b'] for i,a in enumerate(rects) for b in rects[i+1:]), (route,rects)
+                positions=[el['x'] for el in rects[:3]]
+                assert first is None or first==positions,(route,first,positions)
+                first=positions
+        page.set_viewport_size({'width':390,'height':840})
+        notification_panel = page.locator('.ta-manager-notification-panel')
+        bell.click()
+        notification_panel.wait_for()
+        for theme in ('classic','royal'):
+            page.evaluate("t=>document.documentElement.dataset.taTheme=t",theme)
+            for card in page.locator('.ta-manager-notification').all():
+                check_text_contrast(page,card,card.locator('strong, small, time'),('Employee notifications',theme))
+            capture(theme+'-employee-notifications')
+            page.locator('.ta-manager-notification').first.click()
+            detail=page.locator('.ta-notification-detail')
+            detail.wait_for()
+            check_text_contrast(page,detail,detail.locator('h3, p, bdi, button'),('Employee notice detail',theme))
+            assert bell.is_visible() and page.locator('#agentSyncConnection').is_visible()
+            page.evaluate('Agent.goBack()')
+            assert page.locator('.ta-manager-notification').count()==2
+        assert page.locator('#agentManagerNotificationCount').is_hidden()
+        page.evaluate('Agent.goBack()')
+
     if not employee:
         page.evaluate("""() => {
             const at = '2026-11-18T20:56:24Z';
