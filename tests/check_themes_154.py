@@ -102,6 +102,7 @@ with sync_playwright() as playwright:
         assert 'rgb(25, 62, 96)' in page.locator('#modalBox').evaluate('e=>getComputedStyle(e).backgroundImage')
         title=page.locator('#modalBox h3').first
         assert title.evaluate('e=>getComputedStyle(e).color')=='rgb(239, 250, 255)'
+        page.wait_for_function("getComputedStyle(document.querySelector('#modalBox')).opacity==='1'")
         capture('royal-transaction-rate')
         # Failure must leave both the active rate and the form available for retry.
         page.evaluate("""async()=>{const save=StorageEngine.saveState,previous=State.settings.exchangeRate;
@@ -127,6 +128,7 @@ with sync_playwright() as playwright:
     page.locator('[data-theme-choice="classic"]').click()
     page.locator('.ta-theme154-save').click()
     assert page.evaluate("localStorage.getItem('tiqany.ui.theme.154')")=='classic'
+    page.evaluate("document.querySelector('#toastContainer')?.replaceChildren()")
     if employee:
         page.evaluate("Agent.ready=()=>true;Agent.active=async()=>true")
     for theme in ('classic','royal'):
@@ -145,6 +147,13 @@ with sync_playwright() as playwright:
                 }""",screen)
             surface=page.locator('#screen' if employee else '#mainContent')
             assert surface.is_visible() and surface.inner_text().strip(),screen
+            if theme=='royal' and screen=='invoice':
+                field=surface.locator('.ta-invoice-field').first
+                assert field.is_visible()
+                assert field.evaluate("e=>getComputedStyle(e.querySelector('label')).color")=='rgb(239, 250, 255)'
+                balance=surface.locator('.ta-balance-tile').first
+                assert balance.is_visible()
+                assert 'rgb(25, 62, 96)' in balance.evaluate('e=>getComputedStyle(e).backgroundImage')
             capture(theme+'-'+screen)
     print('PASS themes/icons',root,flush=True)
     browser.close()

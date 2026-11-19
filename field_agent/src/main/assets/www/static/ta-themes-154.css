@@ -271,6 +271,50 @@ html[data-ta-theme="royal"] #dialogBox .ta-decision-subtitle{color:#bbdaea!impor
 html[data-ta-theme="royal"] .ta-support-dialog .ta-support-group{background:#123453;color:#edfaff;border-color:#538aa6}
 html[data-ta-theme="royal"] .ta-support-dialog .ta-support-link{background:#0d453c;color:#a4f6d7;border-color:#558f80;box-shadow:0 3px 0 #062d2a}
 html[data-ta-theme="royal"] #screen [data-app-build] > div{color:#96e8db!important}
+/* Transaction workspaces and navigation share the same surfaces as Settings. */
+html[data-ta-theme="royal"]{background:#09162f;--ink:#edf8ff;--muted:#bfd7e7}
+html[data-ta-theme="royal"] body:has(#agentHeader){min-height:100vh;min-height:100dvh}
+html[data-ta-theme="royal"] body :is(#mainContent,#screen) :is(
+ .invoice-entry-top,.ta-invoice-field,.ta-invoice-pricing-choice,.ta-quick-picker,
+ .invoice-added-items,.invoice-added-title,.invoice-added-row,.invoice-selected,
+ .ta-invoice-save-footer,.ta-voucher-save-footer,.ta-balance-tile,.stat,.item-pick){
+ background:var(--ta-royal-panel)!important;border-color:#44758e!important;color:#effaff!important
+}
+html[data-ta-theme="royal"] body :is(#screen,#mainContent) .ta-invoice-control-grid .ta-invoice-party-highlight{
+ background:linear-gradient(145deg,#15504e,#103636)!important;border-color:#47b3a1!important
+}
+html[data-ta-theme="royal"] body :is(#screen,#mainContent) :is(
+ .ta-action-card strong,.ta-module-card strong,.ta-section-head h3,.ta-invoice-field label,
+ .ta-quick-picker__face,.ta-quick-picker__face span,.ta-balance-tile span,.stat b,.item-pick b,.invoice-added-title span){
+ color:#effaff!important;-webkit-text-fill-color:currentColor!important;text-shadow:none!important
+}
+html[data-ta-theme="royal"] body :is(#screen,#mainContent) :is(
+ .ta-card-description,.tile small,.tile p,.stat small,.panel .tiny,.panel .form-help,.item-pick small){
+ color:#c0d9ea!important
+}
+html[data-ta-theme="royal"] body :is(#screen,#mainContent) :is(.ta-balance-tile strong,.invoice-selected h3){color:#90efd4!important}
+html[data-ta-theme="royal"] body :is(#screen,#mainContent) .ta-invoice-control-grid :is(input:not([type=checkbox]),select:not([aria-hidden=true])){
+ background-color:#0c243d!important;color:#effaff!important;-webkit-text-fill-color:currentColor!important
+}
+html[data-ta-theme="royal"] body :is(#screen,#mainContent) .ta-invoice-control-grid .ta-invoice-currency-choice{
+ background:linear-gradient(145deg,#145574,#0b334d)!important;color:#d9f6ff!important;border-color:#54a3bd!important
+}
+html[data-ta-theme="royal"] body :is(#screen,#mainContent) .ta-payment-cycle{
+ background:var(--ta-royal-neutral)!important;color:#effaff!important;-webkit-text-fill-color:currentColor!important
+}
+html[data-ta-theme="royal"] body :is(#screen,#mainContent) .ta-pay-cash{background:var(--ta-receipt-surface)!important}
+html[data-ta-theme="royal"] body :is(#screen,#mainContent) .ta-pay-credit{background:var(--ta-payment-surface)!important}
+html[data-ta-theme="royal"] body :is(#screen,#mainContent) .ta-action-card::before,
+html[data-ta-theme="royal"] body :is(#screen,#mainContent) .ta-module-card::before{
+ background:linear-gradient(180deg,#a4d9f22b,transparent)!important
+}
+html[data-ta-theme="royal"] body :is(nav.ta-bottom-nav,#bottom.bottom) button:not([disabled]):not([hidden]),
+html[data-ta-theme="royal"] body #mainContent .grid-cols-3 button[onclick*="navigate('reports'"]:not(.bg-slate-900){
+ background:var(--ta-royal-neutral)!important;color:#d9f0ff!important;-webkit-text-fill-color:currentColor!important;border-color:#446d89!important
+}
+html[data-ta-theme="royal"] body :is(nav.ta-bottom-nav,#bottom.bottom) button:is(.active,.is-active,[aria-current=page]):not([hidden]){
+ background:linear-gradient(145deg,#165850,#0d393e)!important;color:#adfae7!important;border-color:#61baaa!important
+}
 }
 @media print{
  .ta-theme154-page,.ta-theme154-page::backdrop{display:none!important}
