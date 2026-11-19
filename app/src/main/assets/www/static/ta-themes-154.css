@@ -446,8 +446,8 @@ html[data-ta-theme="royal"] body :is(nav.ta-bottom-nav,#bottom.bottom) button:is
     filter:none!important;
     transform:none!important;
     opacity:1!important;
-    color:#f7fcff!important;
-    -webkit-text-fill-color:#f7fcff!important;
+    color:#173c50!important;
+    -webkit-text-fill-color:#173c50!important;
   }
   html[data-ta-theme="royal"] body nav.ta-bottom-nav button.nav-btn > span {
     color:#f5fbff!important;
@@ -501,10 +501,27 @@ html[data-ta-theme="royal"] body :is(nav.ta-bottom-nav,#bottom.bottom) button:is
     -webkit-text-stroke:0!important;
     filter:none!important;
     transform:none!important;
-    color:#f7fcff!important;
-    -webkit-text-fill-color:#f7fcff!important;
+    color:#173c50!important;
+    -webkit-text-fill-color:#173c50!important;
   }
   html body.ta-3d-v3524 nav.ta-bottom-nav .nav-btn > i {
     font-size:0!important;
+  }
+}
+
+/* Light theme: dark, readable labels over the light dock cards. Royal remains luminous. */
+@media screen {
+  html:not([data-ta-theme="royal"]) body nav.ta-bottom-nav button.nav-btn:is(.active,.is-active,[aria-current="page"]) > span,
+  html:not([data-ta-theme="royal"]) body.ta-3d-v3524 nav.ta-bottom-nav button.nav-btn:is(.active,.is-active,[aria-current="page"]) > span {
+    color:#075e55!important;
+    -webkit-text-fill-color:#075e55!important;
+  }
+  html[data-ta-theme="royal"] body.ta-3d-v3524 nav.ta-bottom-nav button.nav-btn > span {
+    color:#f5fbff!important;
+    -webkit-text-fill-color:#f5fbff!important;
+  }
+  html[data-ta-theme="royal"] body.ta-3d-v3524 nav.ta-bottom-nav button.nav-btn:is(.active,.is-active,[aria-current="page"]) > span {
+    color:#b4ffe9!important;
+    -webkit-text-fill-color:#b4ffe9!important;
   }
 }
