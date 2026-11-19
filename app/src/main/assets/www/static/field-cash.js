@@ -245,6 +245,7 @@ F.showCreateAgent=function(){
  <button type="button" class="ta-primary-3d rounded-xl p-3" onclick="FieldSync.saveCreateWarehouse()">إنشاء المستودع واختياره</button>
  <button type="button" class="rounded-xl p-3" onclick="FieldSync.cancelCreateWarehouse()">إلغاء</button></fieldset>
  <p class="text-xs text-slate-600">اختر مستودع السيارة الخاص بموظف البيع؛ تُنقل المواد إليه من شاشة المناقلات.</p>
+ ${State.settings.appProtection?.protectDeviceAddition===true?`<div class="rounded-xl border-2 border-emerald-300 bg-emerald-50 p-3 space-y-2"><p class="text-sm font-black text-emerald-900">🔒 تعيين كلمة سر الموظف الجديد (إجباري عند تفعيل الحماية)</p><input type="password" autocomplete="new-password" id="fieldNewEmployeePassword" minlength="6" maxlength="128" class="w-full border rounded-xl p-3 bg-white" placeholder="كلمة سر الموظف (6 خانات على الأقل)"/><input type="password" autocomplete="new-password" id="fieldNewEmployeeConfirm" minlength="6" maxlength="128" class="w-full border rounded-xl p-3 bg-white" placeholder="تأكيد كلمة سر الموظف"/><p class="text-xs text-emerald-900">سيُطلب ${window.WindowsPeerSync?'إدخال كلمة سر المدير':'التحقق ببصمة المدير أو كلمة سره'} قبل اعتماد الموظف.</p></div>`:'<p class="text-xs text-emerald-800 font-bold">حماية إضافة الأجهزة معطلة: إضافة الموظف لا تتطلب كلمة سر.</p>'}
  <button class="ta-primary-3d w-full p-3 rounded-xl font-black" onclick="FieldSync.addAgent()">حفظ موظف البيع</button>
  <button class="w-full p-3 rounded-xl bg-slate-100" onclick="FieldSync.open()">رجوع</button></div>`);
 };

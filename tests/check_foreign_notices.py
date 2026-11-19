@@ -94,6 +94,9 @@ with sync_playwright() as pw:
         page.get_by_role('button',name='إنشاء المستودع واختياره').click()
         assert 'بالاسم نفسه' in page.locator('#fieldWarehouseError').inner_text()
         assert page.locator('#fieldNewVehicle').input_value()=='سيارة اختبار' and page.locator('#fieldNewAgent').input_value()=='موظف اختبار'
+        page.get_by_role('button',name='إلغاء',exact=True).last.click()
+        page.get_by_role('button',name='حفظ موظف البيع',exact=True).click()
+        page.wait_for_function("id=>FieldSync.data().agents.some(a=>a.name==='موظف اختبار' && a.warehouseId===id)",arg=new_id)
         page.evaluate('()=>UI.forceCloseModal()')
     # Exercise cancellation and acceptance through the actual UI on a separate first-run page.
     start=browser.new_page(viewport={'width':390,'height':700})
