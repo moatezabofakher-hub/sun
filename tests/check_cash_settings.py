@@ -44,10 +44,25 @@ with sync_playwright() as pw:
             {...common,id:'pos',number:'CHECK-POS',source:'windows-pos',paymentMethod:'cash',paidAmount:12},
             {...common,id:'credit',number:'CHECK-CREDIT',paymentMethod:'credit',paidAmount:0}];
             AppNav.stack=[{screen:'reports',params:{tab:'pnl',period:'all'}}];AppNav.renderCurrent();}""")
-    register=page.locator('.ta-cash-register')
-    assert register.is_visible()
-    assert register.locator('li').count()==2
-    for label in ['فاتورة بيع نقدية · CHECK-CASH','نقطة بيع نقدية · CHECK-POS']:
-        assert label in register.inner_text()
-    assert 'CHECK-CREDIT' not in register.inner_text()
+    assert page.locator('.ta-cash-register').count()==0
+    if not employee:
+        page.evaluate("""()=>{State.settings.exchangeRate=100;
+            State.currencyExchanges=[
+              {id:'fx_buy_test',fromCurrency:'SYP',toCurrency:'USD',fromAmount:1000,toAmount:10,date:'2026-01-01T10:00:00Z'},
+              {id:'fx_sale_test',fromCurrency:'USD',toCurrency:'SYP',fromAmount:5,toAmount:700,date:'2026-01-03T10:00:00Z'}];
+            State.invoices[0].date='2026-01-02T10:00:00Z';
+            State.invoices[1].date='2026-01-04T10:00:00Z';
+            State.invoices[2].date='2026-01-01T09:00:00Z';
+            AppNav.renderCurrent();}""")
+        rows=page.locator('[data-profit-operation]')
+        assert rows.evaluate_all('els=>els.map(e=>e.dataset.profitOperation)')==['pos','fx_profit_fx_sale_test','cash','credit']
+        assert 'فاتورة بيع نقدية' in rows.nth(2).inner_text()
+        assert 'نقطة بيع نقدية' in rows.nth(0).inner_text()
+        expected=page.evaluate("Accounting.format(200,'SYP')")
+        assert expected in rows.nth(1).inner_text()
+        assert expected in page.locator('.ta-usd-profit').inner_text()
+        page.evaluate("""()=>{AppNav.stack=[{screen:'reports',params:{tab:'pnl',period:'range',date:'2026-01-04',end:'2026-01-04'}}];AppNav.renderCurrent();}""")
+        assert rows.count()==1 and rows.first.get_attribute('data-profit-operation')=='pos'
+        page.evaluate("""()=>{AppNav.stack=[{screen:'reports',params:{tab:'cashbox',period:'all'}}];AppNav.renderCurrent();}""")
+        assert page.locator('.ta-cash-register').count()==0
     browser.close()

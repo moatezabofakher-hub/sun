@@ -90,10 +90,6 @@ body .ta-operation-art {display:block;width:100%;height:100%;object-fit:contain;
 .ta-capital-icon{background-image:url('partners.webp')!important}
 #headerSettingsBtn i,[data-nav="reports"] i,[data-nav="items"] i{display:inline-block;width:1.2em;height:1.2em;border-radius:25%}
 .ta-agent-settings-glyph i,#headerSettingsBtn i svg,[data-nav="reports"] i svg,[data-nav="items"] i svg,.ta-capital-icon img{visibility:hidden}
-.ta-cash-register{margin:.7rem 0;padding:.8rem;background:#fffaf1;color:#183d3d;border-radius:12px;border:1px solid #b19c72}
-.ta-cash-register summary{cursor:pointer;font-weight:800}
-.ta-cash-register li{display:flex;gap:.5em;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:.6em 0;border-bottom:1px solid #ddd}
-.ta-cash-register li>button{font-weight:800;text-decoration:underline;padding:.35em .55em}
 
 /* Photographed module and navigation artwork. */
 body [data-nav="dashboard"] > i{position:relative;isolation:isolate}
