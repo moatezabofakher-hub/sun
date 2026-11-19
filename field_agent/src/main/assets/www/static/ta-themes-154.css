@@ -481,3 +481,42 @@ html[data-ta-theme="royal"] body :is(nav.ta-bottom-nav,#bottom.bottom) button:is
     html body #mainContent .ta-module-grid .ta-module-card > strong {font-size:11.5px!important}
   }
 }
+
+/* Keep employee navigation labels legible on either chosen theme. */
+@media screen {
+  html body #bottom.bottom button {
+    min-width:0!important;
+    min-height:75px!important;
+    padding:7px 1px 8px!important;
+    display:flex!important;
+    flex-direction:column!important;
+    align-items:center!important;
+    justify-content:center!important;
+    gap:4px!important;
+    font:850 clamp(11px,2.8vw,13px)/1.4 system-ui,"Noto Sans Arabic",Tahoma,sans-serif!important;
+    letter-spacing:0!important;
+    text-align:center!important;
+    word-break:keep-all!important;
+    white-space:normal!important;
+    text-shadow:none!important;
+    -webkit-text-stroke:0!important;
+    filter:none!important;
+    color:#f8fcff!important;
+    -webkit-text-fill-color:#f8fcff!important;
+  }
+  html body #bottom.bottom button > span {
+    flex:0 0 auto!important;
+    text-shadow:none!important;
+    -webkit-text-stroke:0!important;
+    filter:none!important;
+  }
+  html body #bottom.bottom button:not(#nav-sync)>span {
+    font-size:0!important;
+    width:37px!important;
+    height:37px!important;
+  }
+  html[data-ta-theme="royal"] body #bottom.bottom button.active {
+    color:#b8ffeb!important;
+    -webkit-text-fill-color:#b8ffeb!important;
+  }
+}
