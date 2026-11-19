@@ -1,0 +1,129 @@
+/* Tiqany Acc 3.5.152 — unified physical-depth theme.
+ * UI-only: preserves button actions, invoice math, focus, permissions, and colors
+ * whose meaning is accounting/safety (negative, deletion, connected, warning).
+ */
+:root {
+  --ta-depth-blue-top:#2f82dd;
+  --ta-depth-blue-mid:#135bb5;
+  --ta-depth-blue-bottom:#0a397a;
+  --ta-depth-blue-edge:#082b60;
+  --ta-depth-panel-edge:#a3c4dd;
+  --ta-depth-ink:#102f50;
+  --ta-depth-raised:inset 0 2px 1px #ffffff70,0 4px 0 #739bb8,0 9px 15px #0a355938;
+  --ta-depth-window:inset 0 2px 0 #fff,0 6px 0 #a9c6dd,0 18px 34px #0e345c49;
+}
+:is(.ta-enh-btn,.ta-enh-indigo,.ta-enh-teal,.ta-enh-gold,
+    .ta-enh-panel button:not(.ta-close3d),#taMovementAction,#taOpeningBalancesActions,
+    #taPriceModesButton,button[data-ta-new-finance-action]) {
+  color:#fff!important;
+  -webkit-text-fill-color:#fff!important;
+  background:linear-gradient(151deg,var(--ta-depth-blue-top) 0%,var(--ta-depth-blue-mid) 52%,var(--ta-depth-blue-bottom) 100%)!important;
+  border:1px solid #83c3ff!important;
+  border-radius:13px!important;
+  box-shadow:inset 0 2px 1px #ffffff72,0 5px 0 var(--ta-depth-blue-edge),0 10px 16px #062f6369!important;
+  text-shadow:0 1px 2px #03244d!important;
+  font-weight:900!important;
+  line-height:1.35;
+  letter-spacing:0;
+}
+:is(.ta-enh-btn,.ta-enh-indigo,.ta-enh-teal,.ta-enh-gold,#taMovementAction,#taOpeningBalancesActions,#taPriceModesButton):not(:disabled):active {
+  transform:translateY(3px)!important;
+  box-shadow:inset 0 2px 3px #061d3955,0 2px 0 var(--ta-depth-blue-edge),0 5px 8px #062f6350!important;
+}
+/* The partnership picture belongs to Capital only: contrast is white on deep blue. */
+html body .ta-capital-card {
+  background:linear-gradient(150deg,#3079d2 0%,#1654ad 58%,#0a3472 100%)!important;
+  border:2px solid #77bcf4!important;
+  border-radius:20px!important;
+  color:#fff!important;
+  box-shadow:inset 0 2px 2px #ffffff6d,0 6px 0 #06295e,0 12px 23px #0c2c5760!important;
+}
+html body .ta-capital-card .ta-capital-card-text strong,
+.ta-capital-card .ta-capital-card-text small,
+.ta-capital-card .ta-capital-amount,.ta-capital-card .ta-capital-divider,
+.ta-capital-card>i {color:#fff!important;-webkit-text-fill-color:#fff!important;}
+html body .ta-capital-card .ta-capital-icon {
+  background:linear-gradient(150deg,#3889db,#134b9d)!important;
+  border:1px solid #9cd3ff!important;
+  border-radius:16px!important;
+  box-shadow:inset 0 2px 0 #ffffff78,0 4px 0 #082e6d,0 7px 12px #092e575c!important;
+}
+.ta-capital-card .ta-capital-icon img {
+  display:block;width:49px;height:49px;object-fit:contain;filter:drop-shadow(0 2px 3px #0425538c);
+}
+/* Existing tile/panel/action surfaces receive visible physical depth without
+ * replacing their existing semantic gradients (red delete / green connection etc). */
+:is(.ta-action-card,.ta-module-card,.tile,.agent-pos-actions button,.agent-pos-save button,
+    .agent-pos-actions button,.agent-pos-cart button,.ta-share-actions button,
+    .ta-quick-picker,.ta-payment-selector,
+    .ta-pricing-choice,button.primary,button.secondary,.primary,.secondary,
+    .ta-page-control,.ta-glossy-icon-button,.ta-field-icon-button) {
+  border-radius:13px;
+  box-shadow:var(--ta-depth-raised);
+  transition:transform .14s ease,box-shadow .14s ease,filter .14s ease;
+}
+:is(button,.ta-action-card,.ta-module-card,.tile,[role="button"],summary):not(:disabled):focus-visible{
+  outline:3px solid #ffcb49!important;outline-offset:3px!important;
+}
+:is(button,.ta-action-card,.ta-module-card,.tile,[role="button"],summary):not(:disabled):active{
+  filter:brightness(.96);
+}
+:is(button,.ta-action-card,.ta-module-card,.tile,[role="button"]):not(:disabled):active{
+  transform:translateY(2px);
+}
+/* Form controls are recessed into the surface; they are not treated as action buttons. */
+:is(.ta-enh-panel,.ta-share-modal,.ta-capital-modal,.dialog-card,
+   #modalBox,.agent-picker-content,[role="dialog"],.ta-ux-popup-frame) {
+  border:1px solid #bad4e9;
+  border-radius:19px;
+  box-shadow:var(--ta-depth-window);
+}
+:is(.ta-enh-panel,.ta-share-modal,.ta-capital-modal,.dialog-card,
+   #modalBox,.agent-picker-content) {
+  background:linear-gradient(155deg,#fff 0%,#f5faff 57%,#e7f3fb 100%);
+}
+:is(#modalBox,.dialog-card,.ta-share-modal,.ta-capital-modal,.agent-picker-content,[role="dialog"]) :is(input,select,textarea){
+  background-color:#fff;
+  border:1px solid #abc6dd;
+  box-shadow:inset 0 2px 4px #173f611b,0 1px 0 #fff;
+}
+:is(.ta-enh-panel,.ta-share-modal,.ta-capital-modal,#modalBox,.dialog-card) :is(h1,h2,h3) {color:var(--ta-depth-ink);}
+/* Raised utility and navigation bars; never change stacking or fixed position. */
+:is(header.top,#appHeader,#mainHeader,.app-header,.top-bar,
+    nav.bottom,#bottom,.bottom-nav,#bottomNav,.ta-invoice-save-footer,
+    .ta-agent-pos-footer,.ta-footer-actions,.ta-payment-options,
+    .ta-invoice-entry-top,.invoice-entry-top) {
+  box-shadow:inset 0 2px 1px #ffffff30,0 4px 0 #0b34572a,0 9px 18px #0c34552e;
+  border-color:#78abc6;
+}
+:is(nav.bottom,#bottom,.bottom-nav,#bottomNav) button{
+  box-shadow:inset 0 2px 1px #ffffffa1,0 3px 0 #88a9c3,0 5px 9px #072f5338;
+  border-radius:11px;
+}
+:is(nav.bottom,#bottom,.bottom-nav,#bottomNav) button.active{
+  box-shadow:inset 0 2px 1px #ffffff94,0 3px 0 #257aa8,0 5px 9px #072f5338;
+}
+:is(.ta-action-card,.ta-module-card,.tile,.ta-glossy-icon-button,.ta-icon-box,.glyph,
+   .bottom button span,button .fas,button .far,button .fa,button svg) {
+  filter:drop-shadow(0 2px 1px #0b385b44);
+}
+:is(.ta-enh-btn,.ta-enh-indigo,.ta-enh-teal,.ta-enh-gold,#taMovementAction,#taOpeningBalancesActions)
+  :is(i,svg,span,strong) {color:#fff!important;-webkit-text-fill-color:#fff!important;}
+/* 3D control labels must remain readable even inside small modal screens. */
+.ta-enh-row{min-width:0;}
+.ta-enh-row button{min-width:0;white-space:normal;overflow-wrap:anywhere;}
+@media (max-width:425px){
+  :is(.ta-enh-btn,.ta-enh-indigo,.ta-enh-teal,.ta-enh-gold){font-size:12px!important;padding:9px 10px!important}
+  .ta-capital-card .ta-capital-icon{height:53px!important;width:53px!important;flex:0 0 auto!important}
+  .ta-capital-card .ta-capital-icon img{height:43px;width:43px}
+}
+@media (prefers-reduced-motion:reduce) {
+  :is(button,.ta-enh-btn,.tile,.ta-action-card,.ta-module-card){transition:none!important}
+}
+
+/* Fallback coverage for every native action control, including less common settings pages. */
+button:not([hidden]),[role="button"],summary{box-shadow:var(--ta-depth-raised);border-radius:12px;transition:transform .14s ease,box-shadow .14s ease,filter .14s ease}
+button:not([hidden]):not([disabled]):active,[role="button"]:active,summary:active{transform:translateY(2px)}
+:is(.top,.panel,.ta-modal-dialog,.modal-content,.ta-settings-panel,.settings-section,.modal-card,[class*="dialog-card"]){border-radius:17px;box-shadow:inset 0 1px 0 #fff8,0 4px 0 #9bbad155,0 11px 22px #102c4d28}
+:is(nav.bottom,#bottom,.bottom-nav,#bottomNav,#topBar,.top-bar,.ta-invoice-save-footer){background-image:linear-gradient(180deg,#ffffff25 0%,transparent 55%,#06274717 100%);}
+button:disabled{filter:grayscale(.18);cursor:not-allowed}

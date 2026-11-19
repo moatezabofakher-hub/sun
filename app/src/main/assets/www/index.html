@@ -1433,6 +1433,12 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
   #topAppBar #screenTitle{font-size:10px!important;}
 }
 </style>
+<link rel="stylesheet" href="static/ta-three-dimensional-152.css">
+<link rel="stylesheet" href="static/ta-unified-3d-152.css">
+<link rel="stylesheet" href="static/ta-3d-unified-152.css">
+<link rel="stylesheet" href="static/ta-settings-pages-152.css">
+<link rel="stylesheet" href="static/controls.css">
+<script defer src="static/controls.js"></script>
 </head>
 <body class="ta-premium-ui ta-3d-v3524 bg-slate-100 text-slate-800 min-h-screen flex flex-col w-full max-w-full overflow-x-hidden">
 
@@ -1448,13 +1454,13 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 </button>
                 <div id="ta-stable-connection-slots" class="ta-header-connections" aria-label="الأجهزة المتصلة">
                     <span class="ta-connection-slot" data-connection-slot="computer">
-                        <button id="ta-desktop-phone-connection" type="button" hidden class="ta-link-status ta-link-offline" onclick="TiqanyPeerSync.openSettingsFromHeader()" aria-label="فتح مزامنة الموبايل والكمبيوتر من الضبط" title="افتح مزامنة الموبايل والكمبيوتر"><span class="ta-link-devices" aria-hidden="true"><svg width="14" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8m-4-4v4"/></svg><i class="fas fa-mobile-screen"></i></span><span class="ta-link-dot" aria-hidden="true"></span></button>
+                        <button id="ta-desktop-phone-connection" type="button" class="ta-link-status ta-link-offline" onclick="TiqanyPeerSync.openSettingsFromHeader()" aria-label="فتح مزامنة الموبايل والكمبيوتر من الضبط" title="افتح مزامنة الموبايل والكمبيوتر"><span class="ta-link-devices" aria-hidden="true"><svg width="14" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8m-4-4v4"/></svg><i class="fas fa-mobile-screen"></i></span><span class="ta-link-dot" aria-hidden="true"></span></button>
                     </span>
                     <span class="ta-connection-slot" data-connection-slot="employee">
-                        <button id="salesStaffCounterButton" type="button" hidden class="ta-staff-counter" onclick="AppNav.navigate('agent_hub')" title="موظفو البيع المتصلون" aria-label="عدد موظفي البيع المتصلين"><i class="fas fa-users" aria-hidden="true"></i><strong id="salesStaffConnectedCount" aria-live="polite">0</strong></button>
+                        <button id="salesStaffCounterButton" type="button" class="ta-staff-counter" onclick="AppNav.navigate('agent_hub')" title="موظفو البيع المتصلون" aria-label="عدد موظفي البيع المتصلين"><i class="fas fa-users" aria-hidden="true"></i><strong id="salesStaffConnectedCount" aria-live="polite">0</strong></button>
                     </span>
                     <span class="ta-connection-slot" data-connection-slot="manager">
-                        <button id="ta-manager-phone-connection" type="button" hidden class="ta-link-status ta-manager-link" aria-label="مزامنة موبايلين مدير" title="مزامنة أجهزة مدير" onclick="TiqanyManagerSync.openSettings()"><span class="ta-link-devices" aria-hidden="true"><i class="fas fa-mobile-screen"></i><i class="fas fa-mobile-screen"></i></span><span class="ta-link-dot" aria-hidden="true"></span></button>
+                        <button id="ta-manager-phone-connection" type="button" class="ta-link-status ta-manager-link" aria-label="مزامنة موبايلين مدير" title="مزامنة أجهزة مدير" onclick="TiqanyManagerSync.openSettings()"><span class="ta-link-devices" aria-hidden="true"><i class="fas fa-mobile-screen"></i><i class="fas fa-mobile-screen"></i></span><span class="ta-link-dot" aria-hidden="true"></span></button>
                     </span>
                 </div>
                 <button id="headerBackBtn" onclick="AppNav.handleBackButton()" class="w-8 h-8 shrink-0 rounded-full flex items-center justify-center hover:bg-slate-800 active:bg-slate-700 transition" title="رجوع / خروج">
@@ -3189,14 +3195,18 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                     return;
                 }
 
+                if(!this.isDirty && this.activeOperationGuard && (
+                    (['invoice_form','pos'].includes(this.current()?.screen) && InvoiceController.draft?.isEditing) ||
+                    (this.current()?.screen==='voucher_form' && VoucherController.draft?.isEditing)
+                )) this.clearDirty();
                 if (this.isDirty || this.activeOperationGuard) {
-                    if (this.current()?.screen === 'voucher_form' && VoucherController.isEmptyNewVoucher()) {
+                    if (this.current()?.screen === 'voucher_form' && VoucherController.isEmptyNewVoucher() && !this.isDirty) {
                         this.clearDirty();
                         executeNavigation();
                         return;
                     }
                     if (['invoice_form','pos'].includes(this.current()?.screen) &&
-                        !InvoiceController.draft?.rows?.length) {
+                        !InvoiceController.draft?.rows?.length && !this.isDirty) {
                         this.clearDirty();
                         executeNavigation();
                         return;
@@ -3238,7 +3248,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                         void box.offsetWidth;
                         box.classList.add('animate-slide-up');
                     }
-                    UI.toast('يرجى اختيار (حفظ) أو (تجاهل) أو (البقاء في العملية) من النافذة', 'warn');
+                    UI.toast('اختر نعم لحفظ التغييرات أو لا لتجاهلها', 'warn');
                     return;
                 }
 
@@ -3250,7 +3260,8 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 const modal = document.getElementById('modalContainer');
                 if (!modal.classList.contains('hidden')) {
                     // The Back key and the popup's own Back icon follow one hierarchy.
-                    if (typeof ShareholdersUI !== 'undefined' &&
+                    if(modal.querySelector('[data-ta-fx-trade]') && window.TiqanyFx147?.leaveTrade){TiqanyFx147.leaveTrade();}
+                    else if (typeof ShareholdersUI !== 'undefined' &&
                         modal.querySelector('.ta-share-modal') &&
                         typeof ShareholdersUI.back === 'function') {
                         ShareholdersUI.back();
@@ -3282,19 +3293,23 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 // Empty invoice/POS: Back closes it immediately, with no unsaved-data dialog.
                 // Do not change the guarded behavior when at least one item exists.
                 if (['invoice_form','pos'].includes(this.current()?.screen) &&
-                    !InvoiceController.draft?.rows?.length) {
+                    !InvoiceController.draft?.rows?.length && !this.isDirty) {
                     this.clearDirty();
                     this.popScreen();
                     return;
                 }
 
                 // A fresh voucher with no account, amount or note has nothing to lose.
-                if (this.current()?.screen === 'voucher_form' && VoucherController.isEmptyNewVoucher()) {
+                if (this.current()?.screen === 'voucher_form' && VoucherController.isEmptyNewVoucher() && !this.isDirty) {
                     this.clearDirty();
                     this.popScreen();
                     return;
                 }
 
+                if(!this.isDirty && this.activeOperationGuard && (
+                    (['invoice_form','pos'].includes(this.current()?.screen) && InvoiceController.draft?.isEditing) ||
+                    (this.current()?.screen==='voucher_form' && VoucherController.draft?.isEditing)
+                )) this.clearDirty();
                 if (this.isDirty || this.activeOperationGuard) {
                     UI.showUnsavedDialog(
                         async () => {
@@ -3315,13 +3330,8 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                             }
                         },
                         () => {
-                            const repeatPOS=this.current()?.screen==='pos' &&
-                              InvoiceController.draft?.rows?.length>0 &&
-                              !InvoiceController.draft.isEditing &&
-                              State.settings.posAutoNextOnFinish===true;
                             this.clearDirty();
-                            if(repeatPOS)this.navigate('pos',{},true);
-                            else this.popScreen();
+                            this.popScreen();
                         }
                     );
                     return;
@@ -4000,7 +4010,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 };
 
                 let logoImg = null;
-                if (State.settings.companyLogo) {
+                if (State.settings.companyLogo && State.settings.taPrintFields?.logo !== false) {
                     logoImg = await new Promise((resolve) => {
                         const img = new Image();
                         img.onload = () => resolve(img);
@@ -4009,7 +4019,14 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                     });
                 }
 
-                const estimatedHeight = Math.round((1600 + (inv.rows.length * 140)) * scale);
+                const taTableHeight=(typeof TiqanyThermalTable152!=='undefined'&&TiqanyThermalTable152?.estimateHeight)
+                    ?TiqanyThermalTable152.estimateHeight(ctx,inv,widthDots,pad,scale,State.settings.taPrintFields||{},{
+                     qty:v=>Accounting.formatItemQuantity(v),
+                     price:v=>Accounting.formatItemPriceNumber(v),
+                     total:(v,c)=>Accounting.formatNumberOnly(v,c)
+                 }):0;
+                const estimatedHeight=Math.max(Math.round((1600+inv.rows.length*140)*scale),
+                    Math.ceil(1150*Math.max(scale,0.75)+taTableHeight));
                 canvas.width = widthDots;
                 canvas.height = estimatedHeight;
 
@@ -4041,18 +4058,18 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
 
                 ctx.font = `900 ${fCompany}px Cairo, sans-serif`;
                 ctx.textAlign = 'center';
-                const compLines = wrapTextLines(State.settings.companyName || '', `900 ${fCompany}px Cairo, sans-serif`, widthDots - pad * 2);
+                const compLines = wrapTextLines(State.settings.taPrintFields?.company === false ? '' : (State.settings.companyName || ''), `900 ${fCompany}px Cairo, sans-serif`, widthDots - pad * 2);
                 for (const line of compLines) {
                     ctx.fillText(line, widthDots / 2, y);
                     y += fCompany + 8;
                 }
 
-                if (State.settings.companyPhone) {
+                if (State.settings.companyPhone && State.settings.taPrintFields?.phone !== false) {
                     ctx.font = `bold ${fPhone}px Cairo, sans-serif`;
                     ctx.fillText(State.settings.companyPhone, widthDots / 2, y);
                     y += fPhone + 8;
                 }
-                if (State.settings.companyAddress) {
+                if (State.settings.companyAddress && State.settings.taPrintFields?.address !== false) {
                     ctx.font = `bold ${Math.round(fPhone * 0.9)}px Cairo, sans-serif`;
                     ctx.fillText(State.settings.companyAddress, widthDots / 2, y);
                     y += fPhone + 6;
@@ -4078,13 +4095,20 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 };
 
                 drawMetaRow('رقم الفاتورة', `فاتورة-${inv.number}`);
-                drawMetaRow('التاريخ', this.formatReceiptDate(inv.date));
-                drawMetaRow('الحساب', acc ? acc.name : 'زبون عام');
+                if(State.settings.taPrintFields?.date !== false) drawMetaRow('التاريخ', this.formatReceiptDate(inv.date));
+                if(State.settings.taPrintFields?.account !== false) drawMetaRow('الحساب', acc ? acc.name : 'زبون عام');
 
                 y += 4;
                 drawDoubleSep();
 
                 // 4. 5-Column Table Header (# | اسم المادة | الوحدة | الكمية | الإفرادي | الاجمالي)
+                if(typeof TiqanyThermalTable152!=='undefined' && TiqanyThermalTable152?.draw){
+                    y=TiqanyThermalTable152.draw(ctx,inv,widthDots,y,pad,scale,State.settings.taPrintFields||{},{
+                     qty:v=>Accounting.formatItemQuantity(v),
+                     price:v=>Accounting.formatItemPriceNumber(v),
+                     total:(v,c)=>Accounting.formatNumberOnly(v,c)
+                 });
+                }else{
                 const xIdx = widthDots - pad;
                 const xName = widthDots - pad - (is58 ? 24 : 34);
                 const xUnit = Math.round(widthDots * 0.50);
@@ -4092,17 +4116,18 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 const xPrice = Math.round(widthDots * 0.23);
                 const xTotal = pad;
                 const maxNameWidth = xName - (widthDots * 0.56);
+                const taPrintGridTop=y-6,taPrintGridRows=[taPrintGridTop];
 
                 ctx.font = `900 ${fTableHead}px Cairo, sans-serif`;
                 ctx.textAlign = 'right';
                 ctx.fillText('#', xIdx, y);
                 ctx.fillText('اسم المادة', xName, y);
                 ctx.textAlign = 'center';
-                ctx.fillText('الوحدة', xUnit, y);
-                ctx.fillText('الكمية', xQty, y);
-                ctx.fillText('الإفرادي', xPrice, y);
+                if(State.settings.taPrintFields?.unit !== false) ctx.fillText('الوحدة', xUnit, y);
+                if(State.settings.taPrintFields?.quantity !== false) ctx.fillText('الكمية', xQty, y);
+                if(State.settings.taPrintFields?.price !== false) ctx.fillText('الإفرادي', xPrice, y);
                 ctx.textAlign = 'left';
-                ctx.fillText('الاجمالي', xTotal, y);
+                if(State.settings.taPrintFields?.total !== false) ctx.fillText('الاجمالي', xTotal, y);
                 y += fTableHead + 6;
 
                 // Dashed Sub-header Underlines
@@ -4117,6 +4142,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 ctx.textAlign = 'left';
                 ctx.fillText('----', xTotal, y);
                 y += fTableHead + 6;
+                taPrintGridRows.push(y);
 
                 // 5. Table Rows
                 for (let i = 0; i < inv.rows.length; i++) {
@@ -4129,13 +4155,13 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                     ctx.fillText(nameLines[0] || '', xName, y);
 
                     ctx.textAlign = 'center';
-                    ctx.fillText(String(r.unitName || ''), xUnit, y);
-                    ctx.fillText(Accounting.formatItemQuantity(r.qty), xQty, y);
-                    ctx.fillText(Accounting.formatItemPriceNumber(r.price), xPrice, y);
+                    if(State.settings.taPrintFields?.unit !== false) ctx.fillText(String(r.unitName || ''), xUnit, y);
+                    if(State.settings.taPrintFields?.quantity !== false) ctx.fillText(Accounting.formatItemQuantity(r.qty), xQty, y);
+                    if(State.settings.taPrintFields?.price !== false) ctx.fillText(Accounting.formatItemPriceNumber(r.price), xPrice, y);
 
                     ctx.font = `900 ${fItem}px Cairo, sans-serif`;
                     ctx.textAlign = 'left';
-                    ctx.fillText(Accounting.formatNumberOnly(r.total, inv.currency), xTotal, y);
+                    if(State.settings.taPrintFields?.total !== false) ctx.fillText(Accounting.formatNumberOnly(r.total, inv.currency), xTotal, y);
 
                     y += fItem + 8;
 
@@ -4159,10 +4185,16 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                         ctx.strokeStyle = '#000000';
                         y += 13;
                     }
+                    taPrintGridRows.push(y);
                 }
                 ctx.font = `bold ${fMeta}px Cairo, sans-serif`;
                 ctx.textAlign = 'right';
-                ctx.fillText(`عدد الأصناف: ${inv.rows.length}`, widthDots - pad, y);
+                // Numbered items are shown in bordered rows and columns.
+                const taOldStroke=ctx.strokeStyle,taOldWidth=ctx.lineWidth;ctx.lineWidth=1;ctx.strokeStyle='#333';ctx.setLineDash([]);
+                for(const gx of [pad,widthDots*0.18,widthDots*0.30,widthDots*0.41,widthDots*0.56,widthDots*0.90,widthDots-pad]){ctx.beginPath();ctx.moveTo(gx,taPrintGridTop);ctx.lineTo(gx,y);ctx.stroke();}
+                for(const gy of taPrintGridRows){ctx.beginPath();ctx.moveTo(pad,gy);ctx.lineTo(widthDots-pad,gy);ctx.stroke();}
+                ctx.strokeStyle=taOldStroke;ctx.lineWidth=taOldWidth;
+                }
                 y += fMeta + 12;
                 drawDoubleSep();
 
@@ -4198,7 +4230,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 drawTotalRow('المبلغ الباقي', Accounting.format(inv.remainingAmount, inv.currency), fNet, true);
 
                 y += 4;
-                if(acc){
+                if(acc && State.settings.taPrintFields?.balances !== false){
                     // Display only the currency affected by this invoice, not both ledgers.
                     const balanceCurrency = inv.currency === 'SYP' ? 'SYP' : 'USD';
                     const balanceCurrencyLabel = balanceCurrency === 'SYP' ? 'ليرة' : 'دولار';
@@ -4210,7 +4242,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 drawDoubleSep();
 
                 // 7. Footer Note
-                const footerLines = wrapTextLines(State.settings.footerNote || 'ثقتكم تهمنا', `bold ${fFooter}px Cairo, sans-serif`, widthDots - pad * 2);
+                const footerLines = wrapTextLines(State.settings.taPrintFields?.footer === false ? '' : (State.settings.footerNote || 'ثقتكم تهمنا'), `bold ${fFooter}px Cairo, sans-serif`, widthDots - pad * 2);
                 ctx.font = `bold ${fFooter}px Cairo, sans-serif`;
                 ctx.textAlign = 'center';
                 for (const fl of footerLines) {
@@ -4348,12 +4380,10 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 c.setAttribute('data-dialog-type','unsaved');
                 b.innerHTML = `
                     <div class="ta-decision-icon" aria-hidden="true"><i class="fas fa-shield-halved"></i></div>
-                    <h3 class="ta-decision-title">عملية غير مكتملة</h3>
-                    <p class="ta-decision-subtitle">لديك تغييرات لم تُحفظ</p>
+                    <h3 class="ta-decision-title">هل تريد حفظ التغييرات قبل الخروج؟</h3>
                     <div class="ta-decision-actions">
-                        <button type="button" id="dlgSaveBtn" class="ta-decision-save"><i class="fas fa-floppy-disk ml-1" aria-hidden="true"></i> حفظ</button>
-                        <button type="button" id="dlgCancelBtn" class="ta-decision-stay"><i class="fas fa-arrow-rotate-right ml-1" aria-hidden="true"></i> البقاء</button>
-                        <button type="button" id="dlgDiscardBtn" class="ta-decision-discard"><i class="fas fa-trash-can ml-1" aria-hidden="true"></i> تجاهل التغييرات</button>
+                        <button type="button" id="dlgSaveBtn" class="ta-decision-save">نعم</button>
+                        <button type="button" id="dlgDiscardBtn" class="ta-decision-discard">لا</button>
                     </div>
                 `;
                 c.classList.remove('hidden');
@@ -4367,10 +4397,6 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                     c.classList.add('hidden');
                     c.removeAttribute('data-dialog-type');
                     if (onDiscard) onDiscard();
-                };
-                document.getElementById('dlgCancelBtn').onclick = () => {
-                    c.classList.add('hidden');
-                    c.removeAttribute('data-dialog-type');
                 };
             },
 
@@ -4829,23 +4855,23 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                             <div class="ta-section-head"><span class="ta-section-mark"></span><div><h3>العمليات السريعة</h3><p>ابدأ عملية جديدة بضغطة واحدة</p></div></div>
                             <div class="ta-action-grid ta-quick-3573">
                                 <button type="button" onclick="AppNav.navigate('invoice_form', { type: 'sale' })" class="ta-action-card ta-quick-sale">
-                                    <span class="ta-icon-box ta-tone-teal"><i class="fas fa-cart-plus" aria-hidden="true"></i></span>
+                                    <span class="ta-icon-box ta-tone-teal"><img class="ta-operation-art" src="static/sale.png" alt=""></span>
                                     <span class="ta-card-footer"><span><strong>فاتورة مبيعات</strong><span class="ta-card-description block">تسجيل عملية بيع</span></span><i class="fas fa-arrow-right ta-card-chevron" aria-hidden="true"></i></span>
                                 </button>
                                 <button type="button" onclick="AppNav.navigate('pos')" class="ta-action-card ta-quick-pos" aria-label="فتح نقطة البيع السريعة">
-                                    <span class="ta-icon-box ta-tone-teal"><i class="fas fa-cash-register"></i></span>
+                                    <span class="ta-icon-box ta-tone-teal"><img class="ta-operation-art" src="static/pos.png" alt=""></span>
                                     <span class="ta-card-footer"><span><strong>نقطة بيع</strong><span class="ta-card-description block">بيع سريع وإضافة بالشبكة</span></span><i class="fas fa-arrow-right ta-card-chevron"></i></span>
                                 </button>
                                 <button type="button" onclick="AppNav.navigate('invoice_form', { type: 'purchase' })" class="ta-action-card ta-quick-purchase">
-                                    <span class="ta-icon-box ta-tone-blue"><i class="fas fa-truck-ramp-box" aria-hidden="true"></i></span>
+                                    <span class="ta-icon-box ta-tone-blue"><img class="ta-operation-art" src="static/purchase.png" alt=""></span>
                                     <span class="ta-card-footer"><span><strong>فاتورة مشتريات</strong><span class="ta-card-description block">إضافة مواد للمخزون</span></span><i class="fas fa-arrow-right ta-card-chevron" aria-hidden="true"></i></span>
                                 </button>
                                 <button type="button" onclick="AppNav.navigate('voucher_form', { type: 'receipt' })" class="ta-action-card ta-quick-receipt">
-                                    <span class="ta-icon-box ta-tone-purple"><i class="fas fa-hand-holding-dollar" aria-hidden="true"></i></span>
+                                    <span class="ta-icon-box ta-tone-purple"><img class="ta-voucher-art" src="static/receipt.png" alt=""></span>
                                     <span class="ta-card-footer"><span><strong>سند قبض</strong><span class="ta-card-description block">تسجيل مبلغ وارد</span></span><i class="fas fa-arrow-right ta-card-chevron" aria-hidden="true"></i></span>
                                 </button>
                                 <button type="button" onclick="AppNav.navigate('voucher_form', { type: 'payment' })" class="ta-action-card ta-quick-payment">
-                                    <span class="ta-icon-box ta-tone-orange"><i class="fas fa-money-bill-transfer" aria-hidden="true"></i></span>
+                                    <span class="ta-icon-box ta-tone-orange"><img class="ta-voucher-art" src="static/payment.png" alt=""></span>
                                     <span class="ta-card-footer"><span><strong>سند دفع</strong><span class="ta-card-description block">تسجيل مبلغ مدفوع</span></span><i class="fas fa-arrow-right ta-card-chevron" aria-hidden="true"></i></span>
                                 </button>
                             </div>
@@ -5154,6 +5180,14 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                             </div>`).join('') : '<p class="text-slate-400 text-xs">لا توجد مصاريف مسجلة.</p>'}
                     </div>
                 `;
+                const expensePanel=document.getElementById('expenseFormPanel');
+                ExpenseController.formBaseline=ExpenseController.signature();
+                const changed=()=>{
+                    if(ExpenseController.signature()===ExpenseController.formBaseline) AppNav.clearDirty();
+                    else AppNav.markDirty(()=>ExpenseController.saveExpense());
+                };
+                expensePanel.addEventListener('input',changed);
+                expensePanel.addEventListener('change',changed);
                 if (params.action === 'add') this.jumpToEntry('expenseFormPanel', 'expenseAmount');
             },
 
@@ -5365,7 +5399,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
 
                         <!-- 4. Items Table (# | اسم المادة | الوحدة | الكمية | الإفرادي | الاجمالي) -->
                         <div class="w-full my-1">
-                            <table class="w-full text-black border-collapse text-xs sm:text-sm">
+                            <table class="ta-enh-print-grid w-full text-black border-collapse text-xs sm:text-sm">
                                 <thead>
                                     <tr class="font-black">
                                         <th class="py-1 text-right w-[6%]">#</th>
@@ -5397,7 +5431,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                                     `).join('')}
                                 </tbody>
                             </table>
-                            <div class="font-black text-[11px] text-right mt-2 pt-1">عدد الأصناف: ${inv.rows.length}</div>
+                            
                         </div>
 
                         <div class="text-center font-mono font-bold text-xs sm:text-sm tracking-widest my-1.5 select-none overflow-hidden">
@@ -5912,7 +5946,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                             itemProfits[item.id].qty += saleSign*qty;
                         }
                         estimatedProfitUsd += invoiceProfit;
-                        invoiceProfits.push({ id: inv.id, type:inv.type, ref: inv.ref || inv.number || inv.id, date: inv.date || '', party: ((Array.isArray(State.accounts) ? State.accounts : []).find(a => a && a.id === inv.accountId)?.name) || inv.partyName || inv.accountName || inv.customerName || '', currency: inv.currency || 'USD', profit: invoiceProfit });
+                        invoiceProfits.push({ isCash: inv.paymentMethod==='cash', isPos: POSController.isPOS(inv), id: inv.id, type:inv.type, ref: inv.ref || inv.number || inv.id, date: inv.date || '', party: ((Array.isArray(State.accounts) ? State.accounts : []).find(a => a && a.id === inv.accountId)?.name) || inv.partyName || inv.accountName || inv.customerName || '', currency: inv.currency || 'USD', profit: invoiceProfit });
                     } else if (inv.type === 'purchase') {
                         purchasesSyp += netSyp; purchasesUsd += netUsd;
                     }
@@ -5963,6 +5997,12 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 });
                 const reportExchangeRate = Number(State.settings && State.settings.exchangeRate) || 1;
                 const moneyDual = usd => `<div class="font-extrabold text-emerald-700">${Accounting.format(usd, 'USD')}</div><div class="text-[10px] text-slate-500">${Accounting.format(usd * reportExchangeRate, 'SYP')}</div>`;
+                const reportLimit = Math.max(10, Number(params.shown) || 10);
+                const profitRows = invoiceProfits
+                    .sort((a,b)=>new Date(b.date)-new Date(a.date));
+                const moreRows = count => count <= reportLimit ? '' :
+                    '<button type="button" class="ta-primary-3d w-full p-3 font-bold" onclick="AppNav.navigate(' +
+                    "'reports',{...AppNav.current().params,shown:" + (reportLimit+10) + '},true)">المزيد</button>';
                 const active = (v, label) => `<button onclick="AppNav.navigate('reports',{tab:'pnl',period:'${period}',date:'${selectedDate}',end:'${endDate}',agentId:${agentArg},view:'${v}',reveal:${revealProfits}},true)" class="px-3 py-2 rounded-xl text-xs font-bold ${profitView === v ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 border'}">${label}</button>`;
 
                 main.innerHTML = `
@@ -5996,7 +6036,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                         </div>
                         
                         <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden"><div class="p-3 font-bold text-xs border-b border-slate-100">سجل المقبوضات والمدفوعات النقدية</div>
-                        ${visibleCashMovements.length === 0 ? `<div class="p-6 text-center text-xs text-slate-400">لا توجد حركات صندوق مسجلة</div>` : `<div class="divide-y divide-slate-100 text-xs">${visibleCashMovements.map(m => `<div class="p-3 flex items-center justify-between gap-2 ${m.inflow > 0 ? 'ta-cash-inflow' : 'ta-cash-outflow'}"><div><div class="font-bold ta-cash-title">${m.ref} - ${m.party}</div><div class="text-[11px] text-slate-600" dir="ltr"><span dir="ltr" class="inline-block">${TiqanyDateView.visible(m.date).split("/").join("-")}</span> <span dir="rtl" class="inline-block">/ ${AppEscape.text(m.desc||"حركة نقدية")} /</span></div></div><div class="font-extrabold ta-cash-amount shrink-0" dir="auto">${m.inflow > 0 ? '+ ' + Accounting.format(m.inflow, m.currency) : '- ' + Accounting.format(m.outflow, m.currency)}</div></div>`).join('')}</div>`}</div>
+                        ${visibleCashMovements.length === 0 ? `<div class="p-6 text-center text-xs text-slate-400">لا توجد حركات صندوق مسجلة</div>` : `<div class="divide-y divide-slate-100 text-xs">${visibleCashMovements.slice(0,reportLimit).map(m => `<div class="p-3 flex items-center justify-between gap-2 ${m.inflow > 0 ? 'ta-cash-inflow' : 'ta-cash-outflow'}"><div><div class="font-bold ta-cash-title">${m.ref} - ${m.party}</div><div class="text-[11px] text-slate-600" dir="ltr"><span dir="ltr" class="inline-block">${TiqanyDateView.visible(m.date).split("/").join("-")}</span> <span dir="rtl" class="inline-block">/ ${AppEscape.text(m.desc||"حركة نقدية")} /</span></div></div><div class="font-extrabold ta-cash-amount shrink-0" dir="auto">${m.inflow > 0 ? '+ ' + Accounting.format(m.inflow, m.currency) : '- ' + Accounting.format(m.outflow, m.currency)}</div></div>`).join('')}</div>${moreRows(visibleCashMovements.length)}`}</div>
                     ` : tab === 'inventory' ? `
                         <div class="bg-sky-50 border border-sky-200 rounded-xl p-3 mb-3">
                             <label class="text-xs font-bold text-sky-900 block mb-1">عرض جرد مستودع محدد أو جميع المستودعات</label>
@@ -6045,7 +6085,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                         <div class="grid grid-cols-3 gap-1.5 mb-3">${active('invoices','أرباح الفواتير')}${active('groups','أرباح المجموعات')}${active('items','أرباح المواد')}</div>
                         <div class="grid grid-cols-2 gap-2 mb-3">
                             <div class="bg-white p-3 rounded-2xl border"><div class="text-[11px] text-slate-500">إجمالي المبيعات</div><div class="font-extrabold text-emerald-700">${Accounting.format(salesUsd,'USD')}</div><div class="text-[10px] text-slate-500">${Accounting.format(salesSyp,'SYP')}</div></div>
-                            <div class="bg-slate-900 text-white p-3 rounded-2xl"><div class="text-[11px] text-slate-300">إجمالي الربح شاملاً التصريف</div>${revealProfits ? `<div class="font-extrabold text-amber-300">${Accounting.format(grossProfitUsd,'USD')}</div><div class="text-[10px] text-emerald-300">${Accounting.format(grossProfitUsd * (Number(State.settings && State.settings.exchangeRate)||1),'SYP')}</div>` : `<div class="font-extrabold text-amber-300/80 mt-1 tracking-widest">••••••</div><div class="text-[10px] text-slate-300 mt-1">اضغط إظهار الأرباح</div>`}</div>
+                            <div class="ta-usd-profit bg-slate-900 text-white p-3 rounded-2xl"><div class="text-[11px] text-slate-300">إجمالي الربح شاملاً التصريف</div>${revealProfits ? `<div class="font-extrabold text-amber-300">${Accounting.format(grossProfitUsd,'USD')}</div><div class="text-[10px] text-emerald-300">${Accounting.format(grossProfitUsd * (Number(State.settings && State.settings.exchangeRate)||1),'SYP')}</div>` : `<div class="font-extrabold text-amber-300/80 mt-1 tracking-widest">••••••</div><div class="text-[10px] text-slate-300 mt-1">اضغط إظهار الأرباح</div>`}</div>
                         </div>
                         <div class="grid grid-cols-2 gap-2 mb-3">
                             <div class="bg-orange-50 border border-orange-200 rounded-2xl p-3">
@@ -6076,7 +6116,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                           <p class="text-[10px] text-blue-700 mt-1">مسحوبات الأرباح توزيع حقوق ملكية، وليست مصاريف تشغيلية، وتخصم من الأرباح المتاحة للتوزيع.</p>
                         </div>
                         <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-                            ${!revealProfits ? `<div class="p-8 text-center"><i class="fas fa-eye-slash text-2xl text-slate-300 mb-3"></i><p class="font-extrabold text-sm text-slate-700">تفاصيل الأرباح مخفية</p><p class="text-xs text-slate-500 mt-1">اختر الفترة المطلوبة ثم اضغط زر إظهار الأرباح بالأعلى.</p></div>` : profitView==='invoices' ? `<div class="p-3 border-b font-bold text-xs">ربح كل فاتورة على حدة</div>${invoiceProfits.length ? `<div class="divide-y">${invoiceProfits.map(x=>`<div class="p-3 flex items-center justify-between gap-2"><div class="min-w-0"><div class="font-bold text-xs">${x.type==='sale_return'?'مردود · ':''}${AppEscape.text(x.ref)} ${x.party ? ' - '+AppEscape.text(x.party) : ''}</div><div class="text-[10px] text-slate-400">${String(x.date).replace('T',' ').slice(0,16)}</div></div><div class="text-left shrink-0">${moneyDual(x.profit)}</div></div>`).join('')}</div>` : `<div class="p-5 text-center text-xs text-slate-400">لا توجد فواتير مبيع ضمن الفترة المحددة</div>`}` : profitView==='groups' ? `<div class="p-3 border-b font-bold text-xs">الأرباح حسب مجموعات الأصناف</div>${Object.keys(groupProfits).length ? `<div class="divide-y">${Object.entries(groupProfits).sort((a,b)=>b[1]-a[1]).map(([name,val])=>`<div class="p-3 flex items-center justify-between"><span class="font-bold text-xs">${name}</span><div class="text-left">${moneyDual(val)}</div></div>`).join('')}</div>` : `<div class="p-5 text-center text-xs text-slate-400">لا توجد بيانات مجموعات ضمن الفترة المحددة</div>`}` : `<div class="p-3 border-b font-bold text-xs">الأرباح حسب المواد</div>${Object.keys(itemProfits).length ? `<div class="divide-y">${Object.values(itemProfits).sort((a,b)=>b.profit-a.profit).map(x=>`<div class="p-3 flex items-center justify-between gap-2"><div><div class="font-bold text-xs">${x.name}</div><div class="text-[10px] text-slate-400">الكمية المباعة: ${x.qty}</div></div><div class="text-left">${moneyDual(x.profit)}</div></div>`).join('')}</div>` : `<div class="p-5 text-center text-xs text-slate-400">لا توجد بيانات مواد ضمن الفترة المحددة</div>`}`}
+                            ${!revealProfits ? `<div class="p-8 text-center"><i class="fas fa-eye-slash text-2xl text-slate-300 mb-3"></i><p class="font-extrabold text-sm text-slate-700">تفاصيل الأرباح مخفية</p><p class="text-xs text-slate-500 mt-1">اختر الفترة المطلوبة ثم اضغط زر إظهار الأرباح بالأعلى.</p></div>` : profitView==='invoices' ? `<div class="p-3 border-b font-bold text-xs">أرباح الفواتير وعمليات التصريف</div>${invoiceProfits.length ? `<div class="divide-y">${profitRows.slice(0,reportLimit).map(x=>`<div data-profit-operation="${AppEscape.text(x.id)}" class="p-3 flex items-center justify-between gap-2"><div class="min-w-0"><div class="font-bold text-xs">${x.isPos?'نقطة بيع نقدية · ':x.type==='sale_return'?'مردود · ':x.isCash?'فاتورة بيع نقدية · ':''}${AppEscape.text(x.ref)} ${x.party ? ' - '+AppEscape.text(x.party) : ''}</div><div class="text-[10px] text-slate-400">${String(x.date).replace('T',' ').slice(0,16)}</div></div><div class="text-left shrink-0">${moneyDual(x.profit)}</div></div>`).join('')}</div>${moreRows(profitRows.length)}` : `<div class="p-5 text-center text-xs text-slate-400">لا توجد فواتير مبيع أو أرباح تصريف ضمن الفترة المحددة</div>`}` : profitView==='groups' ? `<div class="p-3 border-b font-bold text-xs">الأرباح حسب مجموعات الأصناف</div>${Object.keys(groupProfits).length ? `<div class="divide-y">${Object.entries(groupProfits).sort((a,b)=>b[1]-a[1]).map(([name,val])=>`<div class="p-3 flex items-center justify-between"><span class="font-bold text-xs">${name}</span><div class="text-left">${moneyDual(val)}</div></div>`).join('')}</div>` : `<div class="p-5 text-center text-xs text-slate-400">لا توجد بيانات مجموعات ضمن الفترة المحددة</div>`}` : `<div class="p-3 border-b font-bold text-xs">الأرباح حسب المواد</div>${Object.keys(itemProfits).length ? `<div class="divide-y">${Object.values(itemProfits).sort((a,b)=>b.profit-a.profit).map(x=>`<div class="p-3 flex items-center justify-between gap-2"><div><div class="font-bold text-xs">${x.name}</div><div class="text-[10px] text-slate-400">الكمية المباعة: ${x.qty}</div></div><div class="text-left">${moneyDual(x.profit)}</div></div>`).join('')}</div>` : `<div class="p-5 text-center text-xs text-slate-400">لا توجد بيانات مواد ضمن الفترة المحددة</div>`}`}
                         </div>
                         <p class="text-[10px] text-slate-400 mt-2">${agentId==='all'?'صافي الربح التقديري = أرباح المبيعات + أرباح التصريف المحققة − المصاريف النقدية المسجلة للفترة.':'ربح موظف البيع المعروض = أرباح مبيعاته بعد مردوداته مطروحًا منها المصاريف المنسوبة إليه فقط، ولا تشمل المصاريف العامة غير الموزعة.'} تُحوّل المصاريف بسعر صرف تاريخ العملية، بينما يُعرض المقابل بالليرة بسعر الصرف الحالي. تكلفة البضاعة مبنية على أسعار التكلفة المسجلة بالأصناف وليست تكلفة متحركة دقيقة.</p>
                     `}
@@ -6089,11 +6129,11 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 const mode = State.settings.btPrintMode || 'auto';
                 main.innerHTML = `
                     <div class="mb-3 flex items-center justify-between gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2" data-app-build="${InstalledAppVersion.number()}" role="status" aria-label="إصدار التطبيق">
-                        <span class="font-black text-xs text-emerald-800"><i class="fas fa-check-circle ml-1"></i> إصدار التطبيق: ${InstalledAppVersion.number()}</span>
+                        <span class="font-black text-xs text-emerald-800"><i class="fas fa-check-circle ml-1"></i> إصدار التطبيق: 3.5.153</span>
                         <span class="text-[10px] font-bold text-emerald-700">مظهر ثلاثي الأبعاد موحّد</span>
                     </div>
                     ${TiqanySupport.launch()}
-                    <div class="mb-3 text-[11px] text-slate-500 font-semibold px-1">جميع خيارات التطبيق مرتبة ضمن فئات. اضغط على اسم أي فئة لفتحها أو إغلاقها.</div>
+                    <div class="mb-3 text-[11px] text-slate-500 font-semibold px-1">جميع خيارات التطبيق مرتبة ضمن فئات. اضغط على اسم أي فئة لفتح صفحة إعداداتها.</div>
                     <!-- 3.5.104: إدارة موظفي البيع ضمن صفحتها المستقلة، لا تظهر في الضبط. -->
                     <details class="settings-section" data-settings-section="business-profiles" ontoggle="SettingsController.onSectionToggle(this)" ${SettingsController.expandedSections.has('business-profiles') ? 'open' : ''}>
                       <summary class="settings-section-heading"><span class="settings-section-leading"><i class="fas fa-building text-emerald-600"></i><span><span class="settings-section-name">الحسابات المستقلة للشركات</span><span class="settings-section-note">التبديل والنسخ الاحتياطي لكل شركة</span></span></span><i class="fas fa-chevron-down settings-section-arrow"></i></summary>
@@ -6130,7 +6170,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                             </select>
                             <label class="block text-xs font-extrabold">طريقة التسعير</label>
                             <select id="posTierSetting" onchange="POSController.saveSettings()" class="w-full bg-white border rounded-xl p-2.5 text-xs font-bold">
-                                <option value="account" ${!['wholesale','center','consumer'].includes(State.settings.posPriceTier)?'selected':''}>حسب الحساب والإعدادات</option>
+                                <option value="account" ${!((v)=>(typeof TiqanyPricing152!=='undefined'&&TiqanyPricing152&&typeof TiqanyPricing152.validTier==='function'?TiqanyPricing152.validTier(v):['wholesale','center','consumer'].includes(v)))(State.settings.posPriceTier)?'selected':''}>حسب الحساب والإعدادات</option>
                                 <option value="wholesale" ${State.settings.posPriceTier==='wholesale'?'selected':''}>الجملة</option>
                                 <option value="center" ${State.settings.posPriceTier==='center'?'selected':''}>المركز</option>
                                 <option value="consumer" ${State.settings.posPriceTier==='consumer'?'selected':''}>المستهلك</option>
@@ -7452,11 +7492,16 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                     const note=document.getElementById('transferNote');if(note)note.value='';
                     this.updateTransferGridSelections();this.renderTransferDraft();
                 }
+                this.transferBaseline=this.transferSignature();
                 Views.scrollToTransferPanel();
             },
+            transferSignature(){
+                const fields=['transferFrom','transferTo','transferDate','transferNote'].map(id=>document.getElementById(id)?.value||'');
+                return JSON.stringify([fields,this.transferDraft||[]]);
+            },
             closeTransferForm(){
-                if((this.transferDraft||[]).length){
-                    UI.openModal(`<div class="text-right" dir="rtl"><h3 class="font-extrabold mb-2">إغلاق فاتورة المناقلة؟</h3><p class="text-xs">لن تُحفظ الأصناف غير المسجلة.</p><div class="flex gap-2 mt-4"><button onclick="UI.forceCloseModal();WarehouseController.discardTransferForm()" class="flex-1 bg-rose-600 text-white rounded-xl p-3 font-bold">إغلاق دون حفظ</button><button onclick="UI.forceCloseModal()" class="flex-1 bg-slate-100 rounded-xl p-3 font-bold">متابعة التعديل</button></div></div>`);return;
+                if(this.transferSignature()!==this.transferBaseline){
+                    UI.showUnsavedDialog(()=>this.saveTransfer(false),()=>this.discardTransferForm());return;
                 }
                 this.discardTransferForm();
             },
@@ -7731,6 +7776,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 for(const [field,value] of [['transferFrom',doc.fromWarehouseId],['transferTo',doc.toWarehouseId],['transferDate',doc.date],['transferNote',doc.note||'']]){
                     const element=document.getElementById(field);if(element)element.value=value;
                 }
+                this.transferBaseline=this.transferSignature();
                 const title=document.getElementById('transferFormTitle');if(title)title.textContent='تعديل فاتورة مناقلة';
                 const editing=document.getElementById('transferEditBanner');if(editing)editing.hidden=false;
                 const editingRef=document.getElementById('transferEditingRef');if(editingRef)editingRef.textContent='رقم الفاتورة: '+doc.id;
@@ -7945,6 +7991,10 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
         };
 
         const ExpenseController = {
+            signature(){
+                return JSON.stringify(['expenseId','expenseAmount','expenseCurrency','expenseRate','expenseDate','expenseCategory','expenseNote']
+                    .map(id=>document.getElementById(id)?.value||''));
+            },
             startNewExpense() {
                 // Re-render to leave edit mode without modifying existing records.
                 AppNav.renderCurrent();
@@ -7983,8 +8033,10 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                     await LicenseManager.recordNewOperation();
                 }
                 await StorageEngine.saveState();
+                AppNav.clearDirty();
                 UI.toast(idx>=0?'تم تعديل المصروف':'تم تسجيل المصروف وخصمه من صافي الأرباح', 'success');
                 AppNav.renderCurrent();
+                return true;
                 } finally { this.saving = false; }
             },
             editExpense(id) {
@@ -8005,6 +8057,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 put('expenseDate',exp.date);
                 put('expenseNote',exp.note || '');
                 put('expenseRate',exp.exchangeRate);
+                this.formBaseline=this.signature();
                 const title=document.getElementById('expenseFormTitle');
                 if(title) title.textContent = 'تعديل مصروف مسجل (مع إمكانية تغيير العملة)';
                 const saveLabel=document.querySelector('#expenseFormPanel button[onclick*="saveExpense"] span');
@@ -8265,7 +8318,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                         discountType: 'amount',
                         discountAmount: 0,
                         taxValue: 0,
-                        taxType: 'percent',
+                        taxType: 'amount',
                         taxAmount: 0,
                         netTotal: 0,
                         paidAmount: 0,
@@ -8512,7 +8565,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
 
                 gridContainer.innerHTML = filtered.map(itm => {
                     const u0 = itm.units[0] || { name: 'كرتونة', factor: 1, salePrice: 0, costPrice: 0 };
-                    const rawPrice = isPurchase ? Number(u0.costPrice) : (Accounting.itemSalePrice?.(itm,u0,d.accountId,['wholesale','center','consumer'].includes(d.priceTierOverride)?d.priceTierOverride:null) ?? Number(u0.salePrice));
+                    const rawPrice = isPurchase ? Number(u0.costPrice) : (Accounting.itemSalePrice?.(itm,u0,d.accountId,((v)=>(typeof TiqanyPricing152!=='undefined'&&TiqanyPricing152&&typeof TiqanyPricing152.validTier==='function'?TiqanyPricing152.validTier(v):['wholesale','center','consumer'].includes(v)))(d.priceTierOverride)?d.priceTierOverride:null) ?? Number(u0.salePrice));
                     const priceInInvCurr = Accounting.convert(rawPrice, itm.currency, d.currency, d.exchangeRate);
                     const availStock = Math.round((Accounting.getItemBaseStock(itm.id, d.isEditing ? d.id : null, d.warehouseId || 'wh_main') + Number.EPSILON) * 100) / 100;
                     const inCartQty = Number(this.gridPending?.[itm.id] || 0);
@@ -8607,7 +8660,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                     if(row.priceManuallySet)continue;
                     const item=State.items.find(it=>it.id===row.itemId);if(!item)continue;
                     const unit=item.units?.find(u=>u.name===row.unitName)||item.units?.[0];
-                    const raw=Accounting.itemSalePrice(item,unit,accountId,['wholesale','center','consumer'].includes(this.draft.priceTierOverride)?this.draft.priceTierOverride:null);
+                    const raw=Accounting.itemSalePrice(item,unit,accountId,((v)=>(typeof TiqanyPricing152!=='undefined'&&TiqanyPricing152&&typeof TiqanyPricing152.validTier==='function'?TiqanyPricing152.validTier(v):['wholesale','center','consumer'].includes(v)))(this.draft.priceTierOverride)?this.draft.priceTierOverride:null);
                     row.baseCurrency=item.currency;row.basePrice=raw;
                     row.price=Accounting.convert(raw,item.currency,this.draft.currency,this.draft.exchangeRate);
                 }}
@@ -8661,7 +8714,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                     if (basePrice === undefined && item) {
                         const unitObj = item.units.find(u => u.name === row.unitName) || item.units[0];
                         const isPurchase = (this.draft.type === 'purchase' || this.draft.type === 'purchase_return');
-                        basePrice = isPurchase ? Number(unitObj?.costPrice || 0) : (Accounting.itemSalePrice?.(item,unitObj,this.draft.accountId,['wholesale','center','consumer'].includes(this.draft.priceTierOverride)?this.draft.priceTierOverride:null) ?? Number(unitObj?.salePrice||0));
+                        basePrice = isPurchase ? Number(unitObj?.costPrice || 0) : (Accounting.itemSalePrice?.(item,unitObj,this.draft.accountId,((v)=>(typeof TiqanyPricing152!=='undefined'&&TiqanyPricing152&&typeof TiqanyPricing152.validTier==='function'?TiqanyPricing152.validTier(v):['wholesale','center','consumer'].includes(v)))(this.draft.priceTierOverride)?this.draft.priceTierOverride:null) ?? Number(unitObj?.salePrice||0));
                         row.baseCurrency = baseCurr;
                         row.basePrice = basePrice;
                     }
@@ -8701,7 +8754,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                     if (!item) continue;
                     const unitObj = item.units.find(u => u.name === row.unitName) || item.units[0];
                     const isPurchase = (this.draft.type === 'purchase' || this.draft.type === 'purchase_return');
-                    const rawPrice = isPurchase ? Number(unitObj?.costPrice || 0) : (Accounting.itemSalePrice?.(item,unitObj,this.draft.accountId,['wholesale','center','consumer'].includes(this.draft.priceTierOverride)?this.draft.priceTierOverride:null) ?? Number(unitObj?.salePrice||0));
+                    const rawPrice = isPurchase ? Number(unitObj?.costPrice || 0) : (Accounting.itemSalePrice?.(item,unitObj,this.draft.accountId,((v)=>(typeof TiqanyPricing152!=='undefined'&&TiqanyPricing152&&typeof TiqanyPricing152.validTier==='function'?TiqanyPricing152.validTier(v):['wholesale','center','consumer'].includes(v)))(this.draft.priceTierOverride)?this.draft.priceTierOverride:null) ?? Number(unitObj?.salePrice||0));
                     row.baseCurrency = item.currency;
                     row.basePrice = rawPrice;
                     row.price = Accounting.convert(rawPrice, item.currency, this.draft.currency, rate);
@@ -8738,7 +8791,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 const unit0 = item.units[0] || { name: 'قطعة', factor: 1, salePrice: 0, costPrice: 0 };
                 const isPurchase = (this.draft.type === 'purchase' || this.draft.type === 'purchase_return');
                 if(isPurchase && item.isBundle)return UI.toast('التجميعة تُباع من مكوّناتها ولا تُشترى كمخزون مستقل','warn');
-                const rawPrice = isPurchase ? Number(unit0.costPrice) : (Accounting.itemSalePrice?.(item,unit0,this.draft.accountId,['wholesale','center','consumer'].includes(this.draft.priceTierOverride)?this.draft.priceTierOverride:null) ?? Number(unit0.salePrice));
+                const rawPrice = isPurchase ? Number(unit0.costPrice) : (Accounting.itemSalePrice?.(item,unit0,this.draft.accountId,((v)=>(typeof TiqanyPricing152!=='undefined'&&TiqanyPricing152&&typeof TiqanyPricing152.validTier==='function'?TiqanyPricing152.validTier(v):['wholesale','center','consumer'].includes(v)))(this.draft.priceTierOverride)?this.draft.priceTierOverride:null) ?? Number(unit0.salePrice));
                 const convertedPrice = Accounting.convert(rawPrice, item.currency, this.draft.currency, this.draft.exchangeRate);
 
                 const existingRow = this.draft.rows.find(r => r.itemId === item.id && r.unitName === unit0.name);
@@ -8783,7 +8836,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 // Store cost at sale time; later purchases must not restate past sale profits.
                 row.baseCostPrice = (Accounting.itemCostPrice?.(item, unitObj) ?? Number(unitObj.costPrice) ?? 0);
                 const isPurchase = (this.draft.type === 'purchase' || this.draft.type === 'purchase_return');
-                const rawUnitPrice = isPurchase ? Number(unitObj.costPrice) : (Accounting.itemSalePrice?.(item,unitObj,this.draft.accountId,['wholesale','center','consumer'].includes(this.draft.priceTierOverride)?this.draft.priceTierOverride:null) ?? Number(unitObj?.salePrice||0));
+                const rawUnitPrice = isPurchase ? Number(unitObj.costPrice) : (Accounting.itemSalePrice?.(item,unitObj,this.draft.accountId,((v)=>(typeof TiqanyPricing152!=='undefined'&&TiqanyPricing152&&typeof TiqanyPricing152.validTier==='function'?TiqanyPricing152.validTier(v):['wholesale','center','consumer'].includes(v)))(this.draft.priceTierOverride)?this.draft.priceTierOverride:null) ?? Number(unitObj?.salePrice||0));
                 row.baseCurrency = item.currency;
                 row.basePrice = rawUnitPrice;
                 row.price = Accounting.convert(rawUnitPrice, item.currency, this.draft.currency, this.draft.exchangeRate);
@@ -8920,7 +8973,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                           <div class="ta-quick-picker" title="اضغط لاختيار طريقة التسعير">
                             <span class="ta-quick-picker__face"><i class="fas fa-tags" aria-hidden="true"></i><span>${({account:'حسب إعدادات الحساب',wholesale:'سعر الجملة',center:'سعر المركز',consumer:'سعر المستهلك'})[d.priceTierOverride] || 'حسب إعدادات الحساب'}</span></span>
                             <select id="invoicePricingTier" aria-label="اختيار طريقة تسعير الفاتورة" onchange="InvoiceController.changeInvoicePricingTier(this.value)">
-                                <option value="account" ${!['wholesale','center','consumer'].includes(d.priceTierOverride)?'selected':''}>حسب إعدادات الحساب</option>
+                                <option value="account" ${!((v)=>(typeof TiqanyPricing152!=='undefined'&&TiqanyPricing152&&typeof TiqanyPricing152.validTier==='function'?TiqanyPricing152.validTier(v):['wholesale','center','consumer'].includes(v)))(d.priceTierOverride)?'selected':''}>حسب إعدادات الحساب</option>
                                 <option value="wholesale" ${d.priceTierOverride==='wholesale'?'selected':''}>سعر الجملة</option>
                                 <option value="center" ${d.priceTierOverride==='center'?'selected':''}>سعر المركز</option>
                                 <option value="consumer" ${d.priceTierOverride==='consumer'?'selected':''}>سعر المستهلك</option>
@@ -9303,7 +9356,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                         <div class="border border-teal-200 bg-teal-50 rounded-xl p-2.5">
                             <label for="accPriceTier" class="block text-xs font-extrabold mb-1">طريقة تسعير المبيعات لهذا الزبون</label>
                             <select id="accPriceTier" onchange="AccountController.markAccDirty()" class="w-full border rounded-lg px-2 py-2 bg-white font-bold">
-                              <option value="settings" ${!['wholesale','center','consumer'].includes(ex?.priceTier) ? 'selected' : ''}>حسب الإعدادات (الافتراضي)</option>
+                              <option value="settings" ${!((v)=>(typeof TiqanyPricing152!=='undefined'&&TiqanyPricing152&&typeof TiqanyPricing152.validTier==='function'?TiqanyPricing152.validTier(v):['wholesale','center','consumer'].includes(v)))(ex?.priceTier) ? 'selected' : ''}>حسب الإعدادات (الافتراضي)</option>
                               <option value="wholesale" ${ex?.priceTier === 'wholesale' ? 'selected' : ''}>سعر الجملة</option>
                               <option value="center" ${ex?.priceTier === 'center' ? 'selected' : ''}>سعر المركز</option>
                               <option value="consumer" ${ex?.priceTier === 'consumer' ? 'selected' : ''}>سعر المستهلك</option>
@@ -9346,7 +9399,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 const openingUsd = Accounting.parseNum(document.getElementById('accOpenUsd')?.value);
                 const paymentTerms = document.getElementById('accTerms')?.value.trim() || '';
                 const requestedTier = document.getElementById('accPriceTier')?.value;
-                const priceTier = ['wholesale','center','consumer'].includes(requestedTier) ? requestedTier : 'settings';
+                const priceTier = ((v)=>(typeof TiqanyPricing152!=='undefined'&&TiqanyPricing152&&typeof TiqanyPricing152.validTier==='function'?TiqanyPricing152.validTier(v):['wholesale','center','consumer'].includes(v)))(requestedTier) ? requestedTier : 'settings';
 
                 if (!name) {
                     UI.toast('يرجى إدخال اسم العميل أو المورد', 'error');
@@ -9937,7 +9990,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 UI.toast('تمت إزالة العملة من القائمة', 'success');
             },
             async setDefaultPriceTier(value) {
-                if (!['wholesale','center','consumer'].includes(value)) return;
+                if (!((v)=>(typeof TiqanyPricing152!=='undefined'&&TiqanyPricing152&&typeof TiqanyPricing152.validTier==='function'?TiqanyPricing152.validTier(v):['wholesale','center','consumer'].includes(v)))(value)) return;
                 const before = State.settings.defaultPriceTier;
                 State.settings.defaultPriceTier = value;
                 try {
@@ -9946,7 +9999,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 } catch (error) {
                     State.settings.defaultPriceTier = before;
                     const select = document.getElementById('setDefaultPriceTier');
-                    if (select) select.value = ['wholesale','center','consumer'].includes(before) ? before : 'wholesale';
+                    if (select) select.value = ((v)=>(typeof TiqanyPricing152!=='undefined'&&TiqanyPricing152&&typeof TiqanyPricing152.validTier==='function'?TiqanyPricing152.validTier(v):['wholesale','center','consumer'].includes(v)))(before) ? before : 'wholesale';
                     UI.toast('تعذر حفظ طريقة التسعير الافتراضية', 'error');
                 }
             },
@@ -10848,5 +10901,11 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
 <script src="static/ta-scroll-144.js"></script>
 <script defer src="static/ta-fx-buy-sell-147.js"></script>
 <script defer src="static/ta-report-local-date-148.js"></script>
+<script src="static/ta-thermal-table-152.js"></script>
+<script src="static/ta-manager-enhancements-152.js"></script>
+<script src="static/ta-pricing-modes-152.js"></script>
+<script src="static/ta-print-customization-152.js"></script>
+
+<script defer src="static/ta-settings-pages-152.js"></script>
 </body>
 </html>

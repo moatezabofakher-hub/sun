@@ -9,7 +9,7 @@ const esc=v=>A.escape(v);
 const round=(n,c)=>c==='SYP'?Math.round(n):Math.round((n+Number.EPSILON)*100)/100;
 const value=id=>document.getElementById(id)?.value;
 const money=(n,c)=>A.money(n,c);
-const initialMeta=()=>({accountId:'',currency:'USD',paymentMode:'cash',paid:'',priceTierOverride:'account',date:A.defaultDate(),note:'',discountValue:0,discountType:'amount',taxValue:0,taxType:'percent'});
+const initialMeta=()=>({accountId:'',currency:'USD',paymentMode:'cash',paid:'',priceTierOverride:'account',date:A.defaultDate(),note:'',discountValue:0,discountType:'amount',taxValue:0,taxType:'amount'});
 A.balanceQuery='';
 A.balanceFor=function(accountId){
  const acc=(this.state.accounts||[]).find(a=>String(a.id)===String(accountId));
@@ -138,16 +138,42 @@ A.changeRowUnit=function(i,unitName){
  r.unitName=u.name;r.unitFactor=Number(u.factor);r.price=this.unitPrice(it,u,this.currency);r.total=round(r.qty*r.price,this.currency);
  this.show('invoice');
 };
+A.pricingModes=function(){
+ const modes=Array.isArray(this.state?.taPricingModes)?this.state.taPricingModes.filter(m=>m?.id&&m?.name):[];
+ return modes.length?modes:[{id:'wholesale',name:'الجملة'},{id:'center',name:'المركز'},{id:'consumer',name:'المستهلك'}];
+};
+A.priceModeName=function(id){
+ const m=this.pricingModes().find(x=>x.id===id);
+ const name=String(m?.name||'الجملة').trim();
+ return name.startsWith('سعر ')?name:'سعر '+name;
+};
+A.effectivePricingTier=function(override,accountId){
+ const active=new Set(this.pricingModes().map(m=>m.id));
+ const account=(this.state.accounts||[]).find(a=>a.id===accountId);
+ if(this.can?.('priceTier')&&active.has(override))return override;
+ if(active.has(account?.priceTier))return account.priceTier;
+ return active.has(this.state.defaultPriceTier)?this.state.defaultPriceTier:'wholesale';
+};
+A.effectivePricingLabel=function(override,accountId){
+ return this.priceModeName(this.effectivePricingTier(override,accountId));
+};
+A.priceModeOptions=function(selected){
+ const options='<option value="account" '+(selected==='account'?'selected':'')+'>حسب إعدادات الحساب</option>';
+ return options+this.pricingModes().map(m=>'<option value="'+this.escape(m.id)+'" '+(selected===m.id?'selected':'')+'>'+this.escape(this.priceModeName(m.id))+'</option>').join('');
+};
 A.unitPrice=function(it,u,c){
  const acc=this.state.accounts.find(a=>a.id===(document.getElementById('fAccount')?.value||this.invoiceMeta?.accountId));
- const override=this.posMode?'account':this.invoiceMeta?.priceTierOverride;
- const tier=(this.can?.('priceTier')&&['wholesale','center','consumer'].includes(override))?override:(['wholesale','center','consumer'].includes(acc?.priceTier)?acc.priceTier: (['wholesale','center','consumer'].includes(this.state.defaultPriceTier)?this.state.defaultPriceTier:'wholesale'));
- const price=tier==='consumer'?(u.consumerPrice??u.centerPrice??u.salePrice):(tier==='center'?(u.centerPrice??u.salePrice):(u.wholesalePrice??u.salePrice));
- const raw=Number(price||0),rate=Number(this.state.exchangeRate)||1;
+ const tier=this.effectivePricingTier(this.posMode?'account':this.invoiceMeta?.priceTierOverride,acc?.id);
+ const base=tier==='consumer'?(u.consumerPrice??u.centerPrice??u.salePrice):
+     tier==='center'?(u.centerPrice??u.salePrice):
+     tier==='cost'?(u.costPrice??u.salePrice):
+     tier==='wholesale'?(u.wholesalePrice??u.salePrice):
+     (u.customTierPrices?.[tier]??u.wholesalePrice??u.salePrice);
+ const raw=Number(base||0),rate=Number(this.state.exchangeRate)||1;
  return round(it.currency===c?raw:it.currency==='USD'?raw*rate:raw/rate,c);
 };
 A.changeInvoicePricingTier=function(tier){
- if(!['account','wholesale','center','consumer'].includes(tier))return;
+ if(tier!=='account'&&!this.pricingModes().some(m=>m.id===tier))return;
  if(!this.can?.('priceTier'))return this.requireRight?.('priceTier');
  this.captureInvoiceMeta();this.invoiceMeta.priceTierOverride=tier;
  for(const row of this.draft){
@@ -184,13 +210,19 @@ A.remainingStockForItem=function(itemId){
  if(item.isBundle){const parts=item.bundleComponents||[];return parts.length?Math.max(0,Math.min(...parts.map(x=>Number(available[x.itemId]||0)/Number(x.quantity||1)))):0;}
  return Math.max(0,Number(available[itemId])||0);
 };
+A.defaultSaleUnit=function(item){
+ const preference=String(this.state?.defaultSaleUnitName||'__first__');
+ const units=item?.units||[];
+ const chosen=(preference==='__first__'?null:units.find(u=>u.name===preference))||units[0]||null;
+ return chosen&&Number(chosen.factor)>0?chosen:null;
+};
 A.checkPendingStock=function(proposed){
  if(this.draftKind!=='sale')return {ok:true};
  const usage=new Map();
  const catalog=new Map((this.state.items||[]).map(item=>[item.id,item]));
  for(const [id,qty] of Object.entries(proposed||{})){
   if(!(Number(qty)>0))continue;
-  const item=catalog.get(id),unit=item?.units?.[0];
+  const item=catalog.get(id),unit=this.defaultSaleUnit(item);
   if(!unit)return {ok:false,name:item?.name||id};
   const factor=Number(unit.factor)||1;
   const parts=item.isBundle?(item.bundleComponents||[]):[{itemId:id,quantity:1}];
@@ -209,7 +241,7 @@ A.checkPendingStock=function(proposed){
 };
 A.addGridItem=function(id){
  const it=this.state.items.find(x=>x.id===id);if(!it)return;
- const u=it.units?.[0];if(!u)return this.toast('لا توجد وحدة معتمدة للصنف');
+ const u=this.defaultSaleUnit(it);if(!u)return this.toast('لا توجد وحدة معتمدة للصنف');
  if(!this.gridPending)this.gridPending=Object.create(null);
  const next=Number(this.gridPending[id]||0)+1;
  const proposed={...this.gridPending,[id]:next};
@@ -238,7 +270,7 @@ A.applyInvoiceItemGrid=function(){
  const check=this.checkPendingStock(this.gridPending);
  if(!check.ok)return this.toast('الكمية المتاحة من «'+check.name+'» غير كافية');
  for(const [id,qty] of chosen){
-  const it=this.state.items.find(x=>x.id===id);const u=it?.units?.[0];if(!u)continue;
+  const it=this.state.items.find(x=>x.id===id);const u=this.defaultSaleUnit(it);if(!u)continue;
   let row=this.draft.find(r=>r.itemId===id&&r.unitName===u.name);
   if(row){row.qty=round(Number(row.qty)+Number(qty),'USD');row.total=round(row.qty*row.price,this.currency);}
   else{const price=this.unitPrice(it,u,this.currency);this.draft.push({itemId:id,itemName:it.name,unitName:u.name,unitFactor:Number(u.factor),qty:Number(qty),price,total:round(price*qty,this.currency),bomComponents:it.isBundle?JSON.parse(JSON.stringify(it.bundleComponents||[])):undefined});}
@@ -303,7 +335,7 @@ A.renderInvoice=function(){
   <div class="ta-invoice-field ta-invoice-currency-field"><label><i class="fas fa-coins"></i> العملة</label><button type="button" onclick="Agent.changeInvoiceCurrency()" aria-label="تبديل عملة الفاتورة؛ الحالية: ${c==='SYP'?'ل.س':'$USD'}" class="ta-invoice-currency-choice bg-sky-100 border border-sky-300 text-sky-900 px-2 py-1 rounded-lg font-extrabold"><i class="fas fa-coins" aria-hidden="true"></i><strong class="ta-invoice-currency-code" dir="ltr">${c==='SYP'?'ل.س':'$USD'}</strong></button></div>
   <div class="ta-invoice-field ta-invoice-date-field"><label><i class="fas fa-calendar-days text-blue-600"></i> التاريخ والوقت</label><div class="ta-invoice-date-visible" dir="ltr"><input id="agentInvoiceDate" aria-label="تاريخ الفاتورة" type="date" value="${esc(dateValue.slice(0,10))}" onchange="Agent.updateInvoiceDateParts()"><input id="agentInvoiceTime" aria-label="وقت الفاتورة" type="time" value="${esc(dateValue.slice(11,16))}" onchange="Agent.updateInvoiceDateParts()"></div><input id="fDate" type="hidden" value="${esc(dateValue)}"></div>
   <div class="ta-invoice-field ta-invoice-warehouse-field"><label><i class="fas fa-warehouse text-sky-700"></i> ${esc(this.state.vehicleName||'مستودع موظف البيع')}</label><div class="ta-quick-picker ta-readonly-warehouse" aria-label="مستودع الموظف المحدد من الإدارة"><span class="ta-quick-picker__face"><i class="fas fa-warehouse"></i><span>${esc(this.state.vehicleName||'مستودع موظف البيع')}</span></span></div></div>
-  <div class="ta-invoice-pricing-choice"><div class="ta-quick-picker" title="طريقة تسعير الفاتورة"><span class="ta-quick-picker__face"><i class="fas fa-tags"></i><span>${({account:'حسب إعدادات الحساب',wholesale:'سعر الجملة',center:'سعر المركز',consumer:'سعر المستهلك'})[selectedTier]||'حسب إعدادات الحساب'}</span></span><select id="invoicePricingTier" aria-label="اختيار طريقة تسعير الفاتورة" onchange="Agent.changeInvoicePricingTier(this.value)" ${this.can?.('priceTier')?'':'disabled title="الصلاحية تحددها الإدارة"'}><option value="account" ${selectedTier==='account'?'selected':''}>حسب إعدادات الحساب</option><option value="wholesale" ${selectedTier==='wholesale'?'selected':''}>سعر الجملة</option><option value="center" ${selectedTier==='center'?'selected':''}>سعر المركز</option><option value="consumer" ${selectedTier==='consumer'?'selected':''}>سعر المستهلك</option></select></div></div>
+  <div class="ta-invoice-pricing-choice"><div class="ta-quick-picker" title="طريقة تسعير الفاتورة"><span class="ta-quick-picker__face"><i class="fas fa-tags"></i><span>${esc(this.effectivePricingLabel(selectedTier,meta.accountId))}</span></span><select id="invoicePricingTier" aria-label="اختيار طريقة تسعير الفاتورة" onchange="Agent.changeInvoicePricingTier(this.value)" ${this.can?.('priceTier')?'':'disabled title="الصلاحية تحددها الإدارة"'}>${this.priceModeOptions(selectedTier)}</select></div></div>
  </div>
  <button type="button" class="ta-payment-cycle ta-pay-${mode}" onclick="Agent.cycleInvoicePayment()" title="نقدي ثم دفعات ثم آجل" aria-label="تغيير طريقة الدفع: نقدي ثم دفعات ثم آجل"><span class="ta-payment-method-value"><i class="fas ${mode==='cash'?'fa-money-bill-wave':mode==='partial'?'fa-hand-holding-dollar':'fa-clock'}" aria-hidden="true"></i> طريقة الدفع: ${mode==='cash'?'نقدي':mode==='partial'?'دفعات':'آجل'}</span><i class="fas fa-arrow-rotate-right" aria-hidden="true"></i></button>
  </div>
@@ -321,7 +353,7 @@ A.renderInvoice=function(){
  <div class="bg-white rounded-2xl border border-slate-200 p-3.5 mb-4 shadow-xs space-y-2.5 text-xs"><div class="flex items-center justify-between font-bold text-slate-700"><span>إجمالي الأصناف:</span><span id="invSubTotalTxt" class="text-sm">${money(calc.subTotal,c)} ${c}</span></div>
  <div class="grid grid-cols-2 gap-2 pt-1 border-t border-slate-100">
   <div><label class="block text-[11px] font-bold text-slate-600 mb-1">الحسم العام على الفاتورة</label><div class="flex"><input type="number" id="invoiceDiscount" min="0" step="any" value="${esc(meta.discountValue||0)}" oninput="Agent.changeInvoiceAdjustment()" class="w-full border border-slate-300 rounded-r-xl px-2.5 py-1.5 font-bold text-center"><select id="invoiceDiscountType" onchange="Agent.changeInvoiceAdjustment()" class="bg-slate-100 border border-r-0 border-slate-300 rounded-l-xl px-2 font-bold"><option value="amount" ${meta.discountType!=='percent'?'selected':''}>${c}</option><option value="percent" ${meta.discountType==='percent'?'selected':''}>%</option></select></div></div>
-  <div><label class="block text-[11px] font-bold text-slate-600 mb-1">الضريبة / الإضافات</label><div class="flex"><input type="number" id="invoiceTax" min="0" step="any" value="${esc(meta.taxValue||0)}" oninput="Agent.changeInvoiceAdjustment()" class="w-full border border-slate-300 rounded-r-xl px-2.5 py-1.5 font-bold text-center"><select id="invoiceTaxType" onchange="Agent.changeInvoiceAdjustment()" class="bg-slate-100 border border-r-0 border-slate-300 rounded-l-xl px-2 font-bold"><option value="percent" ${meta.taxType!=='amount'?'selected':''}>%</option><option value="amount" ${meta.taxType==='amount'?'selected':''}>${c}</option></select></div></div>
+  <div><label class="block text-[11px] font-bold text-slate-600 mb-1">الضريبة / الإضافات</label><div class="flex"><input type="number" id="invoiceTax" min="0" step="any" value="${esc(meta.taxValue||0)}" oninput="Agent.changeInvoiceAdjustment()" class="w-full border border-slate-300 rounded-r-xl px-2.5 py-1.5 font-bold text-center"><select id="invoiceTaxType" onchange="Agent.changeInvoiceAdjustment()" class="bg-slate-100 border border-r-0 border-slate-300 rounded-l-xl px-2 font-bold"><option value="amount" ${meta.taxType!=='percent'?'selected':''}>${c}</option><option value="percent" ${meta.taxType==='percent'?'selected':''}>%</option></select></div></div>
  </div><div class="bg-slate-900 text-white p-3 rounded-xl flex items-center justify-between"><span class="font-bold text-xs">الصافي النهائي المطلوب:</span><span id="invNetTotalTxt" class="font-extrabold text-base text-emerald-400">${money(calc.netTotal,c)} ${c}</span></div>
  <div class="grid grid-cols-2 gap-2 pt-1"><div><label class="block text-[11px] font-bold text-emerald-700 mb-1">المبلغ المدفوع (دفعة الفاتورة)</label><input id="invPaidInput" type="number" step="any" min="0" value="${mode==='partial'?esc(meta.paid):calc.paidAmount}" ${mode==='partial'?'':'readonly'} oninput="Agent.invoiceMeta.paid=this.value;Agent.refreshInvoiceTotals()" class="w-full border ${mode==='partial'?'border-emerald-500 bg-white':'border-slate-200 bg-slate-100'} rounded-xl px-3 py-2 font-extrabold text-center text-sm"></div><div><label class="block text-[11px] font-bold text-rose-700 mb-1">المبلغ المتبقي (ذمم على الحساب)</label><div id="invRemainingTxt" class="w-full border border-slate-200 bg-rose-50 text-rose-700 rounded-xl px-3 py-2 font-extrabold text-center text-sm">${money(calc.remainingAmount,c)} ${c}</div></div></div>
  <input type="hidden" id="fPaid" value="${esc(meta.paid||'')}"><label class="block text-[11px] text-slate-500">البيان / ملاحظة</label><textarea id="fNote" class="w-full border border-slate-300 rounded-xl p-2" rows="2" oninput="Agent.invoiceMeta.note=this.value">${esc(meta.note||'')}</textarea></div>
@@ -364,7 +396,7 @@ A.saveInvoice=async function(andPrint=false){if(this.busy)return;this.busy=true;
   const before=balances.before[c],after=balances.after[c];
   const op={id:'op_'+FieldProtocol.uuid(),kind:this.draftKind,companyId:this.state.companyId,agentId:this.state.agentId,warehouseId:this.state.warehouseId,
    localNumber:this.nextLocalNumber('F'),date:new Date(m.date||Date.now()).toISOString(),currency:c,exchangeRate:Number(this.state.exchangeRate),accountId:m.accountId||'',paidAmount:calc.paidAmount,
-   subTotal:calc.subTotal,discountValue:Number(m.discountValue||0),discountType:m.discountType||'amount',taxValue:Number(m.taxValue||0),taxType:m.taxType||'percent',netTotal:calc.netTotal,
+   subTotal:calc.subTotal,discountValue:Number(m.discountValue||0),discountType:m.discountType||'amount',taxValue:Number(m.taxValue||0),taxType:m.taxType||'amount',netTotal:calc.netTotal,
    rows:JSON.parse(JSON.stringify(this.draft)),note:String(m.note||'').slice(0,200),priceTierOverride:this.can?.('priceTier')?(m.priceTierOverride||'account'):'account',
    accountBalanceBefore:before,accountBalanceAfter:after,
    accountBalanceBeforeByCurrency:balances.before,accountBalanceAfterByCurrency:balances.after};

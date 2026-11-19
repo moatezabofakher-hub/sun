@@ -1,0 +1,133 @@
+/* Tiqany Acc 3.5.152 — consistent tactile three-dimensional finish.
+   Pure visual layer: no stock, amounts, prices, permissions, sync or navigation logic.
+   Keep warnings and destructive action semantics, and never alter native window sizing. */
+:root {
+  --ta152-blue-light:#2e85df;
+  --ta152-blue-mid:#125bb5;
+  --ta152-blue-dark:#083873;
+  --ta152-blue-edge:#082f60;
+  --ta152-soft-outline:#bfd4e9;
+  --ta152-raised:0 4px 0 #94b4d4, 0 9px 17px rgba(18,52,93,.19), inset 0 2px 2px rgba(255,255,255,.84);
+  --ta152-pressed:0 1px 0 #638cad, 0 3px 6px rgba(12,53,91,.15),inset 0 2px 5px rgba(16,63,107,.12);
+}
+/* The new v152 action family is entirely BLUE with white high-contrast labels,
+   including controls previously teal, purple or gold. */
+:where(body) .ta-enh-btn,
+:where(body) .ta-enh-btn.ta-enh-indigo,
+:where(body) .ta-enh-btn.ta-enh-teal,
+:where(body) .ta-enh-btn.ta-enh-gold,
+:where(body) #taPriceModesButton,
+:where(body) #taMovementAction,
+:where(body) #taOpeningBalancesActions {
+  position:relative;
+  background-color:var(--ta152-blue-mid)!important;
+  background-image:linear-gradient(156deg,var(--ta152-blue-light) 0%,var(--ta152-blue-mid) 53%,var(--ta152-blue-dark) 100%)!important;
+  color:#fff!important;
+  -webkit-text-fill-color:#fff!important;
+  border:1px solid #80baf5!important;
+  border-radius:14px!important;
+  box-shadow:0 5px 0 var(--ta152-blue-edge),0 10px 16px #113a6a36,inset 0 2px 3px #ffffff60!important;
+  text-shadow:0 1px 2px #092b56!important;
+  font-weight:900;
+  isolation:isolate;
+}
+:where(body) .ta-enh-btn *,
+:where(body) .ta-enh-btn i,
+:where(body) #taPriceModesButton *,
+:where(body) #taOpeningBalancesActions *,
+:where(body) #taMovementAction * {color:#fff!important;-webkit-text-fill-color:#fff!important}
+:where(body) .ta-enh-btn:active,
+:where(body) #taPriceModesButton:active,
+:where(body) #taMovementAction:active {
+  transform:translateY(3px);
+  box-shadow:0 2px 0 var(--ta152-blue-edge),0 4px 8px #113a6a24,inset 0 1px 4px #09274e55!important;
+}
+/* Common raised controls keep existing category colors (delete red, confirm
+   green, warning amber), while receiving a material depth and highlight. */
+:where(#mainContent,#modalBox,#screen,.dialog-card,.agent-picker-content) button:not([hidden]):not(:disabled),
+:where(#mainContent,#modalBox,#screen,.dialog-card) [role="button"],
+:where(#mainContent,#screen) .ta-action-card,
+:where(#mainContent,#screen) .ta-module-card,
+:where(#mainContent,#screen) .tile,
+:where(#mainContent,#screen) .pos-product {
+  border-style:solid;
+  border-width:max(1px,1px);
+  box-shadow:var(--ta152-raised);
+  transition:transform .14s ease,box-shadow .14s ease,filter .14s ease;
+}
+:where(#mainContent,#modalBox,#screen,.dialog-card,.agent-picker-content) button:active:not(:disabled),
+:where(#mainContent,#screen) .ta-action-card:active,
+:where(#mainContent,#screen) .tile:active,
+:where(#mainContent,#screen) .pos-product:active {
+  transform:translateY(3px);
+  box-shadow:var(--ta152-pressed);
+}
+/* Never turn input chrome or icon-only overlays into a solid block. */
+:where(#mainContent,#modalBox,#screen) button:disabled,
+:where(#mainContent,#modalBox,#screen) [aria-disabled="true"]{opacity:.62;box-shadow:0 2px 6px #12344d18!important}
+/* Make toolbar icons and dashboard glyphs embossed without displacing text. */
+:where(#mainContent,#screen) :is(.ta-icon-box,.glyph,.ta-action-icon,.ta-module-icon,.ta-ux-icon,.ta-capital-icon){
+  position:relative;
+  border-radius:16px;
+  box-shadow:0 4px 0 #0f467448,0 7px 13px #0c315832,inset 0 2px 3px #ffffff75;
+}
+:where(#mainContent,#screen) :is(.ta-icon-box,.glyph,.ta-action-icon,.ta-module-icon) img{
+  max-width:100%;object-fit:contain;filter:drop-shadow(0 2px 2px #102f5040);
+}
+/* Panels and modal surfaces are visually elevated, not enlarged. */
+:where(#modalBox,.dialog-card,.agent-picker-content,.ta-share-modal,.ta-capital-modal),
+:where(#mainContent,#screen) :is(.panel,.settings-section,.agent-pos-screen,.invoice-added-items,.ta-enh-panel,.agent-pos-cart){
+  border-radius:18px;
+  box-shadow:0 5px 0 #bed2e56b,0 12px 25px #173c601c,inset 0 1px 2px #ffffffdb;
+}
+:where(#modalBox,.dialog-card,.agent-picker-content) {
+  border:1px solid #b7cce1;
+  background-image:linear-gradient(153deg,#fff 0%,#f5faff 65%,#e4effb 100%);
+  box-shadow:0 12px 0 #7e9db43b,0 22px 37px #0c345943,inset 0 2px 3px #fff;
+}
+/* Raised strips: retain exact positioning and fixed/sticky behavior. */
+:where(header,.top,#agentHeader,#topBar,nav#bottom,.bottom,.bottom-nav,.ta-bottom-nav,.ta-invoice-save-footer,.ta-agent-pos-footer) {
+  box-shadow:0 4px 12px #082e4a2b,inset 0 2px 2px #ffffff30,inset 0 -2px 2px #071e3340;
+}
+:where(nav#bottom,.bottom,.bottom-nav,.ta-bottom-nav) button{
+  border-radius:12px;
+  box-shadow:0 2px 0 #1c497135,inset 0 2px 2px #ffffff45;
+}
+:where(nav#bottom,.bottom,.bottom-nav,.ta-bottom-nav) button.active,
+:where(nav#bottom,.bottom,.bottom-nav,.ta-bottom-nav) button[aria-current="page"] {
+  box-shadow:0 3px 0 #0c3c6b5e,inset 0 2px 2px #ffffff7a;
+}
+/* Improve dark-blue labels and action contrast on new pop-up selectors. */
+.ta-enh-panel select,.ta-enh-panel input,
+:where(#mainContent,#screen) select,
+:where(#mainContent,#screen) input:not([type="checkbox"]):not([type="radio"]) {
+  box-shadow:inset 0 2px 4px #10395d15,0 2px 0 #bed4e658;
+}
+:where(#mainContent,#screen) .ta-quick-picker,
+:where(#mainContent,#screen) .agent-pos-control {
+  box-shadow:0 3px 0 #92abc67b,inset 0 2px 2px #ffffffd2;
+}
+:where(#mainContent,#screen) button:focus-visible,
+:where(#modalBox,.dialog-card) button:focus-visible {
+  outline:3px solid #5da9ff;outline-offset:3px;
+}
+/* Distinguish dangerous actions without making them blue. */
+:where(#modalBox,#mainContent,#screen) :is(.ta-delete,.btn-danger,[data-ta-action="delete"],[data-action="delete"],.danger) {
+  box-shadow:0 5px 0 #861d32,0 10px 16px #6f24372d,inset 0 2px 2px #ffffff60;
+}
+/* Capital icon is a blue, raised partnership badge. Existing shareholders
+   and balances remain untouched. */
+.ta-capital-card .ta-capital-icon {
+  background:linear-gradient(145deg,#2e85df,#125bb5 60%,#083873)!important;
+  border:1px solid #96c7f6!important;
+  box-shadow:0 5px 0 #083873,0 11px 17px #0a315250,inset 0 2px 3px #ffffff6e!important;
+  color:#fff!important;
+}
+.ta-capital-card .ta-capital-icon img{width:44px;height:44px;object-fit:contain;filter:drop-shadow(0 3px 2px #09285475)}
+/* Compact FX detail button remains blue even when profit has a loss.
+   Negative numbers themselves stay red. */
+[data-ta-fx-profit-report] button{color:#fff!important;background:linear-gradient(155deg,#2e85df,#125bb5 60%,#083873)!important;border-color:#82bcf3!important;box-shadow:0 4px 0 #083873,inset 0 2px 2px #ffffff60!important}
+@media(prefers-reduced-motion:reduce){
+  :where(#mainContent,#modalBox,#screen) button,
+  :where(#mainContent,#screen) .tile{transition:none!important}
+}

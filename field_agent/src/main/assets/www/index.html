@@ -56,6 +56,12 @@ html.ta-ime-open .wrap{padding-bottom:20px!important;}
 body.ta-agent-voucher-open nav#bottom{display:none!important}
 </style>
 <link rel="stylesheet" href="static/agent-forms-35107.css">
+<link rel="stylesheet" href="static/ta-three-dimensional-152.css">
+<link rel="stylesheet" href="static/ta-unified-3d-152.css">
+<link rel="stylesheet" href="static/ta-3d-unified-152.css">
+<link rel="stylesheet" href="static/ta-agent-settings-pages-152.css">
+<link rel="stylesheet" href="static/controls.css">
+<script defer src="static/controls.js"></script>
 </head>
 <body>
 <header class="top" id="agentHeader">
@@ -66,7 +72,7 @@ body.ta-agent-voucher-open nav#bottom{display:none!important}
   <button type="button" id="agentManagerNotifications" class="ta-agent-manager-alert" onclick="Agent.openManagerNotifications()" aria-label="إشعارات تحديثات المسؤول" title="إشعارات المسؤول" hidden><span aria-hidden="true">🔔</span><b id="agentManagerNotificationCount" hidden>0</b></button>
   <button type="button" id="agentRateQuick" class="header-tool ta-agent-rate-quick" onclick="Agent.openQuickExchangeRate()" aria-label="تعديل سعر الصرف" title="تعديل سعر الصرف"><span class="ta-agent-rate-symbol">1$=</span><span id="agentHeaderExchangeRate" dir="ltr">—</span><span class="ta-agent-rate-pencil" aria-hidden="true">✎</span></button>
  </div>
- <div class="headerbottom"><span class="tag" id="connectionTag">غير مفعّل</span><button type="button" class="tag" id="agentSyncConnection" aria-live="polite" onclick="Agent.requestSyncFromHeader()" title="اتصال ومزامنة فورية">◌ بانتظار الاتصال</button><span id="agentVehicleHeader">مستودع السيارة</span></div>
+ <div class="headerbottom"><span class="tag" id="connectionTag">غير مفعّل</span><button type="button" class="tag" id="agentSyncConnection" aria-live="polite" onclick="Agent.requestSyncFromHeader()" title="اتصال ومزامنة فورية" aria-label="بانتظار الاتصال بالمسؤول"><span aria-hidden="true">📱</span></button><span id="agentVehicleHeader">مستودع السيارة</span></div>
 </header>
 <main id="screen" class="wrap"><div class="panel">جارٍ فتح بيانات موظف البيع…</div></main>
 <nav id="bottom" class="bottom hide" aria-label="القائمة الرئيسية">
@@ -92,6 +98,7 @@ body.ta-agent-voucher-open nav#bottom{display:none!important}
 <div id="toast" class="toast hide" role="alert"></div>
 <script defer src="static/agent-experience.js"></script>
 <script defer src="static/agent-invoice-parity.js"></script>
+<script src="static/ta-thermal-table-152.js"></script>
 <script defer src="static/agent-print-parity.js"></script>
 <link rel="stylesheet" href="static/agent-invoice-parity.css">
 <link rel="stylesheet" href="static/invoice-customer-highlight-3556.css">
@@ -127,4 +134,5 @@ body.ta-agent-voucher-open nav#bottom{display:none!important}
 <script defer src="static/ta-currency-exchange-core-142.js"></script><script defer src="static/ta-currency-exchange-agent-142.js"></script>
 <script src="static/ta-scroll-144.js"></script>
 <script defer src="static/ta-fx-employee-147.js"></script>
+<script defer src="static/ta-agent-settings-pages-152.js"></script>
 </body></html>

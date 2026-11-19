@@ -84,16 +84,16 @@ A.cashSummary=function(){
  return {otherCurrencies:extra,syp:Math.round(syp),usd:Math.round(usd*100)/100,
    movements:[...local,...exchangeMovements,...transfers].sort((a,b)=>String(b.date).localeCompare(String(a.date)))};
 };
-A.cashShown=60;
+A.cashShown=10;
 A.invoicesShown=60;
-A.showMoreCash=function(){this.cashShown+=60;this.show('cashbox');};
+A.showMoreCash=function(){this.cashShown+=10;this.show('cashbox');};
 A.showMoreInvoices=function(){this.invoicesShown+=60;this.show('invoices');};
 A.renderCashbox=function(){
  const box=this.cashSummary(),updated=this.state.lastSyncAt||this.state.issuedAt;
  return `<div class="hero"><h2>صندوق موظف البيع</h2><p>رصيد النقد الخاص بك بالدولار والليرة؛ يتأثر بالفواتير المقبوضة والسندات، وبالدفعات التي يسجلها الرئيسي مع صندوقك.</p></div>
  <section class="panel"><h3>الرصيد الحالي</h3><div class="grid grid-cols-2 gap-2"><div class="stat"><b>${this.money(box.syp,'SYP')}</b><small>ليرة سورية SYP</small></div><div class="stat"><b>${this.money(box.usd,'USD')}</b><small>دولار USD</small></div>${Object.entries(box.otherCurrencies||{}).filter(([c,n])=>c!=='USD'&&c!=='SYP'&&Number(n)!==0).map(([c,n])=>`<div class="stat"><b>${this.money(n,c)}</b><small>${this.escape(c)}</small></div>`).join('')}</div>
  <p class="tiny">${updated?'آخر كشف من الرئيسي: '+esc(new Date(updated).toLocaleString('ar')):'لم يتم استلام كشف من الرئيسي بعد'}. تُضاف الحركات المحلية غير المرحّلة دون ازدواج.</p></section>
- <section class="panel"><h3>حركة الصندوق</h3>${box.movements.length?box.movements.slice(0,this.cashShown).map(x=>`<div class="itemrow ${x.amount>0?'agent-cash-inflow':'agent-cash-outflow'}"><div class="itemhead"><b>${esc(x.desc)}</b><b class="agent-cash-amount">${x.amount>=0?'+':'−'}${this.money(Math.abs(x.amount),x.currency)} ${esc(x.currency)}</b></div><p class="tiny">${esc(String(x.date||'').replace('T',' ').slice(0,16))} ${x.pending?'· بانتظار المزامنة':''}</p></div>`).join(''):'<p class="muted">لا توجد حركات نقدية.</p>'}</section>`;
+ <section class="panel"><h3>حركة الصندوق</h3>${box.movements.length?box.movements.slice(0,this.cashShown).map(x=>`<div class="itemrow ${x.amount>0?'agent-cash-inflow':'agent-cash-outflow'}"><div class="itemhead"><b>${esc(x.desc)}</b><b class="agent-cash-amount">${x.amount>=0?'+':'−'}${this.money(Math.abs(x.amount),x.currency)} ${esc(x.currency)}</b></div><p class="tiny">${esc(String(x.date||'').replace('T',' ').slice(0,16))} ${x.pending?'· بانتظار المزامنة':''}</p></div>`).join(''):'<p class="muted">لا توجد حركات نقدية.</p>'}${box.movements.length>this.cashShown?'<button class="secondary" onclick="Agent.showMoreCash()">المزيد</button>':''}</section>`;
 };
 A.renderInvoices=function(){
  const invoices=(this.state.ops||[]).filter(o=>o.kind==='sale'||o.kind==='sale_return').slice().reverse();
@@ -121,6 +121,7 @@ A.renderHome=function(){const box=this.cashSummary();return `<section class="pan
 // Preserve old back-button behavior; field screens are read-only except invoice creation.
 const oldShow=A.show.bind(A);
 A.show=async function(route){
+ if(route==='cashbox'&&this.screen!=='cashbox')this.cashShown=10;
  if(route!=='cashbox'&&route!=='invoices')return oldShow(route);
  if(!this.ready()||!await this.active())return oldShow('home');
  this.screen=route;

@@ -5,7 +5,7 @@ const Agent={
   // Extension modules provide paginated restorers; these defaults keep older standalone integrations compatible.
   mergeHistoryPage(page,old=this.state){return {ops:old.ops||[],cursor:Number(old.historyCursor||0),restoredIds:[]};},
   mergeTransferPage(page,old=this.state){return {docs:old.warehouseTransfers||[],cursor:Number(old.warehouseHistoryCursor||0),revision:old.warehouseTransferRevision||''};},
-  get blank(){return {deviceId:'TD-'+FieldProtocol.uuid().toUpperCase(),companyId:'',companyName:'',companyPhone:'',companyAddress:'',companyLogo:'',footerNote:'',printerWidth:80,printFontScale:0.75,itemQuantityDecimals:2,agentId:'',agentName:'',vehicleName:'',warehouseId:'',warehouseName:'',key:'',items:[],categories:[],accounts:[],stock:{},knownIds:[],snapshotIds:[],ops:[],localSequence:0,warehouseSwitchAt:'',agentCash:null,allowedCurrencies:['USD','SYP'],addedCurrencies:[],currencyRatesSyp:{},currencyExchangeRatesSyp:{},cashTransfers:[],warehouseTransfers:[],historyCursor:0,warehouseHistoryCursor:0,warehouseTransferRevision:'',license:'',issuedAt:'',lastSyncAt:'',lastSyncSummary:null,exchangeRate:15000,defaultPriceTier:'wholesale',permissions:null,accountLedgers:[],exchangeRateOverride:null,employeeAuth:null,backupRecovery:null};},
+  get blank(){return {deviceId:'TD-'+FieldProtocol.uuid().toUpperCase(),companyId:'',companyName:'',companyPhone:'',companyAddress:'',companyLogo:'',footerNote:'',printerWidth:80,printFontScale:0.75,itemQuantityDecimals:2,agentId:'',agentName:'',vehicleName:'',warehouseId:'',warehouseName:'',key:'',items:[],categories:[],accounts:[],stock:{},knownIds:[],snapshotIds:[],ops:[],localSequence:0,warehouseSwitchAt:'',agentCash:null,allowedCurrencies:['USD','SYP'],addedCurrencies:[],currencyRatesSyp:{},currencyExchangeRatesSyp:{},cashTransfers:[],warehouseTransfers:[],historyCursor:0,warehouseHistoryCursor:0,warehouseTransferRevision:'',license:'',issuedAt:'',lastSyncAt:'',lastSyncSummary:null,exchangeRate:15000,defaultPriceTier:'wholesale',defaultSaleUnitName:'__first__',taPricingModes:[],permissions:null,accountLedgers:[],exchangeRateOverride:null,employeeAuth:null,backupRecovery:null};},
   async init(){
     if(!globalThis.crypto?.subtle){document.getElementById('screen').textContent='هذا الجهاز لا يدعم البيئة الآمنة اللازمة لتشغيل المزامنة.';return;}
     try{
@@ -177,7 +177,7 @@ const Agent={
       const raw=JSON.parse(e.data||'null');
       if(raw?.kind==='provision'){
         const payload=await FieldProtocol.unseal(e,this.ready()?this.state.key:raw.key);
-        if(payload.appVersion!=='3.5.152')throw Error('اختلاف إصدار التطبيقات: يجب تحديث جميع الأجهزة إلى الإصدار 3.5.152 قبل الاتصال أو المزامنة. لم تُنقل أي بيانات.');
+        if(payload.appVersion!=='3.5.153')throw Error('اختلاف إصدار التطبيقات: يجب تحديث جميع الأجهزة إلى الإصدار 3.5.153 قبل الاتصال أو المزامنة. لم تُنقل أي بيانات.');
         if(this.ready() && (payload.companyId!==this.state.companyId||payload.agentId!==this.state.agentId||payload.key!==this.state.key))throw Error('لا يمكن تغيير الشركة أو موظف البيع أو مفتاح الاقتران على جهاز مرتبط مسبقًا');
         if(!Array.isArray(payload.items)||!Array.isArray(payload.accounts)||!payload.companyId||!payload.agentId)throw Error('ملف تجهيز ناقص');
         const previous=this.state;
@@ -192,14 +192,14 @@ const Agent={
           ops:this.mergeHistoryPage(payload.historyPage,{...this.state,companyId:payload.companyId,agentId:payload.agentId,warehouseId:payload.warehouseId}).ops,
           historyCursor:this.mergeHistoryPage(payload.historyPage,{...this.state,companyId:payload.companyId,agentId:payload.agentId,warehouseId:payload.warehouseId}).cursor,
           snapshotIds:payload.knownIds||[],knownIds:Array.from(new Set([...(this.state.knownIds||[]),...(payload.knownIds||[]),...this.mergeHistoryPage(payload.historyPage,{...this.state,companyId:payload.companyId,agentId:payload.agentId,warehouseId:payload.warehouseId}).restoredIds])),exchangeRate:payload.permissions?.exchangeRate&&Number(previous.exchangeRateOverride)>0?Number(previous.exchangeRateOverride):payload.exchangeRate,exchangeRateOverride:payload.permissions?.exchangeRate?previous.exchangeRateOverride:null,
-          defaultPriceTier:['wholesale','center','consumer'].includes(payload.defaultPriceTier)?payload.defaultPriceTier:'wholesale',
+          defaultPriceTier:(Array.isArray(payload.taPricingModes)&&payload.taPricingModes.some(x=>x.id===payload.defaultPriceTier))?payload.defaultPriceTier:(['wholesale','center','consumer'].includes(payload.defaultPriceTier)?payload.defaultPriceTier:'wholesale'),defaultSaleUnitName:String(payload.defaultSaleUnitName||'__first__'),taPricingModes:Array.isArray(payload.taPricingModes)?payload.taPricingModes:[],
           permissions:payload.permissions||null,employeeAuth:TiqanyEmployeeAuth.resolve(this.state.employeeAuth,payload.employeeAuth),backupRecovery:TiqanyEmployeeAuth.resolve(this.state.employeeAuth,payload.employeeAuth)||this.state.backupRecovery||null,accountLedgers:Array.isArray(payload.accountLedgers)?payload.accountLedgers:[],
           issuedAt:payload.issuedAt,cloud:Object.prototype.hasOwnProperty.call(payload,'cloud')?payload.cloud:(this.state.cloud||null)};
         this.draft=[];this.currency='USD';await this.save();this.toast('استُلم كشف المواد والعملاء دون حذف العمليات القديمة');await this.show('home');
       }else if(raw?.kind==='ack'){
         if(!this.ready())throw Error('يجب ربط الجهاز أولًا');
         const ack=await FieldProtocol.unseal(e,this.state.key);
-        if(ack.appVersion!=='3.5.152')throw Error('اختلاف إصدار التطبيقات: يجب تحديث جميع الأجهزة إلى الإصدار 3.5.152 قبل الاتصال أو المزامنة. لم تُنقل أي بيانات.');
+        if(ack.appVersion!=='3.5.153')throw Error('اختلاف إصدار التطبيقات: يجب تحديث جميع الأجهزة إلى الإصدار 3.5.153 قبل الاتصال أو المزامنة. لم تُنقل أي بيانات.');
         if(ack.companyId!==this.state.companyId||ack.agentId!==this.state.agentId||!Array.isArray(ack.knownIds))throw Error('تأكيد استلام لشركة أخرى');
         const own=new Set(this.state.ops.map(o=>o.id));
         this.state.knownIds=Array.from(new Set([...this.state.knownIds,...ack.knownIds.filter(id=>own.has(id))]));
@@ -219,7 +219,7 @@ const Agent={
       const ops=this.pending.slice(0,250);
       this.lanSentCount=ops.length;
       const nonce=FieldProtocol.uuid();this.lanRequestNonce=nonce;
-      const msg={kind:'operations',appVersion:'3.5.152',nonce,companyId:this.state.companyId,agentId:this.state.agentId,
+      const msg={kind:'operations',appVersion:'3.5.153',nonce,companyId:this.state.companyId,agentId:this.state.agentId,
         warehouseId:this.state.warehouseId,issuedAt:new Date().toISOString(),operations:ops,pendingTotal:this.pending.length,historyCursor:Number(this.state.historyCursor||0),warehouseHistoryCursor:Number(this.state.warehouseHistoryCursor||0)};
       const packet=await FieldLanCrypto.pack(msg,this.state.key,this.state.companyId,this.state.agentId);
       this.lanFinalPacket=JSON.stringify(packet);
@@ -271,7 +271,7 @@ const Agent={
         if(result.transport!=='cloud')window.AndroidLocalSync?.rejectUnverifiedSync?.(this.state.companyId);
         throw error;
       }
-      if(ack.appVersion!=='3.5.152')throw Error('اختلاف إصدار التطبيقات: يجب تحديث جميع الأجهزة إلى الإصدار 3.5.152 قبل الاتصال أو المزامنة. لم تُنقل أي بيانات.');
+      if(ack.appVersion!=='3.5.153')throw Error('اختلاف إصدار التطبيقات: يجب تحديث جميع الأجهزة إلى الإصدار 3.5.153 قبل الاتصال أو المزامنة. لم تُنقل أي بيانات.');
       if(this.lanSyncStage==='version-probe'){
         if(ack.kind!=='sync_result'||ack.requestNonce!==this.lanRequestNonce||ack.companyId!==this.state.companyId||ack.agentId!==this.state.agentId)throw Error('تأكيد توافق الإصدار غير صالح');
         this.lanSyncStage='operations';
@@ -329,7 +329,7 @@ const Agent={
         {...old,warehouseId:catalog.warehouseId,warehouseTransfers:[],warehouseHistoryCursor:0,warehouseTransferRevision:''}:old);
       const metadataChanged=Number(old.managerPublishedRate??old.exchangeRate)!==Number(catalog.exchangeRate)||old.companyName!==catalog.companyName||old.agentName!==catalog.agentName||
         old.vehicleName!==catalog.vehicleName||Number(old.exchangeRate)!==Number(catalog.exchangeRate)||
-        (old.defaultPriceTier||'wholesale')!==(catalog.defaultPriceTier||'wholesale')||
+        (old.defaultPriceTier||'wholesale')!==(catalog.defaultPriceTier||'wholesale')||(old.defaultSaleUnitName||'__first__')!==(catalog.defaultSaleUnitName||'__first__')||JSON.stringify(old.taPricingModes||[])!==JSON.stringify(catalog.taPricingModes||[])||
         old.companyPhone!==(catalog.companyPhone||'')||old.companyAddress!==(catalog.companyAddress||'')||
         old.companyLogo!==(catalog.companyLogo||'')||old.footerNote!==(catalog.footerNote||'')||
         JSON.stringify(old.agentCash||null)!==JSON.stringify(catalog.agentCash||null)||
@@ -362,7 +362,7 @@ const Agent={
           exchangeRate:catalog.permissions?.exchangeRate&&Number(old.exchangeRateOverride)>0?Number(old.exchangeRateOverride):catalog.exchangeRate,
           managerPublishedRate:Number(catalog.exchangeRate),
           exchangeRateOverride:catalog.permissions?.exchangeRate?old.exchangeRateOverride:null,
-          defaultPriceTier:['wholesale','center','consumer'].includes(catalog.defaultPriceTier)?catalog.defaultPriceTier:'wholesale',
+          defaultPriceTier:(Array.isArray(catalog.taPricingModes)&&catalog.taPricingModes.some(x=>x.id===catalog.defaultPriceTier))?catalog.defaultPriceTier:(['wholesale','center','consumer'].includes(catalog.defaultPriceTier)?catalog.defaultPriceTier:'wholesale'),defaultSaleUnitName:String(catalog.defaultSaleUnitName||'__first__'),taPricingModes:Array.isArray(catalog.taPricingModes)?catalog.taPricingModes:[],
           permissions:catalog.permissions||null,employeeAuth:TiqanyEmployeeAuth.resolve(old.employeeAuth,catalog.employeeAuth),
           backupRecovery:TiqanyEmployeeAuth.resolve(old.employeeAuth,catalog.employeeAuth)||old.backupRecovery||null,accountLedgers:Array.isArray(catalog.accountLedgers)?catalog.accountLedgers:[],
           categories:catalog.categories||[],items:receivedItems,
@@ -400,7 +400,7 @@ const Agent={
   async exportOutbox(){try{
     if(!this.ready())throw Error('موظف البيع غير مرتبط بالشركة');
     const operations=this.pending;if(!operations.length)throw Error('لا توجد عمليات جديدة');
-    const data={kind:'operations',appVersion:'3.5.152',companyId:this.state.companyId,agentId:this.state.agentId,warehouseId:this.state.warehouseId,issuedAt:new Date().toISOString(),operations};
+    const data={kind:'operations',appVersion:'3.5.153',companyId:this.state.companyId,agentId:this.state.agentId,warehouseId:this.state.warehouseId,issuedAt:new Date().toISOString(),operations};
     await this.saveFile('TA_Ops_'+this.state.agentId+'_'+Date.now()+'.json',await FieldProtocol.seal(data,this.state.key));
     this.toast('تم تجهيز ملف العمليات. أرسله إلى المسؤول ثم استورد ملف التأكيد.');
   }catch(err){this.toast(err.message);}},

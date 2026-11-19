@@ -85,7 +85,12 @@ const AgentInvoicePrint={
                     });
                 }
 
-                const estimatedHeight = Math.round((2000 + (inv.rows.length * 170)) * scale);
+                const taFieldsForHeight=this.agent.state.taPrintFields||{};
+                const tableHeight=window.TiqanyThermalTable152?.estimateHeight(ctx,inv,widthDots,pad,scale,taFieldsForHeight,{
+                    qty:v=>this.formatItemQuantity(v),price:v=>this.formatPriceNumber(v),
+                    total:(v,c)=>this.formatNumberOnly(v,c)
+                })||0;
+                const estimatedHeight=Math.max(Math.round((2000+(inv.rows.length*170))*scale),Math.ceil(1200*scale+tableHeight+360));
                 canvas.width = widthDots;
                 canvas.height = estimatedHeight;
 
@@ -160,86 +165,16 @@ const AgentInvoicePrint={
                 y += 4;
                 drawDoubleSep();
 
-                // 4. 5-Column Table Header (# | اسم المادة | الوحدة | الكمية | الإفرادي | الاجمالي)
-                const xIdx = widthDots - pad;
-                const xName = widthDots - pad - (is58 ? 24 : 34);
-                const xUnit = Math.round(widthDots * 0.50);
-                const xQty = Math.round(widthDots * 0.37);
-                const xPrice = Math.round(widthDots * 0.23);
-                const xTotal = pad;
-                const maxNameWidth = xName - (widthDots * 0.56);
-
-                ctx.font = `900 ${fTableHead}px Cairo, sans-serif`;
-                ctx.textAlign = 'right';
-                ctx.fillText('#', xIdx, y);
-                ctx.fillText('اسم المادة', xName, y);
-                ctx.textAlign = 'center';
-                ctx.fillText('الوحدة', xUnit, y);
-                ctx.fillText('الكمية', xQty, y);
-                ctx.fillText('الإفرادي', xPrice, y);
-                ctx.textAlign = 'left';
-                ctx.fillText('الاجمالي', xTotal, y);
-                y += fTableHead + 6;
-
-                // Dashed Sub-header Underlines
-                ctx.font = `bold ${Math.round(fTableHead * 0.85)}px monospace`;
-                ctx.textAlign = 'right';
-                ctx.fillText('--', xIdx, y);
-                ctx.fillText('---------', xName, y);
-                ctx.textAlign = 'center';
-                ctx.fillText('----', xUnit, y);
-                ctx.fillText('--', xQty, y);
-                ctx.fillText('----', xPrice, y);
-                ctx.textAlign = 'left';
-                ctx.fillText('----', xTotal, y);
-                y += fTableHead + 6;
-
-                // 5. Table Rows
-                for (let i = 0; i < inv.rows.length; i++) {
-                    const r = inv.rows[i];
-                    const nameLines = wrapTextLines(r.itemName, `bold ${fItem}px Cairo, sans-serif`, maxNameWidth);
-
-                    ctx.font = `bold ${fItem}px Cairo, sans-serif`;
-                    ctx.textAlign = 'right';
-                    ctx.fillText(String(i + 1), xIdx, y);
-                    ctx.fillText(nameLines[0] || '', xName, y);
-
-                    ctx.textAlign = 'center';
-                    ctx.fillText(String(r.unitName || ''), xUnit, y);
-                    ctx.fillText(this.formatItemQuantity(r.qty), xQty, y);
-                    ctx.fillText(this.formatPriceNumber(r.price), xPrice, y);
-
-                    ctx.font = `900 ${fItem}px Cairo, sans-serif`;
-                    ctx.textAlign = 'left';
-                    ctx.fillText(this.formatNumberOnly(r.total, inv.currency), xTotal, y);
-
-                    y += fItem + 8;
-
-                    for (let nl = 1; nl < nameLines.length; nl++) {
-                        ctx.font = `bold ${fItem}px Cairo, sans-serif`;
-                        ctx.textAlign = 'right';
-                        ctx.fillText(nameLines[nl], xName, y);
-                        y += fItem + 6;
-                    }
-                    // Dotted separator after each product except last; preserves index numbers.
-                    if (i < inv.rows.length - 1) {
-                        const lineY = y + 2;
-                        ctx.beginPath();
-                        ctx.setLineDash([4, 6]);
-                        ctx.strokeStyle = '#555555';
-                        ctx.lineWidth = 1;
-                        ctx.moveTo(pad, lineY);
-                        ctx.lineTo(widthDots - pad, lineY);
-                        ctx.stroke();
-                        ctx.setLineDash([]);
-                        ctx.strokeStyle = '#000000';
-                        y += 13;
-                    }
-                }
-                ctx.font = `bold ${fMeta}px Cairo, sans-serif`;
-                ctx.textAlign = 'right';
-                ctx.fillText(`عدد الأصناف: ${inv.rows.length}`, widthDots - pad, y);
-                y += fMeta + 12;
+                // 4-5. Measured six-column Arabic invoice grid, identical to manager.
+                const taFields=this.agent.state.taPrintFields||{};
+                const taFormatter={
+                    qty:v=>this.formatItemQuantity(v),
+                    price:v=>this.formatPriceNumber(v),
+                    total:(v,c)=>this.formatNumberOnly(v,c)
+                };
+                if(!window.TiqanyThermalTable152)throw Error('تعذر تحميل تنسيق جدول الفاتورة الموحد');
+                y=window.TiqanyThermalTable152.draw(ctx,inv,widthDots,y,pad,scale,taFields,taFormatter);
+                y+=fMeta+12;
                 drawDoubleSep();
 
                 // 6. Totals Section

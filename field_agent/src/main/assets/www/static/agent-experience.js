@@ -33,7 +33,7 @@ Agent.confirmAction=function(title,message,action){this.dialogAction=action;
  document.getElementById('dialogMessage').textContent=message;
  document.getElementById('agentDialog').classList.remove('hide');
  const leaving=title==='تأكيد الخروج من التطبيق';
- const accept=document.getElementById('dialogAccept');if(accept)accept.textContent=leaving?'نعم، خروج':'تأكيد';
+ const accept=document.getElementById('dialogAccept');if(accept)accept.classList.toggle('ta-exit-red',leaving);if(accept)accept.textContent=leaving?'نعم، خروج':'تأكيد';
  const cancel=document.getElementById('agentDialogCancel');if(cancel)cancel.textContent=leaving?'البقاء في التطبيق':'إلغاء';};
 Agent.acceptDialog=function(){const fn=this.dialogAction;this.dismissDialog();if(fn)fn();};
 Agent.bottomRoutes=['home','invoices','ops','reports','sync','settings'];
@@ -86,10 +86,10 @@ Agent.switchInvoiceKind=function(kind){if(kind===this.draftKind)return;
 Agent.renderHome=function(){const o=this.state.ops||[],pending=this.pending.length;
  const today=new Date().toISOString().slice(0,10),todayOps=o.filter(x=>x.date.slice(0,10)===today);
  return `<section class="panel"><h3>العمليات السريعة</h3><div class="grid">
-  <button class="tile" onclick="Agent.startInvoice('sale')"><span class="glyph">🛒</span><strong>فاتورة مبيعات</strong><small>اختيار مواد من شبكة الأصناف</small></button>
+  <button class="tile" onclick="Agent.startInvoice('sale')"><span class="glyph"><img class="ta-operation-art" src="static/sale.png" alt=""></span><strong>فاتورة مبيعات</strong><small>اختيار مواد من شبكة الأصناف</small></button>
   <button class="tile" onclick="Agent.startInvoice('sale_return')"><span class="glyph">↩</span><strong>مردود مبيعات</strong><small>إرجاع المواد إلى السيارة</small></button>
-  <button class="tile" onclick="Agent.startVoucher('receipt')"><span class="glyph">💵</span><strong>سند قبض</strong><small>استلام دفعة من عميل</small></button>
-  <button class="tile" onclick="Agent.startVoucher('payment')"><span class="glyph">💳</span><strong>سند دفع</strong><small>تسجيل دفع مصرح به</small></button>
+  <button class="tile" onclick="Agent.startVoucher('receipt')"><span class="glyph"><img class="ta-voucher-art" src="static/receipt.png" alt=""></span><strong>سند قبض</strong><small>استلام دفعة من عميل</small></button>
+  <button class="tile" onclick="Agent.startVoucher('payment')"><span class="glyph"><img class="ta-voucher-art" src="static/payment.png" alt=""></span><strong>سند دفع</strong><small>تسجيل دفع مصرح به</small></button>
   <button class="tile" onclick="Agent.navigate('expense')"><span class="glyph">🧾</span><strong>إيصال مصروف</strong><small>تسجيل مصروف على صندوق موظف البيع</small></button>
   <button class="tile" onclick="Agent.openCustomerForm()"><span class="glyph">👤</span><strong>زبون جديد</strong><small>إضافة حساب زبون للمبيعات والسندات</small></button>
   <button class="tile" onclick="Agent.navigate('stock')"><span class="glyph">📦</span><strong>رصيد السيارة</strong><small>جرد المستودع المتنقل</small></button>

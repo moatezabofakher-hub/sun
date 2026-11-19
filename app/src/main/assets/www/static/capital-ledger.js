@@ -19,7 +19,7 @@ const CapitalLedger={
  card(){
    const s=this.total();
    return `<button type="button" class="ta-capital-card" onclick="ShareholdersUI.open()" aria-label="رأس المال والمساهمون، سجل رأس المال والأرباح">
-      <span class="ta-capital-icon" aria-hidden="true"><i class="fas fa-piggy-bank"></i></span>
+      <span class="ta-capital-icon" aria-hidden="true"><img src="static/ta-partners-capital-152.svg" width="44" height="44" alt="" /></span>
       <span class="ta-capital-card-text"><strong>رأس المال والمساهمون</strong><small>المساهمات، توزيع الأرباح، سحب الأرباح، وتحويل رأس المال إلى الصندوق</small>
       <span class="ta-capital-amount">${Accounting.format(s.SYP,'SYP')} <span class="ta-capital-divider">|</span> ${Accounting.format(s.USD,'USD')}</span></span>
       <i class="fas fa-chevron-left" aria-hidden="true"></i>

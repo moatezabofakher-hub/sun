@@ -31,7 +31,7 @@ const main=vmScope.FieldSyncUnderTest;
 const operation=(id)=>({id,kind:'sale',...namespace,date:'2026-11-13T09:00:00.000Z',currency:'USD',exchangeRate:15000,accountId:'c1',paidAmount:6,rows:[{itemId:'i1',unitName:'علبة',unitFactor:1,qty:2,price:3,total:6}]});
 let reqCounter=0;
 async function send(ops,nonce){
- const payload={kind:'operations',appVersion:'3.5.152',...namespace,issuedAt:new Date().toISOString(),nonce,operations:ops};
+ const payload={kind:'operations',appVersion:'3.5.153',...namespace,issuedAt:new Date().toISOString(),nonce,operations:ops};
  const packet=await FieldLanCrypto.pack(payload,key,namespace.companyId,namespace.agentId);
  await main.receiveLanPacket(String(++reqCounter),JSON.stringify(packet));
  return JSON.parse(vmScope.lastReply.data);
@@ -40,7 +40,9 @@ async function send(ops,nonce){
  const pkt=await FieldLanCrypto.pack({kind:'operations',operations:[operation('op_12345678901')]},key,namespace.companyId,namespace.agentId);
  const unwrapped=await FieldLanCrypto.open(pkt,key,namespace.companyId,namespace.agentId);
  assert.equal(unwrapped.operations.length,1);
- await assert.rejects(FieldLanCrypto.open({...pkt,body:pkt.body.slice(0,-2)+'zz'},key,namespace.companyId,namespace.agentId),/التحقق/);
+ const changedBody=Buffer.from(pkt.body,'base64url');
+ changedBody[0]^=1;
+ await assert.rejects(FieldLanCrypto.open({...pkt,body:changedBody.toString('base64url')},key,namespace.companyId,namespace.agentId),/التحقق/);
  await assert.rejects(FieldLanCrypto.open(pkt,FieldProtocol.b64u(crypto.randomBytes(32)),namespace.companyId,namespace.agentId));
  await assert.rejects(FieldLanCrypto.open(pkt,key,'company_other12345',namespace.agentId));
  assert(!JSON.stringify(pkt).includes('منظف'));

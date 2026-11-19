@@ -8,7 +8,7 @@ const savedHome=A.renderHome.bind(A);
 A.renderHome=function(){
   const html=savedHome();
   return html.replace('<button class="tile" onclick="Agent.startInvoice(\'sale_return\')">',
-    '<button class="tile" onclick="Agent.startPOS()"><span class="glyph">▦</span><strong>نقطة البيع</strong><small>بيع نقدي سريع • شبكة أصناف • باركود</small></button><button class="tile" onclick="Agent.startInvoice(\'sale_return\')">');
+    '<button class="tile" onclick="Agent.startPOS()"><span class="glyph"><img class="ta-operation-art" src="static/pos.png" alt=""></span><strong>نقطة البيع</strong><small>بيع نقدي سريع • شبكة أصناف • باركود</small></button><button class="tile" onclick="Agent.startInvoice(\'sale_return\')">');
 };
 const savedSettings=A.renderSettings.bind(A);
 A.renderSettings=function(){
@@ -17,7 +17,7 @@ A.renderSettings=function(){
    <label class="label">حساب نقطة البيع الافتراضي</label>
    <select class="field" id="agentPosAccount" onchange="Agent.savePosSettings()"><option value="">الزبون النقدي (دون ذمم)</option>${(this.state.accounts||[]).map(acc=>`<option value="${esc(acc.id)}" ${this.state.posAccountId===acc.id?'selected':''}>${esc(acc.name)}</option>`).join('')}</select>
    <label class="label">تسعير نقطة البيع</label><select class="field" id="agentPosTier" onchange="Agent.savePosSettings()">
-     ${[['account','حسب الحساب / الإعدادات'],['wholesale','الجملة'],['center','المركز'],['consumer','المستهلك']].map(([id,title])=>`<option value="${id}" ${String(this.state.posPriceTier||'account')===id?'selected':''}>${title}</option>`).join('')}</select>
+     ${this.priceModeOptions(this.state.posPriceTier||'account')}</select>
    <label class="label"><input id="agentPosHomeScan" type="checkbox" ${this.state.posScanFromHome===true?'checked':''} onchange="Agent.savePosSettings()"> فتح نقطة بيع جديدة عند قراءة باركود من الرئيسية (قارئ خارجي)</label>
    <label class="label agent-pos-next-setting"><input id="agentPosAutoNext" type="checkbox" ${this.state.posAutoNextOnFinish===true?'checked':''} onchange="Agent.savePosSettings()"> فتح نقطة بيع جديدة بعد الحفظ أو تأكيد الخروج من عملية غير مكتملة</label>
    <p class="tiny">الإعدادات خاصة بنقطة البيع، وتُحفظ على جهاز موظف البيع. تسجَّل المبيعات في صندوق موظف البيع وتُرسل مع مزامنته المعتادة.</p>
@@ -28,7 +28,7 @@ A.savePosSettings=async function(){
   const account=document.getElementById('agentPosAccount')?.value||'';
   const tier=document.getElementById('agentPosTier')?.value||'account';
   if(account && !(this.state.accounts||[]).some(a=>String(a.id)===account))return this.toast('حساب غير متاح للموظف بيع');
-  if(!['account','wholesale','center','consumer'].includes(tier))return;
+  if(tier!=='account'&&!this.pricingModes().some(m=>m.id===tier))return;
   const oldA=this.state.posAccountId,oldT=this.state.posPriceTier,oldH=this.state.posScanFromHome,oldN=this.state.posAutoNextOnFinish;
   this.state.posAccountId=account;this.state.posPriceTier=tier;this.state.posScanFromHome=document.getElementById('agentPosHomeScan')?.checked===true;
   this.state.posAutoNextOnFinish=document.getElementById('agentPosAutoNext')?.checked===true;
@@ -51,9 +51,12 @@ const defaultPrice=A.unitPrice.bind(A);
 A.unitPrice=function(item,unit,currency){
   if(!this.posMode)return defaultPrice(item,unit,currency);
   const tier=this.state.posPriceTier||'account';
-  if(!['wholesale','center','consumer'].includes(tier))return defaultPrice(item,unit,currency);
+  if(!this.pricingModes().some(m=>m.id===tier))return defaultPrice(item,unit,currency);
   const price=tier==='consumer'?(unit.consumerPrice??unit.centerPrice??unit.salePrice):
-    tier==='center'?(unit.centerPrice??unit.salePrice):(unit.wholesalePrice??unit.salePrice);
+    tier==='center'?(unit.centerPrice??unit.salePrice):
+    tier==='wholesale'?(unit.wholesalePrice??unit.salePrice):
+    tier==='cost'?(unit.costPrice??unit.salePrice):
+    (unit.customTierPrices?.[tier]??unit.wholesalePrice??unit.salePrice);
   const n=Number(price||0),rate=Number(this.state.exchangeRate)||1;
   return FieldProtocol.money(item.currency===currency?n:item.currency==='USD'?n*rate:n/rate,currency);
 };

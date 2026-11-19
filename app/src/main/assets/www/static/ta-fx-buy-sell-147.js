@@ -62,14 +62,20 @@ function chooser(){
    '<button type="button" onclick="TiqanyFx147.editRates()" class="ta-fx-rates-btn-149 w-full rounded-xl p-3 font-black" style="background:#047857!important;color:#fff!important;border:2px solid #065f46!important;box-shadow:0 4px 0 #064e3b!important"><i class="fas fa-chart-line ml-2"></i> إعداد أسعار الصرف</button>'+
    '<button type="button" onclick="UI.forceCloseModal()" class="w-full bg-slate-100 rounded-xl p-3 font-bold">رجوع</button></div>');
 }
-function trade(code,side){
+function trade(code,side,editId=''){
  if(!codes().includes(code)||!['buy','sell'].includes(side))return UI.toast('عملة غير مفعّلة','error');
- const isBuy=side==='buy',rate=current(code,side),title=(isBuy?'شراء ':'مبيع ')+label(code);
+ const old=editId?(State.currencyExchanges||[]).find(x=>x.id===editId):null;
+ if(editId&&(!old||old.agentId))return UI.toast('عملية الموظف أو العملية غير الموجودة لا يمكن تعديلها','warn');
+ const isBuy=side==='buy',rate=old
+   ?Number(isBuy?old.fxRatesUsed?.toBuy:old.fxRatesUsed?.fromSell)||(Number(old.equivalentSyp)/(Number(isBuy?old.toAmount:old.fromAmount)||1))
+   :current(code,side),title=(isBuy?'شراء ':'مبيع ')+label(code);
+ const amountOld=old?Number(isBuy?old.toAmount:old.fromAmount):0;
  UI.openModal('<div dir="rtl" class="text-right space-y-3" data-ta-fx-trade="1">'+
-   '<h2 class="text-xl font-black text-slate-900">'+esc(title)+'</h2>'+
+   '<h2 class="text-xl font-black text-slate-900">'+(old?'تعديل ':'')+esc(title)+'</h2>'+
+   '<input type="hidden" id="ta147EditId" value="'+esc(old?.id||'')+'">'+
    '<p class="text-xs text-slate-600">تُرحّل حركة العملة والليرة إلى الصندوقين بعملية واحدة. الربح المحقق يُحتسب بمحرّك تكلفة التصريف.</p>'+
    '<label class="block font-black text-sm">المبلغ المراد '+(isBuy?'شراؤه':'بيعه')+' ('+esc(code)+')</label>'+
-   '<input id="ta147Amount" type="number" step="any" min="0.01" inputmode="decimal" autocomplete="off" class="w-full p-3 rounded-xl border-2 border-sky-300 text-lg font-black">'+
+   '<input id="ta147Amount" type="number" step="any" min="0.01" inputmode="decimal" autocomplete="off" class="w-full p-3 rounded-xl border-2 border-sky-300 text-lg font-black" value="'+(old?amountOld:'')+'">'+
    '<label class="block font-black text-sm">سعر '+(isBuy?'الشراء':'المبيع')+' (ل.س لكل 1 '+esc(code)+')</label>'+
    '<div class="rounded-xl border-2 border-indigo-300 bg-indigo-50 p-2 flex gap-2 items-center">'+
    '<i class="fas fa-pen text-indigo-600"></i>'+
@@ -78,9 +84,9 @@ function trade(code,side){
    '<div id="ta147Total" class="w-full rounded-xl border-2 border-emerald-300 bg-emerald-50 p-4 text-2xl font-black text-emerald-900" aria-live="polite">— ل.س</div>'+
    '<div id="ta147Balance" class="rounded-lg bg-sky-50 p-2 font-bold text-xs"></div>'+
    '<div id="ta147Preview" class="rounded-lg bg-slate-50 p-3 font-bold text-xs"></div>'+
-   '<label class="block font-bold text-xs">بيان (اختياري)</label><input id="ta147Note" maxlength="200" class="w-full rounded-lg border p-3">'+
-   '<button type="button" class="w-full ta-primary-3d bg-emerald-700 text-white font-black rounded-xl p-3" onclick="TiqanyFx147.saveTrade()">حفظ '+esc(title)+'</button>'+
-   '<button type="button" class="w-full rounded-xl bg-slate-100 p-3" onclick="TiqanyFx147.chooser()">رجوع إلى التصريف</button>'+
+   '<label class="block font-bold text-xs">بيان (اختياري)</label><input id="ta147Note" maxlength="200" class="w-full rounded-lg border p-3" value="'+esc(old?.note||'')+'">'+
+   '<button type="button" class="w-full ta-primary-3d bg-emerald-700 text-white font-black rounded-xl p-3" onclick="TiqanyFx147.saveTrade()">'+(old?'حفظ تعديل ':'حفظ ')+esc(title)+'</button>'+
+   '<button type="button" class="w-full rounded-xl bg-slate-100 p-3" onclick="TiqanyFx147.leaveTrade()">رجوع إلى التصريف</button>'+
    '<input type="hidden" id="ta147Currency" value="'+esc(code)+'"><input type="hidden" id="ta147Side" value="'+side+'"></div>');
  const update=()=>{
   const amount=Number(document.getElementById('ta147Amount')?.value),price=Number(document.getElementById('ta147Rate')?.value);
@@ -96,24 +102,40 @@ function trade(code,side){
   display.textContent=money(totalRounded,'SYP');
   try{
    const fromCurrency=isBuy?'SYP':code,toCurrency=isBuy?code:'SYP';
-   const p=E.prepare({id:'fx_preview_147',date:new Date().toISOString(),
+   // Maintain the original ordering and date for accurate historical cost preview.
+   const p=E.prepare({id:old?.id||'fx_preview_147',date:old?.date||new Date().toISOString(),
        fromCurrency,toCurrency,fromAmount:isBuy?totalRounded:amountRounded,
        toAmount:isBuy?amountRounded:totalRounded,equivalentSyp:totalRounded},['SYP',code]);
-   const result=E.analyze([...(State.currencyExchanges||[]),p]).byId.get(p.id);
+   const ledger=old?(State.currencyExchanges||[]).map(e=>e.id===old.id?p:e):[...(State.currencyExchanges||[]),p];
+   const result=E.analyze(ledger).byId.get(p.id);
    document.getElementById('ta147Preview').textContent='الربح المحقق: '+money(result.gainSyp||0,'SYP')+
     (result.pendingAmount>0?' · كمية مؤجلة التكلفة: '+money(result.pendingAmount,code):'');
   }catch(e){document.getElementById('ta147Preview').textContent=e.message;}
  };
+ const fields=['ta147Amount','ta147Rate','ta147Note'].map(id=>document.getElementById(id));
+ const signature=()=>JSON.stringify(fields.map(el=>el.value));
+ const baseline=signature();
+ fields.forEach(el=>el.addEventListener?.('input',()=>{
+    if(signature()===baseline)AppNav.clearModalDirty();
+    else AppNav.markModalDirty(saveTrade);
+ }));
  document.getElementById('ta147Amount').addEventListener('input',update);
  document.getElementById('ta147Rate').addEventListener('input',update);
  update();
+}
+function leaveTrade(){
+ const leave=()=>{AppNav.clearModalDirty();chooser();};
+ if(!AppNav.isModalDirty){leave();return;}
+ UI.showUnsavedDialog(async()=>{if(await saveTrade())chooser();},leave);
 }
 let busy=false;
 async function saveTrade(){
  if(busy)return;
  const val=id=>document.getElementById(id)?.value;
- const code=val('ta147Currency'),side=val('ta147Side');
+ const code=val('ta147Currency'),side=val('ta147Side'),editId=val('ta147EditId')||'';
+ const old=editId?(State.currencyExchanges||[]).find(x=>x.id===editId):null;
  try{
+  if(editId&&(!old||old.agentId))throw Error('عملية التصريف غير قابلة للتعديل');
   if(!codes().includes(code)||!['buy','sell'].includes(side))throw Error('عملة غير مفعّلة');
   const amountRaw=Number(val('ta147Amount')),price=Number(val('ta147Rate'));
   if(!Number.isFinite(amountRaw)||amountRaw<=0||amountRaw>1e12||!validPrice(price))throw Error('أدخل مبلغاً وسعراً صالحين');
@@ -121,17 +143,21 @@ async function saveTrade(){
   if(!(amount>0&&syp>0&&syp<1e12))throw Error('المبلغ أصغر من الحد المسموح أو يتجاوز الحد');
   const isBuy=side==='buy',fromCurrency=isBuy?'SYP':code,toCurrency=isBuy?code:'SYP';
   const fromAmount=isBuy?syp:amount,toAmount=isBuy?amount:syp;
-  if(cashAvailable(fromCurrency)+1e-6<fromAmount)throw Error('رصيد صندوق '+fromCurrency+' لا يكفي لهذا التصريف');
-  const id='fx_'+(typeof FieldProtocol!=='undefined'?FieldProtocol.uuid():crypto.randomUUID().replace(/-/g,''));
-  const entry=E.prepare({id,date:new Date().toISOString(),fromCurrency,toCurrency,
-      fromAmount,toAmount,equivalentSyp:syp,source:'manager',agentId:'',note:val('ta147Note')||''},['SYP',code]);
+  // Editing reverses the old cash legs first and applies the new legs as one atomic movement.
+  const deltas=new Map(),delta=(c,v)=>deltas.set(c,(deltas.get(c)||0)+v);
+  if(old){delta(old.fromCurrency,Number(old.fromAmount));delta(old.toCurrency,-Number(old.toAmount));}
+  delta(fromCurrency,-fromAmount);delta(toCurrency,toAmount);
+  for(const [curr,value] of deltas)if(cashAvailable(curr)+value< -1e-6)throw Error('رصيد صندوق '+curr+' لا يكفي بعد تعديل التصريف');
+  const id=old?.id||'fx_'+(typeof FieldProtocol!=='undefined'?FieldProtocol.uuid():crypto.randomUUID().replace(/-/g,''));
+  const entry=E.prepare({id,date:old?.date||new Date().toISOString(),fromCurrency,toCurrency,
+      fromAmount,toAmount,equivalentSyp:syp,source:old?.source||'manager',agentId:'',note:val('ta147Note')||''},['SYP',code]);
   entry.fxRatesUsed={fromSell:isBuy?null:price,toBuy:isBuy?price:null};
   const before=State.currencyExchanges||[],oldRates=rates(),newRates={...oldRates};
   const oldRecord=oldRates[code]||{};
   const changed=Number(oldRecord[side])!==price;
   if(changed)newRates[code]={...oldRecord,[side]:price};
-  const candidate=[...before,entry];E.analyze(candidate);
-  const trialBefore=trial.begin(true);
+  const candidate=old?before.map(x=>x.id===old.id?entry:x):[...before,entry];E.analyze(candidate);
+  const trialBefore=trial.begin(!old);
   busy=true;
   State.currencyExchanges=candidate;
   if(changed)State.settings.currencyExchangeRatesSyp=newRates;
@@ -139,8 +165,9 @@ async function saveTrade(){
   catch(error){State.currencyExchanges=before;if(changed)State.settings.currencyExchangeRatesSyp=oldRates;trial.undo(trialBefore);throw error;}
   trial.done(trialBefore);
   UI.forceCloseModal();
-  UI.toast('تم حفظ '+(isBuy?'شراء ':'مبيع ')+code+' في الصندوقين واحتساب أرباح التصريف','success');
+  UI.toast(old?'تم تعديل التصريف وإعادة احتساب أرصدة الصناديق والأرباح':'تم حفظ '+(isBuy?'شراء ':'مبيع ')+code+' في الصندوقين واحتساب أرباح التصريف','success');
   if(typeof AppNav!=='undefined')AppNav.renderCurrent();
+  return true;
  }catch(e){UI.toast('تعذر حفظ التصريف: '+e.message,'error');}
  finally{busy=false;}
 }
@@ -287,7 +314,16 @@ if(typeof FieldSync!=='undefined'&&typeof FieldSync.catalog==='function'){
  };
 }
 const originalEdit=U.newForm;
-U.newForm=function(editId=''){return editId?originalEdit(editId):chooser();};
+U.newForm=function(editId=''){
+ if(!editId)return chooser();
+ const old=(State.currencyExchanges||[]).find(x=>x.id===editId);
+ if(!old||old.agentId)return originalEdit(editId);
+ const buy=old.fromCurrency==='SYP'&&old.toCurrency!=='SYP';
+ const sell=old.toCurrency==='SYP'&&old.fromCurrency!=='SYP';
+ const code=buy?old.toCurrency:sell?old.fromCurrency:'';
+ if(!(buy||sell)||!codes().includes(code))return originalEdit(editId);
+ return trade(code,buy?'buy':'sell',editId);
+};
 U.ratesForm=unifiedRates;
 // Keep a separate, explicit settings action for the GENERAL invoice exchange
 // rate, without displaying it when the user clicks the top-bar FX quotation.
@@ -302,5 +338,5 @@ if(typeof Views!=='undefined'&&typeof Views.renderReports==='function'){
   return out;
  };
 }
-root.TiqanyFx147={chooser,trade,saveTrade,editRates:unifiedRates,saveRates,profitDetails,codes,current,generalInvoiceRateModal:currencyRates,currencyRates,saveCurrencyRates,generalRate};
+root.TiqanyFx147={chooser,trade,saveTrade,leaveTrade,editRates:unifiedRates,saveRates,profitDetails,codes,current,generalInvoiceRateModal:currencyRates,currencyRates,saveCurrencyRates,generalRate};
 })(typeof window==='object'?window:globalThis);

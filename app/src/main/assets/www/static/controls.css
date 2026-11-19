@@ -1,0 +1,129 @@
+/* Distinguish money entering and leaving the cashbox at a glance. */
+:root {
+  --ta-receipt-surface:linear-gradient(150deg,#e7fff1,#a7e4c3);
+  --ta-payment-surface:linear-gradient(150deg,#fff0ed,#f4bcc3);
+  --ta-positive:linear-gradient(155deg,#208755,#085234);
+  --ta-negative:linear-gradient(155deg,#cd4758,#8d2334);
+}
+body #mainContent .ta-action-card:is(.ta-quick-receipt,[onclick*="'receipt'"]),
+#screen .tile[onclick*="startVoucher('receipt')"] {background:var(--ta-receipt-surface)!important;color:#123c2a!important}
+body #mainContent .ta-action-card:is(.ta-quick-payment,[onclick*="'payment'"]),
+#screen .tile[onclick*="startVoucher('payment')"] {background:var(--ta-payment-surface)!important;color:#5a1c29!important}
+body .ta-voucher-art {width:100%;height:100%;object-fit:contain;display:block;filter:drop-shadow(0 2px 1px #102f3740)}
+body #mainContent .ta-action-card .ta-icon-box:has(.ta-voucher-art),
+body .tile .glyph:has(.ta-voucher-art) {padding:2px!important;background:transparent!important;border:0!important;box-shadow:none!important}
+body .tile .glyph:has(.ta-voucher-art) {width:44px;height:44px;display:inline-flex}
+#dialogContainer .ta-decision-save,
+body button[data-ta-settings-save] {background:var(--ta-positive)!important;color:white!important;-webkit-text-fill-color:white!important}
+#dialogContainer .ta-decision-stay {background:linear-gradient(#f4f6f8,#d4dce1)!important;color:#253542!important;-webkit-text-fill-color:#253542!important}
+#dialogContainer .ta-decision-discard,#dialogContainer .ta-exit-leave,
+body #mainContent button[onclick*="confirmDelete"] {background:var(--ta-negative)!important;color:white!important;-webkit-text-fill-color:white!important}
+body #topAppBar #headerNotificationsBtn,body #agentHeader #agentManagerNotifications {overflow:visible!important;position:relative!important;isolation:isolate}
+body #topAppBar #headerNotificationsCount,body #agentHeader #agentManagerNotificationCount {
+  position:absolute!important;inset:auto!important;top:0!important;left:0!important;
+  width:auto!important;min-width:16px!important;height:15px!important;padding:0 2px!important;
+  box-sizing:border-box!important;border:1px solid #fff!important;border-radius:8px!important;
+  background:#a91937!important;color:white!important;font:800 10px/13px sans-serif!important;
+  text-align:center;white-space:nowrap;direction:ltr;transform:none!important;z-index:2;
+}
+body #topAppBar #headerNotificationsBtn:has(#headerNotificationsCount:not([hidden])) > i,
+body #agentHeader #agentManagerNotifications:has(b:not([hidden])) > span {transform:translate(3px,4px)}
+#topAppBar .ta-header-connections button {--lamp:#ff9b9f}
+#topAppBar .ta-header-connections :is(.ta-link-online,.ta-manager-online,.has-staff) {--lamp:#52e798}
+#topAppBar .ta-header-connections button .ta-link-dot,
+#topAppBar .ta-header-connections #salesStaffCounterButton::after {
+  content:"";display:inline-block!important;width:6px!important;height:6px!important;min-width:6px;
+  border-radius:50%;background:var(--lamp)!important;box-shadow:0 0 3px var(--lamp)!important
+}
+#topAppBar .ta-header-connections #salesStaffConnectedCount {display:none!important}
+body button[data-action-tone=positive],body #mainContent button[data-action-tone=positive],
+body #dialogContainer button[data-action-tone=positive],body #modalBox button[data-action-tone=positive] {
+  background:var(--ta-positive)!important;color:white!important;-webkit-text-fill-color:white!important
+}
+body button[data-action-tone=negative],body #mainContent button[data-action-tone=negative],
+body #dialogContainer button[data-action-tone=negative],body #modalBox button[data-action-tone=negative] {
+  background:var(--ta-negative)!important;color:white!important;-webkit-text-fill-color:white!important
+}
+body button[data-action-tone=neutral],body #mainContent button[data-action-tone=neutral],body #dialogContainer button[data-action-tone=neutral],body #modalBox button[data-action-tone=neutral] {
+  background:linear-gradient(#f5f7fa,#d5dfe6)!important;color:#263949!important;-webkit-text-fill-color:#263949!important
+}
+#agentHeader #agentSyncConnection {position:relative;display:inline-flex;align-items:center;gap:3px;justify-content:center;width:40px;min-height:32px;border-radius:9px;font-size:17px}
+#agentHeader #agentSyncConnection::after {content:"";width:7px;height:7px;border-radius:50%;background:#ff9b9f}
+#agentHeader #agentSyncConnection[data-connected=true]::after {background:#52e798}
+/* Shared petrol navigation, pearl paper surfaces and silver edges. */
+:root {--ta-petrol:#104954;--ta-pearl:#f9faf7;--ta-silver:#bccbcf;--ta-heading:#124c57}
+body.ta-3d-v3524,body:has(#agentHeader) {background:linear-gradient(150deg,#f9faf7,#e7eff0)!important;color:#18373c}
+body header.ta-app-header,body #agentHeader,body nav.ta-bottom-nav,body #bottom.bottom {
+  background:linear-gradient(150deg,#195962,#103e49 68%,#0b323a)!important;color:white!important;
+  border-color:#9bb7bc!important;box-shadow:inset 0 1px #bfd2d7,0 3px 8px #142b3630!important
+}
+body .ta-bottom-nav .nav-btn,body #bottom.bottom button {color:#ecf5f4!important}
+body .ta-bottom-nav .nav-btn.active,body #bottom.bottom button.active {background:#216771!important;color:white!important;border-radius:10px}
+#mainContent :is(h2,h3,h4):not([class*="text-white"]):not([class*="text-red"]):not([class*="text-emerald"]),
+#screen .panel>h3,#screen .hero h2 {color:var(--ta-heading)}
+#screen .hero {background:linear-gradient(135deg,#f8faf8,#dcebed)!important;color:#164b54!important}
+#screen .hero p {color:#375962!important}
+body #mainContent :is(table,.ta-invoice-control-grid,.ta-voucher-footer-actions,.ta-footer-actions),
+#screen :is(table,.panel),body #modalBox,body #dialogBox {background-color:var(--ta-pearl);border-color:var(--ta-silver)}
+body #mainContent thead,body #screen thead {background:#dbe9e9!important;color:#153f47!important}
+body :is(.ta-action-card,.ta-module-card,.tile,.ta-icon-box,.ta-settings-page-header,.ta-agent-settings-heading) {border-color:var(--ta-silver);box-shadow:inset 0 1px 1px #ffffffa8,0 2px 0 #8ca9ad,0 5px 9px #18363d23}
+body button:is([aria-pressed=true],[role=option][aria-selected=true]) {outline:2px solid #14746f;outline-offset:-2px}
+body button:is([aria-pressed=true],[role=option][aria-selected=true])::after {content:'✓';margin-inline-start:.3em}
+body input:is([type=radio],[type=checkbox]) {accent-color:#087a72}
+#dialogContainer[data-dialog-type=unsaved] .ta-decision-actions {display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:10px}
+#dialogContainer[data-dialog-type=unsaved] #dlgDiscardBtn {background:linear-gradient(#f3f6f8,#d5dfe3)!important;color:#263949!important;-webkit-text-fill-color:#263949!important}
+body .ta-operation-art {display:block;width:100%;height:100%;object-fit:contain;filter:drop-shadow(0 2px 1px #15303938)}
+#taAgentSettingsDecision button[data-answer=save] {background:var(--ta-positive)!important;color:#fff!important}
+#taAgentSettingsDecision button[data-answer=discard] {background:linear-gradient(#f3f6f8,#d5dfe3)!important;color:#263949!important}
+
+#mainContent.ta-settings-menu details.settings-section{display:none!important}
+#mainContent:not(.ta-settings-menu) .ta-category-link{display:none!important}
+#mainContent .ta-category-link{display:flex;align-items:center;gap:.8em;width:100%;min-height:56px;margin:.5em 0;padding:.6em 1em;text-align:start;border-radius:14px;font-weight:bold}
+.ta-category-link::before,.ta-agent-settings-glyph,#headerSettingsBtn i,[data-nav="reports"] i,[data-nav="items"] i,.ta-capital-icon{background:center/contain no-repeat url('gear.webp')!important}
+.ta-category-link::before{content:'';width:40px;height:40px;border-radius:10px}
+.ta-category-link[data-category="printing"]::before{background-image:url('printer.webp')!important}
+.ta-category-link[data-category="currency"]::before{background-image:url('exchange.webp')!important}
+.ta-category-link[data-category="items"]::before,[data-nav="items"] i{background-image:url('stock.webp')!important}
+.ta-category-link[data-category="security"]::before{background-image:url('safe.webp')!important}
+.ta-category-link[data-category="invoices"]::before{background-image:url('sale.png')!important}
+[data-nav="reports"] i{background-image:url('report.webp')!important}
+.ta-capital-icon{background-image:url('partners.webp')!important}
+#headerSettingsBtn i,[data-nav="reports"] i,[data-nav="items"] i{display:inline-block;width:1.2em;height:1.2em;border-radius:25%}
+.ta-agent-settings-glyph i,#headerSettingsBtn i svg,[data-nav="reports"] i svg,[data-nav="items"] i svg,.ta-capital-icon img{visibility:hidden}
+
+/* Photographed module and navigation artwork. */
+body [data-nav="dashboard"] > i{position:relative;isolation:isolate}
+body [data-nav="dashboard"] > i::after{content:'';position:absolute;inset:0;border-radius:22%;background:url('modules.webp') 0 0/300% 300% no-repeat;pointer-events:none}
+body [data-nav="agent_hub"] > i{position:relative;isolation:isolate}
+body [data-nav="agent_hub"] > i::after{content:'';position:absolute;inset:0;border-radius:22%;background:url('modules.webp') 50% 0/300% 300% no-repeat;pointer-events:none}
+body .ta-module-card[onclick*="Debts"] .ta-icon-box{position:relative;isolation:isolate}
+body .ta-module-card[onclick*="Debts"] .ta-icon-box::after{content:'';position:absolute;inset:0;border-radius:22%;background:url('modules.webp') 100% 0/300% 300% no-repeat;pointer-events:none}
+body .tile[onclick*="debts_summary"] .glyph{position:relative;isolation:isolate}
+body .tile[onclick*="debts_summary"] .glyph::after{content:'';position:absolute;inset:0;border-radius:22%;background:url('modules.webp') 100% 0/300% 300% no-repeat;pointer-events:none}
+body .ta-module-card[onclick*="warehouses"] .ta-icon-box{position:relative;isolation:isolate}
+body .ta-module-card[onclick*="warehouses"] .ta-icon-box::after{content:'';position:absolute;inset:0;border-radius:22%;background:url('modules.webp') 0 50%/300% 300% no-repeat;pointer-events:none}
+body .ta-module-card[onclick*="vouchers_list"] .ta-icon-box{position:relative;isolation:isolate}
+body .ta-module-card[onclick*="vouchers_list"] .ta-icon-box::after{content:'';position:absolute;inset:0;border-radius:22%;background:url('modules.webp') 50% 50%/300% 300% no-repeat;pointer-events:none}
+body [data-nav="invoices_list"] > i{position:relative;isolation:isolate}
+body [data-nav="invoices_list"] > i::after{content:'';position:absolute;inset:0;border-radius:22%;background:url('modules.webp') 50% 50%/300% 300% no-repeat;pointer-events:none}
+body .tile[onclick*="expense"] .glyph{position:relative;isolation:isolate}
+body .tile[onclick*="expense"] .glyph::after{content:'';position:absolute;inset:0;border-radius:22%;background:url('modules.webp') 50% 50%/300% 300% no-repeat;pointer-events:none}
+body .ta-module-card[onclick*="sale_return"] .ta-icon-box{position:relative;isolation:isolate}
+body .ta-module-card[onclick*="sale_return"] .ta-icon-box::after{content:'';position:absolute;inset:0;border-radius:22%;background:url('modules.webp') 100% 50%/300% 300% no-repeat;pointer-events:none}
+body .tile[onclick*="sale_return"] .glyph{position:relative;isolation:isolate}
+body .tile[onclick*="sale_return"] .glyph::after{content:'';position:absolute;inset:0;border-radius:22%;background:url('modules.webp') 100% 50%/300% 300% no-repeat;pointer-events:none}
+body .ta-module-card[onclick*="purchase_return"] .ta-icon-box{position:relative;isolation:isolate}
+body .ta-module-card[onclick*="purchase_return"] .ta-icon-box::after{content:'';position:absolute;inset:0;border-radius:22%;background:url('modules.webp') 0 100%/300% 300% no-repeat;pointer-events:none}
+body [data-nav="accounts"] > i{position:relative;isolation:isolate}
+body [data-nav="accounts"] > i::after{content:'';position:absolute;inset:0;border-radius:22%;background:url('modules.webp') 50% 100%/300% 300% no-repeat;pointer-events:none}
+body .tile[onclick*="Customer"] .glyph{position:relative;isolation:isolate}
+body .tile[onclick*="Customer"] .glyph::after{content:'';position:absolute;inset:0;border-radius:22%;background:url('modules.webp') 50% 100%/300% 300% no-repeat;pointer-events:none}
+.ta-category-link[data-category="default_period"]::before{background:url('modules.webp') 100% 100%/300% 300% no-repeat!important}
+body .ta-module-card[onclick*="items"] .ta-icon-box{position:relative}
+body .ta-module-card[onclick*="items"] .ta-icon-box::after{content:'';position:absolute;inset:0;border-radius:22%;background:center/cover url('stock.webp');pointer-events:none}
+body .tile[onclick*="stock"] .glyph{position:relative}
+body .tile[onclick*="stock"] .glyph::after{content:'';position:absolute;inset:0;border-radius:22%;background:center/cover url('stock.webp');pointer-events:none}
+body .tile[onclick*="ItemForm"] .glyph{position:relative}
+body .tile[onclick*="ItemForm"] .glyph::after{content:'';position:absolute;inset:0;border-radius:22%;background:center/cover url('stock.webp');pointer-events:none}
+body .tile[onclick*="sales_summary"] .glyph{position:relative}
+body .tile[onclick*="sales_summary"] .glyph::after{content:'';position:absolute;inset:0;border-radius:22%;background:center/cover url('report.webp');pointer-events:none}

@@ -55,7 +55,7 @@ A.renderCurrencyExchange=function(){
  '<p id="agentFx147Balance" class="tiny"></p><p id="agentFx147Preview" class="tiny"></p>'+
  '<label class="label">بيان اختياري</label><input id="agentFx147Note" class="field" maxlength="200">'+
  '<button type="button" class="primary" onclick="Agent.saveCurrencyExchange()">حفظ '+side+' '+code+'</button>'+
- '<button type="button" class="secondary" onclick="Agent.navigate(\'currency_exchange_menu\')">رجوع للتصريف</button></section>';
+ '<button type="button" class="secondary" onclick="Agent.goBack()">رجوع للتصريف</button></section>';
 };
 A.paintCurrencyExchange=function(){
  const amount=document.getElementById('agentFx147Amount'),rate=document.getElementById('agentFx147Rate');

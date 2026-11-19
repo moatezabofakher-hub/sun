@@ -89,7 +89,7 @@
       const apply = () => {
         if (!isSettings() || section.isConnected === false || ('open' in section && !section.open)) return;
         const view = d.getElementById('mainContent') || d.getElementById('screen');
-        if (!view || !view.contains(section)) return;
+        if (!view || !view.contains(section) || view.classList?.contains('ta-settings-standalone')) return;
         const header = d.getElementById('topAppBar') || d.getElementById('agentHeader');
         const rect = view.getBoundingClientRect();
         const style = w.getComputedStyle(view);
