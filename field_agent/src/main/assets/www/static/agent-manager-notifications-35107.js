@@ -58,7 +58,7 @@ const noticePages = (() => {
 
 const permissionLabels={priceTier:'تعديل طريقة التسعير',currency:'تعديل العملة المعتمدة',balances:'معرفة أرصدة الحسابات',editPrices:'تعديل الأسعار ضمن الفاتورة',exchangeRate:'تعديل سعر الصرف العام للفواتير',fxSharedRate:'تعديل أسعار التصريف',stock:'مراقبة الجرد',createAccounts:'إضافة حسابات جديدة',createItems:'إضافة مواد جديدة',editOperations:'تعديل العمليات',deleteOperations:'حذف العمليات'};
 const permissionDefaults={priceTier:true,currency:true,balances:true,editPrices:false,exchangeRate:false,fxSharedRate:false,stock:true,createAccounts:true,createItems:false,editOperations:true,deleteOperations:false};
-const fieldLabels={name:'الاسم',title:'العنوان',phone:'الهاتف',address:'العنوان',email:'البريد',category:'المجموعة',barcode:'الباركود',number:'الرقم',date:'التاريخ',amount:'المبلغ',currency:'العملة',quantity:'الكمية',qty:'الكمية',stock:'رصيد المخزون',note:'البيان',units:'الوحدات',unit:'الوحدة',unitName:'الوحدة',factor:'معامل التحويل',price:'السعر',salePrice:'سعر البيع',wholesalePrice:'سعر الجملة',centerPrice:'سعر المركز',retailPrice:'سعر المستهلك',consumerPrice:'سعر المستهلك',purchasePrice:'سعر الشراء',priceTier:'طريقة التسعير',defaultPriceTier:'طريقة التسعير الافتراضية',currencyRatesSyp:'سعر صرف المعاملات',currencyExchangeRatesSyp:'سعر التصريف',allowedCurrencies:'العملات المفعلة',addedCurrencies:'العملات المضافة',buy:'سعر الشراء',sell:'سعر المبيع',companyName:'اسم الشركة',companyPhone:'هاتف الشركة',companyAddress:'عنوان الشركة',companyLogo:'شعار الشركة',footerNote:'تذييل الفاتورة',agentName:'اسم الموظف',vehicleName:'اسم السيارة',warehouseName:'المستودع',printerWidth:'عرض ورق الطابعة',printFontScale:'حجم خط الطباعة',itemQuantityDecimals:'المنازل العشرية للكمية',defaultSaleUnitName:'وحدة البيع الافتراضية',taPricingModes:'طرق التسعير',kind:'النوع',rows:'البنود',bundleComponents:'مكونات المادة',isBundle:'مادة تجميعية',discount:'الحسم',paidAmount:'المبلغ المسدد',netTotal:'الصافي',total:'الإجمالي',balance:'الرصيد',debit:'مدين',credit:'دائن',accountId:'الحساب',itemId:'المادة',warehouseId:'المستودع',fromAmount:'المبلغ المدفوع',toAmount:'المبلغ المستلم',fromCurrency:'العملة المدفوعة',toCurrency:'العملة المستلمة',photoData:'صورة المادة',syp:'ل.س',usd:'USD',otherCurrencies:'عملات أخرى',securityUpdate:'حماية حساب الموظف'};
+const fieldLabels={sypBalance:'رصيد الليرة السورية',usdBalance:'رصيد الدولار',balances:'الأرصدة',paymentTerms:'شروط الدفع',type:'النوع',code:'الرمز',rate:'سعر الصرف',desc:'البيان',ref:'مرجع العملية',entries:'الحركات',complete:'اكتمال كشف الحساب',lines:'بنود المناقلة',direction:'الاتجاه',localNumber:'رقم المستند',unitPrice:'سعر الوحدة',unitFactor:'معامل الوحدة',fromWarehouseId:'المستودع المصدر',toWarehouseId:'المستودع المستلم',tradeSide:'نوع التصريف',priceTiers:'طرق التسعير',currencyBalances:'الأرصدة حسب العملة',name:'الاسم',title:'العنوان',phone:'الهاتف',address:'العنوان',email:'البريد',category:'المجموعة',barcode:'الباركود',number:'الرقم',date:'التاريخ',amount:'المبلغ',currency:'العملة',quantity:'الكمية',qty:'الكمية',stock:'رصيد المخزون',note:'البيان',units:'الوحدات',unit:'الوحدة',unitName:'الوحدة',factor:'معامل التحويل',price:'السعر',salePrice:'سعر البيع',wholesalePrice:'سعر الجملة',centerPrice:'سعر المركز',retailPrice:'سعر المستهلك',consumerPrice:'سعر المستهلك',purchasePrice:'سعر الشراء',priceTier:'طريقة التسعير',defaultPriceTier:'طريقة التسعير الافتراضية',currencyRatesSyp:'سعر صرف المعاملات',currencyExchangeRatesSyp:'سعر التصريف',allowedCurrencies:'العملات المفعلة',addedCurrencies:'العملات المضافة',buy:'سعر الشراء',sell:'سعر المبيع',companyName:'اسم الشركة',companyPhone:'هاتف الشركة',companyAddress:'عنوان الشركة',companyLogo:'شعار الشركة',footerNote:'تذييل الفاتورة',agentName:'اسم الموظف',vehicleName:'اسم السيارة',warehouseName:'المستودع',printerWidth:'عرض ورق الطابعة',printFontScale:'حجم خط الطباعة',itemQuantityDecimals:'المنازل العشرية للكمية',defaultSaleUnitName:'وحدة البيع الافتراضية',taPricingModes:'طرق التسعير',kind:'النوع',rows:'البنود',bundleComponents:'مكونات المادة',isBundle:'مادة تجميعية',discount:'الحسم',paidAmount:'المبلغ المسدد',netTotal:'الصافي',total:'الإجمالي',balance:'الرصيد',debit:'مدين',credit:'دائن',accountId:'الحساب',itemId:'المادة',warehouseId:'المستودع',fromAmount:'المبلغ المدفوع',toAmount:'المبلغ المستلم',fromCurrency:'العملة المدفوعة',toCurrency:'العملة المستلمة',photoData:'صورة المادة',syp:'ل.س',usd:'USD',otherCurrencies:'عملات أخرى',securityUpdate:'حماية حساب الموظف'};
 const displayValue=v=>v==null||v===''?'غير محدد':typeof v==='boolean'?(v?'مفعّل':'غير مفعّل'):({wholesale:'سعر الجملة',center:'سعر المركز',consumer:'سعر المستهلك',retail:'سعر المستهلك',__first__:'أول وحدة'}[v]||String(v));
 function fieldChanges(before,after,path='',names={}){
  if(before===after)return [];
@@ -120,7 +120,13 @@ function messages(before,after){
     return detail||'معرّف العملية: '+String(x.id||'').slice(0,90);
   };
   const names=Object.fromEntries([...parse(before.items),...parse(after.items),...parse(before.accounts),...parse(after.accounts),...(JSON.parse(after.config||'{}').taPricingModes||[])].filter(x=>x?.id&&x.name).map(x=>[x.id,x.name]));
+  const rights=JSON.parse(after.permissions);
+  const visibleAccount=record=>{
+    if(!record||rights.balances===true)return record;
+    return Object.fromEntries(Object.entries(record).filter(([k])=>!/balance|debit|credit/i.test(k)));
+  };
   const compare=(field,title,where)=>{
+    if(field==='accountLedgers'&&rights.balances!==true)return;
     if(before[field]===after[field])return;
     const index=values=>new Map(values.map((v,i)=>[String(v?.id??v?.name??v?.accountId??(typeof v==='string'?v:i)),v]));
     const old=index(parse(before[field])),current=index(parse(after[field]));
@@ -129,7 +135,11 @@ function messages(before,after){
       if(JSON.stringify(a)===JSON.stringify(b))continue;
       const reference=b??a;
       const caption=reference?.name||reference?.localNumber||reference?.number||names[id]||id;
-      const delta=fieldChanges(a,b,'',names);
+      if(b===undefined&&['accounts','accountLedgers'].includes(field)){
+        add(field,'إزالة '+title+' من بيانات الموظف',String(caption)+' · لم يعد ضمن الحسابات المتاحة للموظف',where,id,caption);
+        continue;
+      }
+      const delta=field==='accounts'?fieldChanges(visibleAccount(a),visibleAccount(b),'',names):fieldChanges(a,b,'',names);
       if(!delta.length&&a!==undefined&&b!==undefined)continue;
       const action=a===undefined?'إضافة':b===undefined?'حذف':'تعديل';
       add(field,action+' '+title+' · '+caption,delta.join('\n')||desc(reference),where,id,[a,b]);
@@ -145,13 +155,19 @@ function messages(before,after){
   compare('categories','مجموعات المواد','stock');
   // Stock and cash summaries are consequences of the same operation; do not
   // send duplicate banners when the detailed transfer/invoice notice exists.
-  for(const [key,title,where] of [['stock','رصيد المواد','stock'],['agentCash','رصيد صندوق الموظف','cashbox']]){
-    if(before[key]===after[key])continue;
-    const lines=fieldChanges(JSON.parse(before[key]),JSON.parse(after[key]),title,names);
-    if(!lines.length)continue;
-    const related=out.find(n=>key==='stock'?['items','warehouseTransfers','ops'].includes(n.kind):['cashTransfers','ops'].includes(n.kind));
-    if(related)related.detail+='\n'+lines.join('\n');
-    else add(key,'تغيير '+title,lines.join('\n'),where,null,[before[key],after[key]]);
+  if(rights.stock===true && before.stock!==after.stock){
+    const old=JSON.parse(before.stock),next=JSON.parse(after.stock);
+    for(const id of new Set([...Object.keys(old),...Object.keys(next)])){
+      const lines=fieldChanges(old[id],next[id],'رصيد '+(names[id]||id),names);
+      if(!lines.length)continue;
+      const item=out.find(n=>n.kind==='items'&&n.targetId===id);
+      if(item)item.detail+='\n'+lines.join('\n');
+      else add('stock','تغيير رصيد '+(names[id]||id),lines.join('\n'),'stock',id,[old[id],next[id]]);
+    }
+  }
+  if(before.agentCash!==after.agentCash){
+    const lines=fieldChanges(JSON.parse(before.agentCash),JSON.parse(after.agentCash),'رصيد الصندوق',names);
+    if(lines.length)add('agentCash','تغيير رصيد صندوق الموظف',lines.join('\n'),'cashbox',null,[before.agentCash,after.agentCash]);
   }
   const prev=JSON.parse(before.permissions),next=JSON.parse(after.permissions);
   for(const [key,label] of Object.entries(permissionLabels)){
