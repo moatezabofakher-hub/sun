@@ -31,26 +31,47 @@
 document.addEventListener('DOMContentLoaded',function(){
  'use strict';
  const employee = typeof Agent !== 'undefined' && typeof Views === 'undefined';
+ let visibleCount = 10;
+ let currentRows = [];
+ const isPos = inv=>employee ? (inv.posSale===true || inv.source==='agent-pos') : POSController.isPOS(inv);
  function register(records, period, start, end) {
    const html = [];
    const escape = employee ? v=>Agent.escape(String(v??'')) : v=>AppEscape.text(String(v??''));
    const rows = records.filter(inv=>{
      if(!inv || (inv.type||inv.kind)!=='sale') return false;
-     const pos = employee ? (inv.posSale===true || inv.source==='agent-pos') : POSController.isPOS(inv);
+     const pos = isPos(inv);
      const method = inv.paymentMethod||inv.paymentMode;
      const paidInFull = !method && Number(inv.netTotal)>0 && Number(inv.paidAmount)>=Number(inv.netTotal);
      if(!pos && method!=='cash' && !paidInFull) return false;
      return employee || TimeFilter.matches(inv.date,period,start,end);
    }).sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
-   for(const inv of rows) {
-     const pos = employee ? (inv.posSale===true || inv.source==='agent-pos') : POSController.isPOS(inv);
+   currentRows = rows;
+   const accounts = new Map(((employee?Agent.state:State).accounts||[]).map(a=>[a.id,a]));
+   for(const [index,inv] of rows.slice(0,visibleCount).entries()) {
+     const pos = isPos(inv);
      const type = pos ? 'نقطة بيع نقدية' : 'فاتورة بيع نقدية';
-     const account = (employee?Agent.state:State).accounts?.find(a=>a.id===inv.accountId);
+     const account = accounts.get(inv.accountId);
      const number = inv.number||inv.localNumber||inv.ref||inv.id;
-     html.push('<li><strong>'+type+' · '+escape(number)+'</strong><span>'+escape(account?.name||inv.partyName||inv.accountName||'عميل نقدي')+'</span><span>'+escape(String(inv.date||'').slice(0,16).replace('T',' '))+'</span><b>'+escape(inv.netTotal)+' '+escape(inv.currency)+'</b></li>');
+     const title = type+' · '+escape(number);
+     const link = employee && !pos ? '<strong>'+title+'</strong>' : '<button type="button" data-cash-index="'+index+'">'+title+'</button>';
+     html.push('<li>'+link+'<span>'+escape(account?.name||inv.partyName||inv.accountName||'عميل نقدي')+'</span><span>'+escape(String(inv.date||'').slice(0,16).replace('T',' '))+'</span><b>'+escape(inv.netTotal)+' '+escape(inv.currency)+'</b></li>');
    }
-   return '<details class="ta-cash-register" open><summary>فواتير البيع النقدية ('+rows.length+')</summary>'+(html.length?'<ul>'+html.join('')+'</ul>':'<p>لا توجد فواتير بيع نقدية ضمن الفترة المحددة.</p>')+'</details>';
+   return '<details class="ta-cash-register" open><summary>فواتير البيع النقدية ('+rows.length+')</summary>'+(html.length?'<ul>'+html.join('')+'</ul>':'<p>لا توجد فواتير بيع نقدية ضمن الفترة المحددة.</p>')+(rows.length>visibleCount?'<button type="button" data-cash-more>المزيد</button>':'')+'</details>';
  }
+ document.addEventListener('click',event=>{
+   const control=event.target.closest?.('.ta-cash-register button');
+   if(!control) return;
+   if(control.hasAttribute('data-cash-more')) {
+     visibleCount+=10;
+     if(employee) Agent.show('reports');
+     else AppNav.renderCurrent();
+     return;
+   }
+   const inv=currentRows[Number(control.dataset.cashIndex)];
+   if(!inv) return;
+   if(employee) Agent.viewPosInvoice(inv.id);
+   else InvoiceController.openSavedInvoice(inv.id,'view');
+ });
  if(employee) {
    const render = Agent.renderReports;
    Agent.renderReports = function(...args){return render.apply(this,args)+register(this.state.ops||[]);};

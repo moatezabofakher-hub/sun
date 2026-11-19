@@ -149,6 +149,13 @@ document.addEventListener('click',event=>{
 },true);
 // Keep the existing forms mounted for draft validation and protected categories.
 // The category list itself consists of buttons, so a tap cannot expand a native accordion.
+// The previous category is still in the DOM while Save or Back renders the menu.
+// Reading its open flag here would re-open a discarded draft on the next render.
+const captureSettingsView = SettingsController.captureVisibleSettingsView;
+SettingsController.captureVisibleSettingsView = function(...args) {
+ if(!active) return null;
+ return captureSettingsView.apply(this,args);
+};
 const renderCategoryList = Views.renderSettings;
 Views.renderSettings = function(root,...args) {
  const result = renderCategoryList.call(this,root,...args);

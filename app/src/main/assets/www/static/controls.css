@@ -93,3 +93,41 @@ body .ta-operation-art {display:block;width:100%;height:100%;object-fit:contain;
 .ta-cash-register{margin:.7rem 0;padding:.8rem;background:#fffaf1;color:#183d3d;border-radius:12px;border:1px solid #b19c72}
 .ta-cash-register summary{cursor:pointer;font-weight:800}
 .ta-cash-register li{display:flex;gap:.5em;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:.6em 0;border-bottom:1px solid #ddd}
+.ta-cash-register li>button{font-weight:800;text-decoration:underline;padding:.35em .55em}
+
+/* Photographed module and navigation artwork. */
+body [data-nav="dashboard"] > i{position:relative;isolation:isolate}
+body [data-nav="dashboard"] > i::after{content:'';position:absolute;inset:0;border-radius:22%;background:url('modules.webp') 0 0/300% 300% no-repeat;pointer-events:none}
+body [data-nav="agent_hub"] > i{position:relative;isolation:isolate}
+body [data-nav="agent_hub"] > i::after{content:'';position:absolute;inset:0;border-radius:22%;background:url('modules.webp') 50% 0/300% 300% no-repeat;pointer-events:none}
+body .ta-module-card[onclick*="Debts"] .ta-icon-box{position:relative;isolation:isolate}
+body .ta-module-card[onclick*="Debts"] .ta-icon-box::after{content:'';position:absolute;inset:0;border-radius:22%;background:url('modules.webp') 100% 0/300% 300% no-repeat;pointer-events:none}
+body .tile[onclick*="debts_summary"] .glyph{position:relative;isolation:isolate}
+body .tile[onclick*="debts_summary"] .glyph::after{content:'';position:absolute;inset:0;border-radius:22%;background:url('modules.webp') 100% 0/300% 300% no-repeat;pointer-events:none}
+body .ta-module-card[onclick*="warehouses"] .ta-icon-box{position:relative;isolation:isolate}
+body .ta-module-card[onclick*="warehouses"] .ta-icon-box::after{content:'';position:absolute;inset:0;border-radius:22%;background:url('modules.webp') 0 50%/300% 300% no-repeat;pointer-events:none}
+body .ta-module-card[onclick*="vouchers_list"] .ta-icon-box{position:relative;isolation:isolate}
+body .ta-module-card[onclick*="vouchers_list"] .ta-icon-box::after{content:'';position:absolute;inset:0;border-radius:22%;background:url('modules.webp') 50% 50%/300% 300% no-repeat;pointer-events:none}
+body [data-nav="invoices_list"] > i{position:relative;isolation:isolate}
+body [data-nav="invoices_list"] > i::after{content:'';position:absolute;inset:0;border-radius:22%;background:url('modules.webp') 50% 50%/300% 300% no-repeat;pointer-events:none}
+body .tile[onclick*="expense"] .glyph{position:relative;isolation:isolate}
+body .tile[onclick*="expense"] .glyph::after{content:'';position:absolute;inset:0;border-radius:22%;background:url('modules.webp') 50% 50%/300% 300% no-repeat;pointer-events:none}
+body .ta-module-card[onclick*="sale_return"] .ta-icon-box{position:relative;isolation:isolate}
+body .ta-module-card[onclick*="sale_return"] .ta-icon-box::after{content:'';position:absolute;inset:0;border-radius:22%;background:url('modules.webp') 100% 50%/300% 300% no-repeat;pointer-events:none}
+body .tile[onclick*="sale_return"] .glyph{position:relative;isolation:isolate}
+body .tile[onclick*="sale_return"] .glyph::after{content:'';position:absolute;inset:0;border-radius:22%;background:url('modules.webp') 100% 50%/300% 300% no-repeat;pointer-events:none}
+body .ta-module-card[onclick*="purchase_return"] .ta-icon-box{position:relative;isolation:isolate}
+body .ta-module-card[onclick*="purchase_return"] .ta-icon-box::after{content:'';position:absolute;inset:0;border-radius:22%;background:url('modules.webp') 0 100%/300% 300% no-repeat;pointer-events:none}
+body [data-nav="accounts"] > i{position:relative;isolation:isolate}
+body [data-nav="accounts"] > i::after{content:'';position:absolute;inset:0;border-radius:22%;background:url('modules.webp') 50% 100%/300% 300% no-repeat;pointer-events:none}
+body .tile[onclick*="Customer"] .glyph{position:relative;isolation:isolate}
+body .tile[onclick*="Customer"] .glyph::after{content:'';position:absolute;inset:0;border-radius:22%;background:url('modules.webp') 50% 100%/300% 300% no-repeat;pointer-events:none}
+.ta-category-link[data-category="default_period"]::before{background:url('modules.webp') 100% 100%/300% 300% no-repeat!important}
+body .ta-module-card[onclick*="items"] .ta-icon-box{position:relative}
+body .ta-module-card[onclick*="items"] .ta-icon-box::after{content:'';position:absolute;inset:0;border-radius:22%;background:center/cover url('stock.webp');pointer-events:none}
+body .tile[onclick*="stock"] .glyph{position:relative}
+body .tile[onclick*="stock"] .glyph::after{content:'';position:absolute;inset:0;border-radius:22%;background:center/cover url('stock.webp');pointer-events:none}
+body .tile[onclick*="ItemForm"] .glyph{position:relative}
+body .tile[onclick*="ItemForm"] .glyph::after{content:'';position:absolute;inset:0;border-radius:22%;background:center/cover url('stock.webp');pointer-events:none}
+body .tile[onclick*="sales_summary"] .glyph{position:relative}
+body .tile[onclick*="sales_summary"] .glyph::after{content:'';position:absolute;inset:0;border-radius:22%;background:center/cover url('report.webp');pointer-events:none}
