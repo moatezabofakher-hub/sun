@@ -187,3 +187,36 @@ html[data-ta-theme="royal"] .ta-theme154-cancel{background:linear-gradient(#3157
  html[data-ta-theme="royal"] body .panel{background:#fff!important;border-color:#ccc!important;box-shadow:none!important}
  .ta-theme154-page{display:none!important}
 }
+
+
+/* Royal theme accessibility pass: existing light-theme utility colors must stay legible. */
+html[data-ta-theme="royal"] body :is(.bg-gray-100,.bg-gray-200,.bg-slate-100,.bg-slate-200){
+ background:linear-gradient(145deg,#1e4565,#0c2746)!important
+}
+html[data-ta-theme="royal"] body :is(.bg-blue-100,.bg-sky-100,.bg-cyan-100,.bg-indigo-50,.bg-indigo-100){
+ background:linear-gradient(145deg,#164d76,#0a2c51)!important
+}
+html[data-ta-theme="royal"] body :is(.bg-teal-100,.bg-emerald-100,.bg-green-50,.bg-green-100){
+ background:linear-gradient(145deg,#135d53,#0b333f)!important
+}
+html[data-ta-theme="royal"] body :is(.bg-rose-100,.bg-red-50,.bg-red-100){
+ background:linear-gradient(145deg,#623347,#321e37)!important
+}
+html[data-ta-theme="royal"] body :is(.bg-amber-100,.bg-yellow-100){
+ background:linear-gradient(145deg,#655032,#362b2e)!important
+}
+html[data-ta-theme="royal"] body :is(.text-black,.text-gray-700,.text-gray-800,.text-indigo-900,.text-purple-900){
+ color:#edfaff!important
+}
+html[data-ta-theme="royal"] body :is(.text-emerald-600,.text-emerald-800,.text-teal-600,.text-teal-800,.text-green-600,.text-green-700,.text-green-800){
+ color:#8cf5d3!important
+}
+html[data-ta-theme="royal"] body :is(.text-blue-600,.text-blue-800,.text-sky-600,.text-sky-800,.text-sky-900,.text-cyan-600,.text-cyan-700,.text-cyan-800,.text-indigo-600,.text-indigo-700,.text-indigo-800){
+ color:#91dcff!important
+}
+html[data-ta-theme="royal"] body :is(.text-amber-600,.text-amber-800,.text-yellow-700,.text-yellow-800){
+ color:#f6d78e!important
+}
+html[data-ta-theme="royal"] body :is(.text-rose-600,.text-rose-800,.text-red-600,.text-red-700,.text-red-800){
+ color:#ff9eb4!important
+}
