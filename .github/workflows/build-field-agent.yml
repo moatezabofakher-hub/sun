@@ -66,6 +66,7 @@ jobs:
         run: |
           python3 tests/test_lan_android_thread_3529.py
           node --test tests/employee-hotspot-ui.test.cjs
+          node --test tests/employee-notice-details.test.cjs tests/test_agent_manager_notifications_35107.test.js
           node tests/test_auto_pairing_3534.js
           node tests/test_single_manager_exclusivity_3586.js
       - name: Verify employee popup backdrops
@@ -97,6 +98,7 @@ jobs:
         run: |
           python -m pip install playwright==1.55.0
           python tests/check_controls.py . employee
+          python tests/check_foreign_notices.py field_agent/src/main/assets/www agent
           python tests/check_employee_hotspot_screen.py
           python tests/check_cash_settings.py field_agent/src/main/assets/www
           node --check field_agent/src/main/assets/www/static/ta-themes-154.js

@@ -185,9 +185,20 @@ A.saveCurrencyExchange=async function(){
  finally{this.busy=false;}
 };
 
+function foreignSummary(entries, codes) {
+ const fields=E.foreignTotals(entries,codes).map(t=>{
+  const amount=(label,units)=>'<div><span>'+label+'</span><bdi dir="ltr">'+E.formatForeignUnits(units,t.code)+' '+esc(t.code)+'</bdi></div>';
+  return '<section class="ta-fx-summary-card" data-fx-summary="'+esc(t.code)+'"><strong>'+esc(t.code)+'</strong>'+
+   amount('إجمالي الشراء',t.bought)+amount('إجمالي المبيع',t.sold)+amount('المبلغ المتاح',t.sold-t.bought)+'</section>';
+ }).join('');
+ return '<div class="ta-fx-summary"><h4>ملخص تصريف العملات الأجنبية</h4>'+
+  (fields||'<p>لا توجد عملات أجنبية لعرضها</p>')+'</div>';
+}
+
 A.currencyExchangeList=function(){
  const entries=ops().filter(o=>o.kind==='currency_exchange').slice().reverse();
  return '<div class="hero"><h2>عمليات التصريف</h2><p>سجل تصريف العملات من صندوقك.</p></div>'+
+ foreignSummary(entries,[...allowed(),...(A.state.addedCurrencies||[]).map(c=>c.code)])+
  '<section class="panel"><button class="primary" onclick="Agent.navigate(\'currency_exchange\')">＋ تصريف عملة</button>'+
  (entries.length?entries.map(o=>'<div class="itemrow"><b>'+esc(o.localNumber||o.id)+'</b>'+
  '<span class="pill '+((A.state.knownIds||[]).includes(o.id)?'':'wait')+'">'+((A.state.knownIds||[]).includes(o.id)?'تمت المزامنة':'بانتظار المزامنة')+'</span>'+

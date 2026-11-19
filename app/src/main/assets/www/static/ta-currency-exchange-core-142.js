@@ -149,6 +149,29 @@
     }
     return {profitSyp:roundSyp(profitSyp),unknownCostCount,holdings,pendingSales,movements,byId};
   }
+  function foreignTotals(entries, currencies = []) {
+    const totals = new Map();
+    function add(code, field, value) {
+      if (!/^[A-Z]{3}$/.test(code) || code === 'SYP') return;
+      if (!totals.has(code)) totals.set(code, {code, bought:0n, sold:0n});
+      const units = Math.round(Number(value) * scale(code));
+      if (Number.isSafeInteger(units)) totals.get(code)[field] += BigInt(units);
+    }
+    for (const c of currencies) add(c, 'bought', 0);
+    for (const e of entries) {
+      add(e.fromCurrency, 'sold', e.fromAmount);
+      add(e.toCurrency, 'bought', e.toAmount);
+    }
+    return [...totals.values()].sort((a,b)=>a.code.localeCompare(b.code));
+  }
+
+  function formatForeignUnits(units, currency) {
+    const factor = BigInt(scale(currency));
+    const value = units < 0n ? -units : units;
+    const fraction = (value % factor).toString().padStart(String(factor).length-1,'0').replace(/0+$/,'');
+    return (units < 0n ? '−' : '') + (value / factor).toLocaleString('en-US') + (fraction ? '.'+fraction : '');
+  }
+
   function balances(base,entries,scope='office'){
     const current={...base},history=analyze(entries,scope);
     for(const m of history.movements){
@@ -157,5 +180,5 @@
     }
     return current;
   }
-  return Object.freeze({prepare,analyze,balances,rounded,scale,quote});
+  return Object.freeze({prepare,analyze,balances,foreignTotals,formatForeignUnits,rounded,scale,quote});
 });

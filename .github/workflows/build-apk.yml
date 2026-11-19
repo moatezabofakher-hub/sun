@@ -115,6 +115,7 @@ jobs:
           python tests/check_ledger_identifiers.py app/src/main/assets/www
           python tests/check_peer_resume.py app/src/main/assets/www
           python tests/check_controls.py . manager
+          python tests/check_foreign_notices.py app/src/main/assets/www manager
           python tests/check_cash_settings.py app/src/main/assets/www
           node --check app/src/main/assets/www/static/ta-themes-154.js
           python tests/check_themes_154.py app/src/main/assets/www
@@ -169,6 +170,7 @@ jobs:
           cp "$apk" "output/Tiqany-Acc-Main-3.5.153-RELEASE.apk"
           (cd output && sha256sum "Tiqany-Acc-Main-3.5.153-RELEASE.apk" > "Tiqany-Acc-Main-3.5.153-RELEASE.apk.sha256")
       - name: Upload signed app APK and checksum
+        continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: Tiqany-Acc-Main-3.5.153-RELEASE

@@ -115,7 +115,7 @@ test('FX user interface contains editable operation and per-currency trading tot
  const ui=fs.readFileSync(uiFile,'utf8');
  assert.match(ui,/TiqanyFxUI\.edit/);
  assert.match(ui,/taFxEditId/);
- assert.match(ui,/إجمالي المبالغ المتداولة حسب العملة/);
+ assert.match(ui,/المبلغ المتاح/);
  assert.match(ui,/costOfSoldSyp/);
  assert.doesNotThrow(()=>new Function(ui));
 });

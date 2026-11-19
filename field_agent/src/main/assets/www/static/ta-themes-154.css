@@ -625,3 +625,35 @@ html[data-ta-theme="royal"] body :is(nav.ta-bottom-nav,#bottom.bottom) button:is
     background:#096357!important;color:#fff!important;
   }
 }
+
+@media screen {
+  [data-notice-list]{display:grid;gap:10px;min-width:0}
+  .ta-fx-summary{display:grid;gap:8px;margin-block:8px}
+  .ta-fx-summary h4{font-weight:800}
+  .ta-fx-summary-card{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;border:1px solid #8aa3b2;border-radius:12px;padding:10px}
+  .ta-fx-summary-card>strong{grid-column:1/-1}
+  .ta-fx-summary-card>div{display:grid;gap:2px;min-width:0}
+  .ta-fx-summary-card bdi{font-weight:750;text-align:start;overflow-wrap:anywhere}
+  html[data-ta-theme] body :is(#mainContent,#screen) [data-notice-list] {
+    --notice-card:#f4f9fc;--notice-new:#e6f6ef;--notice-ink:#123347;--notice-copy:#244456;--notice-date:#405967;--notice-edge:#678796;
+  }
+  html[data-ta-theme="royal"] body :is(#mainContent,#screen) [data-notice-list] {
+    --notice-card:#132e45;--notice-new:#123d46;--notice-ink:#f4faff;--notice-copy:#e0edf4;--notice-date:#c2d7e4;--notice-edge:#62899e;
+  }
+  html[data-ta-theme] body :is(#mainContent,#screen) [data-notice-list] button:is(.ta-alert-item,.ta-manager-notification){
+    background:var(--notice-card)!important;color:var(--notice-ink)!important;border-color:var(--notice-edge)!important;margin:0;width:100%;text-align:start;
+  }
+  html[data-ta-theme] body :is(#mainContent,#screen) [data-notice-list] button.unread{background:var(--notice-new)!important}
+  html[data-ta-theme] body :is(#mainContent,#screen) [data-notice-list] button :is(strong,p,small,time,bdi,span){
+    -webkit-text-fill-color:currentColor!important;text-shadow:none!important;opacity:1!important
+  }
+  html[data-ta-theme] body :is(#mainContent,#screen) [data-notice-list] button strong{color:var(--notice-ink)!important}
+  html[data-ta-theme] body :is(#mainContent,#screen) [data-notice-list] button :is(.ta-alert-detail,small){color:var(--notice-copy)!important}
+  html[data-ta-theme] body :is(#mainContent,#screen) [data-notice-list] button :is(.ta-alert-meta,.ta-alert-meta bdi,time){color:var(--notice-date)!important}
+  html[data-ta-theme] body :is(#mainContent,#screen) [data-notice-list] button .ta-alert-badge{background:#992247!important;color:#fff!important}
+}
+
+@media screen{
+ html body #agentHeader #agentManagerNotificationCount:not([hidden]){display:inline-flex!important;align-items:center;justify-content:center;background:#a31540!important;color:#fff!important;-webkit-text-fill-color:#fff!important;z-index:3}
+ html body #screen [data-notice-list] .ta-manager-notification small{white-space:pre-line}
+}

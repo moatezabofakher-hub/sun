@@ -177,12 +177,10 @@ F.catalog=function(a,historyCursor=0,transferCursor=0){
 // The old manager screen stays available as separate task-oriented panels.
 const previousOpen=F.open.bind(F);
 F.open=function(){
- const c=cfg();
  UI.openModal(`<div class="ta-field-panel space-y-3 text-right" dir="rtl">
  <h3 class="text-lg font-black text-slate-900">إدارة موظفي البيع والمزامنة المحلية</h3>
  <div class="grid grid-cols-2 gap-2">
-  <button type="button" class="bg-teal-700 text-white rounded-2xl p-4 font-black" onclick="FieldSync.showCreateAgent()"><i class="fas fa-user-plus block text-xl mb-2"></i>إنشاء موظف بيع</button>
-  <button type="button" class="bg-slate-900 text-white rounded-2xl p-4 font-black" onclick="FieldSync.showAgents()"><i class="fas fa-users block text-xl mb-2"></i>موظفو البيع (${c.agents.filter(a=>!a.archived).length})</button>
+  <button type="button" style="grid-column:1/-1;width:100%" class="bg-teal-700 text-white rounded-2xl p-4 font-black" onclick="FieldSync.showCreateAgent()"><i class="fas fa-user-plus block text-xl mb-2"></i>إنشاء موظف بيع</button>
   <button type="button" class="bg-blue-700 text-white rounded-2xl p-4 font-black" onclick="FieldSync.showOperations()"><i class="fas fa-list-check block text-xl mb-2"></i>عمليات موظف البيع</button>
   <button type="button" class="bg-amber-600 text-white rounded-2xl p-4 font-black" onclick="FieldSync.showSyncTools()"><i class="fas fa-arrows-rotate block text-xl mb-2"></i>المزامنة والملفات</button>
  </div>

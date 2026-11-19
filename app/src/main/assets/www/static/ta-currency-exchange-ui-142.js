@@ -274,22 +274,22 @@ async function removeExchange(id){
  finally{saving=false;}
 }
 
+function foreignSummary(entries, codes) {
+ const fields=E.foreignTotals(entries,codes).map(t=>{
+  const amount=(label,units)=>'<div><span>'+label+'</span><bdi dir="ltr">'+E.formatForeignUnits(units,t.code)+' '+esc(t.code)+'</bdi></div>';
+  return '<section class="ta-fx-summary-card" data-fx-summary="'+esc(t.code)+'"><strong>'+esc(t.code)+'</strong>'+
+   amount('إجمالي الشراء',t.bought)+amount('إجمالي المبيع',t.sold)+amount('المبلغ المتاح',t.sold-t.bought)+'</section>';
+ }).join('');
+ return '<div class="ta-fx-summary"><h4>ملخص تصريف العملات الأجنبية</h4>'+
+  (fields||'<p>لا توجد عملات أجنبية لعرضها</p>')+'</div>';
+}
+
 function list(){
  const history=E.analyze(rows());
- const entries=[...history.byId.values()].reverse(),totals=new Map();
- for(const e of entries){
-  if(!totals.has(e.fromCurrency))totals.set(e.fromCurrency,{sold:0,bought:0});
-  if(!totals.has(e.toCurrency))totals.set(e.toCurrency,{sold:0,bought:0});
-  totals.get(e.fromCurrency).sold+=e.fromAmount;
-  totals.get(e.toCurrency).bought+=e.toAmount;
- }
- const summary=[...totals.entries()].sort(([a],[b])=>a.localeCompare(b)).map(([c,t])=>
-  '<div class="rounded-lg bg-slate-50 border p-2"><b>'+esc(c)+'</b> · إجمالي المتداول '+fmt(t.sold+t.bought,c)+
-  '<div class="text-xs">مدفوع '+fmt(t.sold,c)+' · مستلم '+fmt(t.bought,c)+'</div></div>').join('');
+ const entries=[...history.byId.values()].reverse();
  UI.openModal('<div dir="rtl" class="space-y-3 text-right">'+
  '<h3 class="text-lg font-black">عمليات التصريف ('+entries.length+')</h3>'+
- '<div class="rounded-xl border border-sky-300 p-3 bg-white"><h4 class="font-black mb-2">إجمالي المبالغ المتداولة حسب العملة</h4>'+
- (summary||'<p class="text-slate-500">لا يوجد تداول بعد</p>')+'</div>'+
+ foreignSummary(entries,currencies())+
  '<button type="button" class="ta-primary-3d w-full bg-emerald-700 text-white rounded-xl p-3 font-bold" onclick="TiqanyFxUI.newForm()">＋ تصريف عملة جديد</button>'+
  '<div class="max-h-[55vh] overflow-y-auto">'+(entries.length?entries.map(e=>
  '<div class="rounded-xl border p-3 mb-2 text-xs bg-white"><b>'+esc(e.id.slice(-10))+' · '+esc(window.TiqanyReportDate148?.localClock(e.date)||e.date.slice(0,16).replace('T',' '))+'</b>'+

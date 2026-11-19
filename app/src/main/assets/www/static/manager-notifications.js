@@ -1,3 +1,54 @@
+// Render only the current page of notices. Keep the native page scrollbar and deep links.
+const noticePages = (() => {
+  const pageSize = 10;
+  let rows = [], card, shown = 0, lastTop = 0, touchY = null;
+  function panel() { return document.querySelector?.('[data-notice-list]'); }
+  function render(history, draw) {
+    const continuing = panel();
+    rows = history.slice().sort((a,b) => (Date.parse(b.at)||0) - (Date.parse(a.at)||0));
+    card = draw;
+    shown = Math.min(rows.length, continuing ? Math.max(shown,pageSize) : pageSize);
+    if (!continuing) lastTop = 0;
+    return '<div data-notice-list>' + rows.slice(0,shown).map(card).join('') + '</div>';
+  }
+  function scrollParent(list) {
+    for (let p=list.parentElement; p && p!==document.body; p=p.parentElement) {
+      if (/^(auto|scroll|overlay)$/.test(getComputedStyle(p).overflowY) && p.scrollHeight>p.clientHeight+1) return p;
+    }
+    return document.scrollingElement;
+  }
+  function next(event, scrolling) {
+    if (shown >= rows.length) return;
+    const list=panel();
+    if (!list) return;
+    const scroller=scrollParent(list);
+    if (!scroller) return;
+    const root=scroller===document.scrollingElement;
+    if (scrolling && event.target!==scroller && !(root && event.target===document)) return;
+    if (!scrolling && event.target?.nodeType===1 && event.target!==document.body &&
+        event.target!==document.documentElement && !list.closest('main')?.contains(event.target)) return;
+    const top=scroller.scrollTop;
+    if (scrolling) { const down=top>lastTop; lastTop=top; if(!down)return; }
+    const bottom=root?window.innerHeight:scroller.getBoundingClientRect().top+scroller.clientHeight;
+    if (list.getBoundingClientRect().bottom > bottom+2) return;
+    const end=Math.min(shown+pageSize, rows.length);
+    list.insertAdjacentHTML('beforeend',rows.slice(shown,end).map(card).join(''));
+    shown=end;
+  }
+  if (typeof document!=='undefined') {
+    document.addEventListener?.('scroll',e=>next(e,true),{capture:true,passive:true});
+    document.addEventListener?.('wheel',e=>{if(e.deltaY>0)next(e,false);},{passive:true});
+    document.addEventListener?.('touchstart',e=>{touchY=e.touches[0]?.clientY;},{passive:true});
+    document.addEventListener?.('touchmove',e=>{
+      const y=e.touches[0]?.clientY;
+      if(touchY!=null && y<touchY)next(e,false);
+      touchY=y;
+    },{passive:true});
+    document.addEventListener?.('keydown',e=>{if(['End','PageDown','ArrowDown'].includes(e.key)) next(e,false);});
+  }
+  return {render};
+})();
+
 /* 3.5.47 — Per-company, offline notification history for authenticated agent imports
  * and stock depletion. All changes are saved WITH the ledger's IndexedDB transaction.
  * Existing synced operations are checkpointed at upgrade; replays cannot alert twice.
@@ -170,11 +221,11 @@ const ManagerNotifications = {
         <div><h2 class="font-black">مركز الإشعارات</h2><p class="text-xs text-slate-500">${list.length} إشعار · ${this.unread()} غير مقروء</p></div>
         <button type="button" class="bg-slate-100 border rounded-xl px-3 py-2 text-xs font-bold" onclick="ManagerNotifications.readAll()">تحديد الكل كمقروء</button>
       </div>
-      ${list.length?list.map(entry=>`<button type="button" class="ta-alert-item ${entry.read?'':'unread'} ${entry.type==='stock'?'stock-alert':''}" onclick="ManagerNotifications.open(${JSON.stringify(entry.id).replace(/"/g,'&quot;')})">
+      ${list.length?noticePages.render(list,entry=>`<button type="button" class="ta-alert-item ${entry.read?'':'unread'} ${entry.type==='stock'?'stock-alert':''}" onclick="ManagerNotifications.open(${JSON.stringify(entry.id).replace(/"/g,'&quot;')})">
         <div class="flex items-center gap-2 justify-between"><strong class="ta-alert-title text-sm"><span aria-hidden="true">${entry.type==='stock'?'⚠️':'🔔'}</span> ${this.escape(entry.title)}</strong>${entry.read?'':'<span class="ta-alert-badge rounded-full px-2 py-0.5">جديد</span>'}</div>
         <p class="ta-alert-detail text-xs mt-1">${this.escape(entry.detail)}</p>
         <p class="ta-alert-meta mt-2"><bdi dir="ltr">${this.escape(this.formatTime(entry.at))}</bdi> · اضغط لعرض المعاملة</p>
-      </button>`).join(''):'<div class="rounded-2xl bg-white border p-8 text-center text-sm text-slate-500">لا توجد إشعارات بعد. ستظهر هنا العمليات الجديدة بعد المزامنة وتنبيهات نفاد المخزون.</div>'}
+      </button>`):'<div class="rounded-2xl bg-white border p-8 text-center text-sm text-slate-500">لا توجد إشعارات بعد. ستظهر هنا العمليات الجديدة بعد المزامنة وتنبيهات نفاد المخزون.</div>'}
     </div>`;
   },
   async readAll(){
