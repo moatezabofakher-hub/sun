@@ -195,6 +195,35 @@ with sync_playwright() as playwright:
     page.evaluate("document.querySelector('#toastContainer')?.replaceChildren()")
     if employee:
         page.evaluate("Agent.ready=()=>true;Agent.active=async()=>true")
+    if not employee:
+        page.evaluate("""() => {
+            const at = '2026-11-18T20:56:24Z';
+            ManagerNotifications.ensure().entries = [
+                {id:'qa-read', type:'sync', read:true, at, title:'توقفت مزامنة المدير والكمبيوتر', detail:'تعذّر الاتصال بالكمبيوتر على الشبكة المحلية.'},
+                {id:'qa-new', type:'sync', read:false, at, title:'انقطع اتصال موظف البيع', detail:'سيحاول التطبيق المزامنة بعد عودة الاتصال بالشبكة.'},
+                {id:'qa-stock', type:'stock', read:false, at, title:'نفدت كمية مادة', detail:'المستودع الرئيسي · الرصيد الحالي صفر'}
+            ];
+            AppNav.navigate('dashboard');
+        }""")
+        page.locator('#headerNotificationsBtn').click()
+        cards = page.locator('#mainContent .ta-alert-item')
+        cards.first.wait_for(state='visible')
+        assert cards.count() == 3, page.locator('#mainContent').inner_text()
+        variants = ('.ta-alert-item:not(.unread)', '.ta-alert-item.unread:not(.stock-alert)', '.ta-alert-item.stock-alert')
+        for theme in ('classic', 'royal'):
+            page.evaluate("theme => document.documentElement.dataset.taTheme = theme", theme)
+            for width in (320, 390):
+                page.set_viewport_size({'width': width, 'height': 840})
+                for variant in variants:
+                    card = page.locator('#mainContent').locator(variant)
+                    captions = card.locator('.ta-alert-title, .ta-alert-detail, .ta-alert-meta, .ta-alert-meta bdi, .ta-alert-badge')
+                    assert card.locator('.ta-alert-badge').count() == int('unread' in card.get_attribute('class').split())
+                    check_text_contrast(page, card, captions, ('Notification contrast', theme, variant))
+            cards.first.scroll_into_view_if_needed()
+            capture(theme+'-notifications')
+        page.get_by_role('button', name='تحديد الكل كمقروء').click()
+        page.wait_for_function("document.querySelectorAll('#mainContent .ta-alert-item.unread').length === 0")
+        assert cards.count() == 3 and page.locator('.ta-alert-badge').count() == 0
     for theme in ('classic','royal'):
         page.evaluate("theme=>document.documentElement.dataset.taTheme=theme",theme)
         for screen in ('home','reports','invoice'):
@@ -234,34 +263,5 @@ with sync_playwright() as playwright:
                 assert page.evaluate("""async()=>{const img=new Image();img.src='static/partners.webp';
                     await img.decode();return img.naturalWidth>0;}""")
             capture(theme+'-'+screen)
-    if not employee:
-        page.evaluate("""() => {
-            const at = '2026-11-18T20:56:24Z';
-            ManagerNotifications.ensure().entries = [
-                {id:'qa-read', type:'sync', read:true, at, title:'توقفت مزامنة المدير والكمبيوتر', detail:'تعذّر الاتصال بالكمبيوتر على الشبكة المحلية.'},
-                {id:'qa-new', type:'sync', read:false, at, title:'انقطع اتصال موظف البيع', detail:'سيحاول التطبيق المزامنة بعد عودة الاتصال بالشبكة.'},
-                {id:'qa-stock', type:'stock', read:false, at, title:'نفدت كمية مادة', detail:'المستودع الرئيسي · الرصيد الحالي صفر'}
-            ];
-            AppNav.stack = [{screen:'dashboard',params:{}}];
-            AppNav.renderCurrent();
-        }""")
-        page.locator('#headerNotificationsBtn').click()
-        cards = page.locator('#mainContent .ta-alert-item')
-        assert cards.count() == 3
-        variants = ('.ta-alert-item:not(.unread)', '.ta-alert-item.unread:not(.stock-alert)', '.ta-alert-item.stock-alert')
-        for theme in ('classic', 'royal'):
-            page.evaluate("theme => document.documentElement.dataset.taTheme = theme", theme)
-            for width in (320, 390):
-                page.set_viewport_size({'width': width, 'height': 840})
-                for variant in variants:
-                    card = page.locator('#mainContent').locator(variant)
-                    captions = card.locator('.ta-alert-title, .ta-alert-detail, .ta-alert-meta, .ta-alert-meta bdi, .ta-alert-badge')
-                    assert card.locator('.ta-alert-badge').count() == int('unread' in card.get_attribute('class').split())
-                    check_text_contrast(page, card, captions, ('Notification contrast', theme, variant))
-            cards.first.scroll_into_view_if_needed()
-            capture(theme+'-notifications')
-        page.get_by_role('button', name='تحديد الكل كمقروء').click()
-        page.wait_for_function("document.querySelectorAll('#mainContent .ta-alert-item.unread').length === 0")
-        assert cards.count() == 3 and page.locator('.ta-alert-badge').count() == 0
     print('PASS themes/icons',root,flush=True)
     browser.close()
