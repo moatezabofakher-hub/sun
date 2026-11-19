@@ -109,6 +109,7 @@ jobs:
         run: |
           python -m pip install playwright==1.55.0
           python tests/check_controls.py . manager
+          python tests/check_cash_settings.py app/src/main/assets/www
       - name: Build, sign, and verify app release APK
         shell: bash
         env:

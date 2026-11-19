@@ -44,6 +44,7 @@ function applyView(){
  if(!root||!active||AppNav.current()?.screen!=='settings')return;
  const section=selected();
  if(!section)return;
+ root.classList.remove('ta-settings-menu');
  root.classList.add('ta-settings-standalone');
  for(const el of root.querySelectorAll('details.settings-section')){
    el.classList.toggle('ta-settings-active-section',el===section);
@@ -146,6 +147,29 @@ document.addEventListener('click',event=>{
  const cancelBtn=event.target?.closest?.('.ta-settings-section-footer .ta-settings-cancel');
  if(cancelBtn){event.preventDefault();event.stopImmediatePropagation();confirmExit(null);}
 },true);
+// Keep the existing forms mounted for draft validation and protected categories.
+// The category list itself consists of buttons, so a tap cannot expand a native accordion.
+const renderCategoryList = Views.renderSettings;
+Views.renderSettings = function(root,...args) {
+ const result = renderCategoryList.call(this,root,...args);
+ for(const section of root.querySelectorAll('details.settings-section')) {
+   const summary = section.querySelector(':scope > summary');
+   if(!summary) continue;
+   const button = document.createElement('button');
+   button.type = 'button';
+   button.className = 'ta-category-link';
+   button.dataset.category = groupKey(section);
+   button.textContent = summary.querySelector('.settings-section-name')?.textContent.trim() || summary.textContent.trim();
+   button.addEventListener('click',()=> {
+     if(groupKey(section)==='data') summary.click();
+     else open(section);
+   });
+   section.before(button);
+ }
+ root.classList.toggle('ta-settings-menu',!active);
+ return result;
+};
+
 const originalRender=AppNav.renderCurrent;
 AppNav.renderCurrent=function(...args){
  const form=active&&AppNav.current()?.screen==='settings'?captureValues():null;
