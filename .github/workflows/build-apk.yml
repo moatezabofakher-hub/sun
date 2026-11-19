@@ -110,6 +110,8 @@ jobs:
           python -m pip install playwright==1.55.0
           python tests/check_controls.py . manager
           python tests/check_cash_settings.py app/src/main/assets/www
+          node --check app/src/main/assets/www/static/ta-themes-154.js
+          python tests/check_themes_154.py app/src/main/assets/www
       - name: Build, sign, and verify app release APK
         shell: bash
         env:
