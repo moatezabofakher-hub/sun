@@ -10,6 +10,7 @@ on:
       - 'tests/check_controls.py'
       - 'tests/check_cash_settings.py'
       - 'tests/check_themes_154.py'
+      - 'tests/check_legibility_155.py'
       - 'tests/test_lan_sync_3528.js'
       - 'app/src/main/assets/www/static/ta-fx-buy-sell-147.js'
       - 'tests/release138-no-outside-dismiss.test.js'
@@ -90,6 +91,7 @@ jobs:
           node --check field_agent/src/main/assets/www/static/ta-themes-154.js
           node --test tests/agent-posting-rights.test.cjs
           python tests/check_themes_154.py field_agent/src/main/assets/www
+          python tests/check_legibility_155.py field_agent/src/main/assets/www
       - name: Archive theme review screens
         continue-on-error: true
         uses: actions/upload-artifact@v4
