@@ -147,6 +147,17 @@ with sync_playwright() as playwright:
                 }""",screen)
             surface=page.locator('#screen' if employee else '#mainContent')
             assert surface.is_visible() and surface.inner_text().strip(),screen
+            if screen=='home':
+                # Regression: light theme uses dark ink on pale navigation cards.
+                # Dark/Royal preserves light ink. Check both color and WebKit text fill.
+                if employee:
+                    nav_text=page.locator('#bottom.bottom button:not(.active):not(.is-active):not([aria-current="page"])').first
+                else:
+                    nav_text=page.locator('nav.ta-bottom-nav button.nav-btn:not(.active):not(.is-active):not([aria-current="page"]) > span').first
+                assert nav_text.count(), 'Bottom navigation missing'
+                expect='rgb(23, 60, 80)' if theme=='classic' else 'rgb(245, 251, 255)'
+                actual=nav_text.evaluate('e=>[getComputedStyle(e).color,getComputedStyle(e).webkitTextFillColor]')
+                assert actual==[expect,expect],('Unreadable bottom labels',theme,actual,expect)
             if theme=='royal' and screen=='invoice':
                 field=surface.locator('.ta-invoice-field').first
                 assert field.is_visible()
