@@ -85,6 +85,8 @@ jobs:
           python -m pip install playwright==1.55.0
           python tests/check_controls.py . employee
           python tests/check_cash_settings.py field_agent/src/main/assets/www
+          node --check field_agent/src/main/assets/www/static/ta-themes-154.js
+          python tests/check_themes_154.py field_agent/src/main/assets/www
       - name: Build, sign, and verify field_agent release APK
         shell: bash
         env:
