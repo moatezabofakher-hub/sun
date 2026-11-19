@@ -194,3 +194,17 @@ jobs:
             gh release create "$tag" "$apk" "$checksum" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title 'المحاسب التقني — موظف البيع 3.5.153' --notes 'تحديث موظف البيع يدعم ربط الكمبيوتر بنقطة اتصال هاتف الموظف، ويعرض عنوان الهاتف منفصلاً عن عنوان الإدارة المحدد في رمز QR.' --prerelease
           fi
           gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json url --jq '.url'
+
+      - name: Package complete tested project source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/package_project_source.py "project-downloads/Tiqany-Acc-Employee-Source.zip"
+      - name: Publish complete source ZIP in Actions Artifacts
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tiqany-Acc-Employee-Project-Source
+          path: project-downloads/Tiqany-Acc-Employee-Source.zip
+          if-no-files-found: error
+          retention-days: 90

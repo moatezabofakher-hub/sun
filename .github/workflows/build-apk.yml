@@ -209,3 +209,17 @@ jobs:
             gh release create "$tag" "$apk" "$checksum" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title 'المحاسب التقني المدير Android — الثيمات والصور 3.5.153' --notes 'النسخة المبنية من main: الضبط ← الثيمات (الحالي أو التصميم الأول الكحلي)، وصور 3D مستقلة لكل قسم. اجتازت فحوصات البناء الآلية. اختبارات المزامنة والطباعة على الأجهزة الفعلية ليست مشمولة.' --prerelease
           fi
           gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json url --jq '.url'
+
+      - name: Package complete tested project source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 .github/scripts/package_project_source.py "project-downloads/Tiqany-Acc-Manager-Source.zip"
+      - name: Publish complete source ZIP in Actions Artifacts
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tiqany-Acc-Manager-Project-Source
+          path: project-downloads/Tiqany-Acc-Manager-Source.zip
+          if-no-files-found: error
+          retention-days: 90

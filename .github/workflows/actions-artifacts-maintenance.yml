@@ -1,0 +1,41 @@
+name: Safe Actions Artifacts Cleanup
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/actions-artifacts-maintenance.yml'
+      - '.github/scripts/cleanup_actions_artifacts.py'
+  schedule:
+    - cron: '30 2 * * 0'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Preview only (no deletion)'
+        type: boolean
+        default: true
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: safe-actions-artifacts-cleanup
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    name: Preserve 3 successful builds and remove redundant old artifacts
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prune old artifacts without touching code or tests
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
+          MIN_AGE_DAYS: '14'
+          KEEP_SUCCESSFUL: '3'
+          MAX_DELETE: '80'
+        run: python3 .github/scripts/cleanup_actions_artifacts.py
