@@ -130,6 +130,19 @@ with sync_playwright() as playwright:
     assert page.locator('#taTheme154Page').is_visible()
     assert page.locator('[data-theme-choice]').count()==3
     assert page.locator('#taTheme154Page:modal').count()==1
+    initial_viewport=page.viewport_size
+    page.set_viewport_size({'width':360,'height':480})
+    geometry=page.locator('#taTheme154Page').evaluate("""dialog=>{
+        const panel=dialog.querySelector('.ta-theme154-scroll'), bar=dialog.querySelector('.ta-theme154-actions');
+        const start=bar.getBoundingClientRect().top;
+        panel.scrollTop=panel.scrollHeight;
+        const end=bar.getBoundingClientRect();
+        return [panel.scrollTop,start,end.top,end.bottom,innerHeight,panel.querySelectorAll('[data-theme-choice]')[2].getBoundingClientRect().bottom];
+    }""")
+    scroll,start,end,bottom,height,last=geometry
+    assert scroll>0 and abs(start-end)<1 and abs(height-bottom)<=1 and last<=end+1,geometry
+    page.set_viewport_size(initial_viewport)
+
     page.get_by_role('button',name='البترولي والنحاسي',exact=False).click()
     assert page.evaluate('TiqanyTheme154.current()')=='petrol'
     page.locator('.ta-theme154-save').click()

@@ -90,7 +90,7 @@ function show(){
  node.innerHTML='<div class="ta-theme154-wrap">'+
   '<div class="ta-theme154-header"><button type="button" class="ta-theme154-back" aria-label="الرجوع إلى الضبط">رجوع</button>'+
   '<h2 id="taTheme154Title">الثيمات</h2></div>'+
-  '<p class="ta-theme154-note">اختر التصميم الذي تفضله. تظهر المعاينة مباشرة، ثم اضغط حفظ لاعتماده على هذا الجهاز فقط.</p>'+
+  '<div class="ta-theme154-scroll"><p class="ta-theme154-note">اختر التصميم الذي تفضله. تظهر المعاينة مباشرة، ثم اضغط حفظ لاعتماده على هذا الجهاز فقط.</p>'+
   '<div class="ta-theme154-grid">'+
   '<button type="button" class="ta-theme154-option" data-theme-choice="classic" aria-pressed="false">'+mini('classic')+
   '<strong>التصميم الحالي</strong><small>لؤلؤي فاتح، بطاقات ثلاثية الأبعاد وصور مخصصة لكل قسم.</small><small class="ta-theme154-selected"></small></button>'+
@@ -98,7 +98,7 @@ function show(){
   '<strong>التصميم الأول — الكحلي الملكي</strong><small>أزرق نيون مضيء، تركوازي، لمسات ذهبية، وبطاقات داكنة لامعة.</small><small class="ta-theme154-selected"></small></button>'+
   '<button type="button" class="ta-theme154-option" data-theme-choice="petrol" aria-pressed="false">'+mini('petrol')+
   '<strong>البترولي والنحاسي</strong><small>بترولي لامع بحواف نحاسية وفواتير عاجية عالية التباين.</small><small class="ta-theme154-selected"></small></button>'+
-  '</div><div class="ta-theme154-actions">'+
+  '</div></div><div class="ta-theme154-actions">'+
   '<button type="button" class="ta-theme154-save">حفظ الثيم</button>'+
   '<button type="button" class="ta-theme154-cancel">إلغاء</button></div></div>';
  node.addEventListener('click',ev=>{

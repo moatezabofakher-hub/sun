@@ -4,7 +4,7 @@ const F=TiqanyFinance;
 const esc=v=>AppEscape.text(String(v??''));
 const fmt=(n,c)=>Accounting.format(n,c);
 const dateOnly=()=>{const t=new Date();return new Date(t.getTime()-t.getTimezoneOffset()*60000).toISOString().slice(0,10);};
-const act='rounded-xl bg-teal-800 text-white px-4 py-3 font-bold';
+const act='ta-finance-action rounded-xl px-4 py-3 font-bold';
 const panel='rounded-xl border p-3 mb-3 space-y-2';
 const field='w-full border rounded-xl p-2 bg-white text-slate-900';
 const btn=(name,click)=>'<button type="button" class="'+act+'" onclick="'+esc(click)+'">'+esc(name)+'</button>';
@@ -61,12 +61,13 @@ function cashShifts(main,p){
   const scope=scopes.some(s=>s.id===p.scope)?p.scope:'office';
   const history=records().filter(s=>s.scope===scope).sort((a,b)=>b.sequence-a.sequence);
   const opened=history.find(s=>!s.closedAt), baseline=till(scope);
-  const expected=opened?F.tillExpected(opened.opening,opened.baseline,baseline):baseline;
+  const latest=history[0], latestSnapshot=JSON.stringify(latest);
+  const expected=opened ? F.tillExpected(opened.opening,opened.baseline,baseline) : F.nextTillOpening(latest,baseline);
   main.innerHTML='<section class="'+panel+'"><label>الصندوق<select id="finance-scope" class="'+field+'">'+scopes.map(s=>'<option value="'+esc(s.id)+'" '+(s.id===scope?'selected':'')+'>'+esc(s.name)+'</option>').join('')+'</select></label><h3>'+(opened?'إقفال وردية '+esc(opened.cashier):'فتح وردية جديدة')+'</h3><label>'+(opened?'اسم مستلم الصندوق':'اسم أمين الصندوق')+'<input id="finance-person" class="'+field+'" maxlength="90"></label>'+
-    Object.keys(expected).map(c=>'<label class="block">'+(opened?'المعدود فعلياً':'عهدة الافتتاح')+' '+esc(c)+(opened?' · المتوقع '+esc(fmt(expected[c],c)):'')+'<input class="'+field+'" data-count="'+esc(c)+'" type="number" step="any" min="0" value="'+(opened?'':Math.max(0,baseline[c]))+'"></label>').join('')+
-    (opened?'<label>ملاحظة التسليم أو سبب الفرق<input id="finance-note" class="'+field+'" maxlength="250"></label>':'')+'<button type="button" id="finance-save-shift" class="'+act+'">'+(opened?'تأكيد العدّ وإقفال الوردية':'فتح الوردية')+'</button></section>'+btn('مطابقة الحوالات مع كشف البنك',"FinanceDesk.nav('bank_match')")+'<h3>الورديات المقفلة</h3>'+
+    Object.keys(expected).map(c=>'<label class="block">'+(opened?'المعدود فعلياً':'عهدة الافتتاح')+' '+esc(c)+(opened?' · المتوقع '+esc(fmt(expected[c],c)):'')+'<input class="'+field+'" data-count="'+esc(c)+'" type="number" step="any" min="0" value="'+(opened?'':Math.max(0,expected[c]))+'"></label>').join('')+
+    (opened?'<label>ملاحظة التسليم أو سبب الفرق<input id="finance-note" class="'+field+'" maxlength="250"></label>':'')+'<button type="button" id="finance-save-shift" class="'+act+(opened?' ta-shift-close':'')+'">'+(opened?'تأكيد العدّ وإقفال الوردية':'فتح الوردية')+'</button></section>'+btn('مطابقة الحوالات مع كشف البنك',"FinanceDesk.nav('bank_match')")+'<h3>الورديات المقفلة</h3>'+
     history.filter(s=>s.closedAt).map(s=>'<details class="'+panel+'"><summary>'+esc(s.cashier)+' · '+esc(new Date(s.closedAt).toLocaleString('ar-SY'))+'</summary><p>المستلم '+esc(s.receiver)+'</p><p>العهدة '+moneyList(s.opening)+'</p><p>المتوقع '+moneyList(s.expected)+'</p><p>المعدود '+moneyList(s.counted)+'</p><p>الفرق '+moneyList(s.difference)+'</p><p>'+esc(s.note)+'</p></details>').join('');
-  main.querySelector('#finance-scope').onchange=e=>nav('cash_shifts',{scope:e.target.value});
+  main.querySelector('#finance-scope').onchange=e=>AppNav.navigate('reports',{tab:'cash_shifts',scope:e.target.value},true);
   const submit=main.querySelector('#finance-save-shift');
   submit.onclick=async()=>{
     if(submit.disabled)return;
@@ -77,14 +78,15 @@ function cashShifts(main,p){
       counted[el.dataset.count]=F.amount(el.valueAsNumber,el.dataset.count);
     }
     const current=till(scope), active=records().find(s=>s.scope===scope && !s.closedAt);
-    if((active?.id||null)!==(opened?.id||null) || JSON.stringify(current)!==JSON.stringify(baseline)){cashShifts(main,p);return UI.toast('تغيّر الصندوق. راجع القيم المحدّثة قبل التأكيد','warn');}
+    const latestNow=records().filter(s=>s.scope===scope).sort((a,b)=>b.sequence-a.sequence)[0];
+    if(JSON.stringify(latestNow)!==latestSnapshot || (active?.id||null)!==(opened?.id||null) || JSON.stringify(current)!==JSON.stringify(baseline)){cashShifts(main,p);return UI.toast('تغيّر الصندوق. راجع القيم المحدّثة قبل التأكيد','warn');}
     const now=new Date().toISOString(), sequence=(history[0]?.sequence||0)+1;
     let entry;
     if(opened){
       const difference=Object.fromEntries(Object.keys(expected).map(c=>[c,F.amount(counted[c]-expected[c],c)]));
       const note=main.querySelector('#finance-note').value.trim();
       if(Object.values(difference).some(v=>v!==0) && !note)return UI.toast('أدخل سبب الفرق قبل الإقفال','warn');
-      entry={...opened,receiver:person,note,closedAt:now,counted,expected,difference};
+      entry={...opened,receiver:person,note,closedAt:now,closingBaseline:current,counted,expected,difference};
     }else entry={id:'till_'+scope+'_'+sequence,scope,sequence,openedAt:now,cashier:person,opening:counted,baseline:current};
     submit.disabled=true;
     const before=State.cashShifts;

@@ -92,7 +92,7 @@ function pair(state) {
     pc=desktop(state,disk,(_id,value)=>{reply=value;});result.client=client(phoneDisk,result.send);
   },send:async m=>{
     if(m.action==='probe')return {ok:true,streamVersion:2,serverId};
-    const data={...m,appVersion:'3.5.155'};
+    const data={...m,appVersion:'3.5.156'};
     const k=data.step;result.stats[k]=(result.stats[k]||0)+1;
     await pc.handleRequest({requestId:'req',data});
     if(result.fault) await result.fault(data,reply);
@@ -217,7 +217,7 @@ if(fs.existsSync(path.join(root,'src/peer-lan-server.js'))) {
       const port=listener.address().port;let transfers=0;
       const send=m=>new Promise((resolve,reject)=>{
         const sock=net.connect(port,'127.0.0.1'),chunks=[];
-        const input=encode(server.key,{protocol:'TIQANY-PEER-1',appVersion:'3.5.155',...m});
+        const input=encode(server.key,{protocol:'TIQANY-PEER-1',appVersion:'3.5.156',...m});
         assert.ok(input.length<600000);
         sock.once('connect',()=>sock.write(input));sock.on('error',reject);
         sock.on('data',x=>chunks.push(x));sock.on('end',()=>{
@@ -256,7 +256,7 @@ test('two manager profiles at the same millisecond keep independent documents th
     const id=++seq;
     return new Promise((resolve,reject)=>{
       replies.set(id,v=>{replies.delete(id);resolve(v);});
-      pc.handleRequest({requestId:id,data:{...m,appVersion:'3.5.155'}}).catch(reject);
+      pc.handleRequest({requestId:id,data:{...m,appVersion:'3.5.156'}}).catch(reject);
     });
   }
   function editor(ctx,name){

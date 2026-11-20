@@ -133,6 +133,13 @@ function allocate(state, voucher, input) {
   if (total>amount(number(voucher.accountAmount ?? voucher.amount),c)) throw Error('مجموع التوزيع أكبر من المبلغ المرحّل على الحساب.');
   return rows;
 }
+function nextTillOpening(previous,current) {
+  if (!previous?.counted) return {...current};
+  // Older closings stored the expected count, the physical opening and the opening ledger snapshot.
+  const ledgerAtClose=previous.closingBaseline ??
+    tillExpected(previous.baseline,previous.opening,previous.expected);
+  return tillExpected(previous.counted,ledgerAtClose,current);
+}
 function tillExpected(opening,baseline,current) {
   const result={};
   for (const code of new Set([...Object.keys(opening),...Object.keys(baseline),...Object.keys(current)]))
@@ -157,7 +164,7 @@ function fieldPayments(state,vouchers,ops,invoices){
     v.allocations=[{invoiceId:id,amount:v.accountAmount,fx:previous?.fx??(state.settings?.settleFxOnPayment===true),invoiceRate:previous?.invoiceRate||quote(inv,inv.currency),paymentRate:quote(v,v.accountCurrency)}];
   }
 }
-const api={fieldPayments,number,amount,quote,compare,direction,unpaid,costs,freeze,settlements,allocate,tillExpected,age};
+const api={fieldPayments,number,amount,quote,compare,direction,unpaid,costs,freeze,settlements,allocate,tillExpected,nextTillOpening,age};
 if(typeof module==='object' && module.exports)module.exports=api;
 root.TiqanyFinance=api;
 })(typeof globalThis==='object'?globalThis:window);

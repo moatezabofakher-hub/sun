@@ -59,3 +59,14 @@ test('field receipt uses manager rates and remains idempotent after a phone-to-P
  }
  assert.throws(()=>F.fieldPayments(state,[{...v,accountId:'other'}],[{id:'agent-op',settlementInvoiceId:invoice.id}],[]));
 });
+
+test('the next shift inherits counted cash plus intervening ledger movements in each currency',()=>{
+ const previous={opening:{SYP:800,USD:20},baseline:{SYP:1000,USD:15},expected:{SYP:1000,USD:25},counted:{SYP:900,USD:27}};
+ const atClose={SYP:1200,USD:20};
+ for(const record of [previous,{...previous,closingBaseline:atClose}]){
+   assert.deepEqual(F.nextTillOpening(record,atClose),previous.counted);
+   assert.deepEqual(F.nextTillOpening(record,{SYP:1250,USD:18,EUR:5}),{SYP:950,USD:25,EUR:5});
+   assert.deepEqual(F.nextTillOpening({...record,counted:{SYP:0,USD:0}},atClose),{SYP:0,USD:0});
+ }
+ assert.deepEqual(F.nextTillOpening(undefined,atClose),atClose);
+});

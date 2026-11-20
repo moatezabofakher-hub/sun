@@ -285,7 +285,9 @@ Agent.renderPayment=function(){const inv=this.state.ops.find(o=>o.id===this.sele
   <label class="label">المبلغ المقبوض</label><input type="number" id="fieldPaymentAmount" min="0.01" max="${balance}" step="any" class="field ltr" value="${balance}">
   <label class="label">البيان</label><input id="fieldPaymentNote" class="field" value="دفعة مرتبطة بالفاتورة ${this.escape(inv.localNumber)}">
   <p class="note-safe">ستُسجل الدفعة كسند قبض مستقل مرتبط بهذه الفاتورة، ويظهر في الحساب الرئيسي بعد المزامنة، دون تسجيلها مرتين.</p>
-  <button class="primary" onclick="Agent.saveInvoicePayment()">✓ حفظ الدفعة</button></div>`;};
+  </div><div class="ta-agent-voucher-footer" role="group" aria-label="خيارات الدفعة">
+  <button type="button" class="primary ta-agent-voucher-save" onclick="Agent.saveInvoicePayment()">✓ حفظ الدفعة</button>
+  <button type="button" class="secondary ta-agent-voucher-cancel" onclick="Agent.goBack()">إلغاء</button></div>`;};
 Agent.saveInvoicePayment=async function(){if(this.busy)return;this.busy=true;
  try{const inv=this.state.ops.find(o=>o.id===this.selectedInvoiceId&&o.kind==='sale');if(!inv||!inv.accountId)throw Error('لا يمكن تسجيل دفعة دون عميل مرتبط بالفاتورة');
   if(!await this.active())throw Error('الترخيص غير مفعل');const remaining=this.invoiceRemaining(inv);const amount=FieldProtocol.money(document.getElementById('fieldPaymentAmount').value,inv.currency);

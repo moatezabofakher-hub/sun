@@ -3168,9 +3168,10 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                     this.clearModalDirty();
                     UI.forceCloseModal();
                     const bottomDestinations = new Set(['dashboard','invoices_list','items','accounts','agent_hub','reports','settings']);
+                    const nestedReport = screen === 'reports' && ['collection','cash_shifts','bank_match','settlement_fx'].includes(params.tab);
                     if (screen === 'dashboard') {
                         this.stack = [{ screen: 'dashboard', params: {} }];
-                    } else if (bottomDestinations.has(screen) && !replace) {
+                    } else if (bottomDestinations.has(screen) && !replace && !nestedReport) {
                         this.stack = [{ screen: 'dashboard', params: {} }, { screen, params }];
                     } else if (replace) {
                         this.stack[this.stack.length - 1] = { screen, params };
@@ -6044,8 +6045,8 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                     </div>
                     <div class="mb-4">
                       <div class="grid grid-cols-2 gap-2 mb-3">
-                      <button type="button" class="invoice-report-action p-3 font-bold" onclick="FinanceDesk.nav('collection')">التحصيل والاستحقاقات</button>
-                      <button type="button" class="invoice-report-action p-3 font-bold" onclick="FinanceDesk.nav('cash_shifts')">فتح وإقفال الصندوق</button>
+                      <button type="button" class="ta-finance-action invoice-report-action p-3 font-bold" onclick="FinanceDesk.nav('collection')">التحصيل والاستحقاقات</button>
+                      <button type="button" class="ta-finance-action invoice-report-action p-3 font-bold" onclick="FinanceDesk.nav('cash_shifts')">فتح وإقفال الصندوق</button>
                     </div>
                       <button type="button" onclick="LedgerReports.openPrintChooser()" class="invoice-report-action w-full py-4 px-5 font-black text-base flex gap-3 items-center justify-center" aria-label="طباعة تقرير: اختر المواد أو الديون"><i class="fas fa-print text-xl" aria-hidden="true"></i><span>طباعة تقرير</span><i class="fas fa-chevron-left" aria-hidden="true"></i></button>
                     </div>
@@ -6165,7 +6166,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 const mode = State.settings.btPrintMode || 'auto';
                 main.innerHTML = `
                     <div class="mb-3 flex items-center justify-between gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2" data-app-build="${InstalledAppVersion.number()}" role="status" aria-label="إصدار التطبيق">
-                        <span class="font-black text-xs text-emerald-800"><i class="fas fa-check-circle ml-1"></i> إصدار التطبيق: 3.5.155</span>
+                        <span class="font-black text-xs text-emerald-800"><i class="fas fa-check-circle ml-1"></i> إصدار التطبيق: 3.5.156</span>
                         <span class="text-[10px] font-bold text-emerald-700">مظهر ثلاثي الأبعاد موحّد</span>
                     </div>
                     ${TiqanySupport.launch()}
@@ -9575,7 +9576,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 const isRec = d.type === 'receipt';
 
                 main.innerHTML = `
-                    <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs space-y-3 text-xs">
+                    <div class="ta-voucher-fields bg-white rounded-2xl border border-slate-200 p-4 shadow-xs space-y-3 text-xs">
                         <div class="flex items-center justify-between border-b pb-2.5">
                             <span class="bg-slate-900 text-white font-bold px-3 py-1 rounded-lg">سند #${d.number}</span>
                             <div class="flex gap-1 bg-slate-100 p-1 rounded-xl">
@@ -9643,6 +9644,8 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                         ${d.isEditing ? `<div class="flex justify-start pt-1"><button type="button" onclick="VoucherController.deleteVoucher('${d.id}')" class="px-4 bg-rose-50 text-rose-600 font-bold rounded-xl text-xs"><i class="fas fa-trash"></i> حذف السند</button></div>` : ''}
                         ${FinanceDesk.channelSelect('VoucherController',d)}
                         ${FinanceDesk.allocationFields(d)}
+                    </div>
+                    <div class="ta-voucher-bar-slot">
                         <div class="ta-voucher-save-footer" role="group" aria-label="الرصيد السابق والنهائي وأزرار السند">
                             <div class="ta-voucher-footer-balances">
                                 <div class="ta-voucher-balance-tile"><span>الرصيد السابق</span><strong data-voucher-before>—</strong></div>

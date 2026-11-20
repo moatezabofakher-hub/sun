@@ -154,7 +154,7 @@ jobs:
           apk="app/build/outputs/apk/release/app-release.apk"
           test -s "$apk"
           package_info=$("$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$apk")
-          grep -Fq "versionCode='155' versionName='3.5.155'" <<< "$package_info"
+          grep -Fq "versionCode='156' versionName='3.5.156'" <<< "$package_info"
           verifier="$ANDROID_HOME/build-tools/35.0.0/apksigner"
           "$verifier" verify --verbose --print-certs "$apk"
           cert_digest=$("$verifier" verify --print-certs "$apk" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -n 1)
@@ -171,16 +171,16 @@ jobs:
             exit 1
           fi
           mkdir -p output
-          cp "$apk" "output/Tiqany-Acc-Main-3.5.155-RELEASE.apk"
-          (cd output && sha256sum "Tiqany-Acc-Main-3.5.155-RELEASE.apk" > "Tiqany-Acc-Main-3.5.155-RELEASE.apk.sha256")
+          cp "$apk" "output/Tiqany-Acc-Main-3.5.156-RELEASE.apk"
+          (cd output && sha256sum "Tiqany-Acc-Main-3.5.156-RELEASE.apk" > "Tiqany-Acc-Main-3.5.156-RELEASE.apk.sha256")
       - name: Upload signed app APK and checksum
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
-          name: Tiqany-Acc-Main-3.5.155-RELEASE
+          name: Tiqany-Acc-Main-3.5.156-RELEASE
           path: |
-            output/Tiqany-Acc-Main-3.5.155-RELEASE.apk
-            output/Tiqany-Acc-Main-3.5.155-RELEASE.apk.sha256
+            output/Tiqany-Acc-Main-3.5.156-RELEASE.apk
+            output/Tiqany-Acc-Main-3.5.156-RELEASE.apk.sha256
           if-no-files-found: error
           retention-days: 30
       - name: Publish isolated signed finance preview for direct download
@@ -190,11 +190,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          apk='output/Tiqany-Acc-Main-3.5.155-RELEASE.apk'
+          apk='output/Tiqany-Acc-Main-3.5.156-RELEASE.apk'
           checksum="${apk}.sha256"
           test -s "$apk" && test -s "$checksum"
           tag='tiqany-main-finance-preview-'"${GITHUB_SHA:0:10}"
-          gh release create "$tag" "$apk" "$checksum" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title 'المحاسب التقني المدير الرئيسي - معاينة الثيم ونقطة البيع' --notes 'الثيم البترولي والنحاسي، ترتيب الوحدة والحذف في نقطة البيع، وتحسين أزرار الحفظ قبل الخروج.' --prerelease
+          gh release create "$tag" "$apk" "$checksum" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title 'المحاسب التقني المدير الرئيسي - معاينة الثيم ونقطة البيع' --notes 'تصحيح عهدة تسليم الصندوق وألوان أزرار الورديات وتثبيت شريطي سند الفاتورة والثيمات.' --prerelease
           gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json url --jq '.url'
       - name: Publish signed main branch artifact for two-theme update
         if: github.ref == 'refs/heads/main'
@@ -203,14 +203,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          apk='output/Tiqany-Acc-Main-3.5.155-RELEASE.apk'
+          apk='output/Tiqany-Acc-Main-3.5.156-RELEASE.apk'
           checksum="${apk}.sha256"
           test -s "$apk" && test -s "$checksum"
           tag='tiqany-main-themes-'"${GITHUB_SHA:0:10}"
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$tag" "$apk" "$checksum" --clobber --repo "$GITHUB_REPOSITORY"
           else
-            gh release create "$tag" "$apk" "$checksum" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title 'المحاسب التقني المدير Android 3.5.155' --notes 'الثيم البترولي والنحاسي، ترتيب الوحدة والحذف في نقطة البيع، وتحسين أزرار الحفظ قبل الخروج.' --prerelease
+            gh release create "$tag" "$apk" "$checksum" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title 'المحاسب التقني المدير Android 3.5.156' --notes 'تصحيح عهدة تسليم الصندوق وألوان أزرار الورديات وتثبيت شريطي سند الفاتورة والثيمات.' --prerelease
           fi
           gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json url --jq '.url'
 

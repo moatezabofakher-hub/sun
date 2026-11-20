@@ -110,11 +110,13 @@
 }
 
 /* Full settings page: no outside-dismiss, save/cancel and native Back are explicit. */
-.ta-theme154-page{position:fixed;inset:0;margin:0;border:0;width:100%;height:100%;max-width:none;max-height:none;z-index:2140000000;overflow:auto;
+.ta-theme154-page{position:fixed;inset:0;margin:0;border:0;width:100%;height:100%;max-width:none;max-height:none;z-index:2140000000;overflow:hidden;
  background:linear-gradient(150deg,#f1f8fb,#e6f0f5);color:#123c52;
- padding:env(safe-area-inset-top,0px) 12px env(safe-area-inset-bottom,0px);
+ padding:env(safe-area-inset-top,0px) 12px max(var(--ta-native-bottom-inset,0px),env(safe-area-inset-bottom,0px));
  direction:rtl;box-sizing:border-box;overscroll-behavior:contain}
-.ta-theme154-wrap{max-width:700px;margin:0 auto;padding:18px 0 32px}
+.ta-theme154-wrap{max-width:700px;height:100%;box-sizing:border-box;margin:0 auto;padding-top:10px;
+ display:grid;grid-template-rows:auto minmax(0,1fr) auto}
+.ta-theme154-scroll{min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:0 5px 16px}
 .ta-theme154-header{display:flex;align-items:center;gap:12px;margin-bottom:18px;
  padding:12px 16px;border:1px solid #bedae4;border-radius:18px;
  background:linear-gradient(145deg,#fff,#e1f3f8);box-shadow:0 5px 0 #94bfd1}
@@ -148,7 +150,7 @@
  border:1px solid #459fbc;box-shadow:0 3px 0 #071222,0 0 11px #22cbff60}
 [data-swatch="royal"] .ta-theme154-mini-tiles i:first-child{background:linear-gradient(145deg,#167edf,#053974);box-shadow:0 3px 0 #072043,0 0 18px #1c9eff}
 [data-swatch="royal"] .ta-theme154-mini-tiles i:nth-child(3){background:linear-gradient(145deg,#168c81,#083b49)}
-.ta-theme154-actions{display:flex;gap:12px;margin-top:26px;position:sticky;bottom:10px;padding:12px 0}
+.ta-theme154-actions{display:flex;gap:12px;margin:0;padding:10px 0;border-top:1px solid var(--ta-silver,#adc4ce)}
 .ta-theme154-actions button{flex:1;min-height:52px;border-radius:14px;font-weight:950;font-size:1rem}
 .ta-theme154-save{border:1px solid #5fe9be;color:#fff;background:linear-gradient(160deg,#149d73,#075b57);box-shadow:0 4px 0 #034b45}
 .ta-theme154-cancel{border:1px solid #a4bbca;color:#173c57;background:linear-gradient(160deg,#fff,#dbeaf2);box-shadow:0 4px 0 #93b6c8}
@@ -791,4 +793,45 @@ html[data-ta-theme="petrol"] body :is(#mainContent,#screen) :is(.agent-pos-actio
 html[data-ta-theme="petrol"] body :is(#mainContent,#screen) :is(.ta-quick-pos,.ta-home-pos,.ta-employee-pos) img.ta-operation-art {
   border-radius:16%;outline:1px solid #c69168;outline-offset:1px;object-fit:contain;
 }
+}
+
+@media screen {
+  /* Keep the voucher actions in their own row, including when the keyboard resizes the dialog. */
+  #modalContainer:not(.hidden):has(#voucherModalContent) {
+    align-items:stretch; overflow:hidden; padding-bottom:max(var(--ta-native-bottom-inset,0px),env(safe-area-inset-bottom,0px));
+  }
+  #modalContainer #modalBox:has(> #voucherModalContent) {
+    display:flex; flex-direction:column; min-height:0; max-height:100%; overflow:hidden;
+  }
+  #modalBox:has(> #voucherModalContent) > :not(#voucherModalContent) {flex:none}
+  #modalContainer:not(.hidden) #modalBox > #voucherModalContent {
+    display:grid; grid-template-rows:minmax(0,1fr) auto; flex:1; min-height:0; padding:0;
+  }
+  #voucherModalContent > .ta-voucher-fields {
+    min-height:0; overflow-y:auto; overscroll-behavior:contain; scroll-padding-block:10px;
+  }
+  #voucherModalContent .ta-voucher-bar-slot > .ta-voucher-save-footer {
+    position:static; width:100%; margin:0; padding-bottom:8px;
+  }
+
+  html[data-ta-theme="classic"] {
+    --ta-shift-bg:#d6eeed; --ta-shift-ink:#123f43; --ta-shift-edge:#648e91;
+    --ta-shift-close-bg:#f2e4d7; --ta-shift-close-ink:#55311a;
+  }
+  html[data-ta-theme="royal"] {
+    --ta-shift-bg:#143a58; --ta-shift-ink:#effbff; --ta-shift-edge:#6295b2;
+    --ta-shift-close-bg:#42344c; --ta-shift-close-ink:#ffe7bb;
+  }
+  html[data-ta-theme="petrol"] {
+    --ta-shift-bg:#16494b; --ta-shift-ink:#fff9eb; --ta-shift-edge:#b58a68;
+    --ta-shift-close-bg:#624330; --ta-shift-close-ink:#fff9eb;
+  }
+  html[data-ta-theme] body #mainContent button.ta-finance-action {
+    background:var(--ta-shift-bg)!important; color:var(--ta-shift-ink)!important;
+    -webkit-text-fill-color:currentColor!important; border:1px solid var(--ta-shift-edge)!important;
+    box-shadow:inset 0 1px 0 #ffffff38,0 2px 0 var(--ta-shift-edge)!important;
+  }
+  html[data-ta-theme] body #mainContent #finance-save-shift.ta-shift-close {
+    background:var(--ta-shift-close-bg)!important; color:var(--ta-shift-close-ink)!important;
+  }
 }
