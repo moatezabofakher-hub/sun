@@ -7,7 +7,8 @@
   ];
   function paint(button) {
     const label = (button.getAttribute('aria-label') || button.textContent).trim();
-    const tone = actions.find(([pattern]) => pattern.test(label))?.[1];
+    const voucherCancel = button.matches('.ta-voucher-cancel-action, .ta-voucher-cancel-button, .ta-agent-voucher-cancel');
+    const tone = voucherCancel ? 'negative' : actions.find(([pattern]) => pattern.test(label))?.[1];
     if (tone) button.dataset.actionTone = tone;
     else delete button.dataset.actionTone;
   }

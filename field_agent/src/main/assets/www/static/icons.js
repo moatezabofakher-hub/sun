@@ -19,6 +19,10 @@
     "fa-folder-open": '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v2"/><path d="M2 11h20l-3 9H5z"/></svg>',
     "fa-images": '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="6" y="6" width="15" height="15" rx="2"/><path d="M3 17V5a2 2 0 0 1 2-2h12M9 17l3-3 3 2 2-3 3 4"/><circle cx="11" cy="10" r="1"/></svg>'
   });
+  Object.assign(ICONS, {
+    "fa-warehouse": '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M2 9 12 3l10 6v12H2zM6 21V11h12v10M6 14h12M6 17h12"/></svg>',
+    "fa-tags": '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 3h7l10 10-7 7L3 10z"/><circle cx="7.5" cy="7.5" r="1"/><path d="m14 3 9 9-3 3"/></svg>'
+  });
   // Alias older FontAwesome class names to packaged local SVGs, never show an empty pictogram.
   const ICON_ALIASES = {"fa-arrows-rotate": "fa-arrow-rotate-right", "fa-box": "fa-box-open", "fa-cash-register": "fa-receipt", "fa-chevron-left": "fa-arrow-right", "fa-list-alt": "fa-table-list", "fa-list-check": "fa-table-list", "fa-location-dot": "fa-building", "fa-plug": "fa-bolt", "fa-share-nodes": "fa-upload", "fa-th-large": "fa-table-cells-large", "fa-th": "fa-table-cells-large", "fa-arrow-down": "fa-download", "fa-arrow-up": "fa-upload"};
   for (const [name,original] of Object.entries(ICON_ALIASES)) {

@@ -69,6 +69,46 @@
  box-shadow:0 4px 0 #8ab1c7,0 10px 17px #0e344c16
 }
 .ta-theme154-trigger strong{font-size:1.05rem}
+
+@media screen {
+  /* Android's WebView already ends above system navigation. The native inset
+     is zero there. Other hosts may supply their own remaining safe area. */
+  html[data-ta-theme] body.ta-invoice-editor-screen #mainContent .ta-invoice-save-footer {
+    bottom:0!important;
+    margin-block:0!important;
+    padding-bottom:calc(8px + var(--ta-native-bottom-inset, env(safe-area-inset-bottom, 0px)))!important;
+    background:#effaff linear-gradient(180deg,#effaff,#fff)!important;
+  }
+  html[data-ta-theme="royal"] body.ta-invoice-editor-screen #mainContent .ta-invoice-save-footer {
+    background:#102a48 var(--ta-royal-panel)!important;
+  }
+  html[data-ta-theme] body #mainContent .ta-invoice-save-footer .ta-footer-actions {
+    background:transparent;
+  }
+  html[data-ta-theme] body #mainContent .ta-invoice-save-footer .ta-footer-actions button {
+    color:#fff!important;
+    -webkit-text-fill-color:currentColor!important;
+    background:var(--ta-positive)!important;
+  }
+  html[data-ta-theme] body :is(#mainContent,#modalBox) .ta-voucher-save-footer button.ta-voucher-cancel-action {
+    background:var(--ta-negative)!important;
+    color:white!important;
+    -webkit-text-fill-color:currentColor!important;
+  }
+  html[data-ta-theme] body :is(#mainContent,#modalBox) .ta-voucher-save-footer button.ta-voucher-save-action {
+    background:var(--ta-positive)!important;
+    color:white!important;
+    -webkit-text-fill-color:currentColor!important;
+  }
+  html[data-ta-theme="classic"] body #mainContent .ta-invoice-field.ta-invoice-party-highlight {
+    background:#e0f2fe!important;
+  }
+  html[data-ta-theme="classic"] body #mainContent .ta-invoice-field.ta-invoice-party-highlight label {
+    color:#164e63!important;
+    -webkit-text-fill-color:currentColor!important;
+  }
+}
+
 /* Full settings page: no outside-dismiss, save/cancel and native Back are explicit. */
 .ta-theme154-page{position:fixed;inset:0;margin:0;border:0;width:100%;height:100%;max-width:none;max-height:none;z-index:2140000000;overflow:auto;
  background:linear-gradient(150deg,#f1f8fb,#e6f0f5);color:#123c52;

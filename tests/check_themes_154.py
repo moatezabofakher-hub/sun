@@ -1,6 +1,7 @@
 """3.5.154 visual QA: unique illustrations, retained Classic and Royal theme, and Back safety."""
 from pathlib import Path
 import base64
+import re
 import os
 import shutil
 import sys
@@ -308,5 +309,45 @@ with sync_playwright() as playwright:
                 assert page.evaluate("""async()=>{const img=new Image();img.src='static/partners.webp';
                     await img.decode();return img.naturalWidth>0;}""")
             capture(theme+'-'+screen)
+            if screen=='invoice':
+                footer=surface.locator('.ta-agent-invoice-save-footer' if employee else '.ta-invoice-save-footer')
+                if root.name!='web':
+                    for glyph in ('.fa-warehouse', '.fa-tags'):
+                        surface.locator('.ta-quick-picker__face '+glyph+' svg').first.wait_for(state='visible')
+                old_size=page.viewport_size
+                for width in ((800,1280) if root.name=='web' else (320,390)):
+                    page.set_viewport_size({'width':width,'height':640})
+                    for at_end in (False,True):
+                        surface.evaluate('''(e,end)=>{
+                            const y=end?e.scrollHeight:0;
+                            e.scrollTop=y;
+                            window.scrollTo(0,end?document.documentElement.scrollHeight:0);
+                        }''',at_end)
+                        metrics=footer.evaluate('''e=>{
+                            const r=e.getBoundingClientRect(), style=getComputedStyle(e);
+                            const buttons=e.querySelector('.ta-footer-actions').getBoundingClientRect();
+                            return {edge:Math.abs(innerHeight-r.bottom), gap:r.bottom-buttons.bottom,
+                                    base:style.backgroundColor, width:r.width, viewport:innerWidth};
+                        }''')
+                        assert metrics['edge']<=2 and 0<=metrics['gap']<=14,(theme,width,metrics)
+                        assert metrics['width']<=metrics['viewport']+1 and metrics['base'] not in ('transparent','rgba(0, 0, 0, 0)'),metrics
+                page.set_viewport_size(old_size)
+        for kind in ('receipt','payment'):
+            if employee:
+                page.evaluate("async kind=>{Agent.startVoucher(kind);await Agent.show('voucher')}",kind)
+            else:
+                page.evaluate("kind=>AppNav.navigate('voucher_form',{type:kind})",kind)
+            cancel=page.locator('.ta-agent-voucher-cancel' if employee else '.ta-voucher-cancel-action').first
+            cancel.wait_for(state='visible')
+            assert cancel.get_attribute('data-action-tone')=='negative',(theme,kind)
+            paint=cancel.evaluate('''e=>{
+                const style=getComputedStyle(e);
+                return {fill:style.backgroundImage+' '+style.backgroundColor, ink:style.webkitTextFillColor};
+            }''')
+            stops=[tuple(map(int,m)) for m in re.findall(r'rgb\((\d+), (\d+), (\d+)\)',paint['fill'])]
+            assert stops and all(r>1.4*g and r>1.2*b for r,g,b in stops),(theme,kind,paint)
+            assert paint['ink']=='rgb(255, 255, 255)',(theme,kind,paint)
+            capture(theme+'-voucher-'+kind)
+
     print('PASS themes/icons',root,flush=True)
     browser.close()
