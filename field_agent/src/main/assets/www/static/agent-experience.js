@@ -182,7 +182,41 @@ Agent.switchVoucherKind=function(kind){
  if(this.voucherKind===kind)return;
  if(document.getElementById('vAmount')?.value){this.confirmAction('تغيير نوع السند','تغيير نوع السند سيلغي البيانات المدخلة في النموذج.',()=>{this.voucherKind=kind;this.show('voucher');});return;}
  this.voucherKind=kind;this.show('voucher');};
+Agent.collectionToday=function(){
+ if(!this.can?.('balances'))return;
+ const today=this.defaultDate().slice(0,10),known=new Set(this.state.knownIds||[]);
+ const pending=(this.state.ops||[]).filter(o=>o.kind==='receipt' && !known.has(o.id));
+ const rows=[];
+ for(const account of this.state.accounts||[])for(const inv of account.collectionInvoices||[]){
+   const left=inv.remaining-pending.filter(o=>o.settlementInvoiceId===inv.id).reduce((t,o)=>t+Number(o.amount||0),0);
+   if(inv.dueDate<=today && left>0)rows.push({account,inv,left});
+ }
+ rows.sort((a,b)=>a.inv.dueDate.localeCompare(b.inv.dueDate));
+ const e=document.getElementById('screen');
+ e.innerHTML='<section class="panel"><h2>تحصيل اليوم والمتأخرات</h2>'+rows.map(({account,inv,left},i)=>'<button type="button" class="secondary" data-collect="'+i+'">'+this.escape(account.name+' · فاتورة '+inv.number+' · '+left+' '+inv.currency+' · '+inv.dueDate)+'</button>').join('')+(!rows.length?'<p>لا توجد استحقاقات ضمن آخر مزامنة.</p>':'')+'<button type="button" class="secondary" onclick="Agent.show(&quot;reports&quot;)">رجوع</button></section>';
+ for(const b of e.querySelectorAll('[data-collect]'))b.onclick=async()=>{
+   const {account,inv,left}=rows[Number(b.dataset.collect)];this.voucherKind='receipt';this.editingId=null;await this.show('voucher');
+   document.getElementById('vAcc').value=account.id;
+   if(document.getElementById('vCurrency').value!==inv.currency)this.toggleVoucherCurrency();
+   this.refreshCollectionChoices();document.getElementById('vInvoiceAllocation').value=inv.id;document.getElementById('vAmount').value=left;
+ };
+};
+Agent.refreshCollectionChoices=function(){
+ const select=document.getElementById('vInvoiceAllocation');if(!select)return;
+ const account=this.state.accounts.find(a=>a.id===document.getElementById('vAcc')?.value);
+ const currency=document.getElementById('vCurrency')?.value;
+ const selected=select.value || this.state.ops.find(o=>o.id===this.editingId)?.settlementInvoiceId;
+ const known=new Set(this.state.knownIds||[]);
+ const pending=(this.state.ops||[]).filter(o=>!known.has(o.id) && o.kind==='receipt' && o.id!==this.editingId);
+ const rows=(account?.collectionInvoices||[]).filter(i=>i.currency===currency).map(i=>({...i,remaining:i.remaining-pending.filter(o=>o.settlementInvoiceId===i.id).reduce((s,o)=>s+Number(o.amount||0),0)})).filter(i=>i.remaining>0);
+ select.innerHTML='<option value="">دفعة على الحساب</option>'+rows.map(i=>'<option value="'+this.escape(i.id)+'" data-remaining="'+Number(i.remaining)+'">'+this.escape('فاتورة '+i.number+' · '+i.remaining+' '+i.currency+' · '+i.dueDate)+'</option>').join('');
+ if(rows.some(i=>i.id===selected))select.value=selected;
+ select.onchange=()=>{if(select.value)document.getElementById('vAmount').value=select.selectedOptions[0].dataset.remaining;};
+};
+document.addEventListener('change',e=>{if(e.target.id==='vAcc')Agent.refreshCollectionChoices();});
+document.addEventListener('click',e=>{if(e.target.closest?.('#vCurrencyToggle'))Agent.refreshCollectionChoices();});
 Agent.renderVoucher=function(){
+ Promise.resolve().then(()=>this.refreshCollectionChoices());
  const k=this.voucherKind||'receipt';
  const editing=this.state.ops.find(o=>o.id===this.editingId&&['receipt','payment'].includes(o.kind));
  const currency=editing?.currency==='SYP'?'SYP':'USD';
@@ -191,6 +225,7 @@ Agent.renderVoucher=function(){
   <select id="vKind" class="hide"><option ${k==='receipt'?'selected':''} value="receipt">قبض</option><option ${k==='payment'?'selected':''} value="payment">دفع</option></select>
   <label class="label">العميل</label><div class="row"><select id="vAcc" class="field">${this.state.accounts.map(a=>`<option value="${this.escape(a.id)}">${this.escape(a.name)}</option>`).join('')}</select><button type="button" class="secondary" style="width:auto;margin:0;flex:0 0 auto" onclick="Agent.openCustomerForm('voucher')">+ زبون</button></div>
   <div class="row"><div><label class="label">التاريخ</label><input id="vDate" type="datetime-local" class="field" value="${this.defaultDate()}"></div><div><label class="label">عملة السند</label><input id="vCurrency" type="hidden" value="${currency}"><button id="vCurrencyToggle" type="button" class="field" style="cursor:pointer;border:2px solid #99f6e4;background:#f0fdfa;color:#115e59;font-weight:900;min-height:44px" onclick="Agent.toggleVoucherCurrency()" aria-label="تبديل عملة السند دون فتح قائمة"><span aria-hidden="true">🔄</span> <span class="agent-voucher-currency-label">${currency==='SYP'?'ليرة سورية (ل.س)':'دولار (USD)'}</span></button></div></div>
+  ${this.can?.('balances') && k==='receipt' ? '<label class="label">تخصيص الدفعة لفاتورة</label><select id="vInvoiceAllocation" class="field"><option value="">دفعة على الحساب</option></select>' : ''}
   <label class="label">المبلغ</label><input type="number" id="vAmount" class="field ltr" placeholder="0.00" min="0.01" step="any">
   <label class="label">البيان</label><textarea id="vNote" class="field" rows="2" placeholder="بيان السند (اختياري)"></textarea>
   </section>
@@ -220,8 +255,10 @@ Agent.saveVoucher=async function(){if(this.busy)return;this.busy=true;
   const currency=document.getElementById('vCurrency')?.value,accountId=document.getElementById('vAcc')?.value,
    amount=FieldProtocol.money(document.getElementById('vAmount')?.value,currency),kind=this.voucherKind;
   if(!accountId||amount<=0)throw Error('اختر العميل وأدخل مبلغًا صحيحًا');
+  const allocation=document.getElementById('vInvoiceAllocation'),settlementInvoiceId=allocation?.value||'';
+  if(settlementInvoiceId && amount>Number(allocation.selectedOptions[0]?.dataset.remaining))throw Error('المبلغ يتجاوز المتبقي على الفاتورة المحددة');
   const op={id:'op_'+FieldProtocol.uuid(),kind,companyId:this.state.companyId,agentId:this.state.agentId,warehouseId:this.state.warehouseId,
-   localNumber:this.nextLocalNumber('V'),date:new Date(document.getElementById('vDate')?.value||Date.now()).toISOString(),currency,exchangeRate:Number(this.state.exchangeRate),accountId,amount,note:String(document.getElementById('vNote')?.value||'').slice(0,200)};
+   settlementInvoiceId,localNumber:this.nextLocalNumber('V'),date:new Date(document.getElementById('vDate')?.value||Date.now()).toISOString(),currency,exchangeRate:Number(this.state.exchangeRate),accountId,amount,note:String(document.getElementById('vNote')?.value||'').slice(0,200)};
   FieldProtocol.validateOps([op],this.state.agentId,this.state.companyId,this.state.warehouseId,this.state.items,this.state.accounts);
   await this.appendOperation(op);this.toast('حُفظ السند محليًا');this.stack=['home','ops'];await this.show('ops');
  }catch(e){this.toast('لم يُحفظ السند: '+e.message);}finally{this.busy=false;}};
@@ -323,3 +360,4 @@ Agent.show=async function(route){
 };
 // Activate setup after the baseline app's initialization, preserving the IndexedDB namespace.
 })();
+

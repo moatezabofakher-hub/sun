@@ -55,10 +55,18 @@ with sync_playwright() as play:
             InvoiceController.renderForm(main,{id:old});
             if(InvoiceController.draft.id!==old)throw Error('Legacy invoice changed identity');
             InvoiceController.openInvoicePayment(old);
+            if(typeof FinanceDesk!=='undefined'){
+                const d=VoucherController.draft;
+                Object.assign(d,{amount:5,accountAmount:5,allocations:[{invoiceId:old,amount:5}]});
+                await VoucherController.saveVoucher();
+                const prior=State.invoices.find(i=>i.id===old);
+                if(FinanceDesk.remaining(prior)!==15 || prior.paidAmount!==0 || !State.vouchers.some(v=>v.allocations?.some(a=>a.invoiceId===old && a.amount===5)))throw Error('Allocated payment lost its invoice');
+            }else{
             document.getElementById('invoicePaymentAmount').value='5';
             await InvoiceController.saveInvoicePayment(old);
             const prior=State.invoices.find(i=>i.id===old);
             if(prior.paidAmount!==5 || prior.remainingAmount!==15 || prior.paymentHistory.length!==1)throw Error('Legacy payment lost its target');
+            }
             return {inv,row,voucher,modal,number:State.invoices.find(i=>i.id===inv).number};
         }"""))
         context.close()
@@ -70,3 +78,8 @@ for field,prefix in [('inv','inv_'),('row','r_'),('voucher','vch_'),('modal','vc
     assert results[0][field] != results[1][field]
 assert all(r['voucher'] != r['modal'] for r in results)
 print('PASS two independent installations with the same clock post distinct documents; old invoice payments retain their target')
+
+# Exercise the same built assets and browser as the identity test.
+if (Path(sys.argv[1])/'static/finance-operations.js').exists():
+    import subprocess
+    subprocess.run([sys.executable, str(Path(__file__).with_name('check_finance_desk.py')), sys.argv[1]], check=True)
