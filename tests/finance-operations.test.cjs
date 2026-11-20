@@ -44,3 +44,18 @@ test('cash counts keep currencies independent and due ages follow calendar days'
  assert.deepEqual(F.tillExpected({SYP:5000,USD:10},{SYP:3000,USD:5},{SYP:15000,USD:3}),{SYP:17000,USD:8});
  assert.equal(F.age({dueDate:'2026-03-31'},'2026-04-01'),1);
 });
+test('field receipt uses manager rates and remains idempotent after a phone-to-PC round trip',()=>{
+ const invoice=inv('office-sale','sale','2026-01-01',1,10,'USD');
+ const v={id:'v',type:'receipt',date:'2026-01-02',currency:'USD',accountCurrency:'USD',accountAmount:3,amount:3,exchangeRate:14000,accountId:'client',fieldOrigin:{operationId:'agent-op',agentId:'agent'}};
+ const state={invoices:[invoice],vouchers:[v],items:[],settings:{settleFxOnPayment:true},cashShifts:[{id:'till_office_1',scope:'office',sequence:1,opening:{SYP:0,USD:0}}]};
+ F.fieldPayments(state,[v],[{id:'agent-op',settlementInvoiceId:'office-sale'}],[]);
+ const peerPath=path.join(dir,'tiqany-peer-merge.js');
+ if(fs.existsSync(peerPath)){
+   const merge=require(peerPath), replica={settings:{}};
+   const snapshot=merge.snapshot(state);merge.apply(replica,snapshot);merge.apply(replica,snapshot);
+   assert.deepEqual(replica.cashShifts,state.cashShifts);assert.equal(replica.settings.settleFxOnPayment,true);
+   const book=F.settlements(replica);
+   assert.equal(book.balances.get(invoice.id),7);assert.equal(book.events[0].gainSyp,12000);
+ }
+ assert.throws(()=>F.fieldPayments(state,[{...v,accountId:'other'}],[{id:'agent-op',settlementInvoiceId:invoice.id}],[]));
+});

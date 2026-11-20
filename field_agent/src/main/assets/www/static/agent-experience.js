@@ -188,7 +188,7 @@ Agent.collectionToday=function(){
  const pending=(this.state.ops||[]).filter(o=>o.kind==='receipt' && !known.has(o.id));
  const rows=[];
  for(const account of this.state.accounts||[])for(const inv of account.collectionInvoices||[]){
-   const left=inv.remaining-pending.filter(o=>o.settlementInvoiceId===inv.id).reduce((t,o)=>t+Number(o.amount||0),0);
+   const left=inv.remaining-pending.filter(o=>o.settlementInvoiceId===inv.id || (o.linkedInvoiceOpId && 'field_'+o.linkedInvoiceOpId===inv.id)).reduce((t,o)=>t+Number(o.amount||0),0);
    if(inv.dueDate<=today && left>0)rows.push({account,inv,left});
  }
  rows.sort((a,b)=>a.inv.dueDate.localeCompare(b.inv.dueDate));
@@ -198,6 +198,7 @@ Agent.collectionToday=function(){
    const {account,inv,left}=rows[Number(b.dataset.collect)];this.voucherKind='receipt';this.editingId=null;await this.show('voucher');
    document.getElementById('vAcc').value=account.id;
    if(document.getElementById('vCurrency').value!==inv.currency)this.toggleVoucherCurrency();
+   if(document.getElementById('vCurrency').value!==inv.currency){this.toast('اختر عملة الفاتورة حسب صلاحياتك قبل تسجيل السند');return;}
    this.refreshCollectionChoices();document.getElementById('vInvoiceAllocation').value=inv.id;document.getElementById('vAmount').value=left;
  };
 };
@@ -208,7 +209,7 @@ Agent.refreshCollectionChoices=function(){
  const selected=select.value || this.state.ops.find(o=>o.id===this.editingId)?.settlementInvoiceId;
  const known=new Set(this.state.knownIds||[]);
  const pending=(this.state.ops||[]).filter(o=>!known.has(o.id) && o.kind==='receipt' && o.id!==this.editingId);
- const rows=(account?.collectionInvoices||[]).filter(i=>i.currency===currency).map(i=>({...i,remaining:i.remaining-pending.filter(o=>o.settlementInvoiceId===i.id).reduce((s,o)=>s+Number(o.amount||0),0)})).filter(i=>i.remaining>0);
+ const rows=(account?.collectionInvoices||[]).filter(i=>i.currency===currency).map(i=>({...i,remaining:i.remaining-pending.filter(o=>o.settlementInvoiceId===i.id || (o.linkedInvoiceOpId && 'field_'+o.linkedInvoiceOpId===i.id)).reduce((s,o)=>s+Number(o.amount||0),0)})).filter(i=>i.remaining>0);
  select.innerHTML='<option value="">دفعة على الحساب</option>'+rows.map(i=>'<option value="'+this.escape(i.id)+'" data-remaining="'+Number(i.remaining)+'">'+this.escape('فاتورة '+i.number+' · '+i.remaining+' '+i.currency+' · '+i.dueDate)+'</option>').join('');
  if(rows.some(i=>i.id===selected))select.value=selected;
  select.onchange=()=>{if(select.value)document.getElementById('vAmount').value=select.selectedOptions[0].dataset.remaining;};
