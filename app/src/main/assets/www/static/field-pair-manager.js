@@ -69,7 +69,7 @@
    if(this.pairingBusy||this.lanBusy||this.busy)return UI.toast('المزامنة أو حفظ البيانات قيد العمل؛ أعد الموافقة بعد اكتمالها','warn');
    const session=this.pairingRequests.get(id),agentId=document.getElementById('pairAgent_'+id)?.value;
    const a=this.data().agents.find(x=>x.id===agentId&&!x.archived&&!x.disabled);
-   if(!session||!a)return UI.toast('اختر موظف بيعاً مسجلاً أولاً','warn');
+   if(!session||!a)return UI.toast('اختر أحد موظفي البيع المسجّلين أولاً','warn');
    if(session.status!=='pending'||Date.now()-session.createdAt>lifetime)return UI.toast('طلب الربط غير صالح أو انتهت مدته','warn');
    const profile=typeof ProfileManager!=='undefined'?ProfileManager.activeId:null;
    const protectedAddition=State.settings.appProtection?.protectDeviceAddition===true;
@@ -91,7 +91,7 @@
    if(this.pairingBusy||this.lanBusy||this.busy)return UI.toast('جارٍ حفظ عملية أخرى، أعد المحاولة','warn');
    const session=this.pairingRequests.get(id);
    const cfg=this.data(),a=cfg.agents.find(x=>x.id===agentId&&!x.archived&&!x.disabled);
-   if(!session||!a)return UI.toast('اختر موظف بيعاً مسجلاً أولاً','warn');
+   if(!session||!a)return UI.toast('اختر أحد موظفي البيع المسجّلين أولاً','warn');
    if(State.settings.appProtection?.protectDeviceAddition===true&&!TiqanyEmployeeAuth.valid(a.employeeAuth))return UI.toast('عيّن كلمة سر الموظف أولاً من تعديل الموظف قبل الموافقة على الربط','warn');
    if(Date.now()-session.createdAt>lifetime)return UI.toast('انتهت صلاحية الطلب، أعد الربط من جهاز موظف البيع','warn');
    if(session.status!=='pending')return;

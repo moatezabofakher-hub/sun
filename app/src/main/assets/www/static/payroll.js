@@ -90,6 +90,17 @@ const Payroll = (() => {
         UI.toast('تم الحفظ','success');
         return true;
     }
+    function salarySummary(employee, terms, rows, day) {
+        if (!terms?.cycle) return employee.name+' · لم يُحدَّد الراتب';
+        const [start,end]=period(terms.cycle,day);
+        const posted=rows.find(row=>row.payroll.kind==='salary' && row.payroll.start<=day && row.payroll.end>=day);
+        const current=posted?.payroll || terms;
+        const currency=posted?.currency || terms.currency;
+        const balance=settlement(rows,employee.id,currency,posted?.payroll.start || start,posted?.payroll.end || end,current.gross,posted?.id);
+        const remaining=Accounting.round(balance.net-(posted?.amount || 0),currency);
+        const status=remaining<0?'مدفوع مقدماً':posted?'المتبقي':'صافي المستحق';
+        return employee.name+' · '+status+' '+Accounting.format(Math.abs(remaining),currency);
+    }
     function render(main, params={}) {
         const {section,employeeId}=params;
         if (!Object.hasOwn(labels,section)) {
@@ -102,7 +113,22 @@ const Payroll = (() => {
         const employee=employees.find(s=>s.id===employeeId);
         UI.setHeader(labels[section],esc(employee?.name||'اختر الموظف'));
         if (!employee) {
-            main.innerHTML=layout('<div class="pay-grid">'+employees.map(s=>button(s.name,'data-staff="'+esc(s.id)+'"','user')).join('')+'</div>'+
+            const names=new Map(employees.map(person=>[person.id,person.name]));
+            if (section==='salary') {
+                const rowsByEmployee=new Map();
+                for (const row of State.expenses || []) {
+                    if (!row.payroll) continue;
+                    const id=row.payroll.employeeId;
+                    if (!rowsByEmployee.has(id)) rowsByEmployee.set(id,[]);
+                    rowsByEmployee.get(id).push(row);
+                }
+                const termsByEmployee=new Map(directory().map(person=>[person.id,person]));
+                const day=today();
+                for (const employee of employees) {
+                    names.set(employee.id,salarySummary(employee,termsByEmployee.get(employee.id),rowsByEmployee.get(employee.id)||[],day));
+                }
+            }
+            main.innerHTML=layout('<div class="pay-grid">'+employees.map(s=>button(names.get(s.id),'data-staff="'+esc(s.id)+'"','user')).join('')+'</div>'+
                 (!employees.length?'<p>لا يوجد موظفون مسجّلون بعد.</p>':'')+
                 (typeof AgentHub==='undefined'?'<form>'+field('اسم الموظف','<input id="pay-name" required maxlength="100" autocomplete="off">')+'<button type="submit" class="ta-report-deep-action rounded-xl p-3">إضافة موظف</button></form>':''));
             main.querySelectorAll('[data-staff]').forEach(b=>b.onclick=()=>go({section,employeeId:b.dataset.staff}));

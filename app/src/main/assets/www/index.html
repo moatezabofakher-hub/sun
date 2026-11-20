@@ -4095,7 +4095,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 y += 4;
                 drawDoubleSep();
 
-                // 4. 5-Column Table Header (# | اسم المادة | الوحدة | الكمية | الإفرادي | الاجمالي)
+                // 4. 5-Column Table Header (# | اسم المادة | الوحدة | الكمية | الإفرادي | الإجمالي)
                 if(typeof TiqanyThermalTable152!=='undefined' && TiqanyThermalTable152?.draw){
                     y=TiqanyThermalTable152.draw(ctx,inv,widthDots,y,pad,scale,State.settings.taPrintFields||{},{
                      qty:v=>Accounting.formatItemQuantity(v),
@@ -4121,7 +4121,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 if(State.settings.taPrintFields?.quantity !== false) ctx.fillText('الكمية', xQty, y);
                 if(State.settings.taPrintFields?.price !== false) ctx.fillText('الإفرادي', xPrice, y);
                 ctx.textAlign = 'left';
-                if(State.settings.taPrintFields?.total !== false) ctx.fillText('الاجمالي', xTotal, y);
+                if(State.settings.taPrintFields?.total !== false) ctx.fillText('الإجمالي', xTotal, y);
                 y += fTableHead + 6;
 
                 // Dashed Sub-header Underlines
@@ -5409,7 +5409,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                             ==============================
                         </div>
 
-                        <!-- 4. Items Table (# | اسم المادة | الوحدة | الكمية | الإفرادي | الاجمالي) -->
+                        <!-- 4. Items Table (# | اسم المادة | الوحدة | الكمية | الإفرادي | الإجمالي) -->
                         <div class="w-full my-1">
                             <table class="ta-enh-print-grid w-full text-black border-collapse text-xs sm:text-sm">
                                 <thead>
@@ -5419,7 +5419,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                                         <th class="py-1 text-center w-[15%]">الوحدة</th>
                                         <th class="py-1 text-center w-[11%]">الكمية</th>
                                         <th class="py-1 text-center w-[17%]">الإفرادي</th>
-                                        <th class="py-1 text-left w-[17%]">الاجمالي</th>
+                                        <th class="py-1 text-left w-[17%]">الإجمالي</th>
                                     </tr>
                                     <tr class="font-mono text-[10px] sm:text-xs leading-none text-black select-none">
                                         <th class="pb-1.5 text-right">--</th>

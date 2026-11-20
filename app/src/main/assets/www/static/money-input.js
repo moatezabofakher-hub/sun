@@ -11,7 +11,7 @@
         if (!(el instanceof HTMLInputElement) || !['text','number','tel'].includes(el.type)) return false;
         if (el.hasAttribute('data-money')||el.hasAttribute('data-count')||el.hasAttribute('data-allocation')||el.hasAttribute('data-cost-id')) return true;
         const handler=[el.getAttribute('oninput'),el.getAttribute('onchange')].join(' ');
-        return ids.test(el.id)||/(?:updatePrice|(?:discount|tax)Value|draft\.(?:amount|exchangeRate)|['"](?:price|costPrice|salePrice)['"])/i.test(handler);
+        return ids.test(el.id)||/(?:updatePrice|(?:discount|tax)Value|draft\.(?:amount|exchangeRate)|['"](?:price|costPrice|salePrice|discount|purchaseAddAmount)['"])/i.test(handler);
     }
     function prepare(el){
         if(prepared.has(el)||!monetary(el))return;
