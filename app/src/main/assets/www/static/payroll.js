@@ -61,16 +61,16 @@ const Payroll = (() => {
     function bindForm(main, save) {
         const form=main.querySelector('form');
         let saving=false;
-        const submit=async()=>{
+        const submit=async(fromButton)=>{
             if (saving || !form.reportValidity()) return false;
             saving=true;
             const control=form.querySelector('[type=submit]');control.disabled=true;
-            try { return await save(); }
+            try { return await save(fromButton); }
             catch(e){UI.toast(e.message || 'تعذر حفظ العملية','error');return false;}
             finally{saving=false;control.disabled=false;}
         };
-        form.onsubmit=e=>{e.preventDefault();void submit();};
-        form.oninput=()=>AppNav.markDirty(submit);
+        form.onsubmit=e=>{e.preventDefault();void submit(true);};
+        form.oninput=()=>AppNav.markDirty(()=>submit(false));
         main.querySelector('[data-cancel]').onclick=cancel;
     }
     async function persist(key, record, freshOperation=false) {
@@ -128,14 +128,14 @@ const Payroll = (() => {
             field('عدد أيام العمل','<input type="number" id="pay-days" min="1" step="1" max="'+maxDays(cycle,year)+'" required value="'+esc(old?.days??'')+'">')+saveBar()+'</form>');
         const select=main.querySelector('#pay-cycle'), days=main.querySelector('#pay-days');
         select.onchange=()=>days.max=maxDays(select.value,year);
-        bindForm(main,async()=>{
+        bindForm(main,async(fromButton)=>{
             if(revision(employee.id)!==original)throw Error('تغيّر سجل الموظف. افتح الصفحة من جديد');
             const raw=Number(main.querySelector('#pay-gross').value);
             const gross=Accounting.round(raw,currency);
             if(!Number.isFinite(raw)||gross<=0||gross>1e15)throw Error('أدخل راتباً موجباً صحيحاً');
             if(!Number.isInteger(days.valueAsNumber)||days.valueAsNumber<1||days.valueAsNumber>maxDays(select.value,year))throw Error('عدد أيام العمل يتجاوز حدود الفترة');
             const saved=await persist('payrollStaff',{id:employee.id,name:employee.name,cycle:select.value,days:days.valueAsNumber,gross,currency});
-            if(saved)cancel();return saved;
+            if(saved&&fromButton)cancel();return saved;
         });
     }
     function operations(main, employee, kind, params, profile) {
@@ -172,7 +172,7 @@ const Payroll = (() => {
         };
         date.onchange=preview;preview();openEdits();
         const original=revision(employee.id);
-        bindForm(main,async()=>{
+        bindForm(main,async(fromButton)=>{
             if(revision(employee.id)!==original)throw Error('تغيّر سجل الموظف. افتح الصفحة من جديد');
             const raw=Number(input.value), amount=Accounting.round(raw,currency);
             if(!date.value || input.value.trim()===''||!Number.isFinite(raw)||amount<0||amount>1e15||(amount===0&&kind!=='salary'))throw Error('أدخل مبلغاً صحيحاً');
@@ -182,7 +182,7 @@ const Payroll = (() => {
             const row={...old,id,amount,currency,category:categories[kind],date:date.value,note:employee.name,
                 exchangeRate:old?.exchangeRate||Number(State.settings.exchangeRate)||1,payroll,updatedAt:new Date().toISOString()};
             const saved=await persist('expenses',row,!old);
-            if(saved){if(old)cancel();else render(main,params);}
+            if(saved&&fromButton){if(old)cancel();else render(main,params);}
             return saved;
         });
     }

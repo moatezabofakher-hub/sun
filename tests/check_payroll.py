@@ -25,24 +25,26 @@ with sync_playwright() as pw:
  assert page.locator('#pay-gross').evaluate(visual)=='250,000'
  assert page.locator('#pay-gross').evaluate('e=>e.value')=='250000'
  page.locator('#pay-days').fill('25');page.get_by_role('button',name='حفظ',exact=True).click()
- page.wait_for_function('State.payrollStaff.some(x=>x.gross===250000)')
+ page.locator('[data-staff]').first.wait_for()
+ page.wait_for_function('!AppNav.isDirty && State.payrollStaff.some(x=>x.gross===250000)')
  def nav(section,record=None):
   page.evaluate("p=>AppNav.navigate('payroll',p)",{'section':section,'employeeId':emp,'recordId':record or ''})
  def pay(section,day,amount):
   nav(section);page.locator('#pay-date').fill(day);page.locator('#pay-amount').fill(str(amount));page.get_by_role('button',name='حفظ',exact=True).click()
+  page.locator('[data-edit]').first.wait_for()
  pay('advance','2026-10-01',50000)
- page.wait_for_function("State.expenses.some(x=>x.payroll?.kind==='advance')")
+ page.wait_for_function("!AppNav.isDirty && State.expenses.some(x=>x.payroll?.kind==='advance')")
  nav('salary');page.locator('#pay-date').fill('2026-10-30');assert page.locator('#pay-amount').evaluate('e=>e.value')=='200000'
  page.locator('#pay-amount').fill('100000');page.get_by_role('button',name='حفظ',exact=True).click()
- page.wait_for_function("State.expenses.some(x=>x.payroll?.kind==='salary')")
+ page.wait_for_function("!AppNav.isDirty && State.expenses.some(x=>x.payroll?.kind==='salary')")
  nav('salary');page.locator('#pay-date').fill('2026-11-25');assert page.locator('#pay-amount').evaluate('e=>e.value')=='350000'
  page.get_by_role('button',name='إلغاء',exact=True).click()
  adv=page.evaluate("State.expenses.find(x=>x.payroll?.kind==='advance').id")
  nav('advance',adv);page.locator('#pay-amount').fill('60000');page.get_by_role('button',name='حفظ',exact=True).click()
- page.wait_for_function("State.expenses.find(x=>x.payroll?.kind==='advance').amount===60000")
+ page.wait_for_function("!AppNav.isDirty && State.expenses.find(x=>x.payroll?.kind==='advance').amount===60000")
  nav('salary');page.locator('#pay-date').fill('2026-11-25');assert page.locator('#pay-amount').evaluate('e=>e.value')=='340000'
  page.get_by_role('button',name='إلغاء',exact=True).click()
- pay('bonus','2026-11-01',1000);page.wait_for_function("State.expenses.some(x=>x.category==='مكافأة ممنوحة')")
+ pay('bonus','2026-11-01',1000);page.wait_for_function("!AppNav.isDirty && State.expenses.some(x=>x.category==='مكافأة ممنوحة')")
  assert page.evaluate("State.expenses.length") == 3
  page.reload()
  page.wait_for_function("typeof State!=='undefined' && State.payrollStaff?.some(x=>x.gross===250000)")
