@@ -411,6 +411,7 @@ with sync_playwright() as playwright:
         assert remove.bounding_box()['x']+remove.bounding_box()['width']<=unit.bounding_box()['x']+1
     unit.select_option('كرتونة')
     page.wait_for_function("employee=>(employee?Agent.draft:InvoiceController.draft.rows)[0].unitName==='كرتونة'",arg=employee)
+    line.evaluate("e=>e.scrollIntoView({block:'center',behavior:'instant'})")
     capture('petrol-pos-row')
     remove.click()
     page.wait_for_function("employee=>(employee?Agent.draft:InvoiceController.draft.rows).length===0",arg=employee)

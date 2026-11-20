@@ -824,7 +824,25 @@ html[data-ta-theme="petrol"] body.ta-invoice-editor-screen #mainContent .ta-invo
 html[data-ta-theme="petrol"] body #screen :is(.ta-agent-pos-footer,.ta-agent-invoice-save-footer) {
   background:#123c3d!important;border-color:var(--ta-copper)!important;
 }
-html[data-ta-theme="petrol"] body #screen .ta-agent-pos-footer-actions button {
+html[data-ta-theme="petrol"] body #screen .ta-agent-pos-actions button {
   background:var(--ta-positive)!important;color:#fff!important;-webkit-text-fill-color:white!important;
+}
+
+html[data-ta-theme="petrol"] body :is(#mainContent,#screen) :is(.pos-meta > div,.pos-grid-panel,.agent-pos-meta,.agent-pos-cart) {
+  background:var(--ta-paper)!important;color:var(--ta-ink)!important;border-color:#c5a385!important;
+}
+html[data-ta-theme="petrol"] body :is(#mainContent,#screen) :is(.agent-pos-actions button,.pos-switch,.pos-search button,.ta-invoice-currency-choice) {
+  background:var(--ta-petrol)!important;color:#fff!important;-webkit-text-fill-color:#fff!important;border-color:var(--ta-copper)!important;text-shadow:none!important;
+}
+html[data-ta-theme="petrol"] body :is(#mainContent,#screen) :is(.ta-quick-pos,.ta-home-pos,.ta-employee-pos) img.ta-operation-art {
+  border-radius:16%;outline:1px solid #c69168;outline-offset:1px;object-fit:contain;
+}
+
+#screen .grid > button.ta-employee-pos {
+  display:flex!important;flex-direction:column;align-items:center!important;justify-content:center!important;
+  text-align:center!important;gap:.55rem;
+}
+#screen .grid > button.ta-employee-pos .glyph {
+  width:clamp(70px,23vw,118px)!important;height:clamp(70px,23vw,118px)!important;margin:0!important;
 }
 }
