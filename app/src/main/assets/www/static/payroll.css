@@ -1,0 +1,7 @@
+.pay-page {max-width:48rem;margin-inline:auto;padding:0.5rem;}
+.pay-grid,.pay-list {display:grid;gap:.65rem;grid-template-columns:repeat(auto-fit,minmax(min(14rem,100%),1fr));}
+.pay-page form {display:grid;gap:1rem;padding:1rem;border:1px solid currentColor;border-radius:1rem;}
+.pay-field {display:grid;gap:.3rem;font-weight:bold;}
+.pay-field input,.pay-field select {padding:.65rem;border-radius:.6rem;border:1px solid #64748b;background:#fff;color:#172438;width:100%;}
+.pay-actions {display:flex;gap:.6rem;}.pay-actions>* {flex:1;}
+#pay-calculation p {display:flex;justify-content:space-between;gap:.5rem;}

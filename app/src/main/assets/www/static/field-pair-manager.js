@@ -16,7 +16,7 @@
      <div class="font-bold text-sm">📱 جهاز موظف بيع جديد <span class="text-[10px] text-slate-500">${this.escape(r.deviceId.slice(-8))}</span></div>
      <p class="text-xs text-slate-600">قارن رقم الأمان الظاهر هنا بالرقم على هاتف موظف البيع، ولا توافق إذا كان مختلفاً.</p>
      <div class="text-center text-2xl font-black tracking-[.3em] bg-slate-50 rounded-xl p-2" dir="ltr">${r.code}</div>
-     <p class="text-[11px] text-amber-800">عند تفعيل جهاز بديل للموظف بيع نفسه يتوقف اتصال الجهاز السابق؛ زامن فواتيره غير المرحّلة قبل الاستبدال.</p>
+     <p class="text-[11px] text-amber-800">عند تفعيل جهاز بديل لموظف البيع نفسه يتوقف اتصال الجهاز السابق؛ زامن فواتيره غير المرحّلة قبل الاستبدال.</p>
      ${r.status==='approved'?'<p class="text-sm font-bold text-teal-700">✅ تمت الموافقة. جارٍ تسليم بيانات التفعيل إلى الهاتف…</p>':
      `<div class="flex gap-2"><button type="button" class="ta-primary-3d p-2" onclick="FieldSync.showCreateAgent()">إنشاء موظف جديد</button><button type="button" class="ta-primary-3d p-2" onclick="UI.forceCloseModal();AppNav.navigate('warehouses',{action:'add'})">إنشاء مستودع</button></div><select id="pairAgent_${r.id}" class="w-full border rounded-xl p-3 text-sm"><option value="">اختر موظف البيع المسجّل</option>${agents.map(a=>`<option value="${a.id}">${this.escape(a.name)} · ${this.escape(a.vehicleName||'')}${a.pairedDeviceId?' (استبدال جهاز قديم)':''}</option>`).join('')}</select>
       <button type="button" class="ta-primary-3d w-full p-3 rounded-xl font-black" onclick="FieldSync.approvePairing('${r.id}')">✓ مطابقة الرقم والموافقة على الربط</button>

@@ -439,7 +439,7 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
       if(this.pending)return reject(Error(t("هناك اتصال قيد التنفيذ","A connection is already active")));
       const timer=setTimeout(()=>{this.pending=null;reject(Error(t("انتهت مهلة الاتصال بالكمبيوتر","Connection to the computer timed out")));},message.action==='stream'?150000:43000);
       this.pending={resolve,reject,timer};
-      try{AndroidPeerSync.request(JSON.stringify({protocol:'TIQANY-PEER-1',appVersion:'3.5.156',...message}));}
+      try{AndroidPeerSync.request(JSON.stringify({protocol:'TIQANY-PEER-1',appVersion:'3.5.157',...message}));}
       catch(e){clearTimeout(timer);this.pending=null;reject(e);}
   });},
   async sync(silent=false){
@@ -461,7 +461,7 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
         phoneCompanyUid:outgoingUid,phoneEmpty,knownServerId:existingBase?.serverId||'',
         knownServerProfileId:existingBase?.serverProfileId||''},existingBase);
       if(!fetched.ok){if(fetched.code==='SYNC_BUSY'){this.message('الكمبيوتر مشغول بمزامنة أخرى، ستجري إعادة المحاولة.',false);return false;}throw Error(fetched.error||t('فشل قراءة بيانات الكمبيوتر','Could not read data from the computer'));}
-      if(fetched.appVersion!=='3.5.156')throw Error('اختلاف إصدار التطبيقات: يجب تحديث جميع الأجهزة إلى الإصدار 3.5.156 قبل الاتصال أو المزامنة. لم تُنقل أي بيانات.');
+      if(fetched.appVersion!=='3.5.157')throw Error('اختلاف إصدار التطبيقات: يجب تحديث جميع الأجهزة إلى الإصدار 3.5.157 قبل الاتصال أو المزامنة. لم تُنقل أي بيانات.');
       if(!fetched.snapshot||!fetched.ticket||!fetched.serverId)throw Error(t("رد غير مكتمل من الكمبيوتر","Incomplete response from computer"));
       const saved=existingBase;
       if(!desktop&&window.AndroidPeerSync?.bindServerId&&!(AndroidPeerSync.bindServerId(fetched.serverId)))
@@ -604,15 +604,15 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
     const {requestId,data}=request;
     const reply=respond || (x=>WindowsPeerSync.reply(requestId,x));
     try{
-      if(data?.appVersion!=='3.5.156'){
-        const warning='اختلاف إصدار التطبيقات: يجب تحديث جميع الأجهزة إلى الإصدار 3.5.156 قبل الاتصال أو المزامنة. لم تُنقل أي بيانات.';
+      if(data?.appVersion!=='3.5.157'){
+        const warning='اختلاف إصدار التطبيقات: يجب تحديث جميع الأجهزة إلى الإصدار 3.5.157 قبل الاتصال أو المزامنة. لم تُنقل أي بيانات.';
         if(Date.now()-(this.lastVersionMismatchNotice||0)>60000){this.lastVersionMismatchNotice=Date.now();
           try{await ManagerNotifications.addSyncNotice(warning);}catch(_){/* displayed regardless of notification storage */}
         }
         this.message(warning,true);
-        return reply({ok:false,code:'APP_VERSION_MISMATCH',appVersion:'3.5.156',error:warning});
+        return reply({ok:false,code:'APP_VERSION_MISMATCH',appVersion:'3.5.157',error:warning});
       }
-      if(data.action==='probe')return reply({ok:true,appVersion:'3.5.156',serverId:this.server?.serverId,version:core.digest(this.snapshot())});
+      if(data.action==='probe')return reply({ok:true,appVersion:'3.5.157',serverId:this.server?.serverId,version:core.digest(this.snapshot())});
       if(this.busy)return reply({ok:false,code:'SYNC_BUSY',error:'الكمبيوتر ينفذ مزامنة أخرى الآن، ستتم إعادة المحاولة تلقائيًا'});
       if(this.blocked())return reply({ok:false,code:'UNSAVED_EDIT',error:this.blockReason()});
       if(data.action==='fetch'){
@@ -636,7 +636,7 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
           adoptDesktop:desktopEmpty&&data.phoneEmpty===false&&!knownLink,phoneEmptyClaim:data.phoneEmpty===true,
           profileId:ProfileManager.activeId,phoneProfileId:data.phoneProfileId,phoneCompanyUid:data.phoneCompanyUid,companyUid:desktopUid,resolutionSnapshot:core.canonical(conflictResolutions),resolvedSnapshot:core.canonical(resolvedReceipts),linkId,created:Date.now()});
         for(const [k,v] of this.locks)if(Date.now()-v.created>60000)this.locks.delete(k);
-        return reply({ok:true,appVersion:'3.5.156',ticket,snapshot,desktopEmpty,sourceProvision,companyName:State.settings.companyName,
+        return reply({ok:true,appVersion:'3.5.157',ticket,snapshot,desktopEmpty,sourceProvision,companyName:State.settings.companyName,
           companyUid:desktopUid,profileId:ProfileManager.activeId,serverId:this.server?.serverId,conflictResolutions,resolvedReceipts});
       }
       if(data.action==='report-conflicts'){
@@ -763,7 +763,7 @@ const peer={busy:false,pending:null,server:null,locks:new Map(),last:'',approved
       const now=Date.now(), manager=window.TiqanyManagerSync;
       const seen=Math.max(manager?.lastClient||0,manager?.lastServer||0);
       const reply=await this.call({action:'probe',managerPhoneLinked:seen>0 && now-seen<20000,presenceCompany:this.companyUid()});
-      if(reply.appVersion!=='3.5.156')throw Error('اختلاف إصدار التطبيقات: يجب تحديث جميع الأجهزة إلى الإصدار 3.5.156 قبل الاتصال أو المزامنة. لم تُنقل أي بيانات.');
+      if(reply.appVersion!=='3.5.157')throw Error('اختلاف إصدار التطبيقات: يجب تحديث جميع الأجهزة إلى الإصدار 3.5.157 قبل الاتصال أو المزامنة. لم تُنقل أي بيانات.');
       if(!reply.ok||typeof reply.version!=='string'||reply.serverId!==link.serverId)throw Error('تعذر التحقق من هوية الكمبيوتر');
       this.probeFailures=0;this.nextProbeAt=0;this.lastSuccessfulAt=Date.now();this.recovered('transport');
       if(reply.version!==this.lastRemoteVersion){this.lastRemoteVersion=reply.version;

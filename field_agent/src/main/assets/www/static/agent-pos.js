@@ -27,7 +27,7 @@ A.renderSettings=function(){
 A.savePosSettings=async function(){
   const account=document.getElementById('agentPosAccount')?.value||'';
   const tier=document.getElementById('agentPosTier')?.value||'account';
-  if(account && !(this.state.accounts||[]).some(a=>String(a.id)===account))return this.toast('حساب غير متاح للموظف بيع');
+  if(account && !(this.state.accounts||[]).some(a=>String(a.id)===account))return this.toast('حساب غير متاح لموظف البيع');
   if(tier!=='account'&&!this.pricingModes().some(m=>m.id===tier))return;
   const oldA=this.state.posAccountId,oldT=this.state.posPriceTier,oldH=this.state.posScanFromHome,oldN=this.state.posAutoNextOnFinish;
   this.state.posAccountId=account;this.state.posPriceTier=tier;this.state.posScanFromHome=document.getElementById('agentPosHomeScan')?.checked===true;

@@ -19,7 +19,7 @@ const AgentHub = {
   openActivity(view,agentId){if(!this.agent(agentId))return UI.toast('موظف البيع غير موجود','warn');AppNav.navigate('agent_activity',{agentId,view,period:'all'});},
   transfer(agentId,direction){
     const a=this.agent(agentId);if(!a||a.archived||a.disabled)return UI.toast('موظف البيع غير متاح للمناقلة','warn');
-    if(a.warehouseId==='wh_main'||!State.warehouses.some(w=>w.id===a.warehouseId))return UI.toast('يجب تخصيص مستودع مستقل للموظف بيع قبل المناقلة','warn');
+    if(a.warehouseId==='wh_main'||!State.warehouses.some(w=>w.id===a.warehouseId))return UI.toast('يجب تخصيص مستودع مستقل لموظف البيع قبل المناقلة','warn');
     AppNav.navigate('warehouses',{action:'transfer',transferAgentId:a.id,transferDirection:direction});
   },
   activityRecords(a,view){
@@ -33,7 +33,7 @@ const AgentHub = {
     if(['all','transfers'].includes(view))for(const x of FieldCash.employeeWarehouseDocuments(a))
       add('مناقلة مواد',x.id,x.date,x.lines.length+' أصناف',x.fromName+' ← '+x.toName,x.id);
     if(view==='all')for(const x of (State.fieldSync?.cashTransfers||[]))if(x.agentId===a.id)
-      add(x.direction==='toAgent'?'دفعة للموظف بيع':'دفعة من موظف البيع',x.id,x.date,Accounting.format(Number(x.amount||0),x.currency),x.note||'حركة نقدية',x.id);
+      add(x.direction==='toAgent'?'دفعة لموظف البيع':'دفعة من موظف البيع',x.id,x.date,Accounting.format(Number(x.amount||0),x.currency),x.note||'حركة نقدية',x.id);
     return ops.sort((x,y)=>y.date.localeCompare(x.date)||y.ref.localeCompare(x.ref));
   },
   render(main,params={}){
@@ -52,6 +52,7 @@ const AgentHub = {
         <span class="text-sm font-bold" id="fieldConnectedCountInButton" aria-live="polite">(${FieldSync.connectedCount()})</span>
       </button>
       <button type="button" class="w-full rounded-2xl border border-emerald-200 bg-emerald-700 text-white p-6 flex flex-col items-center gap-3 font-black" onclick="AgentHub.choose()"><i class="fas fa-users text-3xl"></i><span>اختيار موظف البيع</span><span class="text-xs font-medium opacity-90">${this.agents().filter(a=>!a.archived).length} موظف بيع فعّال</span></button>
+      <button type="button" class="ta-agent-hub-manage w-full rounded-2xl p-4 font-extrabold" onclick="AppNav.navigate('payroll')"><i class="fas fa-money-check ml-2" aria-hidden="true"></i>أجور الموظفين</button>
       <div class="pt-2"><button type="button" class="ta-agent-hub-manage w-full rounded-2xl p-4 font-extrabold" onclick="FieldSync.open()"><i class="fas fa-users ml-2 text-lg" aria-hidden="true"></i>إدارة موظفي البيع والمزامنة المحلية</button></div>
     </div>`;
     FieldSync.refreshConnectedBadge();
@@ -66,7 +67,7 @@ const AgentHub = {
         ${icon('truck-ramp-box','مناقلة إلى مستودعه',`AgentHub.transfer('${id}','toAgent')`,'bg-sky-50')}
         ${icon('truck','مناقلة من مستودعه',`AgentHub.transfer('${id}','fromAgent')`,'bg-sky-50')}
         ${icon('hand-holding-dollar','استلام دفعة من موظف البيع',`FieldCash.openTransfer('fromAgent','${id}')`,'bg-emerald-50')}
-        ${icon('money-bill-transfer','إعطاء دفعة للموظف بيع',`FieldCash.openTransfer('toAgent','${id}')`,'bg-emerald-50')}
+        ${icon('money-bill-transfer','إعطاء دفعة لموظف البيع',`FieldCash.openTransfer('toAgent','${id}')`,'bg-emerald-50')}
         ${icon('money-bill-transfer','الصندوق والحركات',`AgentHub.openActivity('cash','${id}')`,'bg-teal-50')}
         ${icon('file-contract','جميع العمليات',`AgentHub.openActivity('all','${id}')`)}
         ${icon('file-invoice','فواتير موظف البيع',`AgentHub.openActivity('invoices','${id}')`)}

@@ -1624,7 +1624,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
             transfers: [],
             expenses: [],
             capitalMovements: [],
-            shareholderOwners: [], shareholderMovements: [], cashShifts: [], currencyExchanges: [],
+            shareholderOwners: [], shareholderMovements: [], payrollStaff: [], cashShifts: [], currencyExchanges: [],
             fieldSync: {companyId:'',agents:[],imported:[],events:[]},
             alertCenter: { entries: [], seenImportIds: null, stockLevels: null }
         };
@@ -1754,7 +1754,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                             State.capitalMovements = Array.isArray(d.capitalMovements) ? d.capitalMovements : [];
                             State.shareholderOwners = Array.isArray(d.shareholderOwners) ? d.shareholderOwners : [];
                             State.shareholderMovements = Array.isArray(d.shareholderMovements) ? d.shareholderMovements : [];
-                            State.currencyExchanges = Array.isArray(d.currencyExchanges) ? d.currencyExchanges : []; State.cashShifts=Array.isArray(d.cashShifts)?d.cashShifts:[];
+                            State.currencyExchanges = Array.isArray(d.currencyExchanges) ? d.currencyExchanges : []; State.payrollStaff=Array.isArray(d.payrollStaff)?d.payrollStaff:[]; State.cashShifts=Array.isArray(d.cashShifts)?d.cashShifts:[];
                             State.alertCenter = d.alertCenter || {entries:[],seenImportIds:null,stockLevels:null};
                             if (!State.warehouses.some(w => w.id === State.settings.selectedWarehouseId))
                                 State.settings.selectedWarehouseId = 'wh_main';
@@ -1801,7 +1801,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                             capitalMovements: State.capitalMovements,
                             shareholderOwners: State.shareholderOwners,
                             shareholderMovements: State.shareholderMovements,
-                            cashShifts: State.cashShifts, currencyExchanges: State.currencyExchanges,
+                            payrollStaff: State.payrollStaff, cashShifts: State.cashShifts, currencyExchanges: State.currencyExchanges,
                             alertCenter: State.alertCenter
                         }
                     });
@@ -1832,7 +1832,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 State.transfers = [];
                 State.expenses = [];
                 State.capitalMovements = [];
-                State.shareholderOwners = []; State.shareholderMovements = []; State.currencyExchanges = []; State.cashShifts=[];
+                State.shareholderOwners = []; State.shareholderMovements = []; State.currencyExchanges = []; State.payrollStaff=[]; State.cashShifts=[];
                 State.settings.shareholderDistribution = {values:{}};
                 State.alertCenter = {entries:[],seenImportIds:null,stockLevels:null};
                 State.settings.selectedWarehouseId = 'wh_main';
@@ -2029,7 +2029,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                         {id:'profile_registry',data:registry}
                     ]);
                     this.registry=registry;this.activeId=id;
-                    for(const key of ['settings','categories','items','accounts','invoices','vouchers','warehouses','transfers','expenses','capitalMovements','shareholderOwners','shareholderMovements','currencyExchanges','cashShifts','fieldSync','alertCenter'])
+                    for(const key of ['settings','categories','items','accounts','invoices','vouchers','warehouses','transfers','expenses','capitalMovements','shareholderOwners','shareholderMovements','currencyExchanges','cashShifts','payrollStaff','fieldSync','alertCenter'])
                         State[key]=JSON.parse(JSON.stringify(newState[key]??DEFAULT_PROFILE[key]));
                     State.license=commonLicense;
                     if(typeof SettingsRevisionClock!=='undefined')SettingsRevisionClock.remember(State.settings);
@@ -2112,7 +2112,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                         {id:'profile_registry',data:updated}
                     ],[profileId]);
                     this.registry=updated;this.activeId=newId;
-                    for(const key of ['settings','categories','items','accounts','invoices','vouchers','warehouses','transfers','expenses','capitalMovements','shareholderOwners','shareholderMovements','currencyExchanges','cashShifts','fieldSync','alertCenter'])
+                    for(const key of ['settings','categories','items','accounts','invoices','vouchers','warehouses','transfers','expenses','capitalMovements','shareholderOwners','shareholderMovements','currencyExchanges','cashShifts','payrollStaff','fieldSync','alertCenter'])
                         State[key]=JSON.parse(JSON.stringify(newData[key]??DEFAULT_PROFILE[key]));
                     State.license=license;
                     if(typeof SettingsRevisionClock!=='undefined')SettingsRevisionClock.remember(State.settings);
@@ -2291,8 +2291,8 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 const license=State.license;
                 this._preRestoreProtection=JSON.parse(JSON.stringify(State.settings?.appProtection||{}));
                 const fresh=this.newState(d.settings?.companyName||this.currentName());
-                for(const key of ['settings','categories','items','accounts','invoices','vouchers','warehouses','transfers','expenses','capitalMovements','shareholderOwners','shareholderMovements','currencyExchanges','cashShifts','fieldSync','alertCenter'])
-                    State[key]=JSON.parse(JSON.stringify(d[key]??fresh[key]??(['capitalMovements','shareholderOwners','shareholderMovements','currencyExchanges','cashShifts'].includes(key)?[]:null)));
+                for(const key of ['settings','categories','items','accounts','invoices','vouchers','warehouses','transfers','expenses','capitalMovements','shareholderOwners','shareholderMovements','currencyExchanges','cashShifts','payrollStaff','fieldSync','alertCenter'])
+                    State[key]=JSON.parse(JSON.stringify(d[key]??fresh[key]??(['capitalMovements','shareholderOwners','shareholderMovements','currencyExchanges','cashShifts','payrollStaff'].includes(key)?[]:null)));
                 State.license=license;
                     if(typeof SettingsRevisionClock!=='undefined')SettingsRevisionClock.remember(State.settings); // Activation cannot be imported from another device/business.
                 // Keep the approved account's security identity on this device.
@@ -4823,6 +4823,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                     case 'vouchers_list': return this.renderVouchersList(main, params);
                     case 'voucher_form': return VoucherController.renderForm(main, params);
                     case 'agent_hub': case 'agent_detail': case 'agent_activity': return AgentHub.render(main, params);
+                    case 'payroll': return Payroll.render(main, params);
                     case 'reports': return this.renderReports(main, params);
                     case 'settings': return this.renderSettings(main);
                     case 'notifications': return ManagerNotifications.render(main);
@@ -6153,7 +6154,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 const mode = State.settings.btPrintMode || 'auto';
                 main.innerHTML = `
                     <div class="mb-3 flex items-center justify-between gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2" data-app-build="${InstalledAppVersion.number()}" role="status" aria-label="إصدار التطبيق">
-                        <span class="font-black text-xs text-emerald-800"><i class="fas fa-check-circle ml-1"></i> إصدار التطبيق: 3.5.156</span>
+                        <span class="font-black text-xs text-emerald-800"><i class="fas fa-check-circle ml-1"></i> إصدار التطبيق: 3.5.157</span>
                         <span class="text-[10px] font-bold text-emerald-700">مظهر ثلاثي الأبعاد موحّد</span>
                     </div>
                     ${TiqanySupport.launch()}
@@ -8067,6 +8068,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
             editExpense(id) {
                 const exp = (State.expenses||[]).find(e=>e.id===id);
                 if (!exp) return;
+                if (exp.payroll) return Payroll.edit(exp);
                 const put=(elementId,value)=>{const el=document.getElementById(elementId);if(el)el.value=value;};
                 put('expenseId',exp.id);
                 put('expenseAmount',exp.amount);
@@ -10884,5 +10886,8 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
 
 <script defer src="static/ta-settings-pages-152.js"></script>
 <script defer src="static/ta-themes-154.js"></script>
+<script defer src="static/money-input.js"></script>
+<script defer src="static/payroll.js"></script>
+<link rel="stylesheet" href="static/payroll.css">
 </body>
 </html>

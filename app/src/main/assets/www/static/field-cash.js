@@ -80,7 +80,7 @@ const FieldCash={
     if(!agents.length)return UI.toast('يجب إنشاء موظف بيع أولاً','warn');
     const current=agents.some(a=>a.id===preferred)?preferred:agents[0].id;
     UI.openModal(`<div dir="rtl" class="space-y-3 text-right">
-      <h3 class="text-lg font-black">${direction==='fromAgent'?'استلام دفعة من موظف البيع':'إعطاء دفعة للموظف بيع'}</h3>
+      <h3 class="text-lg font-black">${direction==='fromAgent'?'استلام دفعة من موظف البيع':'إعطاء دفعة لموظف البيع'}</h3>
       <p class="text-xs text-slate-600">نقل نقدي بين الصندوق الرئيسي وصندوق موظف البيع؛ لا يُحتسب بيعاً أو مصروفاً ولا يؤثر على ذمم العملاء.</p>
       <label class="block text-xs font-bold">موظف البيع</label><select id="agentCashTransferAgent" class="w-full border rounded-xl p-3">${agents.map(a=>`<option value="${esc(a.id)}" ${a.id===current?'selected':''}>${esc(a.name)}</option>`).join('')}</select>
       <label class="block text-xs font-bold">العملة</label><select id="agentCashTransferCurrency" class="w-full border rounded-xl p-3"><option value="SYP">الليرة السورية SYP</option><option value="USD">الدولار USD</option></select>
@@ -104,7 +104,7 @@ const FieldCash={
     if(fixed>available+0.001)return UI.toast('رصيد الصندوق المرسل غير كافٍ لهذه الدفعة','error');
     const transfer={id:'cash_'+FieldProtocol.uuid(),agentId,direction,amount:fixed,currency,note:note.slice(0,200),date:new Date().toISOString(),createdOnDevice:'main_phone'};
     this.busy=true;cfg().cashTransfers.push(transfer);
-    try{await StorageEngine.saveState();UI.forceCloseModal();AppNav.navigate('reports',{tab:'cashbox',cashAgentId:agentId},true);UI.toast('تم إثبات الدفعة في الصندوقين وستصل للموظف بيع عبر المزامنة','success');}
+    try{await StorageEngine.saveState();UI.forceCloseModal();AppNav.navigate('reports',{tab:'cashbox',cashAgentId:agentId},true);UI.toast('تم إثبات الدفعة في الصندوقين وستصل لموظف البيع عبر المزامنة','success');}
     catch(e){cfg().cashTransfers=cfg().cashTransfers.filter(t=>t.id!==transfer.id);UI.toast('لم تُحفظ الدفعة: '+e.message,'error');}
     finally{this.busy=false;}
   }
@@ -284,12 +284,12 @@ F.showOperations=function(agentId='all'){
  const c=cfg(),records=[...(State.invoices||[]).filter(i=>i.fieldOrigin?.agentId).map(x=>({kind:'فاتورة',id:x.id,agentId:x.fieldOrigin.agentId,number:x.fieldOrigin.localNumber||x.number,date:x.date,display:`${x.netTotal} ${x.currency}`})),
  ...(State.expenses||[]).filter(e=>e.fieldOrigin?.agentId).map(x=>({kind:'إيصال مصروف · '+x.category,id:x.id,agentId:x.fieldOrigin.agentId,number:x.fieldOrigin.localNumber||x.id,date:x.date,display:`${x.amount} ${x.currency}`})),
  ...(State.vouchers||[]).filter(v=>v.fieldOrigin?.agentId).map(x=>({kind:'سند عميل',id:x.id,agentId:x.fieldOrigin.agentId,number:x.fieldOrigin.localNumber||x.number,date:x.date,display:`${x.amount} ${x.currency}`})),
- ...c.cashTransfers.map(x=>({kind:x.direction==='fromAgent'?'دفعة من موظف البيع':'دفعة للموظف بيع',id:x.id,agentId:x.agentId,number:x.id.slice(-8),date:x.date,display:`${x.amount} ${x.currency}`})),
+ ...c.cashTransfers.map(x=>({kind:x.direction==='fromAgent'?'دفعة من موظف البيع':'دفعة لموظف البيع',id:x.id,agentId:x.agentId,number:x.id.slice(-8),date:x.date,display:`${x.amount} ${x.currency}`})),
  ...c.agents.flatMap(a=>FieldCash.employeeWarehouseDocuments(a).map(x=>({kind:'مناقلة مستودع',id:x.id+'_'+a.id,agentId:a.id,number:x.id,date:x.date,display:x.lines.length+' صنف'})))].sort((a,b)=>String(b.date).localeCompare(String(a.date)));
  const all=agentId==='all',list=records.filter(r=>all||r.agentId===agentId);
  UI.openModal(`<div dir="rtl" class="ta-field-panel text-right space-y-3"><h3 class="font-black text-lg">عمليات موظف البيع</h3>
  <select class="w-full border rounded-xl p-3" onchange="FieldSync.historyViewLimit=100;FieldSync.showOperations(this.value)"><option value="all">كل العمليات (${records.length})</option>${c.agents.map(a=>`<option value="${a.id}" ${a.id===agentId?'selected':''}>${esc(a.name)}</option>`).join('')}</select>
- <div class="max-h-[55vh] overflow-y-auto">${list.length?list.slice(0,this.historyViewLimit).map(x=>`<div class="border-b p-3 text-xs"><b>${esc(x.kind)} #${esc(x.number)}</b><span class="block">${esc(c.agents.find(a=>a.id===x.agentId)?.name||'موظف بيع')} · ${esc(String(x.date).slice(0,16).replace('T',' '))}</span><b>${esc(x.display)}</b></div>`).join(''):'<p class="text-slate-500 p-3">لا توجد عمليات للموظف بيع المختار.</p>'}</div>
+ <div class="max-h-[55vh] overflow-y-auto">${list.length?list.slice(0,this.historyViewLimit).map(x=>`<div class="border-b p-3 text-xs"><b>${esc(x.kind)} #${esc(x.number)}</b><span class="block">${esc(c.agents.find(a=>a.id===x.agentId)?.name||'موظف بيع')} · ${esc(String(x.date).slice(0,16).replace('T',' '))}</span><b>${esc(x.display)}</b></div>`).join(''):'<p class="text-slate-500 p-3">لا توجد عمليات لموظف البيع المختار.</p>'}</div>
  ${list.length>this.historyViewLimit?`<button type="button" class="w-full bg-teal-50 border rounded-xl p-3 font-black text-xs" onclick="FieldSync.historyViewLimit+=100;FieldSync.showOperations('${esc(agentId)}')">عرض المزيد (${list.length-this.historyViewLimit})</button>`:''}
  <button class="w-full p-3 bg-slate-100 rounded-xl" onclick="FieldSync.open()">رجوع</button></div>`);
 };
