@@ -660,6 +660,7 @@ html body #modalBox button.ta-notice-edit {
 html body #modalBox button.ta-notice-edit:active { background:#103e5c!important }
 html body #modalBox button.ta-notice-edit:focus-visible { outline:3px solid #e1a83c; outline-offset:2px }
 
+@media screen {
 /* Last-row actions keep the same positions when the theme changes. */
 #dialogContainer[data-dialog-type="unsaved"] .ta-decision-actions,
 #taAgentSettingsDecision .ta-agent-settings-choices {
@@ -726,7 +727,7 @@ html[data-ta-theme="petrol"] body :is(#mainContent,#screen) :is(input:not([type=
 html[data-ta-theme="petrol"] body #mainContent .pos-line-label select.ta-pos-unit-change {
   background:var(--ta-petrol)!important;color:white!important;-webkit-text-fill-color:white!important;border-color:var(--ta-copper)!important;text-shadow:none!important;
 }
-html[data-ta-theme="petrol"] body :is(#screen,#mainContent) :is(.ta-invoice-save-footer,.ta-agent-invoice-save-footer,.ta-voucher-save-footer,.ta-pos-fixed-footer,.agent-pos-fixed-footer) {
+html[data-ta-theme="petrol"] body :is(#screen,#mainContent) :is(.ta-invoice-save-footer,.ta-agent-invoice-save-footer,.ta-voucher-save-footer,.ta-pos-fixed-footer,.ta-agent-pos-footer) {
   background:#123c3d!important;border-color:var(--ta-copper)!important;
 }
 html[data-ta-theme="petrol"] body :is(#screen,#mainContent) :is(.ta-footer-actions,.ta-voucher-footer-actions) {background:transparent!important}
@@ -747,3 +748,27 @@ html[data-ta-theme="petrol"] body :is(nav.ta-bottom-nav,#bottom.bottom) button:i
   background:#235e5d!important;outline:2px solid #e6ad80!important;outline-offset:-3px;
 }
 html[data-ta-theme="petrol"] body :is(#dialogBox,#modalBox,.ta-agent-settings-dialog,.ta-settings-page-header) {background:var(--ta-paper)!important;color:var(--ta-ink)!important}
+html[data-ta-theme="petrol"] body :is(#mainContent,#screen) :is(.invoice-entry-top,.invoice-added-items,.invoice-added-row,.invoice-selected,.agent-pos-cart,.ta-voucher-footer-balances),
+html[data-ta-theme="petrol"] body.ta-invoice-editor-screen #mainContent > .bg-white {
+  background:var(--ta-paper)!important;border-color:#c3a38c!important;color:var(--ta-ink)!important;
+}
+html[data-ta-theme="petrol"] body :is(#mainContent,#screen) :is(.invoice-added-title,.pos-cart-columns,.ta-quick-picker__face,.ta-agent-voucher-balance-tile) {
+  background:#f0e3d3!important; border-color:#bb9474!important;color:#183a3a!important;
+}
+html[data-ta-theme="petrol"] body :is(#mainContent,#screen) :is(.invoice-added-title,.ta-quick-picker__face) span {
+  color:#173738!important;-webkit-text-fill-color:currentColor!important;text-shadow:none!important;
+}
+html[data-ta-theme="petrol"] body :is(#mainContent,#screen) :is(button[onclick="InvoiceController.openItemGridModal()"],button[onclick="Agent.openInvoiceItemGrid()"],.bg-slate-900:has(> #invNetTotalTxt),.agent-pos-grand,.ta-agent-pos-total,.ta-pos-footer-total) {
+  background:var(--ta-petrol)!important;color:white!important;-webkit-text-fill-color:white!important;border:1px solid var(--ta-copper)!important;
+}
+html[data-ta-theme="petrol"] body :is(#mainContent,#screen) :is(.bg-slate-900:has(> #invNetTotalTxt),.ta-agent-pos-total,.ta-pos-total,.agent-pos-grand) :is(span,b,strong) {
+  color:#fff!important;-webkit-text-fill-color:#fff!important;text-shadow:none!important;
+}
+html[data-ta-theme="petrol"] body.ta-invoice-editor-screen #mainContent .ta-invoice-save-footer,
+html[data-ta-theme="petrol"] body #screen :is(.ta-agent-pos-footer,.ta-agent-invoice-save-footer) {
+  background:#123c3d!important;border-color:var(--ta-copper)!important;
+}
+html[data-ta-theme="petrol"] body #screen .ta-agent-pos-footer-actions button {
+  background:var(--ta-positive)!important;color:#fff!important;-webkit-text-fill-color:white!important;
+}
+}

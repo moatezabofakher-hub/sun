@@ -53,7 +53,7 @@ with sync_playwright() as pw:
    if ed!='employee':
     p.evaluate("""()=>{AppNav.stack=[{screen:'dashboard',params:{}},{screen:'expenses',params:{}}];AppNav.renderCurrent();const input=document.getElementById('expenseAmount');input.value='23';input.dispatchEvent(new Event('input',{bubbles:true}));AppNav.handleBackButton();}""")
     assert p.locator('#dlgDiscardBtn').is_visible()
-    yes=p.locator('#dlgSaveBtn').bounding_box();no=p.locator('#dlgDiscardBtn').bounding_box()
+    yes,no=p.evaluate("""()=>['#dlgSaveBtn','#dlgDiscardBtn'].map(selector=>document.querySelector(selector).getBoundingClientRect().toJSON())""")
     assert abs(yes['y']-no['y'])<=1 and yes['x']>=no['x']+no['width']-1,(yes,no)
     p.locator('#dlgDiscardBtn').evaluate('(e)=>e.click()')
     assert p.evaluate('AppNav.current().screen')=='dashboard'
@@ -63,7 +63,7 @@ with sync_playwright() as pw:
     p.evaluate("""async()=>{Agent.ready=()=>true;Agent.active=async()=>true;Agent.stack=['home','voucher'];Agent.voucherKind='receipt';await Agent.show('voucher');let amount=document.getElementById('vAmount');amount.value='17';amount.dispatchEvent(new Event('input',{bubbles:true}));await Agent.goBack()}""")
     decision=p.locator('#taAgentSettingsDecision')
     assert decision.locator('[data-answer=save]').inner_text()=='نعم'
-    yes=decision.locator('[data-answer=save]').bounding_box();no=decision.locator('[data-answer=discard]').bounding_box()
+    yes,no=p.evaluate("""()=>['[data-answer=save]','[data-answer=discard]'].map(selector=>document.querySelector(selector).getBoundingClientRect().toJSON())""")
     assert abs(yes['y']-no['y'])<=1 and yes['x']>=no['x']+no['width']-1,(yes,no)
     decision.locator('[data-answer=discard]').evaluate('(e)=>e.click()')
     p.wait_for_function("Agent.screen==='home'")
