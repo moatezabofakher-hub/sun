@@ -66,6 +66,17 @@ with sync_playwright() as pw:
     # Use the invoice's options menu. Check the actual scrolling element and bottom actions.
     page.evaluate("()=>InvoiceController.openInvoiceActions('due')")
     page.get_by_role('button',name='إضافة دفعة').click()
+    note=page.locator('#voucherModalContent input[placeholder*="شرح السند"]')
+    note.fill('دفعة قيد التعديل')
+    page.evaluate("AppNav.handleBackButton()")
+    page.locator('#dialogContainer[data-dialog-type="unsaved"]').wait_for()
+    page.evaluate("AppNav.handleBackButton()")
+    assert page.locator('#dialogContainer').is_hidden() and note.input_value()=='دفعة قيد التعديل'
+    assert page.evaluate("AppNav.isModalDirty && State.vouchers.length===0")
+    note.fill('دفعة بعد الرجوع')
+    page.evaluate("AppNav.handleBackButton()")
+    page.locator('#dialogContainer[data-dialog-type="unsaved"]').wait_for()
+    page.evaluate("AppNav.handleBackButton()")
     for size in ((360,640),(360,390),(850,600)):
         page.set_viewport_size(dict(zip(('width','height'),size)))
         geometry=page.locator('#voucherModalContent').evaluate("""host=>{

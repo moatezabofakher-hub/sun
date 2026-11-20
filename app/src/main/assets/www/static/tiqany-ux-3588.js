@@ -108,6 +108,7 @@
  Views.render=function(...args){const out=oldRender.apply(this,args);removeLegacyPageExit();enhanceInvoice();popupExit();return out;};
  const oldBack=AppNav.handleBackButton;
  AppNav.handleBackButton=function(...args){
+  if(q('#dialogContainer:not(.hidden)'))return oldBack.apply(this,args);
   const modal=q('#modalContainer');
   if(InvoiceController.barcodeScanActive){InvoiceController.stopBarcodeScanner();UI.forceCloseModal();return;}
   const pay=q('.ta-payment-selector[open]');if(pay){pay.open=false;return;}

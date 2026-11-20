@@ -53,6 +53,11 @@ with sync_playwright() as pw:
    if ed!='employee':
     p.evaluate("""()=>{AppNav.stack=[{screen:'dashboard',params:{}},{screen:'expenses',params:{}}];AppNav.renderCurrent();const input=document.getElementById('expenseAmount');input.value='23';input.dispatchEvent(new Event('input',{bubbles:true}));AppNav.handleBackButton();}""")
     assert p.locator('#dlgDiscardBtn').is_visible()
+    p.evaluate("AppNav.handleBackButton()")
+    assert p.locator('#dialogContainer').is_hidden() and p.locator('#expenseAmount').input_value()=='23'
+    assert p.evaluate("AppNav.current().screen")=='expenses'
+    p.evaluate("AppNav.handleBackButton()")
+    assert p.locator('#dlgDiscardBtn').is_visible()
     yes,no=p.evaluate("""()=>['#dlgSaveBtn','#dlgDiscardBtn'].map(selector=>document.querySelector(selector).getBoundingClientRect().toJSON())""")
     assert abs(yes['y']-no['y'])<=1 and yes['x']>=no['x']+no['width']-1,(yes,no)
     p.locator('#dlgDiscardBtn').evaluate('(e)=>e.click()')
@@ -63,6 +68,11 @@ with sync_playwright() as pw:
     p.evaluate("""async()=>{Agent.ready=()=>true;Agent.active=async()=>true;Agent.stack=['home','voucher'];Agent.voucherKind='receipt';await Agent.show('voucher');let amount=document.getElementById('vAmount');amount.value='17';amount.dispatchEvent(new Event('input',{bubbles:true}));await Agent.goBack()}""")
     decision=p.locator('#taAgentSettingsDecision')
     assert decision.locator('[data-answer=save]').inner_text()=='نعم'
+    p.evaluate("Agent.goBack()")
+    assert decision.count()==0 and p.locator('#vAmount').input_value()=='17'
+    assert p.evaluate("Agent.screen")=='voucher'
+    p.evaluate("Agent.goBack()")
+    assert decision.locator('[data-answer=save]').is_visible()
     yes,no=p.evaluate("""()=>['[data-answer=save]','[data-answer=discard]'].map(selector=>document.querySelector(selector).getBoundingClientRect().toJSON())""")
     assert abs(yes['y']-no['y'])<=1 and yes['x']>=no['x']+no['width']-1,(yes,no)
     decision.locator('[data-answer=discard]').evaluate('(e)=>e.click()')

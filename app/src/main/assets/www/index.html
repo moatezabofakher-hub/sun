@@ -3238,24 +3238,11 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
             },
 
             handleBackButton() {
-                // If the confirmation dialog is already open, block accidental second Back press from bypassing protection
+                // Dismiss the top decision and leave the underlying draft and its save handler intact.
                 const dlg = document.getElementById('dialogContainer');
                 if (!dlg.classList.contains('hidden')) {
-                    const isExitDialog = dlg.getAttribute('data-dialog-type') === 'exit';
-                    // Only the unsaved-changes dialog requires a deliberate choice.
-                    // Back on ordinary confirmations has the same effect as Cancel/X.
-                    if (isExitDialog || dlg.getAttribute('data-dialog-type') !== 'unsaved') {
-                        dlg.classList.add('hidden');
-                        dlg.removeAttribute('data-dialog-type');
-                        return;
-                    }
-                    const box = document.getElementById('dialogBox');
-                    if (box) {
-                        box.classList.remove('animate-slide-up');
-                        void box.offsetWidth;
-                        box.classList.add('animate-slide-up');
-                    }
-                    UI.toast('اختر نعم لحفظ التغييرات أو لا لتجاهلها', 'warn');
+                    dlg.classList.add('hidden');
+                    dlg.removeAttribute('data-dialog-type');
                     return;
                 }
 

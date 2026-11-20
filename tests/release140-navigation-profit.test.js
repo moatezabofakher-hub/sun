@@ -19,7 +19,7 @@ test('Android Back closes nested menus then popups, then moves one screen toward
  assert.match(back,/const openDetails=Array\.from\(document\.querySelectorAll\('#mainContent details\[open\]'\)\)/);
  assert.match(back,/openDetails\[openDetails\.length-1\]\.open=false/);
  assert.match(back,/if \(this\.stack\.length > 1\) \{\s*this\.popScreen\(\)/);
- assert.match(back,/dlg\.getAttribute\('data-dialog-type'\) !== 'unsaved'/);
+ assert.match(back,/dlg\.classList\.add\('hidden'\);\s*dlg\.removeAttribute\('data-dialog-type'\);\s*return;/);
  assert.match(back,/UI\.showUnsavedDialog/);
  assert.match(html,/if \(this\.current\(\)\.screen === 'settings'\) SettingsController\.closeAllSections\(\)/);
 });

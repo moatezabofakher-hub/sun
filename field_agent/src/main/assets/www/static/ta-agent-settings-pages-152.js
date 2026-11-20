@@ -141,7 +141,6 @@ function requestExit(next){
 }
 const oldBack=Agent.goBack;
 Agent.goBack=function(...args){
- if(document.getElementById('taAgentSettingsDecision'))return;
  if(document.getElementById('agentDialog')?.classList.contains('hide')===false)return oldBack.apply(this,args);
  if((this.screen==='settings'&&activeIndex!==null)||(this.screen==='printer'&&printerBaseline!==null)||(this.screen==='backup'&&backupBaseline!==null)){
     requestExit(null);return;
@@ -203,7 +202,8 @@ for(const [id,openName,closeName,saveName] of editorDefinitions){
 }
 const backFromOperation=Agent.goBack;
 Agent.goBack=function(...args) {
- if(document.getElementById('taAgentSettingsDecision'))return;
+ const prompt=document.getElementById('taAgentSettingsDecision');
+ if(prompt){prompt.remove();return;}
  for(const [id,,closeName] of editorDefinitions){
    const editor=document.getElementById(id);
    if(editor && !editor.classList.contains('hide'))return this[closeName]();
