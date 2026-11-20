@@ -604,6 +604,7 @@ public final class MainActivity extends FragmentActivity {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == REQUEST_ALERT_PERMISSION) {
             alertPermissionInFlight = false;
+            if(grantResults.length>0 && grantResults[0]==PackageManager.PERMISSION_GRANTED)PayrollReminderWorker.checkNow(this);
             ArrayList<String[]> queued = new ArrayList<>(pendingAlerts);
             pendingAlerts.clear();
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
@@ -1092,6 +1093,22 @@ public final class MainActivity extends FragmentActivity {
     // Notifications are posted only after a successful IndexedDB ledger commit.
     // Tapping one returns to the corresponding authenticated in-app transaction.
     private final class LedgerNotificationsBridge {
+        @JavascriptInterface public void setPayrollSchedules(String json) {
+            if(!trustedLocalMainFrame || json==null) return;
+            try {
+                PayrollReminderWorker.update(MainActivity.this,json);
+                if(!json.equals("[]") && Build.VERSION.SDK_INT>=33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED){
+                    runOnUiThread(()->{
+                        android.content.SharedPreferences prefs=getSharedPreferences("payroll_reminders",MODE_PRIVATE);
+                        if(!alertPermissionInFlight && !prefs.getBoolean("permissionAsked",false)){
+                            prefs.edit().putBoolean("permissionAsked",true).apply();
+                            alertPermissionInFlight=true;
+                            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},REQUEST_ALERT_PERMISSION);
+                        }
+                    });
+                }
+            } catch(org.json.JSONException e){android.util.Log.w("Payroll","Invalid reminder dates");}
+        }
         @JavascriptInterface public void show(String id, String title, String detail) {
             if (!trustedLocalMainFrame || id == null || id.isEmpty()) return;
             runOnUiThread(() -> postLedgerNotification(id,title,detail));

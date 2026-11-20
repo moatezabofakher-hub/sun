@@ -1,0 +1,63 @@
+/* Shared surfaces for wage forms, opening documents and invoice selection grids. */
+:root {
+    --entry-paper:#f8fcfc; --entry-ink:#153940; --entry-alt:#e1f1f3; --entry-edge:#789da3;
+    --entry-action:#185575; --entry-selected:#086455; --entry-cancel:#982b40;
+}
+html[data-ta-theme="royal"] {
+    --entry-paper:#102a45; --entry-ink:#f2f9ff; --entry-alt:#1e405e; --entry-edge:#789fbd;
+    --entry-action:#184b74; --entry-selected:#086356; --entry-cancel:#852f4d;
+}
+html[data-ta-theme="petrol"] {
+    --entry-paper:#fffbf3; --entry-ink:#203c39; --entry-alt:#f5ecde; --entry-edge:#a88b70;
+    --entry-action:#17494b; --entry-selected:#086353; --entry-cancel:#942c44;
+}
+html[data-ta-theme] body :is(#mainContent,#modalBox) :is(.pay-page,.opening-inventory) {
+    color:var(--entry-ink)!important; -webkit-text-fill-color:currentColor!important;
+}
+html[data-ta-theme] body :is(#mainContent,#modalBox) :is(.pay-page form,form.pay-page,.pay-schedule,.pay-page article,.opening-inventory .invoice-entry-top,.opening-inventory [data-doc],.opening-inventory .ta-enh-panel,.opening-inventory .invoice-added-row) {
+    background:var(--entry-paper)!important;color:var(--entry-ink)!important;border:1px solid var(--entry-edge)!important;
+    border-radius:14px;box-shadow:inset 0 1px 0 #ffffff44,0 3px 8px #142e3722;
+}
+html[data-ta-theme] body :is(#mainContent,#modalBox) :is(.pay-page,.opening-inventory) :is(h3,p,legend,label,small,b,strong,span,div,fieldset) {
+    color:inherit!important;-webkit-text-fill-color:currentColor!important;text-shadow:none!important;
+}
+html[data-ta-theme] body :is(#modalBox,#mainContent,#agentItemPicker) :is(.pay-page input,.pay-page select,.pay-page textarea,.opening-inventory input,[data-grid-item],#gridPickerSearch,#agentPickerSearch) {
+    background:var(--entry-paper)!important;color:var(--entry-ink)!important;-webkit-text-fill-color:currentColor!important;
+    border:1px solid var(--entry-edge)!important;border-radius:10px;min-width:0;max-width:100%;min-height:38px;
+    padding-block:7px;text-shadow:none!important;
+}
+.pay-field textarea{width:100%;padding:.65rem}
+html[data-ta-theme] body :is(#mainContent,#modalBox,#agentItemPicker) :is(.pay-page button,.opening-inventory button,#gridCatPills button,#agentPickerCats button) {
+    border:1px solid var(--entry-edge)!important;border-radius:11px;
+    background:var(--entry-alt)!important;color:var(--entry-ink)!important;-webkit-text-fill-color:currentColor!important;
+    text-shadow:none!important;box-shadow:inset 0 1px 0 #ffffff59,0 2px 0 #18353e55;
+}
+html[data-ta-theme] body :is(#mainContent,#modalBox) :is(.pay-page .ta-report-deep-action,.opening-inventory [data-cmd="new"],.opening-inventory [data-cmd="add"]) {
+    background:var(--entry-action)!important;color:white!important;-webkit-text-fill-color:currentColor!important;
+}
+html[data-ta-theme] body :is(#mainContent,#modalBox,#agentItemPicker) :is(.pay-page button[aria-pressed="true"],.pay-page [type="submit"],.opening-inventory [data-cmd="save"],#itemGridApplyButton,#agentGridApplyButton,#gridCatPills .bg-emerald-600,#agentPickerCats .bg-emerald-600) {
+    background:var(--entry-selected)!important;color:white!important;-webkit-text-fill-color:currentColor!important;text-shadow:none!important;
+}
+html[data-ta-theme] body :is(#mainContent,#modalBox,#agentItemPicker) :is(.pay-page [data-cancel],.opening-inventory [data-cmd="cancel"],.opening-inventory [data-cmd="delete"],.opening-inventory [data-remove],[data-grid-card] .invoice-grid-decrement) {
+    background:var(--entry-cancel)!important;color:white!important;-webkit-text-fill-color:currentColor!important;text-shadow:none!important;
+}
+html[data-ta-theme] body :is(#modalBox,#agentItemPicker) [data-grid-card] {
+    background:var(--entry-alt)!important;color:var(--entry-ink)!important;border-color:var(--entry-edge)!important;
+}
+html[data-ta-theme] body :is(#modalBox,#agentItemPicker) [data-grid-card] :is(h4,label,span,div.font-extrabold) {
+    color:var(--entry-ink)!important;-webkit-text-fill-color:currentColor!important;text-shadow:none!important;
+}
+html[data-ta-theme] body :is(#modalBox,#agentItemPicker) [data-grid-card] :is(span[class*="bg-"],[data-grid-count]) {
+    color:#fff!important;background:var(--entry-action)!important;-webkit-text-fill-color:currentColor!important;
+}
+html[data-ta-theme] body :is(#modalBox,#agentItemPicker) :is(#itemGridApplyButton,#agentGridApplyButton):disabled {
+    background:var(--entry-alt)!important;color:var(--entry-ink)!important;opacity:1!important;border:1px dashed var(--entry-edge)!important;
+}
+html[data-ta-theme] :is(#gridPickerSearch,#agentPickerSearch)::placeholder{color:var(--entry-ink)!important;opacity:.84}
+html[data-ta-theme] body #modalContainer #modalBox #invoiceGridSearchButton{background:var(--entry-paper)!important;color:var(--entry-ink)!important;-webkit-text-fill-color:currentColor!important}
+html[data-ta-theme] :is(.pay-page,.opening-inventory,[data-grid-card]) :focus-visible{outline:3px solid var(--entry-edge);outline-offset:2px}
+
+html[data-ta-theme] #modalBox .ta-employee-menu{display:grid;grid-template-columns:minmax(0,1fr);grid-auto-rows:1fr}
+html[data-ta-theme] #modalBox .ta-employee-menu button{width:100%;min-height:62px;color:#fff!important;-webkit-text-fill-color:currentColor!important;text-shadow:none!important}
+html[data-ta-theme] #modalBox .ta-employee-menu button:first-child{background:var(--entry-selected)!important}
+html[data-ta-theme] #modalBox .ta-employee-menu button:nth-child(2){background:var(--entry-action)!important}

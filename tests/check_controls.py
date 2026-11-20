@@ -5,6 +5,8 @@ with sync_playwright() as pw:
  browser=pw.chromium.launch(executable_path=(shutil.which('google-chrome') or shutil.which('chromium') or str(Path(os.environ.get('PROGRAMFILES(X86)',''))/'Microsoft/Edge/Application/msedge.exe')),args=['--no-sandbox','--allow-file-access-from-files'])
  for ed in sys.argv[2:]:
   p=browser.new_page()
+  if ed=='employee':
+   p.add_init_script("""window.addEventListener('load',()=>{const init=Agent.init;Agent.init=async function(...args){try{return await init.apply(this,args)}finally{window.controlFixtureReady=true}}},{capture:true,once:true});""")
   if ed=='manager':
    p.add_init_script("""window.AndroidManagerPeer={
         selectProfile:()=> 'selected', start:()=> 'ready', serverConfig:()=> '{}', clientStatus:()=> '{}'
@@ -15,6 +17,7 @@ with sync_playwright() as pw:
    p.set_viewport_size({'width':w,'height':700})
    p.goto((root/'index.html').resolve().as_uri());p.wait_for_timeout(130)
    if ed=='employee':
+    p.wait_for_function('window.controlFixtureReady===true')
     # Let onload/IndexedDB finish, then render the real activated home screen.
     # Rendering a fragment before init has settled can be overwritten by setup.
     # Read both states atomically: automatic background sync can legitimately

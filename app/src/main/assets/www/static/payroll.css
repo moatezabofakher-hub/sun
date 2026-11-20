@@ -5,3 +5,16 @@
 .pay-field input,.pay-field select {padding:.65rem;border-radius:.6rem;border:1px solid #64748b;background:#fff;color:#172438;width:100%;}
 .pay-actions {display:flex;gap:.6rem;}.pay-actions>* {flex:1;}
 #pay-calculation p {display:flex;justify-content:space-between;gap:.5rem;}
+
+.pay-schedule{min-width:0;margin:0;padding:.7rem;border:1px solid #77919e;border-radius:.75rem}
+.pay-schedule legend,.pay-schedule label{font-weight:700}
+.pay-schedule select{padding:.4rem;margin:.3rem}
+.pay-calendar{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;margin:.5rem 0}
+.pay-calendar.pay-week{grid-template-columns:repeat(auto-fit,minmax(4.8rem,1fr))}
+.pay-calendar button,.pay-schedule [data-pay-clear]{padding:.45rem .1rem;border:1px solid #6b8898;border-radius:.55rem;color:#143546;background:#f2f7fa;font-weight:700}
+.pay-calendar button[aria-pressed="true"]{color:white!important;background:#075e58!important;outline:2px solid #3c9a89}
+
+.pay-calendar small{font-size:clamp(.55rem,2.5vw,.8rem);text-align:center}
+.pay-month-navigation,.pay-chosen{display:flex;align-items:center;justify-content:space-between;gap:.4rem}
+.pay-month-navigation button,.pay-schedule [data-last]{border:1px solid #6b8898;border-radius:.6rem;padding:.35rem .75rem;color:#143546;background:#f2f7fa;font-weight:700}
+.pay-chosen{margin-top:.45rem}

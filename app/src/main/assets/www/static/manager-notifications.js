@@ -166,6 +166,7 @@ const ManagerNotifications = {
       at:String(imported.receivedAt||new Date().toISOString()),read:false};
   },
   prepareForSave(){
+    if(typeof PayReminders!=='undefined')PayReminders.recordDue();
     const n=this.ensure(),created=[];
     if(!Array.isArray(n.seenImportIds)||!n.stockLevels){this.bootstrap();return created;}
     const seen=new Set(n.seenImportIds);
@@ -240,6 +241,11 @@ const ManagerNotifications = {
     catch(e){n.entries.forEach((x,i)=>x.read=before[i]);this.updateBadge();UI.toast('تعذر حفظ حالة الإشعارات','error');}
   },
   async open(id){
+    if(typeof id==='string' && id.startsWith('paydue:')){
+      const row=this.ensure().entries.find(e=>e.id===id);
+      if(row&&!row.read){row.read=true;this.updateBadge();try{await StorageEngine.saveState();}catch{row.read=false;this.updateBadge();}}
+      return PayReminders.open(id);
+    }
     const stored=this.ensure().entries.find(x=>x.id===id);if(!stored)return UI.toast('هذا الإشعار غير متوفر','warn');
     if(!stored.read){stored.read=true;this.updateBadge();try{await StorageEngine.saveState();}catch(e){stored.read=false;this.updateBadge();}}
     const entry=window.TiqanyPeerEvents?.forDisplay(stored)||stored;

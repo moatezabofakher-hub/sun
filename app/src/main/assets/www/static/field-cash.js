@@ -183,8 +183,8 @@ F.open=function(){
  }
  UI.openModal(`<div class="ta-field-panel space-y-3 text-right" dir="rtl">
  <h3 class="text-lg font-black text-slate-900">إدارة الموظفين</h3>
- <div class="grid grid-cols-2 gap-2">
-  <button type="button" style="grid-column:1/-1;width:100%" class="bg-teal-700 text-white rounded-2xl p-4 font-black" onclick="FieldSync.showCreateAgent()"><i class="fas fa-user-plus block text-xl mb-2"></i>إنشاء موظف بيع</button>
+ <div class="ta-employee-menu grid gap-2">
+  <button type="button" class="bg-teal-700 text-white rounded-2xl p-4 font-black" onclick="FieldSync.showCreateAgent()"><i class="fas fa-user-plus block text-xl mb-2"></i>إنشاء موظف بيع</button>
   <button type="button" class="bg-blue-700 text-white rounded-2xl p-4 font-black" onclick="FieldSync.showOperations()"><i class="fas fa-list-check block text-xl mb-2"></i>عمليات موظف البيع</button>
  </div>
  <button class="w-full p-3 bg-slate-100 rounded-xl font-bold" onclick="UI.forceCloseModal()">إغلاق</button></div>`);
