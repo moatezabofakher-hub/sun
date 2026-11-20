@@ -77,6 +77,11 @@ F.commitOperationsWithRevisions=async function(agent,ops,mode='wifi'){
  try{
    window.TiqanyFxUI?.stageAgentExchanges(novel,agent);
    State.items=[...original.items,...(docs.items||[])];
+   if(typeof TiqanyFinance!=='undefined') for(const inv of invoices) { const old=original.invoices.find(i=>i.id===inv.id); if(old!==inv) TiqanyFinance.freeze(State,inv,old); }
+   if(typeof TiqanyFinance!=='undefined') {
+     const changed=vouchers.filter(v=>v!==original.vouchers.find(o=>o.id===v.id));
+     TiqanyFinance.fieldPayments(State,changed,[...novel,...edits.map(e=>({...e.replacement,id:e.targetOperationId}))],invoices);
+   }
    State.accounts=[...original.accounts,...docs.customers];State.invoices=invoices;State.vouchers=vouchers;
    State.expenses=[...original.expenses,...docs.expenses];
    cfg.imported=[...original.imported,...fresh.map(x=>({id:x.id,agentId:agent.id,receivedAt:new Date().toISOString(),kind:x.kind}))];

@@ -1440,6 +1440,8 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
 <link rel="stylesheet" href="static/controls.css">
 <link rel="stylesheet" href="static/ta-themes-154.css">
 <script defer src="static/controls.js"></script>
+<script src="static/finance-operations.js"></script>
+<script defer src="static/finance-desk.js"></script>
 </head>
 <body class="ta-premium-ui ta-3d-v3524 bg-slate-100 text-slate-800 min-h-screen flex flex-col w-full max-w-full overflow-x-hidden">
 
@@ -1622,7 +1624,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
             transfers: [],
             expenses: [],
             capitalMovements: [],
-            shareholderOwners: [], shareholderMovements: [], currencyExchanges: [],
+            shareholderOwners: [], shareholderMovements: [], cashShifts: [], currencyExchanges: [],
             fieldSync: {companyId:'',agents:[],imported:[],events:[]},
             alertCenter: { entries: [], seenImportIds: null, stockLevels: null }
         };
@@ -1752,7 +1754,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                             State.capitalMovements = Array.isArray(d.capitalMovements) ? d.capitalMovements : [];
                             State.shareholderOwners = Array.isArray(d.shareholderOwners) ? d.shareholderOwners : [];
                             State.shareholderMovements = Array.isArray(d.shareholderMovements) ? d.shareholderMovements : [];
-                            State.currencyExchanges = Array.isArray(d.currencyExchanges) ? d.currencyExchanges : [];
+                            State.currencyExchanges = Array.isArray(d.currencyExchanges) ? d.currencyExchanges : []; State.cashShifts=Array.isArray(d.cashShifts)?d.cashShifts:[];
                             State.alertCenter = d.alertCenter || {entries:[],seenImportIds:null,stockLevels:null};
                             if (!State.warehouses.some(w => w.id === State.settings.selectedWarehouseId))
                                 State.settings.selectedWarehouseId = 'wh_main';
@@ -1799,7 +1801,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                             capitalMovements: State.capitalMovements,
                             shareholderOwners: State.shareholderOwners,
                             shareholderMovements: State.shareholderMovements,
-                            currencyExchanges: State.currencyExchanges,
+                            cashShifts: State.cashShifts, currencyExchanges: State.currencyExchanges,
                             alertCenter: State.alertCenter
                         }
                     });
@@ -1830,7 +1832,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 State.transfers = [];
                 State.expenses = [];
                 State.capitalMovements = [];
-                State.shareholderOwners = []; State.shareholderMovements = []; State.currencyExchanges = [];
+                State.shareholderOwners = []; State.shareholderMovements = []; State.currencyExchanges = []; State.cashShifts=[];
                 State.settings.shareholderDistribution = {values:{}};
                 State.alertCenter = {entries:[],seenImportIds:null,stockLevels:null};
                 State.settings.selectedWarehouseId = 'wh_main';
@@ -2027,7 +2029,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                         {id:'profile_registry',data:registry}
                     ]);
                     this.registry=registry;this.activeId=id;
-                    for(const key of ['settings','categories','items','accounts','invoices','vouchers','warehouses','transfers','expenses','capitalMovements','shareholderOwners','shareholderMovements','currencyExchanges','fieldSync','alertCenter'])
+                    for(const key of ['settings','categories','items','accounts','invoices','vouchers','warehouses','transfers','expenses','capitalMovements','shareholderOwners','shareholderMovements','currencyExchanges','cashShifts','fieldSync','alertCenter'])
                         State[key]=JSON.parse(JSON.stringify(newState[key]??DEFAULT_PROFILE[key]));
                     State.license=commonLicense;
                     if(typeof SettingsRevisionClock!=='undefined')SettingsRevisionClock.remember(State.settings);
@@ -2110,7 +2112,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                         {id:'profile_registry',data:updated}
                     ],[profileId]);
                     this.registry=updated;this.activeId=newId;
-                    for(const key of ['settings','categories','items','accounts','invoices','vouchers','warehouses','transfers','expenses','capitalMovements','shareholderOwners','shareholderMovements','currencyExchanges','fieldSync','alertCenter'])
+                    for(const key of ['settings','categories','items','accounts','invoices','vouchers','warehouses','transfers','expenses','capitalMovements','shareholderOwners','shareholderMovements','currencyExchanges','cashShifts','fieldSync','alertCenter'])
                         State[key]=JSON.parse(JSON.stringify(newData[key]??DEFAULT_PROFILE[key]));
                     State.license=license;
                     if(typeof SettingsRevisionClock!=='undefined')SettingsRevisionClock.remember(State.settings);
@@ -2289,8 +2291,8 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 const license=State.license;
                 this._preRestoreProtection=JSON.parse(JSON.stringify(State.settings?.appProtection||{}));
                 const fresh=this.newState(d.settings?.companyName||this.currentName());
-                for(const key of ['settings','categories','items','accounts','invoices','vouchers','warehouses','transfers','expenses','capitalMovements','shareholderOwners','shareholderMovements','currencyExchanges','fieldSync','alertCenter'])
-                    State[key]=JSON.parse(JSON.stringify(d[key]??fresh[key]??(['capitalMovements','shareholderOwners','shareholderMovements','currencyExchanges'].includes(key)?[]:null)));
+                for(const key of ['settings','categories','items','accounts','invoices','vouchers','warehouses','transfers','expenses','capitalMovements','shareholderOwners','shareholderMovements','currencyExchanges','cashShifts','fieldSync','alertCenter'])
+                    State[key]=JSON.parse(JSON.stringify(d[key]??fresh[key]??(['capitalMovements','shareholderOwners','shareholderMovements','currencyExchanges','cashShifts'].includes(key)?[]:null)));
                 State.license=license;
                     if(typeof SettingsRevisionClock!=='undefined')SettingsRevisionClock.remember(State.settings); // Activation cannot be imported from another device/business.
                 // Keep the approved account's security identity on this device.
@@ -2888,6 +2890,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 const movements = [];
 
                 for (const inv of State.invoices) {
+                    if(inv.cashChannel==='transfer') continue;
                     const paid = Number(inv.paidAmount) || 0;
                     if (paid <= 0) continue;
 
@@ -2911,6 +2914,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 }
 
                 for (const v of State.vouchers) {
+                    if(v.cashChannel==='transfer') continue;
                     const amt = Number(v.amount) || 0;
                     if (amt <= 0) continue;
                     const isInflow = v.type === 'receipt';
@@ -2978,6 +2982,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
         const InventoryValuation = {
             calculate(warehouseId = 'wh_main', currency = 'SYP') {
                 const targetCurrency = currency === 'USD' ? 'USD' : 'SYP';
+                const weighted=typeof TiqanyFinance!=='undefined' ? TiqanyFinance.costs(State) : new Map();
                 const selectedWarehouse = warehouseId === 'all' ? null : warehouseId;
                 const rate = Number(State.settings.exchangeRate);
                 const rateValid = Number.isFinite(rate) && rate > 0;
@@ -2989,7 +2994,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                     const baseUnit = units[0] || {name: 'وحدة', costPrice: 0};
                     const stock = Accounting.getItemBaseStock(item.id, null, selectedWarehouse);
                     const sourceCurrency = item.currency === 'USD' ? 'USD' : 'SYP';
-                    const cost = Number(baseUnit.costPrice);
+                    const cost = weighted.get(item.id)?.cost ?? Number(baseUnit.costPrice);
                     const nativeValue = item.isBundle ? 0 : stock * (Number.isFinite(cost) ? cost : 0);
                     const value = sourceCurrency === targetCurrency ? nativeValue
                         : (rateValid ? (sourceCurrency === 'USD' ? nativeValue * rate : nativeValue / rate) : null);
@@ -4217,7 +4222,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 if (Number(inv.taxAmount) > 0) {
                     drawTotalRow('الضريبة', `+ ${Accounting.format(inv.taxAmount, inv.currency)}`, fSum, false);
                 }
-                drawTotalRow('المدفوع', Accounting.format(inv.paidAmount, inv.currency), fSum, false);
+                drawTotalRow('المدفوع', Accounting.format(typeof FinanceDesk==='undefined'?inv.paidAmount:FinanceDesk.paid(inv), inv.currency), fSum, false);
 
                 // Side Dashes Divider
                 ctx.font = `bold ${fSep}px monospace`;
@@ -4228,7 +4233,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 y += fSep + 10;
 
                 drawTotalRow('إجمالي الفاتورة', Accounting.format(inv.netTotal, inv.currency), fNet, true);
-                drawTotalRow('المبلغ الباقي', Accounting.format(inv.remainingAmount, inv.currency), fNet, true);
+                drawTotalRow('المبلغ الباقي', Accounting.format(typeof FinanceDesk==='undefined'?inv.remainingAmount:FinanceDesk.remaining(inv), inv.currency), fNet, true);
 
                 y += 4;
                 if(acc && State.settings.taPrintFields?.balances !== false){
@@ -5291,8 +5296,8 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                                         </div>
                                         <div class="text-left">
                                             <div class="font-extrabold text-sm text-slate-900">الصافي: ${Accounting.format(inv.netTotal, inv.currency)}</div>
-                                            <div class="text-[11px] ${Number(inv.remainingAmount) > 0 ? 'text-rose-600 font-bold' : 'text-emerald-600'}">
-                                                المدفوع: ${Accounting.format(inv.paidAmount, inv.currency)} | الباقي: ${Accounting.format(inv.remainingAmount, inv.currency)}
+                                            <div class="text-[11px] ${FinanceDesk.remaining(inv) > 0 ? 'text-rose-600 font-bold' : 'text-emerald-600'}">
+                                                المدفوع: ${Accounting.format(typeof FinanceDesk==='undefined'?inv.paidAmount:FinanceDesk.paid(inv), inv.currency)} | الباقي: ${Accounting.format(typeof FinanceDesk==='undefined'?inv.remainingAmount:FinanceDesk.remaining(inv), inv.currency)}
                                             </div>
                                         </div>
                                     </div>
@@ -5476,7 +5481,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                             ` : ''}
                             <div class="flex justify-between items-center text-base sm:text-lg">
                                 <span class="font-bold">المدفوع</span>
-                                <span class="font-black">${Accounting.format(inv.paidAmount, inv.currency)}</span>
+                                <span class="font-black">${Accounting.format(typeof FinanceDesk==='undefined'?inv.paidAmount:FinanceDesk.paid(inv), inv.currency)}</span>
                             </div>
 
                             <!-- Side Dashes Separator -->
@@ -5491,7 +5496,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                             </div>
                             <div class="flex justify-between items-center text-lg sm:text-xl font-black">
                                 <span>المبلغ الباقي</span>
-                                <span>${Accounting.format(inv.remainingAmount, inv.currency)}</span>
+                                <span>${Accounting.format(typeof FinanceDesk==='undefined'?inv.remainingAmount:FinanceDesk.remaining(inv), inv.currency)}</span>
                             </div>
 
                             <div class="pt-2 space-y-1">
@@ -5897,6 +5902,10 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 UI.setHeader('<i class="fas fa-chart-pie text-emerald-400"></i> <span>التقارير المالية والمخزنية</span>', 'حركة الصندوق، جرد المستودع، والأرباح والخسائر');
 
                 const tab = params.tab || 'cashbox';
+                if(tab==='collection') return FinanceDesk.collection(main,params);
+                if(tab==='bank_match') return FinanceDesk.bank(main);
+                if(tab==='cash_shifts') return FinanceDesk.cashShifts(main,params);
+                if(tab==='settlement_fx') return FinanceDesk.fxReport(main,params);
                 if (tab === 'sales_summary' || tab === 'debts_summary') return LedgerReports.render(main, params);
                 // Do not build the cashbox ledger while rendering the profit report.
                 // Imported/older databases may contain incomplete voucher records;
@@ -5937,6 +5946,8 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                         salesSyp += saleSign*netSyp; salesUsd += saleSign*netUsd;
                         let invoiceProfit = 0;
                         const invoiceRows = Array.isArray(inv.rows) ? inv.rows : [];
+                        const linesTotal=invoiceRows.reduce((total,row)=>total+Number(row?.total ?? ((row?.qty||0)*(row?.price||0)-(row?.discount||0))),0);
+                        const invoiceAdjustment=linesTotal>0 ? Number(inv.netTotal ?? linesTotal)/linesTotal : 1;
                         for (const r of invoiceRows) {
                             if (!r || typeof r !== 'object') continue;
                             const item = (Array.isArray(State.items) ? State.items : []).find(i => i && i.id === r.itemId);
@@ -5949,12 +5960,12 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                             const costItemCurrency = (Number(r.baseCostPrice ?? (item.isBundle ? Accounting.itemCostPrice(item,unitObj) : unitObj.costPrice)) || 0) * qty;
                             const configuredRate = Number(State.settings && State.settings.exchangeRate);
                             const safeRate = Number(rate) > 0 ? Number(rate) : (configuredRate > 0 ? configuredRate : 1);
-                            const itemCurrency = item.currency || inv.currency || 'SYP';
+                            const itemCurrency = r.costCurrency || item.currency || inv.currency || 'SYP';
                             const invoiceCurrency = inv.currency || 'SYP';
-                            const costUsd = itemCurrency === 'USD' ? costItemCurrency : costItemCurrency / safeRate;
+                            const costUsd = r.weightedCostUsd!=null ? Number(r.weightedCostUsd)*qty : (itemCurrency === 'USD' ? costItemCurrency : costItemCurrency / safeRate);
                             const rowRevenue = Number(r.total) || ((Number(r.qty) || 0) * (Number(r.price) || 0) - (Number(r.discount) || 0));
                             const revenueUsd = invoiceCurrency === 'USD' ? rowRevenue : rowRevenue / safeRate;
-                            const rowProfitUsd = saleSign*(revenueUsd - costUsd);
+                            const rowProfitUsd = saleSign*(revenueUsd*invoiceAdjustment - costUsd);
                             invoiceProfit += rowProfitUsd;
                             const groupName = item.category || 'بدون مجموعة';
                             if (!groupProfits[groupName]) groupProfits[groupName] = 0;
@@ -5998,7 +6009,9 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 }
                 // FX gains are part of gross realized business profit, but remain
                 // separately identifiable in the exchange-profit report.
-                const grossProfitUsd = estimatedProfitUsd + exchangeProfitSyp/(Number(State.settings.exchangeRate)||1);
+                const settlementEvents=tab==='pnl' && typeof TiqanyFinance!=='undefined'?TiqanyFinance.settlements(State).events.filter(e=>TimeFilter.matches(e.voucher.date,period,selectedDate,endDate) && (typeof agentId==='undefined'||agentId==='all'||(e.voucher.fieldOrigin?.agentId||'office')===agentId)):[];
+                const settlementGainUsd=settlementEvents.reduce((total,e)=>total+e.gainSyp/(Number(e.voucher.exchangeRate)||1),0);
+                const grossProfitUsd = estimatedProfitUsd + exchangeProfitSyp/(Number(State.settings.exchangeRate)||1) + settlementGainUsd;
                 const netProfitUsd = grossProfitUsd - expenseTotalUsd;
                 // Equity distributions are reported separately, never as operating expenses.
                 const shareholderDrawsInPeriod=(Array.isArray(State.shareholderMovements)?State.shareholderMovements:[])
@@ -6030,6 +6043,10 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                         <button type="button" onclick="AppNav.navigate('reports', { tab: 'pnl', view: 'invoices' }, true)" class="py-2 rounded-xl ${tab === 'pnl' ? 'bg-slate-900 text-white' : 'text-slate-600'}">الأرباح والمبيعات</button>
                     </div>
                     <div class="mb-4">
+                      <div class="grid grid-cols-2 gap-2 mb-3">
+                      <button type="button" class="invoice-report-action p-3 font-bold" onclick="FinanceDesk.nav('collection')">التحصيل والاستحقاقات</button>
+                      <button type="button" class="invoice-report-action p-3 font-bold" onclick="FinanceDesk.nav('cash_shifts')">فتح وإقفال الصندوق</button>
+                    </div>
                       <button type="button" onclick="LedgerReports.openPrintChooser()" class="invoice-report-action w-full py-4 px-5 font-black text-base flex gap-3 items-center justify-center" aria-label="طباعة تقرير: اختر المواد أو الديون"><i class="fas fa-print text-xl" aria-hidden="true"></i><span>طباعة تقرير</span><i class="fas fa-chevron-left" aria-hidden="true"></i></button>
                     </div>
                     ${tab === 'cashbox' ? `
@@ -6066,7 +6083,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                         <!-- Total valuation in a selectable currency (cost, not sale price). -->
                         <div class="bg-emerald-50 border-2 border-emerald-300 rounded-2xl p-4 mb-3" id="inventoryTotalValueCard">
                             <div class="flex flex-wrap items-center justify-between gap-3 mb-2">
-                                <label class="text-sm font-extrabold text-emerald-950" for="inventoryValuationCurrency">القيمة الإجمالية للمواد بسعر التكلفة</label>
+                                <label class="text-sm font-extrabold text-emerald-950" for="inventoryValuationCurrency">القيمة الإجمالية للمواد بمتوسط التكلفة المرجّح</label>
                                 <select id="inventoryValuationCurrency" aria-label="عملة تقييم المخزون" onchange="InventoryValuation.setCurrency(this.value)" class="border border-emerald-400 bg-white rounded-xl px-3 py-2 text-sm font-bold text-emerald-900">
                                     <option value="SYP" ${inventoryValuationCurrency === 'SYP' ? 'selected' : ''}>الليرة السورية (SYP)</option>
                                     <option value="USD" ${inventoryValuationCurrency === 'USD' ? 'selected' : ''}>الدولار الأمريكي (USD)</option>
@@ -6103,6 +6120,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                         <div class="grid grid-cols-3 gap-1.5 mb-3">${active('invoices','أرباح الفواتير')}${active('groups','أرباح المجموعات')}${active('items','أرباح المواد')}</div>
                         <div class="grid grid-cols-2 gap-2 mb-3">
                             <div class="bg-white p-3 rounded-2xl border"><div class="text-[11px] text-slate-500">إجمالي المبيعات</div><div class="font-extrabold text-emerald-700">${Accounting.format(salesUsd,'USD')}</div><div class="text-[10px] text-slate-500">${Accounting.format(salesSyp,'SYP')}</div></div>
+                            ${settlementEvents.length ? `<button type="button" class="invoice-report-action p-3" onclick="FinanceDesk.nav('settlement_fx',AppNav.current().params ? {...AppNav.current().params,tab:'settlement_fx'} : {})">فرق العملة عند السداد · ${Accounting.format(settlementEvents.reduce((sum,e)=>sum+e.gainSyp,0),'SYP')}</button>` : ''}
                             <div class="ta-usd-profit bg-slate-900 text-white p-3 rounded-2xl"><div class="text-[11px] text-slate-300">إجمالي الربح شاملاً التصريف</div>${revealProfits ? `<div class="font-extrabold text-amber-300">${Accounting.format(grossProfitUsd,'USD')}</div><div class="text-[10px] text-emerald-300">${Accounting.format(grossProfitUsd * (Number(State.settings && State.settings.exchangeRate)||1),'SYP')}</div>` : `<div class="font-extrabold text-amber-300/80 mt-1 tracking-widest">••••••</div><div class="text-[10px] text-slate-300 mt-1">اضغط إظهار الأرباح</div>`}</div>
                         </div>
                         <div class="grid grid-cols-2 gap-2 mb-3">
@@ -6147,7 +6165,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 const mode = State.settings.btPrintMode || 'auto';
                 main.innerHTML = `
                     <div class="mb-3 flex items-center justify-between gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2" data-app-build="${InstalledAppVersion.number()}" role="status" aria-label="إصدار التطبيق">
-                        <span class="font-black text-xs text-emerald-800"><i class="fas fa-check-circle ml-1"></i> إصدار التطبيق: 3.5.153</span>
+                        <span class="font-black text-xs text-emerald-800"><i class="fas fa-check-circle ml-1"></i> إصدار التطبيق: 3.5.154</span>
                         <span class="text-[10px] font-bold text-emerald-700">مظهر ثلاثي الأبعاد موحّد</span>
                     </div>
                     ${TiqanySupport.launch()}
@@ -6165,6 +6183,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                         <div class="settings-section-body">
                     <div class="bg-white border border-slate-200 rounded-xl p-3 space-y-3">
                         <div>
+                            <label class="flex gap-2 items-center font-bold mb-3"><input type="checkbox" id="settleFxOnPayment" ${State.settings.settleFxOnPayment===true?'checked':''} onchange="State.settings.settleFxOnPayment=this.checked;SettingsController.markSettingsDirty()"> تسوية فرق العملة عند السداد</label>
                             <label for="setDefaultInvoiceCurrency" class="block text-xs font-extrabold text-slate-800 mb-1">العملة الافتراضية للفاتورة الجديدة</label>
                             <select id="setDefaultInvoiceCurrency" onchange="SettingsController.setDefaultInvoiceCurrency(this.value)" class="w-full bg-white border border-slate-300 rounded-xl p-2.5 text-xs font-bold" ${State.settings.primaryOnlyMode ? 'disabled' : ''}>
                                 ${CurrencyCatalog.options(State.settings.primaryOnlyMode ? CurrencyCatalog.primary() : (State.settings.defaultCurrency || 'USD'))}
@@ -8164,7 +8183,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
             openInvoiceActions(invoiceId) {
                 const inv = State.invoices.find(i => i.id === invoiceId);
                 if (!inv) return;
-                const canPay = Number(inv.remainingAmount) > 0 && inv.paymentMethod !== 'cash';
+                const canPay = FinanceDesk.remaining(inv) > 0 && inv.paymentMethod !== 'cash';
                 UI.openModal(`
                     <div class="flex items-center justify-between border-b pb-3 mb-3">
                         <div>
@@ -8182,45 +8201,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 `);
             },
 
-            openInvoicePayment(invoiceId) {
-                const inv = State.invoices.find(i => i.id === invoiceId);
-                if (!inv || Number(inv.remainingAmount) <= 0) return;
-                const remaining = Number(inv.remainingAmount) || 0;
-                UI.openModal(`
-                    <div class="flex items-center justify-between border-b pb-3 mb-3">
-                        <h3 class="font-extrabold text-base">إضافة دفعة للفاتورة #${inv.number}</h3>
-                        <button onclick="UI.forceCloseModal()" class="ta-glossy-icon-button text-slate-400"><i class="fas fa-times"></i></button>
-                    </div>
-                    <div class="bg-slate-50 rounded-xl p-3 mb-3 text-xs space-y-1">
-                        <div class="flex justify-between"><span>قيمة الفاتورة</span><strong>${Accounting.format(inv.netTotal, inv.currency)}</strong></div>
-                        <div class="flex justify-between"><span>المدفوع سابقاً</span><strong>${Accounting.format(inv.paidAmount, inv.currency)}</strong></div>
-                        <div class="flex justify-between text-rose-700"><span>المتبقي</span><strong>${Accounting.format(remaining, inv.currency)}</strong></div>
-                    </div>
-                    <label class="block text-xs font-bold text-slate-700 mb-1">قيمة الدفعة (${inv.currency})</label>
-                    <input id="invoiceAdditionalPayment" type="number" min="0.01" step="any" max="${remaining}" placeholder="أدخل مبلغ الدفعة" class="w-full border border-slate-300 rounded-xl p-3 text-center font-extrabold mb-3">
-                    <button onclick="InvoiceController.saveInvoicePayment('${inv.id}')" class="w-full bg-emerald-600 text-white rounded-xl py-3 font-extrabold text-sm">حفظ الدفعة</button>
-                `);
-            },
-
-            async saveInvoicePayment(invoiceId) {
-                const inv = State.invoices.find(i => i.id === invoiceId);
-                if (!inv) return;
-                const amount = Accounting.round(Accounting.parseNum(document.getElementById('invoiceAdditionalPayment')?.value), inv.currency);
-                const remaining = Accounting.round(Number(inv.netTotal) - Number(inv.paidAmount), inv.currency);
-                if (!(amount > 0) || amount > remaining) {
-                    UI.toast('أدخل مبلغاً صحيحاً لا يتجاوز المبلغ المتبقي', 'error');
-                    return;
-                }
-                inv.paidAmount = Accounting.round((Number(inv.paidAmount) || 0) + amount, inv.currency);
-                inv.remainingAmount = Accounting.round(Number(inv.netTotal) - inv.paidAmount, inv.currency);
-                inv.paymentMethod = inv.remainingAmount <= 0 ? 'cash' : 'partial';
-                inv.paymentHistory = Array.isArray(inv.paymentHistory) ? inv.paymentHistory : [];
-                inv.paymentHistory.push({ amount, date: new Date().toISOString(), currency: inv.currency });
-                await StorageEngine.saveState();
-                UI.forceCloseModal();
-                UI.toast(inv.paymentMethod === 'cash' ? 'اكتمل سداد الفاتورة وتحولت إلى نقدي' : 'تم تسجيل الدفعة وتحويل الفاتورة إلى دفع جزئي', 'success');
-                AppNav.renderCurrent();
-            },
+            openInvoicePayment(invoiceId) { return FinanceDesk.invoicePayment(invoiceId); },
 
             openInvoiceTypeFilter(filterType, dateMode, customDate) {
                 const types = [
@@ -9134,6 +9115,10 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
 
 
 
+                    <div class="rounded-xl border p-3 mb-3 grid gap-2">
+                      ${d.accountId && d.paymentMethod!=='cash' ? `<label>تاريخ استحقاق الفاتورة<input class="w-full border rounded-xl p-2" type="date" value="${AppEscape.text(d.dueDate||'')}" onchange="InvoiceController.draft.dueDate=this.value;InvoiceController.markModified()"></label>` : ''}
+                      ${FinanceDesk.channelSelect('InvoiceController',d)}
+                    </div>
                     <div class="ta-invoice-save-footer" role="group" aria-label="حفظ الفاتورة وأرصدة الحساب">
                       <div class="ta-footer-balances">${this.footerBalancesHTML()}</div>
                       <div class="ta-footer-actions">
@@ -9204,7 +9189,8 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                     }
                 }
 
-                const cleanDoc = { ...d };
+                const cleanDoc = { ...d, rows:d.rows.map(r=>({...r})) };
+                TiqanyFinance.freeze(State,cleanDoc,State.invoices.find(i=>i.id===d.id));
                 delete cleanDoc.isEditing;
                 if (cleanDoc.type === 'sale' || cleanDoc.type === 'sale_return') {
                     for (const row of cleanDoc.rows) {
@@ -9248,7 +9234,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
             openInvoiceActions(invId) {
                 const inv = State.invoices.find(i => i.id === invId);
                 if (!inv) return UI.toast('تعذر العثور على الفاتورة', 'error');
-                const remaining = Math.max(0, Number(inv.remainingAmount) || 0);
+                const remaining = FinanceDesk.remaining(inv);
                 UI.openModal(`
                     <div class="flex items-center justify-between border-b border-slate-100 pb-3 mb-3">
                         <div><h3 class="font-extrabold text-base text-slate-900">الفاتورة #${inv.number}</h3><p class="text-xs text-slate-500 mt-1">${Accounting.getInvoiceTypeAr(inv.type)} · ${Accounting.format(inv.netTotal, inv.currency)}</p></div>
@@ -9261,44 +9247,11 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                         <button onclick="UI.forceCloseModal(); ThermalPrinter.printInvoiceDirect(State.invoices.find(i=>i.id==='${inv.id}'))" class="rounded-xl bg-amber-50 text-amber-700 py-4 font-extrabold text-sm flex flex-col items-center gap-2"><i class="fas fa-print text-xl"></i>طباعة</button>
                     </div>
                     <button onclick="UI.forceCloseModal(); InvoicePdfShare.share('${inv.id}')" class="w-full mt-2 rounded-xl bg-emerald-100 text-emerald-800 py-3 font-black text-sm"><i class="fas fa-share-nodes ml-2"></i>مشاركة الفاتورة PDF مباشرة — دون حفظ على الهاتف</button>
-                    <div class="mt-3 rounded-xl bg-slate-50 p-3 text-xs flex justify-between"><span>المدفوع: ${Accounting.format(inv.paidAmount, inv.currency)}</span><strong class="${remaining > 0 ? 'text-rose-600' : 'text-emerald-600'}">المتبقي: ${Accounting.format(remaining, inv.currency)}</strong></div>
+                    <div class="mt-3 rounded-xl bg-slate-50 p-3 text-xs flex justify-between"><span>المدفوع: ${Accounting.format(typeof FinanceDesk==='undefined'?inv.paidAmount:FinanceDesk.paid(inv), inv.currency)}</span><strong class="${remaining > 0 ? 'text-rose-600' : 'text-emerald-600'}">المتبقي: ${Accounting.format(remaining, inv.currency)}</strong></div>
                 `);
             },
 
-            openInvoicePayment(invId) {
-                const inv = State.invoices.find(i => i.id === invId);
-                if (!inv) return UI.toast('تعذر العثور على الفاتورة', 'error');
-                const remaining = Math.max(0, Number(inv.remainingAmount) || 0);
-                if (remaining <= 0) return UI.toast('هذه الفاتورة مسددة بالكامل', 'info');
-                UI.openModal(`
-                    <div class="flex items-center justify-between border-b border-slate-100 pb-2 mb-3"><h3 class="font-extrabold text-base">إضافة دفعة للفاتورة #${inv.number}</h3><button onclick="UI.requestCloseModal()" class="ta-glossy-icon-button"><i class="fas fa-times text-slate-400"></i></button></div>
-                    <div class="rounded-xl bg-slate-50 p-3 mb-3 text-xs space-y-1"><div class="flex justify-between"><span>إجمالي الفاتورة</span><b>${Accounting.format(inv.netTotal, inv.currency)}</b></div><div class="flex justify-between"><span>المدفوع سابقاً</span><b>${Accounting.format(inv.paidAmount, inv.currency)}</b></div><div class="flex justify-between text-rose-600"><span>المبلغ المتبقي</span><b>${Accounting.format(remaining, inv.currency)}</b></div></div>
-                    <label class="block text-xs font-bold text-slate-700 mb-1">مبلغ الدفعة (${inv.currency})</label>
-                    <input id="invoicePaymentAmount" type="number" min="0.01" max="${remaining}" step="any" value="${remaining}" class="w-full border border-slate-300 rounded-xl px-3 py-3 text-center text-lg font-extrabold mb-3" />
-                    <div class="flex gap-2"><button onclick="InvoiceController.saveInvoicePayment('${inv.id}')" class="flex-1 bg-emerald-600 text-white font-extrabold py-3 rounded-xl">حفظ الدفعة</button><button onclick="UI.forceCloseModal()" class="px-4 bg-slate-100 text-slate-700 font-bold rounded-xl">إلغاء</button></div>
-                `);
-                setTimeout(() => { const el = document.getElementById('invoicePaymentAmount'); if (el) { el.focus(); el.select(); } }, 50);
-            },
-
-            async saveInvoicePayment(invId) {
-                const inv = State.invoices.find(i => i.id === invId);
-                const input = document.getElementById('invoicePaymentAmount');
-                if (!inv || !input) return;
-                const amount = Accounting.parseNum(input.value);
-                const remaining = Math.max(0, Number(inv.remainingAmount) || 0);
-                if (!(amount > 0)) return UI.toast('يرجى إدخال مبلغ دفعة صحيح', 'error');
-                if (amount - remaining > 0.000001) return UI.toast('مبلغ الدفعة أكبر من المبلغ المتبقي', 'error');
-                inv.paidAmount = Accounting.round((Number(inv.paidAmount) || 0) + amount, inv.currency);
-                inv.remainingAmount = Accounting.round(Math.max(0, Number(inv.netTotal) - inv.paidAmount), inv.currency);
-                // تحويل الفاتورة الآجلة تلقائياً إلى دفع جزئي، أو نقدي عند السداد الكامل.
-                inv.paymentMethod = inv.remainingAmount > 0 ? 'partial' : 'cash';
-                inv.paymentHistory = Array.isArray(inv.paymentHistory) ? inv.paymentHistory : [];
-                inv.paymentHistory.push({ amount, date: new Date().toISOString(), currency: inv.currency });
-                await StorageEngine.saveState();
-                UI.forceCloseModal();
-                UI.toast(inv.remainingAmount > 0 ? 'تم تسجيل الدفعة وتحويل الفاتورة إلى دفع جزئي' : 'تم سداد الفاتورة بالكامل', 'success');
-                AppNav.renderCurrent();
-            },
+            openInvoicePayment(invId) { return FinanceDesk.invoicePayment(invId); },
 
             deleteInvoice(invId) {
                 UI.showDeleteConfirm(
@@ -9562,7 +9515,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 const d = this.draft;
                 if (!d || (State.settings.primaryOnlyMode && !d.isEditing)) return;
                 d.currency = d.currency === 'USD' ? 'SYP' : 'USD';
-                d.accountCurrency = d.currency; // Preserve the form's existing default clearing behavior.
+                d.accountCurrency = d.financeTarget ? (State.invoices.find(i=>i.id===d.financeTarget)?.currency || d.currency) : d.currency; // Preserve the form's existing default clearing behavior.
                 this.recalcClearing();
                 this.markModified();
                 const form = this.voucherFormHost();
@@ -9579,6 +9532,15 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 d.accountAmount = Accounting.convert(d.amount, d.currency, d.accountCurrency, d.exchangeRate);
                 const el = document.getElementById('vchAccountAmountInput');
                 if (el) el.value = d.accountAmount;
+                if(d.financeTarget){
+                    const inv=State.invoices.find(i=>i.id===d.financeTarget);
+                    if(inv && inv.accountId===d.accountId && inv.currency===d.accountCurrency){
+                      const value=Math.min(FinanceDesk.remaining(inv),Number(d.accountAmount)||0);
+                      d.allocations=[{invoiceId:inv.id,amount:value}];
+                      const field=Array.from(this.voucherFormHost()?.querySelectorAll('[data-allocation]')||[]).find(el=>el.dataset.allocation===inv.id);
+                      if(field)field.value=value;
+                    }
+                }
                 this.updateBalanceFooter();
             },
 
@@ -9625,7 +9587,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                             <div>
                                 <label class="block font-bold text-slate-700 mb-1">الحساب (العميل / المورد) *</label>
-                                <select onchange="VoucherController.draft.accountId = this.value; VoucherController.markModified(); VoucherController.updateBalanceFooter()" class="w-full border border-slate-300 rounded-xl px-3 py-2 font-bold bg-slate-50">
+                                <select onchange="VoucherController.draft.accountId = this.value; VoucherController.markModified(); VoucherController.updateBalanceFooter(); VoucherController.draft.allocations=[]; VoucherController.paintVoucherForm(VoucherController.voucherFormHost())" class="w-full border border-slate-300 rounded-xl px-3 py-2 font-bold bg-slate-50">
                                     <option value="">-- اختر الحساب --</option>
                                     ${State.accounts.map(a => `<option value="${a.id}" ${d.accountId === a.id ? 'selected' : ''}>${a.name}</option>`).join('')}
                                 </select>
@@ -9661,7 +9623,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                             <div class="grid grid-cols-2 gap-2">
                                 <div>
                                     <label class="block text-[11px] text-slate-600 mb-1">عملة الترحيل في كشف الحساب</label>
-                                    <select onchange="VoucherController.draft.accountCurrency = this.value; VoucherController.markModified(); VoucherController.recalcClearing()" class="w-full border border-slate-300 rounded-xl px-2.5 py-1.5 font-bold bg-white">
+                                    <select onchange="VoucherController.draft.accountCurrency = this.value; VoucherController.markModified(); VoucherController.recalcClearing(); VoucherController.draft.allocations=[]; VoucherController.paintVoucherForm(VoucherController.voucherFormHost())" class="w-full border border-slate-300 rounded-xl px-2.5 py-1.5 font-bold bg-white">
                                         ${!State.settings.primaryOnlyMode || d.isEditing || CurrencyCatalog.primary() === 'SYP' ? `<option value="SYP" ${d.accountCurrency === 'SYP' ? 'selected' : ''}>ترحيل بالليرة السورية (SYP)</option>` : ''}
                                         ${!State.settings.primaryOnlyMode || d.isEditing || CurrencyCatalog.primary() === 'USD' ? `<option value="USD" ${d.accountCurrency === 'USD' ? 'selected' : ''}>ترحيل بالدولار الأمريكي (USD)</option>` : ''}
                                     </select>
@@ -9679,6 +9641,8 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                         </div>
 
                         ${d.isEditing ? `<div class="flex justify-start pt-1"><button type="button" onclick="VoucherController.deleteVoucher('${d.id}')" class="px-4 bg-rose-50 text-rose-600 font-bold rounded-xl text-xs"><i class="fas fa-trash"></i> حذف السند</button></div>` : ''}
+                        ${FinanceDesk.channelSelect('VoucherController',d)}
+                        ${FinanceDesk.allocationFields(d)}
                         <div class="ta-voucher-save-footer" role="group" aria-label="الرصيد السابق والنهائي وأزرار السند">
                             <div class="ta-voucher-footer-balances">
                                 <div class="ta-voucher-balance-tile"><span>الرصيد السابق</span><strong data-voucher-before>—</strong></div>
@@ -9713,8 +9677,11 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                     d.accountAmount = Accounting.convert(d.amount, d.currency, d.accountCurrency, d.exchangeRate);
                 }
 
-                const clean = { ...d };
-                delete clean.isEditing;
+                const clean = { ...d, financeRates:{...(d.financeRates||State.settings.currencyRatesSyp||{})} };
+                try {
+                    clean.allocations=TiqanyFinance.allocate(State,clean,d.allocations ?? (d.linkedInvoiceId ? [{invoiceId:d.linkedInvoiceId,amount:d.accountAmount}] : []));
+                } catch(error) { UI.toast(error.message,'warn'); return false; }
+                delete clean.isEditing; delete clean.financeTarget;
 
                 const idx = State.vouchers.findIndex(v => v.id === clean.id);
                 if (idx > -1) {clean.createdOnDevice=State.vouchers[idx].createdOnDevice;State.vouchers[idx] = clean;}

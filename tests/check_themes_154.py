@@ -331,6 +331,14 @@ with sync_playwright() as playwright:
                         }''')
                         assert metrics['edge']<=2 and 0<=metrics['gap']<=14,(theme,width,metrics)
                         assert metrics['width']<=metrics['viewport']+1 and metrics['base'] not in ('transparent','rgba(0, 0, 0, 0)'),metrics
+                if not employee:
+                    channel=surface.locator('select[onchange*="cashChannel"]')
+                    channel.wait_for(state='attached')
+                    surface.evaluate('e=>e.scrollTop=e.scrollHeight')
+                    assert channel.bounding_box()['y']+channel.bounding_box()['height']<=footer.bounding_box()['y']+1, (theme, "Payment channel covered by footer")
+                    channel.select_option('transfer')
+                    assert page.evaluate('InvoiceController.draft.cashChannel')=='transfer'
+                    channel.select_option('cash')
                 page.set_viewport_size(old_size)
         for kind in ('receipt','payment'):
             if employee:

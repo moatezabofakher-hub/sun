@@ -218,11 +218,12 @@ const FieldSync = {
       {passwordOnly:!!window.WindowsPeerSync});
   },
   catalog(a, historyCursor=0){
+    const collectionBook=typeof TiqanyFinance!=='undefined' && TiqanyAgentPermissions.normalize(a.permissions).balances ? TiqanyFinance.settlements(State) : null;
     const config=this.data();
     const known=config.imported.filter(i=>i.agentId===a.id).map(i=>i.id);
     // Limit optional image payloads to keep periodic encrypted sync reliable on LAN.
     let imageBudget=650000,ledgerBudget=4600;
-    return {kind:'provision',appVersion:'3.5.153',format:FieldProtocol.FORMAT,companyId:config.companyId,companyName:State.settings.companyName,agentId:a.id,agentName:a.name,vehicleName:a.vehicleName,warehouseId:a.warehouseId,warehouseName:WarehouseController.name(a.warehouseId),key:a.key,
+    return {kind:'provision',appVersion:'3.5.154',format:FieldProtocol.FORMAT,companyId:config.companyId,companyName:State.settings.companyName,agentId:a.id,agentName:a.name,vehicleName:a.vehicleName,warehouseId:a.warehouseId,warehouseName:WarehouseController.name(a.warehouseId),key:a.key,
       issuedAt:new Date().toISOString(),permissions:TiqanyAgentPermissions.normalize(a.permissions),employeeAuth:a.employeeAuth||null,exchangeRate:Number(State.settings.exchangeRate),
       currencyExchangeRatesSyp:JSON.parse(JSON.stringify(State.settings.currencyExchangeRatesSyp||{})),
       allowedCurrencies:[...new Set([...(typeof CurrencyCatalog!=='undefined'?CurrencyCatalog.active():['USD','SYP']),...(State.settings.addedCurrencies||[]).map(c=>c.code).filter(c=>/^[A-Z]{3}$/.test(c))])],
@@ -249,6 +250,7 @@ const FieldSync = {
         // The agent adjusts only operations not represented in this synchronized snapshot.
         const st=Accounting.getAccountStatement(acc.id);
         return {id:acc.id,name:acc.name,type:acc.type,phone:acc.phone||'',address:acc.address||'',paymentTerms:acc.paymentTerms||'',priceTier:['wholesale','center','consumer'].includes(acc.priceTier)?acc.priceTier:'settings',
+          collectionInvoices:collectionBook ? State.invoices.filter(i=>i.accountId===acc.id && i.type==='sale' && collectionBook.balances.get(i.id)>0).map(i=>({id:i.id,number:i.number,currency:i.currency,remaining:collectionBook.balances.get(i.id),dueDate:String(i.dueDate||i.date||'').slice(0,10)})) : [],
           sypBalance:TiqanyAgentPermissions.normalize(a.permissions).balances?st.sypBalance:null,usdBalance:TiqanyAgentPermissions.normalize(a.permissions).balances?st.usdBalance:null};
       }),
       stock:Object.fromEntries(State.items.map(it=>[it.id,Accounting.getItemBaseStock(it.id,null,a.warehouseId)])),
@@ -421,7 +423,7 @@ const FieldSync = {
   },
   async exportAck(id){
     const c=this.data(),a=c.agents.find(x=>x.id===id);if(!a)return;
-    const payload={kind:'ack',appVersion:'3.5.153',companyId:c.companyId,agentId:a.id,knownIds:c.imported.filter(x=>x.agentId===id).map(x=>x.id),issuedAt:new Date().toISOString()};
+    const payload={kind:'ack',appVersion:'3.5.154',companyId:c.companyId,agentId:a.id,knownIds:c.imported.filter(x=>x.agentId===id).map(x=>x.id),issuedAt:new Date().toISOString()};
     await this.saveFile('TA_ACK_'+a.id+'.json',await FieldProtocol.seal(payload,a.key));
   },
   showActivation(id){
@@ -516,8 +518,8 @@ const FieldSync = {
       agent=config.agents.find(a=>a.id===packet.agentId&&!a.disabled&&!a.archived);
       if(!agent)throw Error('موظف البيع غير مسجل أو موقوف');
       const payload=await FieldLanCrypto.open(packet,agent.key,config.companyId,agent.id);
-      if(payload.appVersion!=='3.5.153'){
-        const warning='اختلاف إصدار التطبيقات: يجب تحديث جميع الأجهزة إلى الإصدار 3.5.153 قبل الاتصال أو المزامنة. لم تُنقل أي بيانات.';
+      if(payload.appVersion!=='3.5.154'){
+        const warning='اختلاف إصدار التطبيقات: يجب تحديث جميع الأجهزة إلى الإصدار 3.5.154 قبل الاتصال أو المزامنة. لم تُنقل أي بيانات.';
         if(Date.now()-(this.lastVersionMismatchNotice||0)>60000){this.lastVersionMismatchNotice=Date.now();
           UI.toast(warning,'warn');
           try{await ManagerNotifications.addSyncNotice(warning);}catch(_){}
@@ -550,7 +552,7 @@ const FieldSync = {
         snapshot.warehouseSwitch={from:agent.warehouseId,to:agent.pendingWarehouseId,id:agent.warehouseSwitchId,requestedAt:agent.warehouseSwitchRequestedAt,historyCursor:0};
         snapshot.historyPage={ops:[],nextCursor:0,total:0};
       }
-      const ack={kind:'sync_result',appVersion:'3.5.153',companyId:config.companyId,agentId:agent.id,accepted:count,
+      const ack={kind:'sync_result',appVersion:'3.5.154',companyId:config.companyId,agentId:agent.id,accepted:count,
         knownIds:config.imported.filter(x=>x.agentId===agent.id).map(x=>x.id),catalog:snapshot,requestNonce:payload.nonce,serverAt:new Date().toISOString()};
       answer=await FieldLanCrypto.pack(ack,agent.key,config.companyId,agent.id);
       this.markConnectedAgent(agent.id);
@@ -622,6 +624,8 @@ const FieldSync = {
       const nv=Math.max(0,...State.vouchers.map(x=>Number(x.number)||0));
       const docs=FieldProtocol.toLedgerDocuments(fresh,agent,ni,nv);
       docs.invoices.forEach(inv=>(inv.rows||[]).forEach(row=>{const it=State.items.find(x=>x.id===row.itemId);if(it?.isBundle){const u=it.units?.find(x=>x.name===row.unitName)||it.units?.[0];row.baseCostPrice=Accounting.itemCostPrice(it,u);}}));
+      if(typeof TiqanyFinance!=='undefined') for(const inv of docs.invoices) TiqanyFinance.freeze(State,inv);
+      if(typeof TiqanyFinance!=='undefined') TiqanyFinance.fieldPayments(State,docs.vouchers,fresh,docs.invoices);
       this.checkNewCustomers(docs.customers,old.accounts);
       for(const item of docs.items||[]){
         if(old.items.some(x=>String(x.name).trim().toLowerCase()===String(item.name).trim().toLowerCase()||x.id===item.id))
@@ -648,7 +652,7 @@ const FieldSync = {
       if(candidate?.kind!=='operations'||candidate.companyId!==c.companyId)throw Error('ملف لا يخص الشركة الحالية');
       const a=c.agents.find(x=>x.id===candidate.agentId&&!x.disabled);if(!a)throw Error('موظف البيع غير معروف أو موقوف');
       const payload=await FieldProtocol.unseal(envelope,a.key);
-      if(payload.appVersion!=='3.5.153')throw Error('اختلاف إصدار التطبيقات: يجب تحديث جميع الأجهزة إلى الإصدار 3.5.153 قبل الاتصال أو المزامنة. لم تُنقل أي بيانات.');
+      if(payload.appVersion!=='3.5.154')throw Error('اختلاف إصدار التطبيقات: يجب تحديث جميع الأجهزة إلى الإصدار 3.5.154 قبل الاتصال أو المزامنة. لم تُنقل أي بيانات.');
       if(payload.warehouseId!==a.warehouseId)throw Error('مستودع ملف موظف البيع لا يطابق سجل السيارة');
       const pending=this.unpostedOperations(a,payload.operations);
       const fresh=FieldProtocol.validateOps(pending,a.id,c.companyId,a.warehouseId,State.items,State.accounts,(this.historyFor?.(a)||this.data().operationHistory||[]));

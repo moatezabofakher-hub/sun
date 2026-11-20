@@ -1,7 +1,7 @@
 /* Tiqany peer ledger merge (shared, testable, deliberately independent of UI). */
 (function(root,factory){const api=factory();if(typeof module==='object'&&module.exports)module.exports=api;root.TiqanyPeerMerge=api;})(typeof globalThis==='object'?globalThis:this,function(){
 'use strict';
-const BASE_COLLECTIONS=['categories','items','accounts','invoices','vouchers','warehouses','transfers','expenses','capitalMovements','shareholderOwners','shareholderMovements','currencyExchanges'];
+const BASE_COLLECTIONS=['categories','items','accounts','invoices','vouchers','warehouses','transfers','expenses','capitalMovements','shareholderOwners','shareholderMovements','currencyExchanges','cashShifts'];
 // The field staff directory, pending imported IDs and cash hand-offs must travel with the ledger.
 const STAFF_COLLECTIONS=['fieldAgents','fieldImported','fieldEvents','fieldCashTransfers','fieldOperationHistory','fieldRevisionAudit','fieldCompany'];
 const COLLECTIONS=BASE_COLLECTIONS.concat(STAFF_COLLECTIONS);
@@ -38,7 +38,7 @@ function snapshot(state){
 }
 function emptyLedger(s){
  if(!s||typeof s!=='object')return false;
- const arrays=['categories','items','accounts','invoices','vouchers','transfers','expenses','capitalMovements','shareholderOwners','shareholderMovements','currencyExchanges',
+ const arrays=['categories','items','accounts','invoices','vouchers','transfers','expenses','capitalMovements','shareholderOwners','shareholderMovements','currencyExchanges','cashShifts',
    'fieldAgents','fieldImported','fieldEvents','fieldCashTransfers','fieldOperationHistory','fieldRevisionAudit'];
  if(arrays.some(k=>Array.isArray(s[k])&&s[k].length>0))return false;
  // The template contains wh_main; additional warehouses imply an established company.
@@ -75,7 +75,7 @@ function bootstrapProtection(cfg){
    recoveryFailures:0,recoveryLockedUntil:0,lockApp:cfg.lockApp===true,protectDeletion:!!cfg.protectDeletion,
    fingerprintEnabled:false,fingerprintCredentialId:''};
 }
-function ensureSnapshot(s){if(!s||typeof s!=='object'||Array.isArray(s))throw Error('نسخة مزامنة غير صالحة');for(const k of BASE_COLLECTIONS)if(!Array.isArray(s[k])&&(!['capitalMovements','shareholderOwners','shareholderMovements','currencyExchanges'].includes(k)||s[k]!==undefined))throw Error('سجل '+k+' غير صالح');for(const k of STAFF_COLLECTIONS)if(s[k]!==undefined&&!Array.isArray(s[k]))throw Error('سجل موظفي البيع '+k+' غير صالح');if(!s.sharedSettings||typeof s.sharedSettings!=='object'||Array.isArray(s.sharedSettings))throw Error('إعدادات المزامنة غير صالحة');
+function ensureSnapshot(s){if(!s||typeof s!=='object'||Array.isArray(s))throw Error('نسخة مزامنة غير صالحة');for(const k of BASE_COLLECTIONS)if(!Array.isArray(s[k])&&(!['capitalMovements','shareholderOwners','shareholderMovements','currencyExchanges','cashShifts'].includes(k)||s[k]!==undefined))throw Error('سجل '+k+' غير صالح');for(const k of STAFF_COLLECTIONS)if(s[k]!==undefined&&!Array.isArray(s[k]))throw Error('سجل موظفي البيع '+k+' غير صالح');if(!s.sharedSettings||typeof s.sharedSettings!=='object'||Array.isArray(s.sharedSettings))throw Error('إعدادات المزامنة غير صالحة');
  if(Object.keys(s.sharedSettings).length>500||JSON.stringify(s.sharedSettings).length>350000||
    Object.keys(s.sharedSettings).some(k=>deviceSettingKey(k)||['__proto__','prototype','constructor'].includes(k)))
    throw Error('إعدادات المزامنة تتضمن بيانات جهاز أو تتجاوز الحد المسموح');
@@ -161,6 +161,7 @@ function reconcileFieldDuplicates(out,local,remote,resolutions,history,conflicts
  }
  // Preserve explicit receipt-to-invoice references after choosing one copy.
  if(alias.size)for(const voucher of out.vouchers){
+   for(const row of voucher.allocations||[])if(alias.has(row.invoiceId))row.invoiceId=alias.get(row.invoiceId);
    if(alias.has(voucher.linkedInvoiceId))voucher.linkedInvoiceId=alias.get(voucher.linkedInvoiceId);
  }
 }
