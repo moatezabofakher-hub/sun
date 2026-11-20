@@ -248,7 +248,9 @@ const E={
      if(!label||label.querySelector('.ta-pos-unit-change'))return;
      const select='<select class="ta-pos-unit-change" aria-label="تبديل وحدة '+this.esc(row.itemName)+'" '+(POSController.readOnly?'disabled':'')+
        ' onchange="TiqanyManager152.changePosUnit('+index+',this.value)">'+item.units.map(u=>'<option value="'+this.esc(u.name)+'" '+(u.name===row.unitName?'selected':'')+'>'+this.esc(u.name)+'</option>').join('')+'</select>';
-     label.insertAdjacentHTML('beforeend',select);
+     const remove=label.querySelector('button');
+     if(remove)remove.insertAdjacentHTML('beforebegin',select);
+     else label.insertAdjacentHTML('beforeend',select);
    });
  },
  install(){

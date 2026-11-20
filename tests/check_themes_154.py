@@ -1,4 +1,4 @@
-"""3.5.154 visual QA: unique illustrations, retained Classic and Royal theme, and Back safety."""
+"""3.5.155 visual QA: unique illustrations, retained Classic and Royal theme, and Back safety."""
 from pathlib import Path
 import base64
 import re
@@ -121,8 +121,21 @@ with sync_playwright() as playwright:
     before=page.evaluate("JSON.stringify(typeof State==='undefined'?Agent.state:State.settings)")
     entry.click()
     assert page.locator('#taTheme154Page').is_visible()
-    assert page.locator('[data-theme-choice]').count()==2
+    assert page.locator('[data-theme-choice]').count()==3
     assert page.locator('#taTheme154Page:modal').count()==1
+    page.get_by_role('button',name='البترولي والنحاسي',exact=False).click()
+    assert page.evaluate('TiqanyTheme154.current()')=='petrol'
+    page.locator('.ta-theme154-save').click()
+    assert page.evaluate("localStorage.getItem('tiqany.ui.theme.154')")=='petrol'
+    page.evaluate("localStorage.removeItem('tiqany.ui.theme.154')")
+    page.reload()
+    page.wait_for_function("TiqanyTheme154.current()==='classic'")
+    if employee:
+        page.evaluate("()=>{Agent.state=Agent.blank;Agent.screen='settings';document.querySelector('#screen').innerHTML=Agent.renderSettings()}")
+    else:
+        page.evaluate("()=>{State.settings.companyName='QA';State.settings.companySetupCompleted=true;document.querySelector('#ta-company-setup-128')?.remove();AppNav.stack=[{screen:'settings',params:{}}];AppNav.renderCurrent()}")
+    before=page.evaluate("JSON.stringify(typeof State==='undefined'?Agent.state:State.settings)")
+    entry.click()
     entry.evaluate("e=>e.focus()")
     assert page.evaluate("document.querySelector('#taTheme154Page').contains(document.activeElement)")
     page.keyboard.press('Tab')
@@ -270,7 +283,7 @@ with sync_playwright() as playwright:
         page.get_by_role('button', name='تحديد الكل كمقروء').click()
         page.wait_for_function("document.querySelectorAll('#mainContent .ta-alert-item.unread').length === 0")
         assert cards.count() == 3 and page.locator('.ta-alert-badge').count() == 0
-    for theme in ('classic','royal'):
+    for theme in ('classic','royal','petrol'):
         page.evaluate("theme=>document.documentElement.dataset.taTheme=theme",theme)
         for screen in ('home','reports','invoice'):
             if employee:
@@ -308,6 +321,17 @@ with sync_playwright() as playwright:
                 assert 'partners.webp' in art, (theme,art)
                 assert page.evaluate("""async()=>{const img=new Image();img.src='static/partners.webp';
                     await img.decode();return img.naturalWidth>0;}""")
+            if employee and screen=='home':
+                def tile(action):
+                    return surface.locator('button[onclick="'+action+'"]').bounding_box()
+                pos=tile('Agent.startPOS()')
+                sale=tile("Agent.startInvoice('sale')")
+                ret=tile("Agent.startInvoice('sale_return')")
+                receipt=tile("Agent.startVoucher('receipt')")
+                payment=tile("Agent.startVoucher('payment')")
+                assert pos['x']+pos['width']<=sale['x']+1 and abs(pos['y']-sale['y'])<=1,(pos,sale)
+                assert abs(pos['y']+pos['height']-ret['y']-ret['height'])<=1,(pos,ret)
+                assert abs(receipt['y']-payment['y'])<=1,(receipt,payment)
             capture(theme+'-'+screen)
             if screen=='invoice':
                 footer=surface.locator('.ta-agent-invoice-save-footer' if employee else '.ta-invoice-save-footer')
@@ -360,6 +384,36 @@ with sync_playwright() as playwright:
             assert stops and all(r>1.4*g and r>1.2*b for r,g,b in stops),(theme,kind,paint)
             assert paint['ink']=='rgb(255, 255, 255)',(theme,kind,paint)
             capture(theme+'-voucher-'+kind)
+
+    # Exercise active POS row controls on real drafts at phone and desktop sizes.
+    page.set_viewport_size({'width':1100 if root.name=='web' else 360,'height':760})
+    page.evaluate("""async employee=>{
+      const units=[{name:'قطعة',factor:1,wholesalePrice:5},{name:'كرتونة',factor:6,wholesalePrice:30}];
+      const item={id:'ui-pos-product',name:'مادة الاختبار',currency:'USD',units,openingStockBase:100,stockBase:100};
+      const row={itemId:item.id,itemName:item.name,unitName:'قطعة',unitFactor:1,qty:2,price:5,total:10,basePrice:5,baseCurrency:'USD'};
+      if(employee){
+        await Agent.show('home');Agent.state.items=[item];Agent.draft=[];
+        await Agent.startPOS();Agent.draft=[{...row}];await Agent.show('invoice');
+      }else{
+        State.items=[item];AppNav.clearDirty();AppNav.navigate('pos');
+        InvoiceController.draft.rows=[{...row}];InvoiceController.recalculate();
+        POSController.paint(document.getElementById('mainContent'));
+      }
+    }""",employee)
+    line=page.locator('.agent-pos-line' if employee else '.pos-line').first
+    unit=line.locator('select')
+    remove=line.get_by_role('button',name='حذف المادة' if employee else 'حذف الصنف')
+    assert remove.locator('svg').is_visible()
+    if employee:
+        assert line.locator('.agent-pos-line-top select').count()==1
+        assert line.locator('.agent-pos-line-fields > .ta-pos-delete').count()==1
+    else:
+        assert remove.bounding_box()['x']+remove.bounding_box()['width']<=unit.bounding_box()['x']+1
+    unit.select_option('كرتونة')
+    page.wait_for_function("employee=>(employee?Agent.draft:InvoiceController.draft.rows)[0].unitName==='كرتونة'",arg=employee)
+    capture('petrol-pos-row')
+    remove.click()
+    page.wait_for_function("employee=>(employee?Agent.draft:InvoiceController.draft.rows).length===0",arg=employee)
 
     print('PASS themes/icons',root,flush=True)
     browser.close()

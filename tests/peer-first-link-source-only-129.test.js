@@ -84,7 +84,7 @@ test('source-only first link exports ALL portable company settings and protectio
 });
 test('populated Windows is read-only during its first link to empty phone',async()=>{
  const h=harness({desktop:true,filled:true,uid:UID_PC});
- await h.peer.handleRequest({requestId:'fetch-1',data:{appVersion:'3.5.154',action:'fetch',phoneCompanyUid:UID_PHONE,phoneProfileId:'mobile-profile',phoneEmpty:true,knownServerId:'',knownServerProfileId:''}});
+ await h.peer.handleRequest({requestId:'fetch-1',data:{appVersion:'3.5.155',action:'fetch',phoneCompanyUid:UID_PHONE,phoneProfileId:'mobile-profile',phoneEmpty:true,knownServerId:'',knownServerProfileId:''}});
  const first=h.replies.at(-1).data;
  assert.equal(first.ok,true);assert.equal(first.desktopEmpty,false);
  assert.equal(first.snapshot.accounts[0].id,'customer1');
@@ -93,14 +93,14 @@ test('populated Windows is read-only during its first link to empty phone',async
  const sourceBefore=core.canonical(core.snapshot(h.State));
  const forged=JSON.parse(JSON.stringify(first.snapshot));
  forged.accounts.push({id:'foreign-account',name:'غير مسموح'});
- await h.peer.handleRequest({requestId:'commit-forged',data:{appVersion:'3.5.154',
+ await h.peer.handleRequest({requestId:'commit-forged',data:{appVersion:'3.5.155',
    action:'commit',ticket:first.ticket,serverId:SERVER_ID,profileId:'desktop-profile',
    phoneCompanyUid:UID_PHONE,snapshot:forged}});
  assert.equal(h.replies.at(-1).data.ok,false);
  assert.equal(core.canonical(core.snapshot(h.State)),sourceBefore);
- await h.peer.handleRequest({requestId:'fetch-2',data:{appVersion:'3.5.154',action:'fetch',phoneCompanyUid:UID_PHONE,phoneProfileId:'mobile-profile',phoneEmpty:true,knownServerId:'',knownServerProfileId:''}});
+ await h.peer.handleRequest({requestId:'fetch-2',data:{appVersion:'3.5.155',action:'fetch',phoneCompanyUid:UID_PHONE,phoneProfileId:'mobile-profile',phoneEmpty:true,knownServerId:'',knownServerProfileId:''}});
  const second=h.replies.at(-1).data;
- await h.peer.handleRequest({requestId:'commit-valid',data:{appVersion:'3.5.154',
+ await h.peer.handleRequest({requestId:'commit-valid',data:{appVersion:'3.5.155',
    action:'commit',ticket:second.ticket,serverId:SERVER_ID,profileId:'desktop-profile',
    phoneCompanyUid:UID_PHONE,snapshot:second.snapshot}});
  assert.equal(h.replies.at(-1).data.ok,true);
@@ -115,7 +115,7 @@ test('new empty phone receives desktop operations, company identity and all port
  const out=[];
  h.peer.call=async req=>{
    out.push(req);
-   if(req.action==='fetch')return {ok:true,appVersion:'3.5.154',ticket:'ticket'+out.length,snapshot:snap,
+   if(req.action==='fetch')return {ok:true,appVersion:'3.5.155',ticket:'ticket'+out.length,snapshot:snap,
      desktopEmpty:false,sourceProvision:p,serverId:SERVER_ID,profileId:'desktop-profile',
      companyUid:UID_PC,conflictResolutions:{},resolvedReceipts:[]};
    if(req.action==='commit')return {ok:true,sourceOnly:true};

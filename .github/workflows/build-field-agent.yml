@@ -87,10 +87,10 @@ jobs:
           node --check field_agent/src/main/assets/www/static/ta-currency-exchange-agent-142.js
           node --check field_agent/src/main/assets/www/static/agent-cash-history.js
           node --check field_agent/src/main/assets/www/static/field-protocol.js
-      - name: Assert employee release version matches manager (3.5.154)
+      - name: Assert employee release version matches manager (3.5.155)
         run: |
-          grep -F "versionCode 154" field_agent/build.gradle
-          grep -F "versionName '3.5.154'" field_agent/build.gradle
+          grep -F "versionCode 155" field_agent/build.gradle
+          grep -F "versionName '3.5.155'" field_agent/build.gradle
 
       - name: Verify employee v152 settings pages and unsaved draft guard
         run: node --test tests/settings-pages-152.test.cjs
@@ -137,7 +137,7 @@ jobs:
           apk="field_agent/build/outputs/apk/release/field_agent-release.apk"
           test -s "$apk"
           package_info=$("$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$apk")
-          grep -Fq "versionCode='154' versionName='3.5.154'" <<< "$package_info"
+          grep -Fq "versionCode='155' versionName='3.5.155'" <<< "$package_info"
           verifier="$ANDROID_HOME/build-tools/35.0.0/apksigner"
           "$verifier" verify --verbose --print-certs "$apk"
           cert_digest=$("$verifier" verify --print-certs "$apk" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -n 1)
@@ -154,16 +154,16 @@ jobs:
             exit 1
           fi
           mkdir -p output
-          cp "$apk" "output/Tiqany-Acc-Agent-3.5.154-RELEASE.apk"
-          (cd output && sha256sum "Tiqany-Acc-Agent-3.5.154-RELEASE.apk" > "Tiqany-Acc-Agent-3.5.154-RELEASE.apk.sha256")
+          cp "$apk" "output/Tiqany-Acc-Agent-3.5.155-RELEASE.apk"
+          (cd output && sha256sum "Tiqany-Acc-Agent-3.5.155-RELEASE.apk" > "Tiqany-Acc-Agent-3.5.155-RELEASE.apk.sha256")
       - name: Upload signed field_agent APK and checksum
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
-          name: Tiqany-Acc-Agent-3.5.154-RELEASE
+          name: Tiqany-Acc-Agent-3.5.155-RELEASE
           path: |
-            output/Tiqany-Acc-Agent-3.5.154-RELEASE.apk
-            output/Tiqany-Acc-Agent-3.5.154-RELEASE.apk.sha256
+            output/Tiqany-Acc-Agent-3.5.155-RELEASE.apk
+            output/Tiqany-Acc-Agent-3.5.155-RELEASE.apk.sha256
           if-no-files-found: error
           retention-days: 30
       - name: Publish signed employee feature APK for direct download
@@ -173,11 +173,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          apk='output/Tiqany-Acc-Agent-3.5.154-RELEASE.apk'
+          apk='output/Tiqany-Acc-Agent-3.5.155-RELEASE.apk'
           checksum="${apk}.sha256"
           test -s "$apk" && test -s "$checksum"
           tag='tiqany-agent-finance-preview-'"${GITHUB_SHA:0:10}"
-          gh release create "$tag" "$apk" "$checksum" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title 'المحاسب التقني موظف البيع - معاينة تعديلات 3.5.154' --notes 'تحصيل اليوم والمتأخرات وتخصيص سند القبض لفاتورة حسب صلاحيات الموظف.' --prerelease
+          gh release create "$tag" "$apk" "$checksum" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title 'المحاسب التقني موظف البيع - معاينة الثيم ونقطة البيع' --notes 'الثيم البترولي والنحاسي، ترتيب الوحدة والحذف في نقطة البيع، وتحسين أزرار الحفظ قبل الخروج.' --prerelease
           gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json url --jq '.url'
       - name: Publish signed main branch artifact for two-theme update
         if: github.ref == 'refs/heads/main'
@@ -186,14 +186,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          apk='output/Tiqany-Acc-Agent-3.5.154-RELEASE.apk'
+          apk='output/Tiqany-Acc-Agent-3.5.155-RELEASE.apk'
           checksum="${apk}.sha256"
           test -s "$apk" && test -s "$checksum"
           tag='tiqany-agent-themes-'"${GITHUB_SHA:0:10}"
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$tag" "$apk" "$checksum" --clobber --repo "$GITHUB_REPOSITORY"
           else
-            gh release create "$tag" "$apk" "$checksum" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title 'المحاسب التقني — موظف البيع 3.5.154' --notes 'تحصيل اليوم والمتأخرات وتخصيص سند القبض لفاتورة حسب صلاحيات الموظف.' --prerelease
+            gh release create "$tag" "$apk" "$checksum" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title 'المحاسب التقني — موظف البيع 3.5.155' --notes 'الثيم البترولي والنحاسي، ترتيب الوحدة والحذف في نقطة البيع، وتحسين أزرار الحفظ قبل الخروج.' --prerelease
           fi
           gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json url --jq '.url'
 

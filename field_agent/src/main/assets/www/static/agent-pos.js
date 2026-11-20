@@ -8,7 +8,7 @@ const savedHome=A.renderHome.bind(A);
 A.renderHome=function(){
   const html=savedHome();
   return html.replace('<button class="tile" onclick="Agent.startInvoice(\'sale_return\')">',
-    '<button class="tile" onclick="Agent.startPOS()"><span class="glyph"><img class="ta-operation-art" src="static/pos.png" alt=""></span><strong>نقطة البيع</strong><small>بيع نقدي سريع • شبكة أصناف • باركود</small></button><button class="tile" onclick="Agent.startInvoice(\'sale_return\')">');
+    '<button class="tile ta-employee-pos" onclick="Agent.startPOS()"><span class="glyph"><img class="ta-operation-art" src="static/pos.png" alt=""></span><strong>نقطة البيع</strong><small>بيع نقدي سريع • شبكة أصناف • باركود</small></button><button class="tile" onclick="Agent.startInvoice(\'sale_return\')">');
 };
 const savedSettings=A.renderSettings.bind(A);
 A.renderSettings=function(){
@@ -82,8 +82,8 @@ A.renderInvoice=function(){
   const accounts=(this.state.accounts||[]).map(account=>`<option value="${esc(account.id)}" ${String(m.accountId||'')===String(account.id)?'selected':''}>${esc(account.name)}</option>`).join('');
   const products=(this.draft||[]).map((r,i)=>{
     const item=this.state.items.find(it=>it.id===r.itemId);
-    return `<div class="agent-pos-line"><div class="agent-pos-line-top"><strong>${esc(r.itemName||item?.name||'صنف')}</strong><button type="button" class="agent-pos-remove" onclick="Agent.removeRow(${i})" aria-label="حذف المادة">×</button></div>
-      <div class="agent-pos-line-fields"><label>الوحدة<select onchange="Agent.changeRowUnit(${i},this.value)">${(item?.units||[{name:r.unitName}]).map(u=>`<option ${u.name===r.unitName?'selected':''} value="${esc(u.name)}">${esc(u.name)}</option>`).join('')}</select></label>
+    return `<div class="agent-pos-line"><div class="agent-pos-line-top"><strong>${esc(r.itemName||item?.name||'صنف')}</strong><label class="ta-agent-pos-unit">الوحدة<select onchange="Agent.changeRowUnit(${i},this.value)">${(item?.units||[{name:r.unitName}]).map(u=>`<option ${u.name===r.unitName?'selected':''} value="${esc(u.name)}">${esc(u.name)}</option>`).join('')}</select></label></div>
+      <div class="agent-pos-line-fields"><button type="button" class="agent-pos-remove ta-pos-delete" onclick="Agent.removeRow(${i})" aria-label="حذف المادة"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 6h18M9 6V3h6v3M5 6l1 14h12l1-14M10 10v6m4-6v6"/></svg></button>
       <label>الكمية<input type="number" step="any" min="0.001" value="${Number(r.qty)||0}" onchange="Agent.changeRowValue(${i},'qty',this.value);Agent.show('invoice')"></label>
       <label>السعر<input type="number" step="any" min="0" value="${Number(r.price)||0}" onchange="Agent.changeRowValue(${i},'price',this.value);Agent.show('invoice')"></label>
       <div class="agent-pos-row-total"><small>المجموع</small><b id="rowTotal_${i}">${this.money(r.total,c)} ${curLabel}</b></div></div></div>`;

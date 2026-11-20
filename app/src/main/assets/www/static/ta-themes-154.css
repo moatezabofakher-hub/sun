@@ -659,3 +659,91 @@ html body #modalBox button.ta-notice-edit {
 }
 html body #modalBox button.ta-notice-edit:active { background:#103e5c!important }
 html body #modalBox button.ta-notice-edit:focus-visible { outline:3px solid #e1a83c; outline-offset:2px }
+
+/* Last-row actions keep the same positions when the theme changes. */
+#dialogContainer[data-dialog-type="unsaved"] .ta-decision-actions,
+#taAgentSettingsDecision .ta-agent-settings-choices {
+  direction:rtl; display:grid!important; grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  align-items:stretch; gap:.65rem;
+}
+#dialogContainer[data-dialog-type="unsaved"] .ta-decision-actions > button,
+#taAgentSettingsDecision .ta-agent-settings-choices > button {
+  grid-column:auto!important; grid-row:1!important; width:100%!important; min-width:0; margin:0!important;
+}
+html body :is(#mainContent,#screen) button.ta-pos-delete:not([hidden]) {
+  display:inline-grid!important; place-items:center; flex:none; width:44px!important;
+  height:44px; min-height:44px!important; padding:8px!important; border-radius:12px!important;
+  background:linear-gradient(155deg,#fff5f4,#f9dad7)!important; border:1px solid #ca686b!important;
+  color:#a01729!important; -webkit-text-fill-color:#a01729!important;
+  box-shadow:inset 0 1px 0 white,0 2px 1px #a96a6333!important;
+}
+html body :is(#mainContent,#screen) .ta-pos-delete[hidden] {display:none!important}
+html body :is(#mainContent,#screen) .ta-pos-delete svg {
+  width:24px!important; height:24px!important; color:#a01729!important; pointer-events:none;
+}
+html body #mainContent .pos-line-label {align-items:center;direction:rtl}
+html body #mainContent .pos-line-label > strong {min-width:0;overflow-wrap:anywhere}
+html body #mainContent .pos-line-label .ta-pos-unit-change {max-width:48%;min-width:0}
+html body #mainContent .pos-line-label .ta-pos-delete {margin-inline-start:auto}
+
+/* Petrol enamel, copper trim and warm paper. Keep business actions color-coded. */
+html[data-ta-theme="petrol"] {
+  color-scheme:light; --ta-pearl:#fffaf2; --ta-silver:#c4a48b; --ta-heading:#153536;
+  --ta-positive:linear-gradient(155deg,#137749,#07532f);
+  --ta-negative:linear-gradient(155deg,#bd3548,#852036);
+  --ta-petrol:linear-gradient(155deg,#236165,#104042 52%,#092f31);
+  --ta-paper:linear-gradient(165deg,#fffdf9,#f7eddf);
+  --ta-copper:#a66540; --ta-ink:#172f30;
+}
+.ta-theme154-mini[data-swatch="petrol"] {background:#f7efe4;border-color:#b88360}
+[data-swatch="petrol"] .ta-theme154-mini-bar,
+[data-swatch="petrol"] .ta-theme154-mini-tiles i:first-child {background:linear-gradient(150deg,#246b6b,#093637);color:white}
+[data-swatch="petrol"] .ta-theme154-mini-tiles i:not(:first-child) {background:#fff7ea;color:#193839;box-shadow:0 3px 0 #b58467}
+html[data-ta-theme="petrol"] body {background:#f6f0e7!important;color:var(--ta-ink)}
+html[data-ta-theme="petrol"] body :is(#topAppBar,#agentHeader,nav.ta-bottom-nav,#bottom.bottom,.ta-theme154-header) {
+  background:var(--ta-petrol)!important; border-color:var(--ta-copper)!important;color:white!important;
+}
+html[data-ta-theme="petrol"] :is(#taTheme154Page,.ta-theme154-option) {background:var(--ta-paper);color:var(--ta-ink)}
+html[data-ta-theme="petrol"] .ta-theme154-option[aria-pressed=true] {border-color:var(--ta-copper)}
+html[data-ta-theme="petrol"] body :is(#mainContent,#screen) :is(.ta-module-card,.ta-action-card,.tile,.panel,.ta-invoice-field,.ta-balance-tile,.pos-cart,.pos-product,.pos-line,.agent-pos-line,.ta-agent-settings-link,.ta-category-link,.ta-settings-active-section,.ta-capital-card,.ta-invoice-control-grid,.invoice-added-section,.pos-controls,.pos-products) {
+  background:var(--ta-paper)!important; border-color:#caa88f!important; color:var(--ta-ink)!important;
+}
+html[data-ta-theme="petrol"] body :is(#mainContent,#screen) :is(.ta-module-card,.ta-action-card,.tile,.ta-agent-settings-link,.ta-category-link,.ta-balance-tile) :is(strong,small,span:not(.glyph):not(.ta-icon-box)) {
+  color:var(--ta-ink)!important;-webkit-text-fill-color:currentColor!important;text-shadow:none!important;
+}
+html[data-ta-theme="petrol"] body :is(#mainContent,#screen) :is(.ta-invoice-field label,.pos-line-label strong,.pos-cart-columns,.ta-balance-tile strong,.ta-capital-card strong,.ta-category-link strong) {
+  color:#173738!important;-webkit-text-fill-color:currentColor!important;text-shadow:none!important;
+}
+html[data-ta-theme="petrol"] body :is(#mainContent,#screen) :is(.ta-quick-pos,.ta-home-pos,.ta-employee-pos,.pos-grand-total,.agent-pos-heading,.pos-cart-head,.ta-section-head) {
+  background:var(--ta-petrol)!important; border-color:var(--ta-copper)!important;color:#fff!important;
+}
+html[data-ta-theme="petrol"] body :is(#mainContent,#screen) :is(.ta-action-card.ta-quick-pos,.ta-action-card.ta-home-pos,.tile.ta-employee-pos,.pos-grand-total,.agent-pos-heading,.pos-cart-head,.ta-section-head) :is(strong,h2,h3,small,p,span:not(.pos-cash-label):not(.ta-icon-box)) {
+  color:#fff!important;-webkit-text-fill-color:#fff!important;text-shadow:none!important;
+}
+html[data-ta-theme="petrol"] body :is(#mainContent,#screen) :is(input:not([type=checkbox]):not([type=radio]),textarea,select:not(.ta-pos-unit-change)) {
+  background:#fffdf8!important;color:var(--ta-ink)!important;-webkit-text-fill-color:currentColor!important;border-color:#b9a491!important;
+}
+html[data-ta-theme="petrol"] body #mainContent .pos-line-label select.ta-pos-unit-change {
+  background:var(--ta-petrol)!important;color:white!important;-webkit-text-fill-color:white!important;border-color:var(--ta-copper)!important;text-shadow:none!important;
+}
+html[data-ta-theme="petrol"] body :is(#screen,#mainContent) :is(.ta-invoice-save-footer,.ta-agent-invoice-save-footer,.ta-voucher-save-footer,.ta-pos-fixed-footer,.agent-pos-fixed-footer) {
+  background:#123c3d!important;border-color:var(--ta-copper)!important;
+}
+html[data-ta-theme="petrol"] body :is(#screen,#mainContent) :is(.ta-footer-actions,.ta-voucher-footer-actions) {background:transparent!important}
+html[data-ta-theme="petrol"] body :is(#screen,#mainContent) :is(.ta-footer-actions,.ta-pos-footer-actions) button,
+html[data-ta-theme="petrol"] body :is(#screen,#mainContent,#modalBox) button:is(.ta-voucher-save-action,.ta-agent-voucher-save) {
+  background:var(--ta-positive)!important;color:#fff!important;-webkit-text-fill-color:white!important;
+}
+html[data-ta-theme="petrol"] body :is(#screen,#mainContent,#modalBox) button:is(.ta-voucher-cancel-action,.ta-agent-voucher-cancel) {
+  background:var(--ta-negative)!important;color:#fff!important;-webkit-text-fill-color:white!important;
+}
+html[data-ta-theme="petrol"] body :is(nav.ta-bottom-nav,#bottom.bottom) button:not([hidden]) {
+  background:linear-gradient(160deg,#235153,#123c3e)!important;color:#fff!important;-webkit-text-fill-color:#fff!important;border-color:#8d6852!important;text-shadow:none!important;
+}
+html[data-ta-theme="petrol"] body.ta-3d-v3524 nav.ta-bottom-nav button.nav-btn > span,
+html[data-ta-theme="petrol"] body nav.ta-bottom-nav button.nav-btn > span,
+html[data-ta-theme="petrol"] body #bottom.bottom button > span {color:#fff!important;-webkit-text-fill-color:white!important;text-shadow:none!important}
+html[data-ta-theme="petrol"] body :is(nav.ta-bottom-nav,#bottom.bottom) button:is(.active,.is-active,[aria-current=page]):not([hidden]) {
+  background:#235e5d!important;outline:2px solid #e6ad80!important;outline-offset:-3px;
+}
+html[data-ta-theme="petrol"] body :is(#dialogBox,#modalBox,.ta-agent-settings-dialog,.ta-settings-page-header) {background:var(--ta-paper)!important;color:var(--ta-ink)!important}

@@ -1,11 +1,11 @@
-/* Tiqany Acc v3.5.154 – reversible, local-only visual themes.
+/* Tiqany Acc v3.5.155 – reversible, local-only visual themes.
  * Keeps company data, prices, transactions and peer-sync preferences untouched.
  * Separate per-device theme; no synchronization of purely visual preferences.
  */
 (function(){
 'use strict';
 const KEY='tiqany.ui.theme.154';
-const allowed=new Set(['classic','royal']);
+const allowed=new Set(['classic','royal','petrol']);
 function normalized(value){return allowed.has(value)?value:'classic';}
 function stored(){try{return normalized(localStorage.getItem(KEY));}catch(_){return 'classic';}}
 let saved=stored(),pending=saved,open=false,dialog=null;
@@ -96,6 +96,8 @@ function show(){
   '<strong>التصميم الحالي</strong><small>لؤلؤي فاتح، بطاقات ثلاثية الأبعاد وصور مخصصة لكل قسم.</small><small class="ta-theme154-selected"></small></button>'+
   '<button type="button" class="ta-theme154-option" data-theme-choice="royal" aria-pressed="false">'+mini('royal')+
   '<strong>التصميم الأول — الكحلي الملكي</strong><small>أزرق نيون مضيء، تركوازي، لمسات ذهبية، وبطاقات داكنة لامعة.</small><small class="ta-theme154-selected"></small></button>'+
+  '<button type="button" class="ta-theme154-option" data-theme-choice="petrol" aria-pressed="false">'+mini('petrol')+
+  '<strong>البترولي والنحاسي</strong><small>بترولي لامع بحواف نحاسية وفواتير عاجية عالية التباين.</small><small class="ta-theme154-selected"></small></button>'+
   '</div><div class="ta-theme154-actions">'+
   '<button type="button" class="ta-theme154-save">حفظ الثيم</button>'+
   '<button type="button" class="ta-theme154-cancel">إلغاء</button></div></div>';
