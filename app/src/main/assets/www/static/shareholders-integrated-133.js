@@ -130,19 +130,17 @@
      if(!inv||!['sale','sale_return'].includes(inv.type)||!dateValid(datePart(inv.date)))continue;
      const sign=inv.type==='sale_return'?-1:1,rate=rateFor(inv,s.settings),invoiceCur=inv.currency||'SYP';
      let usd=0;
-     const lines=(inv.rows||[]).reduce((sum,r)=>sum+Number(r?.total ?? ((r?.qty||0)*(r?.price||0)-(r?.discount||0))),0);
-     const adjustment=lines>0 ? Number(inv.netTotal ?? lines)/lines : 1;
      for(const r of (Array.isArray(inv.rows)?inv.rows:[])){
        if(!r||typeof r!=='object')continue;
        const it=items.get(r.itemId);if(!it)continue;
        const unit=(Array.isArray(it.units)?it.units:[]).find(x=>x?.name===r.unitName) || (Array.isArray(it.units)?it.units[0]:null) || {};
        const qty=Number(r.qty)||0;
        const unitCost=Number(r.baseCostPrice??unit.costPrice??it.costPrice)||0;
-       const unitCur=r.costCurrency||it.currency||invoiceCur;
-       const costUsd=r.weightedCostUsd!=null ? Number(r.weightedCostUsd)*qty : (unitCur==='USD'?unitCost*qty:unitCost*qty/rate);
+       const unitCur=it.currency||invoiceCur;
+       const costUsd=unitCur==='USD'?unitCost*qty:unitCost*qty/rate;
        const rowTotal=Number(r.total) || (qty*(Number(r.price)||0)-(Number(r.discount)||0));
        const revenueUsd=invoiceCur==='USD'?rowTotal:rowTotal/rate;
-       usd+=sign*(revenueUsd*adjustment-costUsd);
+       usd+=sign*(revenueUsd-costUsd);
      }
      rows.push({id:'invoice:'+String(inv.id),date:datePart(inv.date),usdCents:Math.round(usd*100),type:'invoice'});
    }
@@ -151,10 +149,6 @@
      const amt=Number(exp.amount)||0,rate=rateFor(exp,s.settings);
      const usd=exp.currency==='USD'?amt:amt/rate;
      rows.push({id:'expense:'+String(exp.id),date:datePart(exp.date),usdCents:-Math.round(usd*100),type:'expense'});
-   }
-   if(typeof TiqanyFinance!=='undefined')for(const e of TiqanyFinance.settlements(s).events){
-     rows.push({id:'settlement:'+e.voucher.id+':'+e.invoice.id,date:datePart(e.voucher.date),
-       usdCents:Math.round(e.gainSyp/rateFor(e.voucher,s.settings)*100),type:'settlement_fx'});
    }
    if(typeof globalThis!=='undefined'&&globalThis.TiqanyCurrencyExchangeCore){
      const exchanges=globalThis.TiqanyCurrencyExchangeCore.analyze(s.currencyExchanges||[]);

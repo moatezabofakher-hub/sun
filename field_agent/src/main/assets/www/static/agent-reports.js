@@ -10,7 +10,7 @@ A.openReportChooser=function(){this.reportChooseOpen=true;return this.show('repo
 A.openReportPreview=function(kind){if(!['sales_summary','debts_summary'].includes(kind))return;this.reportKind=kind;return this.navigate('report_preview');};
 A.reportChangeSide=function(value){if(!['debit','credit'].includes(value))return;this.reportSide=value;return this.show('report_preview');};
 A.reportChangePeriod=function(value){if(!['all','today'].includes(value))return;this.reportPeriod=value;return this.show('report_preview');};
-A.renderReports=function(){return `<section class="panel" data-agent-reports="true"><h3>التقارير</h3>${this.can?.('balances')?'<button type="button" class="secondary" onclick="Agent.collectionToday()">تحصيل اليوم والمتأخرات</button>':''}<p class="muted">المواد والديون ضمن بيانات موظف البيع المتاحة بعد المزامنة.</p>
+A.renderReports=function(){return `<section class="panel" data-agent-reports="true"><h3>التقارير</h3><p class="muted">المواد والديون ضمن بيانات موظف البيع المتاحة بعد المزامنة.</p>
   <button type="button" class="primary" onclick="Agent.openReportChooser()" aria-label="طباعة تقرير">🖨 طباعة تقرير</button>
   ${this.reportChooseOpen?`<section class="panel" data-agent-report-choice="true" style="margin:14px 0 0;background:#f0f9ff"><h3>اختر التقرير</h3><div class="grid">
    <button type="button" class="tile" onclick="Agent.openReportPreview('sales_summary')" aria-label="تقرير المواد"><span class="glyph">📦</span><strong>تقرير المواد</strong></button>

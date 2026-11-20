@@ -218,7 +218,6 @@ const FieldSync = {
       {passwordOnly:!!window.WindowsPeerSync});
   },
   catalog(a, historyCursor=0){
-    const collectionBook=typeof TiqanyFinance!=='undefined' && TiqanyAgentPermissions.normalize(a.permissions).balances ? TiqanyFinance.settlements(State) : null;
     const config=this.data();
     const known=config.imported.filter(i=>i.agentId===a.id).map(i=>i.id);
     // Limit optional image payloads to keep periodic encrypted sync reliable on LAN.
@@ -250,7 +249,6 @@ const FieldSync = {
         // The agent adjusts only operations not represented in this synchronized snapshot.
         const st=Accounting.getAccountStatement(acc.id);
         return {id:acc.id,name:acc.name,type:acc.type,phone:acc.phone||'',address:acc.address||'',paymentTerms:acc.paymentTerms||'',priceTier:['wholesale','center','consumer'].includes(acc.priceTier)?acc.priceTier:'settings',
-          collectionInvoices:collectionBook ? State.invoices.filter(i=>i.accountId===acc.id && i.type==='sale' && collectionBook.balances.get(i.id)>0).map(i=>({id:i.id,number:i.number,currency:i.currency,remaining:collectionBook.balances.get(i.id),dueDate:String(i.dueDate||i.date||'').slice(0,10)})) : [],
           sypBalance:TiqanyAgentPermissions.normalize(a.permissions).balances?st.sypBalance:null,usdBalance:TiqanyAgentPermissions.normalize(a.permissions).balances?st.usdBalance:null};
       }),
       stock:Object.fromEntries(State.items.map(it=>[it.id,Accounting.getItemBaseStock(it.id,null,a.warehouseId)])),
@@ -624,8 +622,6 @@ const FieldSync = {
       const nv=Math.max(0,...State.vouchers.map(x=>Number(x.number)||0));
       const docs=FieldProtocol.toLedgerDocuments(fresh,agent,ni,nv);
       docs.invoices.forEach(inv=>(inv.rows||[]).forEach(row=>{const it=State.items.find(x=>x.id===row.itemId);if(it?.isBundle){const u=it.units?.find(x=>x.name===row.unitName)||it.units?.[0];row.baseCostPrice=Accounting.itemCostPrice(it,u);}}));
-      if(typeof TiqanyFinance!=='undefined') for(const inv of docs.invoices) TiqanyFinance.freeze(State,inv);
-      if(typeof TiqanyFinance!=='undefined') TiqanyFinance.fieldPayments(State,docs.vouchers,fresh,docs.invoices);
       this.checkNewCustomers(docs.customers,old.accounts);
       for(const item of docs.items||[]){
         if(old.items.some(x=>String(x.name).trim().toLowerCase()===String(item.name).trim().toLowerCase()||x.id===item.id))

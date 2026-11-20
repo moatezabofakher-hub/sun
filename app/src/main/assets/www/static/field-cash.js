@@ -19,14 +19,14 @@ const FieldCash={
     };
     const matches=doc=>scope==='all'||(scope==='office'?!doc?.fieldOrigin?.agentId:doc?.fieldOrigin?.agentId===scope);
     for(const inv of (State.invoices||[])){
-      if(!matches(inv)||inv.cashChannel==='transfer')continue;
+      if(!matches(inv))continue;
       const paid=Number(inv.paidAmount||0);
       if(!(paid>0))continue;
       const incoming=['sale','purchase_return'].includes(inv.type);
       add({id:inv.id,date:inv.date||'',ref:'فاتورة #'+(inv.number||''),party:State.accounts.find(a=>a.id===inv.accountId)?.name||'عميل نقدي',desc:inv.fieldOrigin?.agentName||'فاتورة',currency:inv.currency,inflow:incoming?paid:0,outflow:incoming?0:paid});
     }
     for(const v of (State.vouchers||[])){
-      if(!matches(v)||v.cashChannel==='transfer')continue;
+      if(!matches(v))continue;
       const amount=Number(v.amount||0);if(!(amount>0))continue;
       const incoming=v.type==='receipt';
       add({id:v.id,date:v.date||'',ref:'سند #'+(v.number||''),party:State.accounts.find(a=>a.id===v.accountId)?.name||'حساب عام',desc:v.note||v.fieldOrigin?.agentName||'سند مالي',currency:v.currency,inflow:incoming?amount:0,outflow:incoming?0:amount});

@@ -76,7 +76,6 @@ const AgentHub = {
         ${icon('box-open','جرد مستودع موظف البيع',`AgentHub.openActivity('stock','${id}')`)}
         ${icon('pen-to-square','تعديل موظف البيع',`FieldSync.showEditAgent('${id}')`)}
         ${icon('rotate-right','المزامنة والملفات',`FieldSync.showSyncTools()`)}
-        ${!a.archived?icon('trash','حذف موظف البيع',`FieldSync.confirmRemoveAgent('${id}')`):''}
       </div>
       <p class="text-[11px] text-slate-500">الحركات المعروضة هي البيانات التي وصلت إلى التطبيق الرئيسي بالمزامنة. لا تظهر العمليات غير المرسلة بعد من هاتف موظف البيع.</p>
     </div>`;
