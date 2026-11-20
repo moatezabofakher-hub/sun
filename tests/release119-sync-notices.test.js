@@ -25,14 +25,14 @@ test('119: sync refuses true open edits but not stale dirty flag on the dashboar
  const p=window.TiqanyPeerSync;assert.equal(p.blocked(),false);
  nav.current=()=>({screen:'invoice_form'});assert.equal(p.blocked(),true);assert.match(p.blockReason(),/فاتورة/);
  nav.current=()=>({screen:'dashboard'});p.busy=true;
- await p.handleRequest({requestId:'busy',data:{action:'fetch'}});assert.equal(replies[0].code,'SYNC_BUSY');assert.doesNotMatch(replies[0].error,/فاتورة/);
+ await p.handleRequest({requestId:'busy',data:{appVersion:'3.5.153',action:'fetch'}});assert.equal(replies[0].code,'SYNC_BUSY');assert.doesNotMatch(replies[0].error,/فاتورة/);
 });
-test('119: notifications convert stored ISO UTC to device-local hh.mm.ss with seconds and support edit navigation',()=>{
+test('119: notifications convert stored ISO UTC to device-local hh:mm:ss with seconds and support edit navigation',()=>{
  const actions=[],state={invoices:[{id:'i1'}],vouchers:[],expenses:[],accounts:[],fieldSync:{imported:[]},items:[],warehouses:[],alertCenter:{entries:[{id:'e',target:'invoice',targetId:'i1',type:'peer-operation',action:'تعديل',read:false,title:'تعديل فاتورة',detail:'المبلغ: 12 USD',at:'2026-11-16T10:20:31.000Z'}],seenImportIds:[],stockLevels:{}}};
  const ctx=vm.createContext({State:state,window:{},document:{getElementById:()=>null},
  AppEscape:{text:x=>String(x)},AppNav:{current:()=>({screen:'notifications'}),renderCurrent(){},navigate:(...x)=>actions.push(x)},
  StorageEngine:{saveState:async()=>{}},UI:{setHeader(){},openModal(){},forceCloseModal(){},toast(){}},console});
  vm.runInContext(fs.readFileSync(path.join(__dirname,'../app/src/main/assets/www/static/manager-notifications.js'),'utf8'),ctx);
- const n=vm.runInContext('ManagerNotifications',ctx);assert.match(n.formatTime('2026-11-16T10:20:31.000Z'),/\d{2}\.\d{2}\.\d{2}$/);
+ const n=vm.runInContext('ManagerNotifications',ctx);assert.match(n.formatTime('2026-11-16T10:20:31.000Z'),/\d{2}:\d{2}:\d{2}$/);
  n.editOperation('e');assert.equal(actions[0][0],'invoice_form');assert.equal(actions[0][1].id,'i1');
 });

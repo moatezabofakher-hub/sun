@@ -49,6 +49,31 @@ with sync_playwright() as pw:
     else:
         page.evaluate("()=>{AppNav.navigate('dashboard');AppNav.navigate('notifications')}")
     assert cards.count()==10,(edition,'reentry',cards.count())
+    if edition in ('manager','win'):
+        # Follow a saved invoice notice exactly as a user opening the notification center would.
+        page.evaluate("""desktop=>{
+          if(desktop && !window.WindowsPeerSync){window.WindowsPeerSync={};window.testDesktopBridge=true;}
+          ManagerNotifications.ensure().entries=[{id:'old-sale',type:'peer-operation',collection:'invoices',
+            target:'invoice',targetId:'i12',action:'إضافة',title:'فاتورة مبيعات رقم 12',
+            detail:'الفواتير · المبلغ: 2 USD · تاريخ العملية: 2026-11-20T02:44',at:'2026-11-20T02:49:39',read:true},
+            {id:'old-clock',type:'peer-operation',collection:'settings',recordId:'_syncSettingTimes',
+             title:'_syncSettingTimes',detail:'_syncSettingTimes',at:'2026-11-20T02:18:36',read:true}];
+          State.invoices.push({id:'i12',type:'sale',number:12,rows:[]});
+          AppNav.navigate('notifications');
+        }""",edition=='win')
+        for theme in ('classic','royal'):
+            page.evaluate('v=>document.documentElement.dataset.taTheme=v',theme)
+            sale=cards.filter(has_text='فاتورة مبيعات رقم 12')
+            assert '20/11/2026 02:44' in sale.inner_text().replace('\xa0',' ')
+            assert '20/11/2026 02:49:39' in sale.inner_text()
+            assert 'أوقات آخر تعديل' in cards.last.inner_text()
+            sale.click()
+            edit=page.get_by_role('button',name='تعديل العملية',exact=True)
+            assert edit.is_visible()
+            colors=edit.evaluate("""b=>{const s=getComputedStyle(b);return [s.backgroundColor,s.webkitTextFillColor,s.backgroundImage]}""")
+            assert colors==['rgb(22, 85, 120)','rgb(255, 255, 255)','none'],(edition,theme,colors)
+            page.evaluate('()=>UI.forceCloseModal()')
+        page.evaluate("""()=>{State.invoices=State.invoices.filter(i=>i.id!=='i12');if(window.testDesktopBridge)delete window.WindowsPeerSync}""")
     data=[dict(id='fx_test_001',date='2026-06-01',fromCurrency='SYP',toCurrency='USD',fromAmount=300,toAmount=3,equivalentSyp=300),dict(id='fx_test_002',date='2026-06-02',fromCurrency='USD',toCurrency='EUR',fromAmount=2,toAmount=1,equivalentSyp=200)]
     page.evaluate("""async ({agent,rows})=>{
       if(agent){Agent.state.allowedCurrencies=['USD','EUR','SYP'];Agent.state.ops=rows.map(x=>({...x,kind:'currency_exchange'}));await Agent.show('currency_exchange_list');}

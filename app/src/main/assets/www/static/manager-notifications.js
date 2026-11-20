@@ -60,7 +60,10 @@ const ManagerNotifications = {
     const date=new Date(value);
     if(!Number.isFinite(date.getTime()))return String(value||'');
     const two=n=>String(n).padStart(2,'0');
-    return [two(date.getDate()),two(date.getMonth()+1),date.getFullYear()].join('/')+' '+[two(date.getHours()),two(date.getMinutes()),two(date.getSeconds())].join('.');
+    return [two(date.getDate()),two(date.getMonth()+1),date.getFullYear()].join('/')+' '+[two(date.getHours()),two(date.getMinutes()),two(date.getSeconds())].join(':');
+  },
+  arrivalHtml(value){
+    return 'وقت وصول الإشعار: <bdi dir="ltr" class="ta-notice-time">'+this.escape(this.formatTime(value))+'</bdi>';
   },
   ensure(){
     if(!State.alertCenter || typeof State.alertCenter!=='object')State.alertCenter={entries:[],seenImportIds:null,stockLevels:null};
@@ -221,11 +224,13 @@ const ManagerNotifications = {
         <div><h2 class="font-black">مركز الإشعارات</h2><p class="text-xs text-slate-500">${list.length} إشعار · ${this.unread()} غير مقروء</p></div>
         <button type="button" class="bg-slate-100 border rounded-xl px-3 py-2 text-xs font-bold" onclick="ManagerNotifications.readAll()">تحديد الكل كمقروء</button>
       </div>
-      ${list.length?noticePages.render(list,entry=>`<button type="button" class="ta-alert-item ${entry.read?'':'unread'} ${entry.type==='stock'?'stock-alert':''}" onclick="ManagerNotifications.open(${JSON.stringify(entry.id).replace(/"/g,'&quot;')})">
+      ${list.length?noticePages.render(list,stored=>{
+        const entry=window.TiqanyPeerEvents?.forDisplay(stored)||stored;
+        return `<button type="button" class="ta-alert-item ${entry.read?'':'unread'} ${entry.type==='stock'?'stock-alert':''}" onclick="ManagerNotifications.open(${JSON.stringify(entry.id).replace(/"/g,'&quot;')})">
         <div class="flex items-center gap-2 justify-between"><strong class="ta-alert-title text-sm"><span aria-hidden="true">${entry.type==='stock'?'⚠️':'🔔'}</span> ${this.escape(entry.title)}</strong>${entry.read?'':'<span class="ta-alert-badge rounded-full px-2 py-0.5">جديد</span>'}</div>
         <p class="ta-alert-detail text-xs mt-1">${this.escape(entry.detail)}</p>
-        <p class="ta-alert-meta mt-2"><bdi dir="ltr">${this.escape(this.formatTime(entry.at))}</bdi> · اضغط لعرض المعاملة</p>
-      </button>`):'<div class="rounded-2xl bg-white border p-8 text-center text-sm text-slate-500">لا توجد إشعارات بعد. ستظهر هنا العمليات الجديدة بعد المزامنة وتنبيهات نفاد المخزون.</div>'}
+        <p class="ta-alert-meta mt-2">${this.arrivalHtml(entry.at)} · ${entry.collection==='settings'?'اضغط لعرض التفاصيل':'اضغط لعرض المعاملة'}</p>
+      </button>`;}):'<div class="rounded-2xl bg-white border p-8 text-center text-sm text-slate-500">لا توجد إشعارات بعد. ستظهر هنا العمليات الجديدة بعد المزامنة وتنبيهات نفاد المخزون.</div>'}
     </div>`;
   },
   async readAll(){
@@ -235,8 +240,9 @@ const ManagerNotifications = {
     catch(e){n.entries.forEach((x,i)=>x.read=before[i]);this.updateBadge();UI.toast('تعذر حفظ حالة الإشعارات','error');}
   },
   async open(id){
-    const entry=this.ensure().entries.find(x=>x.id===id);if(!entry)return UI.toast('هذا الإشعار غير متوفر','warn');
-    if(!entry.read){entry.read=true;this.updateBadge();try{await StorageEngine.saveState();}catch(e){entry.read=false;this.updateBadge();}}
+    const stored=this.ensure().entries.find(x=>x.id===id);if(!stored)return UI.toast('هذا الإشعار غير متوفر','warn');
+    if(!stored.read){stored.read=true;this.updateBadge();try{await StorageEngine.saveState();}catch(e){stored.read=false;this.updateBadge();}}
+    const entry=window.TiqanyPeerEvents?.forDisplay(stored)||stored;
     if(AppNav.current?.()?.screen==='notifications')AppNav.renderCurrent();
     if(window.WindowsPeerSync){return this.showDesktopDetails(entry);}
     if(entry.type==='sync'){
@@ -258,7 +264,7 @@ const ManagerNotifications = {
     // detail here even when no standalone editable form exists for that kind.
     const expense=entry.target==='expense'?(State.expenses||[]).find(x=>x.id===entry.targetId):null;
     const expenseInfo=expense?`<div class="rounded-xl bg-slate-50 p-3 text-sm"><b>نوع المصروف:</b> ${this.escape(expense.category||'أخرى')}<p><b>المبلغ:</b> ${this.escape(expense.amount)} ${this.escape(expense.currency)}</p><p><b>التاريخ:</b> ${this.escape(expense.date)}</p><p><b>البيان:</b> ${this.escape(expense.note||'—')}</p></div>`:'';
-    UI.openModal(`<div dir="rtl" class="text-right space-y-3"><h3 class="font-black text-base">${this.escape(entry.title)}</h3><p class="text-sm">${this.escape(entry.detail)}</p>${expenseInfo}<p class="text-xs text-slate-500">${this.escape(this.formatTime(entry.at))}</p>
+    UI.openModal(`<div dir="rtl" class="text-right space-y-3"><h3 class="font-black text-base">${this.escape(entry.title)}</h3><p class="text-sm">${this.escape(entry.detail)}</p>${expenseInfo}<p class="text-xs text-slate-500">${this.arrivalHtml(entry.at)}</p>
       ${entry.agentId?`<button type="button" class="w-full rounded-xl p-3 bg-teal-700 text-white font-bold" onclick="UI.forceCloseModal();AppNav.navigate('agent_activity',{agentId:${JSON.stringify(entry.agentId).replace(/"/g,'&quot;')},view:'${entry.target==='expense'?'expenses':'all'}',period:'all'})">عرض سجل معاملات موظف البيع</button>`:''}
       <button type="button" class="w-full rounded-xl p-3 bg-slate-100 font-bold" onclick="UI.forceCloseModal()">إغلاق</button></div>`);
   },
@@ -267,8 +273,8 @@ const ManagerNotifications = {
     const found=Array.isArray(lists[entry.target])&&lists[entry.target].some(x=>x.id===entry.targetId);
     const canOpen=entry.action!=='حذف'&&found;
     const ref=JSON.stringify(entry.id).replace(/"/g,'&quot;');
-    UI.openModal(`<div dir="rtl" class="text-right space-y-3"><h3 class="font-black">${this.escape(entry.title)}</h3><p class="text-sm">${this.escape(entry.detail)}</p><p class="text-xs text-slate-500">وقت وصول الإشعار: ${this.escape(this.formatTime(entry.at))}</p>
-      ${canOpen?`<button class="w-full p-3 rounded-xl bg-teal-700 text-white font-bold" onclick="ManagerNotifications.goToOperation(${ref})">عرض العملية</button>${['invoice','voucher','expense','transfer'].includes(entry.target)?`<button class="w-full p-3 rounded-xl bg-sky-700 text-white font-bold" onclick="ManagerNotifications.editOperation(${ref})">تعديل العملية</button>`:''}`:'<p class="text-xs text-amber-700">العملية محذوفة أو غير متوفرة للتعديل حاليًا</p>'}
+    UI.openModal(`<div dir="rtl" class="text-right space-y-3"><h3 class="font-black">${this.escape(entry.title)}</h3><p class="text-sm">${this.escape(entry.detail)}</p><p class="text-xs text-slate-500">${this.arrivalHtml(entry.at)}</p>
+      ${canOpen?`<button class="w-full p-3 rounded-xl bg-teal-700 text-white font-bold" onclick="ManagerNotifications.goToOperation(${ref})">عرض العملية</button>${['invoice','voucher','expense','transfer'].includes(entry.target)?`<button class="w-full p-3 rounded-xl ta-notice-edit font-bold" onclick="ManagerNotifications.editOperation(${ref})">تعديل العملية</button>`:''}`:entry.collection==='settings'?'':'<p class="text-xs text-amber-700">العملية محذوفة أو غير متوفرة للتعديل حاليًا</p>'}
       <button class="w-full p-3 rounded-xl bg-slate-100 font-bold" onclick="UI.forceCloseModal()">إغلاق</button></div>`);
   },
   editOperation(id){
@@ -291,8 +297,8 @@ const ManagerNotifications = {
     const found=Array.isArray(links[entry.target])&&links[entry.target].some(x=>x.id===entry.targetId);
     const canOpen=entry.action!=='حذف'&&!!found;
     const operationLabel=entry.target==='invoice'?'فتح الفاتورة':entry.target==='voucher'?'فتح السند':entry.target==='customer'?'فتح حساب الزبون':'عرض التفاصيل';
-    UI.openModal(`<div class="text-right space-y-3" dir="rtl"><h3 class="font-black">${this.escape(entry.title)}</h3><p class="text-sm">${this.escape(entry.detail)}</p><p class="text-xs text-slate-500">${this.escape(this.formatTime(entry.at))}</p>
-      ${canOpen?`<button class="w-full p-3 rounded-xl bg-teal-700 text-white font-bold" onclick="ManagerNotifications.goToOperation(${JSON.stringify(entry.id).replace(/"/g,'&quot;')})">الانتقال إلى العملية — ${operationLabel}</button>${['invoice','voucher','expense'].includes(entry.target)?`<button class="w-full p-3 rounded-xl bg-sky-700 text-white font-bold" onclick="ManagerNotifications.editOperation(${JSON.stringify(entry.id).replace(/"/g,'&quot;')})">تعديل العملية</button>`:''}`:''}
+    UI.openModal(`<div class="text-right space-y-3" dir="rtl"><h3 class="font-black">${this.escape(entry.title)}</h3><p class="text-sm">${this.escape(entry.detail)}</p><p class="text-xs text-slate-500">${this.arrivalHtml(entry.at)}</p>
+      ${canOpen?`<button class="w-full p-3 rounded-xl bg-teal-700 text-white font-bold" onclick="ManagerNotifications.goToOperation(${JSON.stringify(entry.id).replace(/"/g,'&quot;')})">الانتقال إلى العملية — ${operationLabel}</button>${['invoice','voucher','expense'].includes(entry.target)?`<button class="w-full p-3 rounded-xl ta-notice-edit font-bold" onclick="ManagerNotifications.editOperation(${JSON.stringify(entry.id).replace(/"/g,'&quot;')})">تعديل العملية</button>`:''}`:''}
       ${entry.type==='peer'&&!canOpen?'<button class="w-full p-3 rounded-xl bg-teal-700 text-white font-bold" onclick="UI.forceCloseModal();AppNav.navigate(\'invoices_list\')">عرض قائمة العمليات والفواتير</button>':''}
       ${entry.type==='sync'?'<button class="w-full p-3 rounded-xl bg-teal-700 text-white font-bold" onclick="UI.forceCloseModal();TiqanyPeerSync.openSettingsFromHeader()">فتح المزامنة لمعرفة الحالة</button>':''}
       ${!canOpen&&entry.agentId?`<button class="w-full p-3 rounded-xl bg-teal-700 text-white font-bold" onclick="UI.forceCloseModal();AppNav.navigate('agent_activity',{agentId:${JSON.stringify(entry.agentId).replace(/"/g,'&quot;')},view:'all',period:'all'})">عرض سجل عمليات الموظف</button>`:''}

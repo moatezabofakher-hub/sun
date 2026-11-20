@@ -68,3 +68,42 @@ test('125: persisted peer notification delivery keys prevent replay after reconn
  assert.equal(n.filterPeerEvents([item]).length,0);
  assert.equal(n.filterPeerEvents([{...item,id:'peer:v2:another',eventKey:'peer:v2:another'}]).length,1);
 });
+
+test('Sale notifications preserve the invoice clock and localize explicit instants in both directions',()=>{
+ const events=require(path.join(dir,'tiqany-peer-events.js'));
+ const instant=new Date('2026-11-19T23:44:00Z');
+ const pad=n=>String(n).padStart(2,'0');
+ const local=pad(instant.getDate())+'/'+pad(instant.getMonth()+1)+'/'+instant.getFullYear()+'\u00a0'+pad(instant.getHours())+':'+pad(instant.getMinutes());
+ for(const source of ['mobile','windows']){
+   for(const [date,display] of [['2026-11-20T02:44','20/11/2026\u00a002:44'],['2026-11-20','20/11/2026'],
+       ['2026-11-20T02:44:00+03:00',local],['2026-11-19T23:44:00.000Z',local]]){
+     const invoice={id:'i12',type:'sale',number:12,date,netTotal:2,currency:'USD',rows:[{}]};
+     const note=events.records({},{invoices:[invoice]},source).entries[0];
+     assert.equal(invoice.date,date);
+     assert.ok(note.detail.includes('\u2066'+display+'\u2069'));
+     assert.equal(events.forDisplay(note).detail,note.detail);
+     const old={...note,operationDate:undefined,detail:'الفواتير · تاريخ العملية: '+date+' · البيان: '+date};
+     const view=events.forDisplay(old);
+     assert.ok(view.detail.includes('\u2066'+display+'\u2069'));
+     assert.ok(view.detail.endsWith('البيان: '+date));
+     assert.equal(view.id,note.id);
+   }
+ }
+});
+
+test('Settings revision timestamps stay silent and archived notices have Arabic descriptions',()=>{
+ const events=require(path.join(dir,'tiqany-peer-events.js'));
+ const after={sharedSettings:{_syncSettingTimes:{exchangeRate:{updatedAt:'2026-11-19T23:44:00Z'}}}};
+ assert.equal(events.records({},after).count,0);
+ assert.equal(events.summarize({},after).body,'');
+ after.sharedSettings.exchangeRate=15100;
+ after.sharedSettings.futureOption=true;
+ const changes=events.records({},after);
+ assert.equal(changes.count,2);
+ for(const entry of changes.entries)assert.doesNotMatch(entry.title+entry.detail,/[A-Za-z]/);
+ assert.match(events.summarize({},after).body,/سعر الصرف/);
+ assert.doesNotMatch(events.summarize({},after).body,/[A-Za-z]/);
+ const old={id:'old',type:'peer-operation',collection:'settings',recordId:'_syncSettingTimes',title:'_syncSettingTimes',read:false};
+ assert.match(events.forDisplay(old).detail,/أوقات آخر تعديل/);
+ assert.equal(old.title,'_syncSettingTimes');
+});
