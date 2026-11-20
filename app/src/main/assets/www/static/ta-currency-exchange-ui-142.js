@@ -70,7 +70,7 @@ if(baseCash&&typeof baseCash.summary==='function'){
    // Keep exact negative historical balances; never hide an out-of-balance book.
    for(const c of Object.keys(values))values[c]=Math.round((values[c])*E.scale(c))/E.scale(c);
    return {...data,sypCash:values.SYP||0,usdCash:values.USD||0,otherCurrencies:values,
-     movements:[...(data.movements||[]),...fx.movements].sort((a,b)=>String(b.date).localeCompare(String(a.date)))};
+     movements:[...(data.movements||[]),...fx.movements].sort((a,b)=>(Date.parse(b.date)||0)-(Date.parse(a.date)||0))};
  };
 }
 function cashAvailable(c){

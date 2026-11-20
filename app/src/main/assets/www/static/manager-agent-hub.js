@@ -53,7 +53,7 @@ const AgentHub = {
       </button>
       <button type="button" class="w-full rounded-2xl border border-emerald-200 bg-emerald-700 text-white p-6 flex flex-col items-center gap-3 font-black" onclick="AgentHub.choose()"><i class="fas fa-users text-3xl"></i><span>اختيار موظف البيع</span><span class="text-xs font-medium opacity-90">${this.agents().filter(a=>!a.archived).length} موظف بيع فعّال</span></button>
       <button type="button" class="ta-agent-hub-manage w-full rounded-2xl p-4 font-extrabold" onclick="AppNav.navigate('payroll')"><i class="fas fa-money-bill-wave ml-2" aria-hidden="true"></i>أجور الموظفين</button>
-      <div class="pt-2"><button type="button" class="ta-agent-hub-manage w-full rounded-2xl p-4 font-extrabold" onclick="FieldSync.open()"><i class="fas fa-users ml-2 text-lg" aria-hidden="true"></i>إدارة موظفي البيع والمزامنة المحلية</button></div>
+      <div class="pt-2"><button type="button" class="ta-agent-hub-manage w-full rounded-2xl p-4 font-extrabold" onclick="FieldSync.open()"><i class="fas fa-users ml-2 text-lg" aria-hidden="true"></i>إدارة الموظفين</button></div>
     </div>`;
     FieldSync.refreshConnectedBadge();
   },
@@ -76,7 +76,6 @@ const AgentHub = {
         ${icon('boxes-stacked','فواتير المناقلة',`AgentHub.openActivity('transfers','${id}')`)}
         ${icon('box-open','جرد مستودع موظف البيع',`AgentHub.openActivity('stock','${id}')`)}
         ${icon('pen-to-square','تعديل موظف البيع',`FieldSync.showEditAgent('${id}')`)}
-        ${icon('rotate-right','المزامنة والملفات',`FieldSync.showSyncTools()`)}
         ${!a.archived?icon('trash','حذف موظف البيع',`FieldSync.confirmRemoveAgent('${id}')`):''}
       </div>
       <p class="text-[11px] text-slate-500">الحركات المعروضة هي البيانات التي وصلت إلى التطبيق الرئيسي بالمزامنة. لا تظهر العمليات غير المرسلة بعد من هاتف موظف البيع.</p>

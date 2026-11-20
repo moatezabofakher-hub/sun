@@ -54,4 +54,48 @@ with sync_playwright() as pw:
   y="()=>['header.ta-app-header','nav.ta-bottom-nav'].map(s=>document.querySelector(s).getBoundingClientRect().top)"
   before=page.evaluate(y);page.evaluate('window.scrollTo(0,800)');page.wait_for_timeout(200)
   after=page.evaluate(y);assert page.evaluate('window.scrollY')>100 and all(abs(a-b)<2 for a,b in zip(before,after)),(before,after,page.evaluate('window.scrollY'))
+ page.evaluate("""()=>{document.querySelector('#ta-company-setup-128')?.remove();AppNav.navigate('settings')}""")
+ keys=page.locator('.ta-category-link[data-category]').evaluate_all('bs=>bs.map(b=>b.dataset.category)')
+ assert keys.index('employee-connection')==keys.index('mobile-computer-sync')+1,keys
+ page.locator('[data-category="employee-connection"]').click()
+ page.locator('#taQrOpen').wait_for()
+ page.locator('.ta-settings-page-back').click()
+ page.locator('[data-category="employee-connection"]').wait_for()
+ page.evaluate("()=>{AppNav.navigate('agent_hub');FieldSync.open()}")
+ assert 'إدارة الموظفين' in page.locator('#modalBox').inner_text() and page.locator('#modalBox #taQrOpen').count()==0
+ page.evaluate('()=>UI.forceCloseModal()')
+ # Verify posted advances remain on the salary receipt and leave the pending list.
+ page.evaluate("""()=>{document.querySelector('#ta-company-setup-128')?.remove(); AppNav.clearDirty();}""")
+ nav('advance')
+ assert page.locator('[data-edit]').count()==0
+ payroll_info=page.evaluate("""()=>{const salary=State.expenses.find(x=>x.payroll?.kind==='salary');
+ const report=FieldCash.summary('all').movements.find(m=>m.id===salary.id);
+ return [salary.payroll.advanceReceipts[0].amount,report.desc,report.date,report.outflow];}""")
+ assert payroll_info[0]==50000 and '50,000' in payroll_info[1] and 'T' in payroll_info[2] and payroll_info[3]==100000,payroll_info
+ page.evaluate("""()=>{State.items=[{id:'opening-qa',name:'مادة تجربة',currency:'SYP',openingStockBase:3,
+ units:[{name:'قطعة',factor:1,costPrice:20,salePrice:30}]}];AppNav.navigate('items');}""")
+ page.locator('#taOpeningStockAction').click()
+ assert page.locator('[data-doc]').count()==1
+ page.locator('[data-cmd=new]').click()
+ page.locator('.opening-inventory select').select_option(label='مادة تجربة')
+ page.locator('[data-cmd=add]').click()
+ page.locator('[data-key=qty]').fill('7')
+ page.locator('[data-cmd=save]').click()
+ page.wait_for_function("State.items[0].openingStockBase===10 && AppNav.current().screen==='opening_inventory'")
+ page.locator('[data-doc]').first.click()
+ page.locator('[data-key=qty]').fill('4')
+ page.locator('[data-cmd=save]').click()
+ page.wait_for_function("State.items[0].openingStockBase===7 && AppNav.current().screen==='opening_inventory'")
+ page.locator('[data-doc]').first.click()
+ page.locator('[data-cmd=delete]').click()
+ page.locator('#confirmDelBtn').click()
+ page.wait_for_function("State.items[0].openingStockBase===3 && AppNav.current().screen==='opening_inventory'")
+ assert page.locator('[data-doc]').count()==1
+ page.evaluate("""()=>{AppNav.navigate('voucher_form',{type:'receipt'});}""")
+ for theme in ('classic','royal','petrol'):
+  page.evaluate('theme=>document.documentElement.dataset.taTheme=theme',theme)
+  metrics=page.locator('.ta-voucher-save-footer').evaluate("""f=>{const b=f.getBoundingClientRect();
+  const last=f.querySelector('.ta-voucher-footer-actions').getBoundingClientRect();
+  return [innerHeight-b.bottom,b.height,b.bottom-last.bottom];}""")
+  assert abs(metrics[0])<=2 and metrics[1]<145 and metrics[2]<=14,(theme,metrics)
  print('PASS',kind)

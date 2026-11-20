@@ -4,6 +4,7 @@
 (function(){
   const ORDER = [
     'mobile-computer-sync', // computer connection on a manager phone
+    'employee-connection',
     'manager-manager-sync',  // manager phone connection
     'business-profiles',    // existing extra section: keep company accounts
     'company', 'currency', 'invoices', 'items', 'default_period',

@@ -31,6 +31,7 @@
  background-size:contain!important;border-radius:14px
 }
 .ta-category-link[data-ta-art="desktop-link"]::before{background-image:url("ta-art-desktop-link-154.svg")!important}
+.ta-category-link[data-ta-art="employee-link"]::before{background-image:url("employee-link.svg")!important}
 .ta-category-link[data-ta-art="managers-link"]::before{background-image:url("ta-art-managers-link-154.svg")!important}
 .ta-category-link[data-ta-art="profiles"]::before{background-image:url("ta-art-profiles-154.svg")!important}
 .ta-category-link[data-ta-art="company"]::before{background-image:url("ta-art-company-154.svg")!important}
@@ -843,4 +844,30 @@ html[data-ta-theme="petrol"] body :is(#mainContent,#screen) :is(.ta-quick-pos,.t
     color:var(--ta-capital-caption,#fff)!important; -webkit-text-fill-color:currentColor!important;
     opacity:1; text-shadow:none!important;
   }
+}
+
+@media screen {
+  html[data-ta-theme] body :is(#mainContent,#modalBox) .ta-voucher-bar-slot > .ta-voucher-save-footer {
+    margin:0!important; height:auto!important; min-height:0!important;
+    padding:5px 10px calc(6px + env(safe-area-inset-bottom,0px))!important;
+    gap:3px; border-radius:0; align-items:stretch;
+  }
+  html[data-ta-theme] #mainContent .ta-voucher-bar-slot > .ta-voucher-save-footer {position:fixed;inset:auto 0 0}
+  html[data-ta-theme] #modalBox #voucherModalContent .ta-voucher-save-footer {position:static;padding-bottom:6px!important}
+  html[data-ta-theme] body :is(#mainContent,#modalBox) .ta-voucher-save-footer > div {
+    margin:0!important;padding:0!important;background:transparent!important;min-height:0!important;
+  }
+  html[data-ta-theme] body :is(#mainContent,#modalBox) .ta-voucher-balance-tile {
+    display:flex;flex-wrap:wrap;align-items:baseline;justify-content:center;gap:2px 6px;
+    background:#f6faf9!important;color:#17383b!important;padding:3px 5px;box-shadow:none;
+  }
+  html[data-ta-theme] body :is(#mainContent,#modalBox) .ta-voucher-balance-tile :is(span,strong) {color:#17383b!important;-webkit-text-fill-color:currentColor!important;text-shadow:none;line-height:1.35}
+  html[data-ta-theme] body :is(#mainContent,#modalBox) .ta-voucher-currency-note {color:#163c47!important;-webkit-text-fill-color:currentColor!important;line-height:1.2}
+  html:is([data-ta-theme="royal"],[data-ta-theme="petrol"]) body :is(#mainContent,#modalBox) .ta-voucher-save-footer {background:#153c46!important}
+  html:is([data-ta-theme="royal"],[data-ta-theme="petrol"]) body :is(#mainContent,#modalBox) .ta-voucher-currency-note,
+  html:is([data-ta-theme="royal"],[data-ta-theme="petrol"]) body :is(#mainContent,#modalBox) .ta-voucher-currency-note b {color:#fff!important;-webkit-text-fill-color:currentColor!important}
+  html[data-ta-theme] body :is(#mainContent,#modalBox) .ta-voucher-footer-actions button {
+    min-height:42px!important;height:auto;margin:0!important;padding:5px 8px!important;
+  }
+  html[data-ta-theme] body #mainContent .opening-inventory .ta-operation-art {width:36px;height:36px;display:inline-block;vertical-align:middle;object-fit:contain}
 }

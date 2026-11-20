@@ -1,3 +1,132 @@
+/* Opening inventory is stored on the stock card alongside its opening quantity.
+   Cash, purchases and supplier balances therefore never receive a second posting. */
+const OpeningInventory = (() => {
+    const account = 'حساب أول المدة';
+    const esc = value => AppEscape.text(String(value ?? ''));
+    const uid = () => 'opening_' + FieldProtocol.uuid();
+    const round = value => Math.round(value * 1e8) / 1e8;
+    const baseCost = item => Number(item.costBeforePurchases ?? item.units?.[0]?.costPrice) || 0;
+    function entries(item) {
+        const stored = item.openingEntries || [];
+        const remainder = round((Number(item.openingStockBase) || 0) - stored.reduce((n, r) => n + r.qty, 0));
+        if (!remainder) return stored;
+        // Old stock cards have a quantity but no document number or business timestamp.
+        return [...stored, {id:'legacy', date:'', qty:remainder, cost:baseCost(item),
+            currency:item.currency, unit:item.units?.[0]?.name || 'وحدة'}];
+    }
+    function cardChange(old, next) {
+        const qty = round(Number(next.openingStockBase) - Number(old?.openingStockBase || 0));
+        if (qty) next.openingEntries = [...(old ? entries(old) : []), {id:uid(),date:new Date().toISOString(),
+            qty,cost:baseCost(next),currency:next.currency,unit:next.units[0].name}];
+        return next;
+    }
+    function documents() {
+        const docs = new Map();
+        for (const item of State.items) for (const row of entries(item)) {
+            if (!docs.has(row.id)) docs.set(row.id, {id:row.id,date:row.date,rows:[]});
+            docs.get(row.id).rows.push({...row,itemId:item.id,name:item.name});
+        }
+        return [...docs.values()].sort((a,b) => b.date.localeCompare(a.date) || a.id.localeCompare(b.id));
+    }
+    const totals = rows => {
+        const amounts = new Map();
+        for (const r of rows) amounts.set(r.currency,(amounts.get(r.currency) || 0) + r.qty*r.cost);
+        return [...amounts].map(([c,v])=>Accounting.format(v,c)).join(' · ');
+    };
+    const action = (cmd,icon,title) => '<button type="button" class="ta-enh-btn" data-cmd="'+cmd+'"><i class="fas fa-'+icon+'"></i> '+title+'</button>';
+    const dateLabel = date => date ? TiqanyDateView.visible(date) : 'جرد سابق';
+    function list(main) {
+        UI.setHeader('جرد أول المدة','');
+        const docs = documents();
+        main.innerHTML = '<section dir="rtl" class="opening-inventory space-y-3">'+action('new','boxes-stacked','إضافة مواد أول المدة')+
+            docs.map((doc,i)=>'<button type="button" data-doc="'+i+'" class="w-full text-right bg-white rounded-2xl border border-slate-200 p-3.5 shadow-xs">'+
+            '<img class="ta-operation-art inline-block" width="36" height="36" src="static/purchase.png" alt=""> <strong>فاتورة جرد أول المدة · '+account+'</strong>'+
+            '<div>'+esc(dateLabel(doc.date))+' · '+doc.rows.length+' مواد</div><b>'+esc(totals(doc.rows))+'</b></button>').join('')+
+            (docs.length?'':'<p>لا توجد إدخالات جرد أول المدة.</p>')+'</section>';
+        main.querySelector('[data-cmd=new]').onclick = () => AppNav.navigate('opening_invoice',{});
+        main.querySelectorAll('[data-doc]').forEach(b=>b.onclick=()=>AppNav.navigate('opening_invoice',{id:docs[Number(b.dataset.doc)].id}));
+    }
+    function editor(main, params) {
+        const doc = params.id ? documents().find(x=>x.id===params.id) : null;
+        if (params.id && !doc) return list(main);
+        const id = doc?.id || uid();
+        const original = JSON.stringify(doc?.rows || []);
+        const rows = (doc?.rows || []).map(r=>({...r}));
+        const items = State.items.filter(i=>!i.isBundle && i.units?.length);
+        let busy = false;
+        UI.setHeader(doc?'فاتورة جرد أول المدة':'إضافة مواد أول المدة','');
+        function changed(){ AppNav.markDirty(()=>commit(false,false)); }
+        function paint(){
+            main.innerHTML='<section dir="rtl" class="opening-inventory space-y-3"><div class="invoice-entry-top bg-white rounded-2xl border p-3">'+
+                '<img class="ta-operation-art inline-block" width="36" height="36" src="static/purchase.png" alt=""> <b>فاتورة جرد أول المدة</b><div>الحساب · '+account+'</div><small>'+
+                esc(dateLabel(doc?doc.date:new Date().toISOString()))+'</small></div><div class="ta-invoice-control-grid flex gap-2"><select class="rounded-xl border p-2" aria-label="اختيار مادة"><option value="">اختر المادة</option>'+
+                items.map((it,i)=>'<option value="'+i+'">'+esc(it.name)+'</option>').join('')+'</select>'+action('add','plus','إضافة مواد')+'</div>'+
+                '<div class="invoice-added-items">'+rows.map((r,i)=>'<div class="invoice-added-row p-3" data-row="'+i+'"><b class="invoice-row-index">'+(i+1)+'</b> <b>'+
+                esc(r.name)+'</b> · '+esc(r.unit)+'<div class="grid grid-cols-2 gap-2"><label>الكمية<input class="w-full" type="number" step="any" data-key="qty" value="'+esc(r.qty)+'"></label>'+
+                '<label>تكلفة الوحدة ('+esc(r.currency)+')<input class="w-full" type="number" step="any" min="0" data-key="cost" value="'+esc(r.cost)+'"></label></div>'+
+                '<button type="button" style="color:#b91c1c" data-remove="'+i+'" aria-label="حذف المادة"><i class="fas fa-trash"></i> حذف المادة</button></div>').join('')+'</div>'+
+                '<div class="ta-enh-panel"><b>إجمالي التكلفة </b><strong data-total>'+esc(totals(rows))+'</strong></div><div class="ta-enh-row">'+
+                action('save','floppy-disk','حفظ')+action('cancel','times','إلغاء')+(doc?action('delete','trash','حذف الفاتورة'):'')+'</div></section>';
+            main.querySelector('[data-cmd=add]').onclick=()=>{
+                const v=main.querySelector('select').value;
+                if(v==='')return UI.toast('اختر المادة أولاً','warn');
+                const item=items[Number(v)],found=rows.find(r=>r.itemId===item.id);
+                if(found)found.qty=Number(found.qty)+1;
+                else rows.push({itemId:item.id,name:item.name,unit:item.units[0].name,qty:1,cost:baseCost(item),currency:item.currency});
+                changed();paint();
+            };
+            main.querySelectorAll('[data-key]').forEach(input=>input.oninput=()=>{
+                rows[Number(input.closest('[data-row]').dataset.row)][input.dataset.key]=input.value===''?'':input.valueAsNumber;
+                main.querySelector('[data-total]').textContent=totals(rows);changed();
+            });
+            main.querySelectorAll('[data-remove]').forEach(b=>b.onclick=()=>{rows.splice(Number(b.dataset.remove),1);changed();paint();});
+            main.querySelector('[data-cmd=save]').onclick=()=>commit(false,true);
+            main.querySelector('[data-cmd=cancel]').onclick=()=>{AppNav.clearDirty();AppNav.handleBackButton();};
+            if(doc)main.querySelector('[data-cmd=delete]').onclick=()=>UI.showDeleteConfirm('حذف فاتورة الجرد','سيُعكس أثر هذه الفاتورة على كميات أول المدة.',()=>commit(true,true));
+        }
+        async function commit(remove, navigate){
+            if(busy)return false;
+            const current=documents().find(x=>x.id===id);
+            if(JSON.stringify(current?.rows||[])!==original){UI.toast('تغيّر الجرد. افتح الفاتورة من جديد','warn');return false;}
+            const selected=remove?[]:rows;
+            const invalid=selected.some(r=>!Number.isFinite(r.qty)||r.qty===0||!Number.isFinite(r.cost)||r.cost<0||
+                (r.qty<0&&!doc?.rows.some(old=>old.itemId===r.itemId&&old.qty<0)));
+            if(!remove&&(!rows.length||invalid)){UI.toast('أدخل مادة وكمية وتكلفة صحيحة','warn');return false;}
+            const affected=new Set([...(doc?.rows||[]),...selected].map(r=>r.itemId));
+            const updates=new Map(), date=doc?doc.date:new Date().toISOString();
+            for(const itemId of affected){
+                const item=State.items.find(i=>i.id===itemId), row=selected.find(r=>r.itemId===itemId);
+                if(!item||item.isBundle||(row&&(row.currency!==item.currency || row.unit!==item.units?.[0]?.name))){UI.toast('تغيّرت بطاقة المادة. أعد فتح الفاتورة','warn');return false;}
+                const lines=entries(item).filter(r=>r.id!==id);
+                if(row)lines.push({id,date,qty:row.qty,cost:row.cost,unit:row.unit,currency:row.currency});
+                const qty=round(lines.reduce((n,r)=>n+r.qty,0));
+                if(qty<0||(State.settings.allowNegativeStockSales!==true&&Accounting.getItemBaseStock(itemId,null,'wh_main')+qty-(Number(item.openingStockBase)||0)<-1e-7)){
+                    UI.toast('العملية تجعل مخزون '+item.name+' سالباً','warn');return false;
+                }
+                const next={...item,openingEntries:lines,openingStockBase:qty};
+                const linked=State.invoices.some(inv=>inv.rows?.some(r=>r.itemId===itemId||r.bomComponents?.some(p=>p.itemId===itemId)));
+                if(!linked&&qty>0){
+                    const cost=round(lines.reduce((n,r)=>n+r.qty*r.cost,0)/qty);
+                    next.units=item.units.map(u=>({...u,costPrice:round(cost/(Number(u.factor)||1))}));
+                }
+                updates.set(itemId,next);
+            }
+            if(!doc&&!LicenseManager.canPerformOperation())return false;
+            const before=State.items, count=State.license.opsUsedCount;
+            busy=true; const updated=before.map(it=>updates.get(it.id)||it); State.items=updated;
+            try{
+                if(doc)await StorageEngine.saveState();else await LicenseManager.recordNewOperation();
+                AppNav.clearDirty();if(navigate)AppNav.handleBackButton();UI.toast(remove?'تم حذف فاتورة الجرد':'تم حفظ فاتورة الجرد','success');return true;
+            } catch(e){
+                if(State.items===updated)State.items=before;
+                if(!doc)State.license.opsUsedCount=count;
+                UI.toast('تعذر حفظ الجرد','error');return false;
+            }finally{busy=false;}
+        }
+        paint();
+    }
+    return {entries,cardChange,list,editor};
+})();
 /* Tiqany Acc manager/solo extension based on production 3.5.152.
  * No employee app changes. Opening records are projections, not purchase invoices.
  */
@@ -73,92 +202,40 @@ const E={
    if(!main||main.querySelector('#taOpeningBalancesActions'))return;
    const button=Array.from(main.querySelectorAll('button')).find(x=>x.textContent.includes('إضافة عميل/مورد'));
    if(!button)return;
-   button.insertAdjacentHTML('afterend','<button id="taOpeningBalancesActions" type="button" class="ta-enh-btn ta-enh-indigo" onclick="TiqanyManager152.openOpening()"><i class="fas fa-scale-balanced"></i> رصيد أول المدة</button>');
+   button.insertAdjacentHTML('afterend','<button id="taOpeningBalancesActions" type="button" class="ta-enh-btn ta-enh-indigo" onclick="TiqanyManager152.openAccountsOpening(\'all\')"><i class="fas fa-users"></i> أرصدة حسابات أول المدة</button>');
    const top=button.parentElement;
    top?.insertAdjacentHTML('beforebegin',this.accountCards());
- },
- openOpening(){
-   UI.openModal('<div dir="rtl" class="space-y-3"><h2 class="text-lg font-black">رصيد أول المدة</h2>'+
-     '<div class="ta-enh-row"><button type="button" class="ta-enh-btn ta-enh-teal" onclick="TiqanyManager152.openStock()"><i class="fas fa-boxes-stacked"></i> جرد أول المدة</button>'+
-     '<button type="button" class="ta-enh-btn ta-enh-indigo" onclick="TiqanyManager152.openAccountsOpening(\'all\')"><i class="fas fa-users"></i> أرصدة حسابات أول المدة</button></div>'+
-     '<p class="text-xs text-slate-600">الأرصدة الافتتاحية ليست فواتير شراء أو إيرادات، ولا تُسجّل مرتين.</p>'+
-     '<button class="ta-enh-btn ta-enh-gold" onclick="UI.forceCloseModal()">إغلاق</button></div>');
  },
  openAccountsOpening(kind){
    const filter=['all','customer','supplier'].includes(kind)?kind:'all';
    const accounts=(State.accounts||[]).filter(a=>(filter==='all'||a.type===filter)&&((Number(a.openingSyp)||0)!==0||(Number(a.openingUsd)||0)!==0));
    const tabs=['all','customer','supplier'].map((x,i)=>'<button class="ta-enh-btn '+(x===filter?'ta-enh-indigo':'ta-enh-teal')+'" onclick="TiqanyManager152.openAccountsOpening(\''+x+'\')">'+['الكل','الزبائن','الموردون'][i]+'</button>').join('');
-   const rows=accounts.map(a=>{const syp=(a.type==='supplier'?-1:1)*(Number(a.openingSyp)||0);
+   const rows=accounts.map((a,i)=>{const syp=(a.type==='supplier'?-1:1)*(Number(a.openingSyp)||0);
        const usd=(a.type==='supplier'?-1:1)*(Number(a.openingUsd)||0);
        return '<tr><td>'+this.esc(a.name)+'</td><td>'+this.esc(a.type==='supplier'?'مورد':'عميل')+'</td>'+
-         '<td dir="ltr">'+this.esc(syp)+'</td><td dir="ltr">'+this.esc(usd)+'</td></tr>';}).join('');
+         '<td dir="ltr">'+this.esc(syp)+'</td><td dir="ltr">'+this.esc(usd)+'</td><td><button type="button" data-opening-account="'+i+'">تعديل</button> <button type="button" data-clear-account="'+i+'">حذف الرصيد</button></td></tr>';}).join('');
    UI.openModal('<div dir="rtl"><h2 class="font-black text-lg">أرصدة حسابات أول المدة</h2><div class="ta-enh-row my-3">'+tabs+'</div>'+
-     '<div class="ta-enh-scroll"><table class="ta-enh-table"><thead><tr><th>الحساب</th><th>النوع</th><th>رصيد ل.س (موجب: مدين)</th><th>رصيد USD (موجب: مدين)</th></tr></thead><tbody>'+
+     '<div class="ta-enh-scroll"><table class="ta-enh-table"><thead><tr><th>الحساب</th><th>النوع</th><th>رصيد ل.س (موجب: مدين)</th><th>رصيد USD (موجب: مدين)</th><th>الخيارات</th></tr></thead><tbody>'+
      (rows||'<tr><td colspan="4">لا توجد حسابات لها أرصدة افتتاحية</td></tr>')+'</tbody></table></div>'+
      this.accountCards()+'<p class="text-xs">تُعدّل الأرصدة من بطاقة العميل أو المورد؛ الدائن سالب والمدين موجب، مع مراعاة نوع الحساب.</p>'+
-     '<button class="ta-enh-btn ta-enh-gold mt-3" onclick="TiqanyManager152.openOpening()">رجوع</button></div>');
- },
- stockTotals(){
-   const totals={};
-   for(const item of State.items||[]){
-     const qty=Number(item.openingStockBase)||0;
-     if(qty===0)continue;
-     const c=item.currency||'USD';
-     totals[c]=(totals[c]||0)+qty*(Number(item.units?.[0]?.costPrice)||0);
-   }
-   return totals;
- },
- openStock(){
-   const items=(State.items||[]).filter(i=>!i.isBundle&&(Number(i.openingStockBase)||0)!==0);
-   const rows=items.map(i=>{
-     const unit=i.units?.[0]||{}, linked=(State.invoices||[]).some(doc=>(doc.rows||[]).some(r=>r.itemId===i.id||(r.bomComponents||[]).some(p=>p.itemId===i.id)));
-     return '<tr data-opening-row="'+this.esc(i.id)+'"><td>'+this.esc(i.name)+'</td><td>'+this.esc(unit.name||'وحدة')+'</td>'+
-       '<td><input aria-label="كمية '+this.esc(i.name)+'" data-stock-id="'+this.esc(i.id)+'" type="number" min="0" step="any" value="'+this.esc(i.openingStockBase)+'" oninput="TiqanyManager152.refreshStockPreview()"></td>'+
-       '<td><input aria-label="تكلفة '+this.esc(i.name)+'" data-cost-id="'+this.esc(i.id)+'" type="number" min="0" step="any" value="'+this.esc(unit.costPrice||0)+'" '+(linked?'disabled title="محمي لوجود عمليات سابقة"':'')+' oninput="TiqanyManager152.refreshStockPreview()"></td><td>'+this.esc(i.currency||'USD')+'</td></tr>';
-   }).join('');
-   UI.openModal('<div dir="rtl"><h2 class="font-black text-lg">فاتورة جرد أول المدة</h2>'+
-     '<p class="text-xs text-slate-600">تُقرأ الكميات من الرصيد الافتتاحي للمواد؛ تعديلها لا يُنشئ حركة شراء جديدة. تكلفة المواد المستخدمة في عمليات سابقة محمية من تغييرها بأثر رجعي.</p>'+
-     '<div class="ta-enh-scroll"><table class="ta-enh-table"><thead><tr><th>المادة</th><th>الوحدة</th><th>الكمية</th><th>التكلفة</th><th>العملة</th></tr></thead><tbody>'+
-     (rows||'<tr><td colspan="5">لا توجد مواد برصيد افتتاحي بعد</td></tr>')+'</tbody></table></div>'+
-     '<div id="taStockPreview" class="ta-enh-panel"></div>'+
-     '<div class="ta-enh-row"><button class="ta-enh-btn ta-enh-teal" onclick="TiqanyManager152.saveStock()">حفظ جرد أول المدة</button>'+
-     '<button class="ta-enh-btn ta-enh-gold" onclick="TiqanyManager152.openOpening()">رجوع</button></div></div>');
-   this.refreshStockPreview();
- },
- refreshStockPreview(){
-   const el=document.getElementById('taStockPreview');if(!el)return;
-   const count=el.parentNode.querySelectorAll('[data-stock-id]').length;
-   const total={};
-   el.parentNode.querySelectorAll('[data-stock-id]').forEach(q=>{
-     const id=q.dataset.stockId, item=State.items.find(i=>i.id===id);if(!item)return;
-     const curr=item.currency||'USD';
-     const cost=el.parentNode.querySelector('[data-cost-id="'+CSS.escape(id)+'"]');
-     total[curr]=(total[curr]||0)+(Number(q.value)||0)*(Number(cost?.value)||0);
+     '<button class="ta-enh-btn ta-enh-gold mt-3" onclick="UI.forceCloseModal()">رجوع</button></div>');
+   document.querySelectorAll('[data-opening-account]').forEach(b=>b.onclick=()=>{UI.forceCloseModal();AccountController.openAccountModal(accounts[Number(b.dataset.openingAccount)].id);});
+   document.querySelectorAll('[data-clear-account]').forEach(b=>b.onclick=()=>{
+     const a=accounts[Number(b.dataset.clearAccount)];
+     UI.showDeleteConfirm('حذف رصيد أول المدة','سيُصفّر الرصيد الافتتاحي لهذا الحساب بالعملتين.',async()=>{
+       const current=State.accounts.find(x=>x.id===a.id);
+       if(!current||current.openingSyp!==a.openingSyp||current.openingUsd!==a.openingUsd)return UI.toast('تغيّر الحساب. افتح القائمة من جديد','warn');
+       const before=State.accounts, updated=before.map(x=>x.id===a.id?{...x,openingSyp:0,openingUsd:0}:x);
+       State.accounts=updated;
+       try{await StorageEngine.saveState();AppNav.renderCurrent();this.openAccountsOpening(filter);}
+       catch(e){if(State.accounts===updated)State.accounts=before;UI.toast('تعذر حفظ الرصيد','error');}
+     });
    });
-   el.innerHTML='<b>إجمالي المواد: '+count+'</b><div class="ta-enh-row">'+Object.entries(total).map(([c,v])=>'<span>إجمالي التكلفة '+this.esc(c)+': <strong>'+this.money(v,c)+'</strong></span>').join(' | ')+'</div>';
- },
- async saveStock(){
-   const nodes=Array.from(document.querySelectorAll('[data-stock-id]')),changes=[];
-   for(const node of nodes){
-     const item=State.items.find(i=>i.id===node.dataset.stockId);if(!item)continue;
-     const rawQty=node.value, costNode=document.querySelector('[data-cost-id="'+CSS.escape(item.id)+'"]');
-     const qty=Number(rawQty),cost=Number(costNode?.value);
-     if(rawQty===''||!Number.isFinite(qty)||qty<0||!Number.isFinite(cost)||cost<0)return UI.toast('أدخل كميات وتكاليف غير سالبة وصحيحة','error');
-     const linked=State.invoices.some(inv=>(inv.rows||[]).some(row=>row.itemId===item.id||(row.bomComponents||[]).some(p=>p.itemId===item.id)));
-     if(linked&&Math.abs(cost-(Number(item.units?.[0]?.costPrice)||0))>0.000001)return UI.toast('لا يمكن تعديل التكلفة التاريخية للمادة '+item.name,'error');
-     const now=Accounting.getItemBaseStock(item.id,null,'wh_main');
-     if(State.settings.allowNegativeStockSales!==true&&now+(qty-(Number(item.openingStockBase)||0))<-0.000001)return UI.toast('تعديل رصيد '+item.name+' يؤدي إلى مخزون سالب','error');
-     changes.push({item,qty,cost,oldQty:item.openingStockBase,oldCost:item.units?.[0]?.costPrice});
-   }
-   for(const x of changes){x.item.openingStockBase=x.qty;if(x.item.units?.[0])x.item.units[0].costPrice=x.cost;}
-   try{await StorageEngine.saveState();UI.forceCloseModal();AppNav.renderCurrent();UI.toast('تم حفظ الأرصدة الافتتاحية دون تكرار قيد شراء','success');}
-   catch(err){for(const x of changes){x.item.openingStockBase=x.oldQty;if(x.item.units?.[0])x.item.units[0].costPrice=x.oldCost;}UI.toast('تعذر حفظ الجرد: '+err.message,'error');}
  },
  movement(itemId,warehouse){
    const item=State.items.find(i=>i.id===itemId);if(!item)return null;
    const wh=warehouse||'all',all=wh==='all', isMain=wh==='wh_main',entries=[];
-   const open=Number(item.openingStockBase)||0;
-   if(open&&(all||isMain))entries.push({date:'0000-01-01',kind:'opening',desc:'رصيد أول المدة',inQty:open,outQty:0,id:'opening'});
+   if(all||isMain)for(const r of OpeningInventory.entries(item))entries.push({date:r.date||'0000-01-01',kind:'opening',desc:'جرد أول المدة',inQty:Math.max(0,r.qty),outQty:Math.max(0,-r.qty),id:r.id});
    for(const doc of State.invoices||[]){
      if(!all&&(doc.warehouseId||'wh_main')!==wh)continue;
      const sign=['purchase','sale_return'].includes(doc.type)?1:['sale','purchase_return'].includes(doc.type)?-1:0;
@@ -200,7 +277,7 @@ const E={
    const types=[['all','كل العمليات'],['opening','أول المدة'],['purchase','شراء'],['purchase_return','مردود شراء'],['sale','مبيع'],['sale_return','مردود مبيع'],['transfer_in','مناقلة واردة'],['transfer_out','مناقلة صادرة']];
    const options=types.map(([val,title])=>'<option value="'+val+'" '+(kind===val?'selected':'')+'>'+title+'</option>').join('');
    const rows=(filtered.entries||[]).map(e=>'<tr><td>'+this.esc(String(e.date||'').replace('T',' '))+'</td><td>'+
-     (e.invoice?'<button type="button" style="color:#005eaa;text-decoration:underline;font-weight:800" onclick="TiqanyManager152.openInvoiceMovement(\''+this.esc(e.id)+'\')">'+this.esc(e.desc)+'</button>':this.esc(e.desc))+'</td>'+
+     (e.invoice?'<button type="button" style="color:#005eaa;text-decoration:underline;font-weight:800" onclick="TiqanyManager152.openInvoiceMovement(\''+this.esc(e.id)+'\')">'+this.esc(e.desc)+'</button>':e.kind==='opening'?'<button type="button" data-opening-movement="'+this.esc(e.id)+'">'+this.esc(e.desc)+'</button>':this.esc(e.desc))+'</td>'+
      '<td>'+Accounting.formatItemQuantity(e.inQty)+'</td><td>'+Accounting.formatItemQuantity(e.outQty)+'</td><td>'+Accounting.formatItemQuantity(e.balance)+'</td></tr>').join('');
    UI.openModal('<div dir="rtl"><h2 class="text-lg font-black">حركة مادة</h2>'+
      '<div class="ta-enh-panel"><div class="ta-enh-row"><label>المادة<select id="taMovementItem" onchange="TiqanyManager152.reloadMovement()">'+itemSelect+'</select></label>'+
@@ -214,6 +291,9 @@ const E={
      '<div class="ta-enh-scroll"><table class="ta-enh-table"><thead><tr><th>التاريخ</th><th>العملية</th><th>وارد</th><th>صادر</th><th>الرصيد</th></tr></thead><tbody>'+
      (rows||'<tr><td colspan="5">لا توجد حركة لهذه المادة ضمن التصفية</td></tr>')+'</tbody></table></div>'+
      '<button class="ta-enh-btn ta-enh-gold mt-3" onclick="UI.forceCloseModal()">إغلاق</button></div>');
+   document.querySelectorAll('[data-opening-movement]').forEach(b=>b.onclick=()=>{
+     UI.forceCloseModal();AppNav.navigate('opening_invoice',{id:b.dataset.openingMovement});
+   });
  },
  reloadMovement(){
    this.openMovement(document.getElementById('taMovementItem')?.value,document.getElementById('taMovementWarehouse')?.value,
@@ -266,7 +346,7 @@ const E={
    }
    this.css();
    const oldAccounts=Views.renderAccounts;Views.renderAccounts=function(main,...args){const out=oldAccounts.call(this,main,...args);E.addAccountControls(main);return out;};
-   const oldItems=Views.renderItems;Views.renderItems=function(main,...args){const out=oldItems.call(this,main,...args);const t=main.querySelector('.ta-items-toolbar');if(t&&!t.querySelector('#taMovementAction'))t.insertAdjacentHTML('beforeend','<button id="taMovementAction" class="ta-enh-btn ta-enh-teal" onclick="TiqanyManager152.openMovement()"><i class="fas fa-arrows-spin"></i> حركة مادة</button>');return out;};
+   const oldItems=Views.renderItems;Views.renderItems=function(main,...args){const out=oldItems.call(this,main,...args);const t=main.querySelector('.ta-items-toolbar');if(t&&!t.querySelector('#taMovementAction'))t.insertAdjacentHTML('beforeend','<button id="taMovementAction" class="ta-enh-btn ta-enh-teal" onclick="TiqanyManager152.openMovement()"><i class="fas fa-arrows-spin"></i> حركة مادة</button><button id="taOpeningStockAction" class="ta-enh-btn ta-enh-teal" onclick="AppNav.navigate(\'opening_inventory\')"><i class="fas fa-boxes-stacked"></i> جرد أول المدة</button>');return out;};
    const oldSettings=Views.renderSettings;Views.renderSettings=function(main,...args){const out=oldSettings.call(this,main,...args);E.settings();return out;};
    const oldAdd=InvoiceController.addItemToInvoice;InvoiceController.addItemToInvoice=function(itemId,repaint=true){
       const item=State.items.find(i=>i.id===itemId),d=this.draft,unit=E.chosen(item,d?.type);

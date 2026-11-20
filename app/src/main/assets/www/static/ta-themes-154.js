@@ -16,6 +16,7 @@ apply(saved);
 function classify(el){
  const k=el?.dataset?.category||'';
  const label=(el?.textContent||'').replace(/\s+/g,' ').trim();
+ if(k==='employee-connection')return 'employee-link';
  if(k==='themes'||label==='الثيمات')return 'themes';
  if(k==='mobile-computer-sync'||/مزامنة.*(الموبايل والكمبيوتر|الهاتف.*الكمبيوتر|الكمبيوتر.*الموبايل)/.test(label))return 'desktop-link';
  if(k==='manager-manager-sync'||/مزامنة أجهزة مدير|مزامنة موبايلين مدير/.test(label))return 'managers-link';

@@ -36,6 +36,27 @@ const Payroll = (() => {
         const round=n=>Math.round(n*1e8)/1e8;
         return {opening:round(opening),advances:round(advances),net:round(opening+gross-advances)};
     }
+    function allocations(rows) {
+        const owners=new Map(), advances=rows.filter(r=>r.payroll?.kind==='advance');
+        const salaries=rows.filter(r=>r.payroll?.kind==='salary').sort((a,b)=>a.payroll.end.localeCompare(b.payroll.end));
+        // Explicit links take precedence over inference for pre-update salary records.
+        for(const salary of salaries) for(const id of salary.payroll.advanceIds || []) owners.set(id,salary.id);
+        for(const salary of salaries) {
+            if(Array.isArray(salary.payroll.advanceIds))continue;
+            for(const a of advances) if(!owners.has(a.id) && a.payroll.employeeId===salary.payroll.employeeId &&
+                a.currency===salary.currency && a.date<=salary.payroll.end && (!a.createdAt||!salary.updatedAt||a.createdAt<=salary.updatedAt))
+                owners.set(a.id,salary.id);
+        }
+        return owners;
+    }
+    function description(row, rows, owners) {
+        if(row.payroll?.kind!=='salary')return row.note || 'مصروف نقدي';
+        const linked=Array.isArray(row.payroll.advanceReceipts)?row.payroll.advanceReceipts:rows.filter(a=>owners.get(a.id)===row.id);
+        const total=linked.reduce((sum,a)=>sum+Number(a.amount),0);
+        const details=linked.map(a=>a.date+' · '+Accounting.format(a.amount,a.currency)).join('، ');
+        return (row.note||'')+' · السلف المسوّاة '+Accounting.format(total,row.currency)+(details?' ('+details+')':'')+
+            ' · المدفوع عند الترحيل '+Accounting.format(row.amount,row.currency);
+    }
     const directory=()=>State.payrollStaff || [];
     const agreements=id=>directory().find(s=>s.id===id);
     const uid=()=>Array.from(crypto.getRandomValues(new Uint8Array(16)),n=>n.toString(16).padStart(2,'0')).join('');
@@ -165,9 +186,10 @@ const Payroll = (() => {
         });
     }
     function operations(main, employee, kind, params, profile) {
-        const history=payRows(employee.id).filter(x=>x.payroll.kind===kind).sort((a,b)=>b.date.localeCompare(a.date));
+        const employeeRows=payRows(employee.id), owners=allocations(employeeRows);
+        const history=employeeRows.filter(x=>x.payroll.kind===kind).sort((a,b)=>b.date.localeCompare(a.date));
         const old=params.recordId?history.find(x=>x.id===params.recordId):null;
-        const list=()=>'<div class="pay-list">'+history.map(x=>button(x.date+' · '+Accounting.format(x.amount,x.currency)+' · تعديل','data-edit="'+esc(x.id)+'"')).join('')+'</div>';
+        const list=()=>'<div class="pay-list">'+history.filter(x=>kind!=='advance'||!owners.has(x.id)).map(x=>button(x.date+' · '+Accounting.format(x.amount,x.currency)+' · تعديل','data-edit="'+esc(x.id)+'"')).join('')+'</div>';
         const openEdits=()=>main.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>go({...params,recordId:b.dataset.edit}));
         if(kind==='salary'&&!old&&!profile?.cycle){
             main.innerHTML=layout('<p>حدّد الراتب ومدة الدفع أولاً.</p>'+button('تحديد الراتب','data-terms')+list());
@@ -185,7 +207,7 @@ const Payroll = (() => {
             const existing=history.find(r=>r.payroll.start<=end&&r.payroll.end>=start&&r.id!==old?.id);
             if(existing)throw Error('رُحّل راتب هذه الفترة سابقاً. اختر الدفعة من السجل لتعديلها');
             const gross=terms.gross;
-            return {start,end,gross,...settlement(State.expenses,employee.id,currency,start,end,gross,old?.id)};
+            return {start,end,gross,...settlement(State.expenses.filter(a=>a.payroll?.kind!=='advance'||a.date<=date.value),employee.id,currency,start,end,gross,old?.id)};
         };
         const preview=()=>{
             if(kind!=='salary')return;
@@ -203,9 +225,17 @@ const Payroll = (() => {
             const raw=Number(input.value), amount=Accounting.round(raw,currency);
             if(!date.value || input.value.trim()===''||!Number.isFinite(raw)||amount<0||amount>1e15||(amount===0&&kind!=='salary'))throw Error('أدخل مبلغاً صحيحاً');
             const payroll={kind,employeeId:employee.id};
-            if(kind==='salary'){const b=balance();Object.assign(payroll,{start:b.start,end:b.end,gross:b.gross,cycle:terms.cycle,days:terms.days});}
+            if(kind==='salary'){
+                const b=balance();
+                const linked=employeeRows.filter(a=>a.payroll?.kind==='advance' && a.currency===currency &&
+                    a.date<=date.value && (!owners.has(a.id)||owners.get(a.id)===old?.id));
+                const receipts=linked.map(a=>({id:a.id,date:a.date,amount:a.amount,currency:a.currency}));
+                Object.assign(payroll,{start:b.start,end:b.end,gross:b.gross,cycle:terms.cycle,days:terms.days,
+                    advanceIds:receipts.map(a=>a.id),advanceReceipts:receipts});
+            }
             const id=old?.id||(kind==='salary'?'pay_'+employee.id+'_'+payroll.start:'exp_'+uid());
             const row={...old,id,amount,currency,category:categories[kind],date:date.value,note:employee.name,
+                createdAt:old ? (old.createdAt || Accounting.expenseDateTime(old)) : new Date().toISOString(),
                 exchangeRate:old?.exchangeRate||Number(State.settings.exchangeRate)||1,payroll,updatedAt:new Date().toISOString()};
             const saved=await persist('expenses',row,!old);
             if(saved&&fromButton){if(old)cancel();else render(main,params);}
@@ -213,5 +243,5 @@ const Payroll = (() => {
         });
     }
     function edit(row){go({section:row.payroll.kind,employeeId:row.payroll.employeeId,recordId:row.id});}
-    return {render,edit,period,settlement,maxDays};
+    return {render,edit,period,settlement,maxDays,allocations,description};
 })();

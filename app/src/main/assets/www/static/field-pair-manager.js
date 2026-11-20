@@ -44,11 +44,11 @@
          session={id:msg.requestId,deviceId:msg.deviceId,createdAt:Date.now(),code:derived.code,key:derived.key,managerPublic:ep.publicKey,status:'pending'};
          this.pairingRequests.set(msg.requestId,session);
          if(document.getElementById('taQrCode')){
-           FieldSync.open();
+           UI.forceCloseModal();FieldSync.showSyncTools();
            document.getElementById('fieldPairingRequests')?.scrollIntoView({block:'center'});
          }
          this.paintPairingRequests();
-         UI.toast('📱 جهاز موظف بيع جديد يطلب الربط. افتح إدارة موظفي البيع للموافقة','info');
+         UI.toast('📱 جهاز موظف بيع جديد يطلب الربط. افتح «الاتصال بموظفي البيع» في الضبط للموافقة','info');
        }
      }else if(!session)throw Error('انتهت مهلة الطلب؛ أعد المحاولة من هاتف موظف البيع');
      if(msg.kind==='confirm'){

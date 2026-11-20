@@ -31,9 +31,10 @@ const FieldCash={
       const incoming=v.type==='receipt';
       add({id:v.id,date:v.date||'',ref:'سند #'+(v.number||''),party:State.accounts.find(a=>a.id===v.accountId)?.name||'حساب عام',desc:v.note||v.fieldOrigin?.agentName||'سند مالي',currency:v.currency,inflow:incoming?amount:0,outflow:incoming?0:amount});
     }
-    for(const e of (State.expenses||[])){
+    const expenses=State.expenses||[], advanceOwners=typeof Payroll!=='undefined'?Payroll.allocations(expenses):new Map();
+    for(const e of expenses){
       if(!matches(e))continue;
-      const amount=Number(e.amount||0);if(amount>0)add({id:e.id,date:e.date||'',ref:'مصروف',party:e.category||'مصاريف',desc:e.note||'مصروف نقدي',currency:e.currency,inflow:0,outflow:amount});
+      const amount=Number(e.amount||0);if(amount>0||e.payroll?.kind==='salary')add({id:e.id,date:Accounting.expenseDateTime?.(e)||e.date,ref:e.payroll?.kind==='salary'?'سند صرف أجر':'مصروف',party:e.category||'مصاريف',desc:e.payroll?.kind==='salary'?Payroll.description(e,expenses,advanceOwners):(e.note||'مصروف نقدي'),currency:e.currency,inflow:0,outflow:amount});
     }
     for(const tr of cfg().cashTransfers){
       if(scope==='all')continue; // internal transfer cancels out in the combined till
@@ -46,7 +47,7 @@ const FieldCash={
     // Capital receipts/returns are posted only to the office cashbox.
     if(scope==='all'||scope==='office')for(const m of CapitalLedger.cashMovements())add(m);
  if(scope==='all'||scope==='office')for(const m of (typeof ShareholdersCashMovements==='function'?ShareholdersCashMovements():[]))add(m);
-    movements.sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+    movements.sort((a,b)=>(Date.parse(b.date)||0)-(Date.parse(a.date)||0));
     return {sypCash,usdCash,movements};
   },
   employeeWarehouseDocuments(agent){
@@ -177,18 +178,16 @@ F.catalog=function(a,historyCursor=0,transferCursor=0){
 // The old manager screen stays available as separate task-oriented panels.
 const previousOpen=F.open.bind(F);
 F.open=function(){
+ if(window.TiqanySettingsPages152?.current()==='employee-connection'){
+   UI.forceCloseModal();this.paintPairingRequests?.();return;
+ }
  UI.openModal(`<div class="ta-field-panel space-y-3 text-right" dir="rtl">
- <h3 class="text-lg font-black text-slate-900">إدارة موظفي البيع والمزامنة المحلية</h3>
+ <h3 class="text-lg font-black text-slate-900">إدارة الموظفين</h3>
  <div class="grid grid-cols-2 gap-2">
   <button type="button" style="grid-column:1/-1;width:100%" class="bg-teal-700 text-white rounded-2xl p-4 font-black" onclick="FieldSync.showCreateAgent()"><i class="fas fa-user-plus block text-xl mb-2"></i>إنشاء موظف بيع</button>
   <button type="button" class="bg-blue-700 text-white rounded-2xl p-4 font-black" onclick="FieldSync.showOperations()"><i class="fas fa-list-check block text-xl mb-2"></i>عمليات موظف البيع</button>
-  <button type="button" class="bg-amber-600 text-white rounded-2xl p-4 font-black" onclick="FieldSync.showSyncTools()"><i class="fas fa-arrows-rotate block text-xl mb-2"></i>المزامنة والملفات</button>
  </div>
- <div class="rounded-xl border bg-teal-50 p-3 text-xs"><b>الاتصال المحلي التلقائي</b><div id="fieldLanStatus" class="mt-1">جارٍ التحقق من الاستقبال…</div><button type="button" class="rounded-lg border bg-white p-2 mt-2 w-full font-bold" onclick="FieldSync.startLanReceiver()">إعادة تشغيل الاستقبال</button></div>
- <button type="button" id="taQrOpen" class="ta-primary-3d w-full p-3 rounded-xl font-black" onclick="TiqanyManagerLink.open()">▦ ربط موظف بيع عبر رمز QR</button>
- <div class="rounded-xl border p-3"><b class="text-sm">طلبات ربط الأجهزة الجديدة</b><div id="fieldPairingRequests">${this.pairingCards?.()||'بانتظار الطلبات…'}</div></div>
  <button class="w-full p-3 bg-slate-100 rounded-xl font-bold" onclick="UI.forceCloseModal()">إغلاق</button></div>`);
- if(window.AndroidLocalSync)this.startLanReceiver(true);
 };
 F.changeCreateWarehouse=function(select){
  const panel=document.getElementById('fieldWarehouseEditor');
@@ -294,13 +293,16 @@ F.showOperations=function(agentId='all'){
  <button class="w-full p-3 bg-slate-100 rounded-xl" onclick="FieldSync.open()">رجوع</button></div>`);
 };
 F.showSyncTools=function(){
- const c=cfg();
- UI.openModal(`<div dir="rtl" class="ta-field-panel text-right space-y-3"><h3 class="font-black text-lg">المزامنة والملفات الاحتياطية</h3>
- <p class="text-xs text-slate-600">المزامنة المحلية تلقائية عند اتصال الجهازين عبر الشبكة نفسها. الملفات بديل يدوي عند الحاجة.</p>
- <div class="bg-teal-50 border rounded-xl p-3"><b class="text-xs">عدد عمليات موظفي البيع المستلمة: ${c.imported.length}</b><div id="fieldLanStatus" class="text-xs p-2">جاهز للاستقبال</div><button class="w-full bg-teal-700 text-white p-2 rounded-xl" onclick="FieldSync.startLanReceiver()">إعادة تشغيل الاتصال</button></div>
- <button type="button" id="taQrOpen" class="ta-primary-3d w-full p-3 rounded-xl font-black" onclick="TiqanyManagerLink.open()">▦ عرض QR وربط هاتف موظف البيع</button>
- <label class="text-xs font-bold">استلام ملف العمليات</label><input id="fieldImportFile" type="file" class="w-full text-xs" accept="application/json,.json" onchange="FieldSync.previewFile(this)"/>
- <button class="w-full p-3 bg-slate-100 rounded-xl" onclick="FieldSync.open()">رجوع</button></div>`);
+ UI.forceCloseModal();TiqanySettingsPages152.openConnection('employee-connection');
+};
+F.renderConnectionTools=function(section){
+ const body=section.querySelector('[data-employee-tools]');
+ if(!body||body.childElementCount)return;
+ body.innerHTML=` <div class="rounded-xl border bg-teal-50 p-3 text-xs"><b>الاتصال المحلي التلقائي</b><div id="fieldLanStatus" class="mt-1">جارٍ التحقق من الاستقبال…</div><button type="button" class="rounded-lg border bg-white p-2 mt-2 w-full font-bold" onclick="FieldSync.startLanReceiver()">إعادة تشغيل الاستقبال</button></div>
+ <button type="button" id="taQrOpen" class="ta-primary-3d w-full p-3 rounded-xl font-black" onclick="TiqanyManagerLink.open()">▦ ربط موظف بيع عبر رمز QR</button>
+ <div class="rounded-xl border p-3"><b class="text-sm">طلبات ربط الأجهزة الجديدة</b><div id="fieldPairingRequests">${this.pairingCards?.()||'بانتظار الطلبات…'}</div></div>
+ <label class="text-xs font-bold">استلام ملف العمليات</label><input id="fieldImportFile" type="file" class="w-full text-xs" accept="application/json,.json" onchange="FieldSync.previewFile(this)"/>`;
+ if(window.AndroidLocalSync)this.startLanReceiver(true);
 };
 // Mutations triggered in nested panels return to their logical parent.
 const oldAdd=F.addAgent.bind(F);F.addAgent=async function(){

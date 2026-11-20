@@ -13,7 +13,7 @@ const main=()=>document.getElementById('mainContent');
 const groupKey=element=>element?.dataset?.settingsSection;
 function controlsSnapshot(element){
  const root=element?.querySelector('.settings-section-body');
- if(!root)return '';
+ if(!root || groupKey(element)==='employee-connection')return '';
  return JSON.stringify(Array.from(root.querySelectorAll('input,select,textarea')).filter(el=>!['file','button','submit','reset'].includes(el.type))
   .map((el,i)=>({i,id:el.id||'',type:el.type,value:el.value,checked:el.type==='checkbox'||el.type==='radio'?el.checked:undefined})));
 }
@@ -57,6 +57,7 @@ function applyView(){
    root.prepend(header);
    header.querySelector('button').addEventListener('click',()=>back());
  }
+ if(active==='employee-connection')FieldSync.renderConnectionTools(section);
  const title=section.querySelector('summary .settings-section-name')?.textContent?.trim()||section.querySelector('summary')?.textContent?.trim()||'الضبط';
  header.querySelector('#taSettingsPageName').textContent=title;
  UI.setHeader?.('<i class="fas fa-sliders"></i> '+title,'إعدادات مستقلة — احفظ التغييرات قبل الرجوع');
@@ -71,6 +72,7 @@ function open(section,approved=false){
  if(!section.open){section.open=true;SettingsController.onSectionToggle(section);}
  else if(!draft.isActive())SettingsController.onSectionToggle(section);
  active=key;
+ if(key==='employee-connection')FieldSync.renderConnectionTools(section);
  baseline=clone(State.settings);
  formBefore=controlsSnapshot(section);
  applyView();
@@ -209,7 +211,7 @@ AppNav.navigate=function(screen,...args){
  return originalNavigate.call(this,screen,...args);
 };
 function openConnection(key){
- if(!['mobile-computer-sync','manager-manager-sync'].includes(key) || busy)return;
+ if(!['mobile-computer-sync','manager-manager-sync','employee-connection'].includes(key) || busy)return;
  if(AppNav.current()?.screen!=='settings'){
    AppNav.navigate('settings',{connectionPage:key});
    return;

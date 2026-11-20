@@ -182,7 +182,7 @@ function install(peer,env) {
   async function handle(request) {
     const d=request.data;
     if(locked() || peer.busy || finishing || peer.blocked()) invalid('الكمبيوتر مشغول أو مقفل؛ أعد المحاولة بعد حفظ العملية');
-    if(d.appVersion!=='3.5.157') invalid('حدّث تطبيقَي المدير قبل المزامنة');
+    if(d.appVersion!=='3.5.158') invalid('حدّث تطبيقَي المدير قبل المزامنة');
     if(d.step==='open') {
       if(opening) invalid('جارٍ تجهيز جلسة مزامنة أخرى');
       opening=true;
