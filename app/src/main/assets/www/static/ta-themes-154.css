@@ -1,3 +1,27 @@
+/* A receipt is a white sheet in every theme, on screen and on paper. */
+#mainContent #printableReceiptArea {
+  color-scheme:light;
+  background:#fff!important;
+}
+#mainContent #printableReceiptArea,
+#mainContent #printableReceiptArea * {
+  color:#111!important;
+  -webkit-text-fill-color:currentColor!important;
+  text-shadow:none!important;
+}
+#mainContent #printableReceiptArea :is(table,thead,tbody,tr,td,th) {
+  background:transparent!important;
+}
+#mainContent #printableReceiptArea .ta-enh-print-grid th {
+  white-space:nowrap;
+  padding-inline:2px!important;
+}
+@media screen {
+  #mainContent #printableReceiptArea .ta-enh-print-grid thead {
+    background:#e9edef!important;
+  }
+}
+
 /* Tiqany Acc 3.5.154 – illustrated setting actions and saved Royal Neon theme.
    Classic has no global palette override: keep the approved current interface. */
 .ta-category-link[data-ta-art]::before,

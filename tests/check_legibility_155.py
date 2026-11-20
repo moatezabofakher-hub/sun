@@ -65,6 +65,28 @@ with sync_playwright() as pw:
     assert p.locator('#modalRateInput').is_visible(),'Top bar must open original transaction rate editor'
     assert p.locator('#ta150General_USD').count()==0,'Top bar incorrectly opens multi-currency rate settings'
     p.evaluate("UI.forceCloseModal()")
+    p.evaluate("""mm=>{
+      State.settings.printerWidth=mm;
+      State.invoices=State.invoices.filter(x=>x.id!=='qa-receipt');
+      State.invoices.push({id:'qa-receipt',type:'sale',number:12,date:'2026-11-20T02:44',currency:'USD',
+        rows:[{itemName:'سائل جلي',unitName:'كرتونة',qty:1,price:2,total:2}],subTotal:2,netTotal:2,paidAmount:2,remainingAmount:0});
+      State.settings.companyPhone='123456';
+      AppNav.navigate('invoice_print',{id:'qa-receipt'});
+    }""",58 if width==widths[0] else 80)
+    paper=p.locator('#printableReceiptArea')
+    assert 'سائل جلي' in paper.inner_text() and 'إجمالي الفاتورة' in paper.inner_text()
+    for media in ('screen','print'):
+     p.emulate_media(media=media)
+     surfaces=paper.evaluate("""paper=>{
+       const text=[...paper.querySelectorAll('*')].filter(e=>e.childElementCount===0 && e.textContent.trim() && e.getClientRects().length);
+       return {paper:getComputedStyle(paper).backgroundColor,ink:[...new Set(text.map(e=>getComputedStyle(e).webkitTextFillColor))],
+         head:getComputedStyle(paper.querySelector('thead')).backgroundColor,
+         row:getComputedStyle(paper.querySelector('tbody tr')).backgroundColor};
+     }""")
+     assert surfaces['paper']=='rgb(255, 255, 255)' and surfaces['ink']==['rgb(17, 17, 17)'],(theme,media,surfaces)
+     assert surfaces['head']==('rgb(233, 237, 239)' if media=='screen' else 'rgba(0, 0, 0, 0)') and surfaces['row']=='rgba(0, 0, 0, 0)',surfaces
+    p.emulate_media(media='screen')
+    p.evaluate("()=>AppNav.navigate('dashboard')")
    print('PASS readability',('employee' if employee else 'manager'),width,theme,flush=True)
   p.close()
  browser.close()
