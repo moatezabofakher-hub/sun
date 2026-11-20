@@ -835,3 +835,12 @@ html[data-ta-theme="petrol"] body :is(#mainContent,#screen) :is(.ta-quick-pos,.t
     background:var(--ta-shift-close-bg)!important; color:var(--ta-shift-close-ink)!important;
   }
 }
+
+@media screen {
+  /* Classic and royal use a blue capital card. Petrol uses ivory paper. */
+  html[data-ta-theme="petrol"] {--ta-capital-caption:#253e3b}
+  html[data-ta-theme] body #mainContent .ta-capital-card .ta-capital-card-text :is(small,.ta-capital-amount,.ta-capital-divider) {
+    color:var(--ta-capital-caption,#fff)!important; -webkit-text-fill-color:currentColor!important;
+    opacity:1; text-shadow:none!important;
+  }
+}

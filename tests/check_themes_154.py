@@ -85,6 +85,30 @@ def check_text_contrast(page, surface, captions, context):
     print(*context, page.viewport_size['width'], round(min(ratios), 2), flush=True)
 
 
+def check_capital_caption(page, card, theme):
+    label=card.locator('.ta-capital-card-text small')
+    ink=label.evaluate("e=>getComputedStyle(e).webkitTextFillColor")
+    old=label.get_attribute('style')
+    label.evaluate("e=>e.style.setProperty('-webkit-text-fill-color','transparent','important')")
+    try:
+        png=base64.b64encode(label.screenshot(animations='disabled',scale='css')).decode('ascii')
+    finally:
+        label.evaluate("(e,old)=>old===null?e.removeAttribute('style'):e.setAttribute('style',old)",old)
+    backgrounds=page.evaluate("""async png=>{
+      const img=new Image();img.src='data:image/png;base64,'+png;await img.decode();
+      const c=document.createElement('canvas');c.width=img.width;c.height=img.height;
+      const ctx=c.getContext('2d');ctx.drawImage(img,0,0);
+      return [.1,.5,.9].map(f=>Array.from(ctx.getImageData(Math.floor(c.width*f),Math.floor(c.height/2),1,1).data));
+    }""",png)
+    def luminance(rgb):
+        vals=[int(v)/255 for v in rgb[:3]]
+        return sum(w*(v/12.92 if v<=.04045 else ((v+.055)/1.055)**2.4)
+                   for w,v in zip((.2126,.7152,.0722),vals))
+    for bg in backgrounds:
+        light,dark=sorted((luminance(re.findall(r'\d+',ink)),luminance(bg)),reverse=True)
+        assert (light+.05)/(dark+.05)>=4.5,('Capital caption',theme,ink,bg)
+
+
 with sync_playwright() as playwright:
     browser=playwright.chromium.launch(executable_path=exe,args=['--no-sandbox','--allow-file-access-from-files'])
     page=browser.new_page(viewport={'width':390 if employee else 420,'height':840})
@@ -335,6 +359,7 @@ with sync_playwright() as playwright:
                 assert balance.is_visible()
                 assert 'rgb(25, 62, 96)' in balance.evaluate('e=>getComputedStyle(e).backgroundImage')
             if screen=='reports' and not employee:
+                check_capital_caption(page,surface.locator('button.ta-capital-card').first,theme)
                 badge=surface.locator('.ta-capital-card .ta-capital-icon').first
                 assert badge.is_visible(), 'Missing shareholder badge'
                 art=badge.evaluate("e=>getComputedStyle(e).backgroundImage")

@@ -60,6 +60,7 @@ with sync_playwright() as pw:
     for c in ['SYP','USD']:page.locator('[data-count="'+c+'"]').fill('0')
     page.locator('#finance-save-shift').click()
     page.wait_for_function("State.cashShifts.length===1")
+    page.locator('#finance-save-shift.ta-shift-close').wait_for()
     closing_colors=shift_colors(page)
     assert all(a!=b for a,b in zip(opening_colors,closing_colors))
     # Use the invoice's options menu. Check the actual scrolling element and bottom actions.
@@ -90,10 +91,12 @@ with sync_playwright() as pw:
     page.locator('#finance-note').fill('نقص ألف ليرة');page.locator('#finance-save-shift').click()
     page.wait_for_function("State.cashShifts[0].closedAt")
     assert page.evaluate("()=>State.cashShifts[0].difference.SYP")==-1000
+    page.locator('#finance-save-shift:not(.ta-shift-close)').wait_for()
     assert page.locator('[data-count="SYP"]').input_value()=='74000'
     page.locator('#finance-person').fill('الأمين الثاني')
     page.locator('#finance-save-shift').click()
     page.wait_for_function("State.cashShifts.length===2")
+    page.locator('#finance-save-shift.ta-shift-close').wait_for()
     assert page.evaluate("State.cashShifts[1].opening.SYP")==74000
     page.locator('#finance-person').fill('الأمين الثالث')
     page.locator('[data-count="SYP"]').fill('74000')
