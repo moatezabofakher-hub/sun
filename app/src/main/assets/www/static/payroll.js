@@ -5,7 +5,7 @@ const Payroll = (() => {
     const frequency = {weekly:'أسبوعي', monthly:'شهري', yearly:'سنوي'};
     const categories = {salary:'رواتب وأجور', advance:'سلف الموظفين', bonus:'مكافأة ممنوحة'};
     const actions = {salary:'ترحيل الراتب', advance:'إضافة سلفة', bonus:'منح مكافأة'};
-    const icons = {terms:'id-card', advance:'hand-holding-usd', salary:'money-check', bonus:'gift'};
+    const icons = {terms:'users', advance:'hand-holding-dollar', salary:'file-invoice-dollar', bonus:'coins'};
     const esc = value => AppEscape.text(String(value ?? ''));
     const iso = date => date.toISOString().slice(0,10);
     const today = () => { const d=new Date(); return iso(new Date(d.getTime()-d.getTimezoneOffset()*60000)); };
