@@ -36,10 +36,12 @@ with sync_playwright() as pw:
  page.locator('#pay-amount').fill('100000');page.get_by_role('button',name='حفظ',exact=True).click()
  page.wait_for_function("State.expenses.some(x=>x.payroll?.kind==='salary')")
  nav('salary');page.locator('#pay-date').fill('2026-11-25');assert page.locator('#pay-amount').evaluate('e=>e.value')=='350000'
+ page.get_by_role('button',name='إلغاء',exact=True).click()
  adv=page.evaluate("State.expenses.find(x=>x.payroll?.kind==='advance').id")
  nav('advance',adv);page.locator('#pay-amount').fill('60000');page.get_by_role('button',name='حفظ',exact=True).click()
  page.wait_for_function("State.expenses.find(x=>x.payroll?.kind==='advance').amount===60000")
  nav('salary');page.locator('#pay-date').fill('2026-11-25');assert page.locator('#pay-amount').evaluate('e=>e.value')=='340000'
+ page.get_by_role('button',name='إلغاء',exact=True).click()
  pay('bonus','2026-11-01',1000);page.wait_for_function("State.expenses.some(x=>x.category==='مكافأة ممنوحة')")
  assert page.evaluate("State.expenses.length") == 3
  page.reload()
