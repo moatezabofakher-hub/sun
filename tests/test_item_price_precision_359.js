@@ -16,7 +16,7 @@ const els={
   // The inputs display 2 decimal places; saving must still preserve full model precision.
   unitCost_0:{value:'1.23'},unitSale_0:{value:'12.35'}
 };
-const ctx={FieldProtocol:require('../app/src/main/assets/www/static/field-protocol.js'),console,Map,Set,Math,Number,Date,JSON,String,Array,Promise,Intl,
+const ctx={OpeningInventory:{cardChange:(_old,next)=>next},FieldProtocol:require('../app/src/main/assets/www/static/field-protocol.js'),console,Map,Set,Math,Number,Date,JSON,String,Array,Promise,Intl,
   StorageEngine:{saveState:async()=>{saves++;}},
   AppNav:{renderCurrent:()=>{renders++;}},
   UI:{forceCloseModal:()=>{},toast:()=>{}},
@@ -42,9 +42,9 @@ for(const digits of [0,1,2,3,4]){
 }
 State.settings.itemQuantityDecimals=2;
 assert.ok(!html.slice(html.indexOf('renderItems(main, params = {})'),html.indexOf('renderWarehouses(main')).includes('Accounting.formatItemPrice(u.salePrice, item.currency)'), 'inventory cards now show stock only, while item editor retains full prices');
-assert.ok(html.includes('Accounting.formatItemPrice(priceInInvCurr, d.currency)'), 'invoice grid should use formatter');
+assert.ok(html.includes('Accounting.formatItemPrice(priceInInvCurr, opening ? itm.currency : d.currency)'), 'invoice grid should use formatter');
 assert.equal((html.match(/Accounting\.formatItemPriceNumber\(r\.price\)/g)||[]).length,2,'both print views should use new price formatter');
-assert.ok(html.includes('onfocus="this.value=InvoiceController.draft.rows[${idx}].price;this.select()"'));
+assert.ok(html.includes('onfocus="this.value=InvoiceController.draft.rows[${idx}].price"'));
 assert.ok(html.includes('onblur="this.value=Accounting.formatEditableItemPrice(InvoiceController.draft.rows[${idx}].price)"'));
 assert.ok(html.includes('costPrice: Accounting.parseNum(u.costPrice)'), 'item save must use raw model cost');
 assert.ok(html.includes('salePrice: Accounting.parseNum(u.salePrice)'), 'item save must use raw model sale price');

@@ -6170,7 +6170,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 const mode = State.settings.btPrintMode || 'auto';
                 main.innerHTML = `
                     <div class="mb-3 flex items-center justify-between gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2" data-app-build="${InstalledAppVersion.number()}" role="status" aria-label="إصدار التطبيق">
-                        <span class="font-black text-xs text-emerald-800"><i class="fas fa-check-circle ml-1"></i> إصدار التطبيق: 3.5.158</span>
+                        <span class="font-black text-xs text-emerald-800"><i class="fas fa-check-circle ml-1"></i> إصدار التطبيق: 3.5.159</span>
                         <span class="text-[10px] font-bold text-emerald-700">مظهر ثلاثي الأبعاد موحّد</span>
                     </div>
                     ${TiqanySupport.launch()}
@@ -6900,7 +6900,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                             <div class="grid grid-cols-1 gap-2.5">
                                 <div>
                                     <label class="block font-extrabold text-slate-700 mb-1">تكلفة الوحدة الكبرى (<span class="unit-curr-label">${currSym}</span>)</label>
-                                    <input type="text" inputmode="decimal" dir="ltr" id="itmMainCostPrice" value="${baseU.costPrice !== undefined && baseU.costPrice !== null ? Accounting.formatEditableItemPrice(baseU.costPrice) : ''}" placeholder="${Accounting.itemPricePlaceholder()}" onfocus="this.value=ItemController.tempUnits[0].costPrice;this.select()" onblur="this.value=Accounting.formatEditableItemPrice(ItemController.tempUnits[0].costPrice)" oninput="ItemController.onUnitPriceInput(0, 'costPrice', this.value, this)" class="w-full border-2 border-slate-300 focus:border-emerald-600 rounded-xl px-3 py-2 text-sm font-extrabold text-center bg-white shadow-2xs focus:outline-none">
+                                    <input type="text" inputmode="decimal" dir="ltr" id="itmMainCostPrice" value="${baseU.costPrice !== undefined && baseU.costPrice !== null ? Accounting.formatEditableItemPrice(baseU.costPrice) : ''}" placeholder="${Accounting.itemPricePlaceholder()}" onfocus="this.value=ItemController.tempUnits[0].costPrice" onblur="this.value=Accounting.formatEditableItemPrice(ItemController.tempUnits[0].costPrice)" oninput="ItemController.onUnitPriceInput(0, 'costPrice', this.value, this)" class="w-full border-2 border-slate-300 focus:border-emerald-600 rounded-xl px-3 py-2 text-sm font-extrabold text-center bg-white shadow-2xs focus:outline-none">
                                     <p class="text-[10px] text-emerald-800 mt-1">يتحدّث سعر التكلفة آلياً من صافي آخر فاتورة شراء (بعد حسم السطر وحسم الفاتورة والإضافات)، عند وجود مشتريات محفوظة.</p>
                                 </div>
                             </div>
@@ -6966,11 +6966,11 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                             </div>
                             <div>
                                 <label class="block font-bold text-slate-700 mb-1">رصيد افتتاحي (بالكبرى)</label>
-                                <input type="text" inputmode="decimal" dir="ltr" id="itmOpenStock" onfocus="this.select()" oninput="ItemController.markItemDirty()" value="${existing ? existing.openingStockBase : 0}" class="w-full border border-slate-300 rounded-xl px-2.5 py-2 font-bold text-center">
+                                <input type="text" inputmode="decimal" dir="ltr" id="itmOpenStock" oninput="ItemController.markItemDirty()" value="${existing ? existing.openingStockBase : 0}" class="w-full border border-slate-300 rounded-xl px-2.5 py-2 font-bold text-center">
                             </div>
                             <div>
                                 <label class="block font-bold text-slate-700 mb-1">حد التنبيه (بالكبرى)</label>
-                                <input type="text" inputmode="decimal" dir="ltr" id="itmMinStock" onfocus="this.select()" oninput="ItemController.markItemDirty()" value="${existing ? existing.minStockBase : 5}" class="w-full border border-slate-300 rounded-xl px-2.5 py-2 font-bold text-center">
+                                <input type="text" inputmode="decimal" dir="ltr" id="itmMinStock" oninput="ItemController.markItemDirty()" value="${existing ? existing.minStockBase : 5}" class="w-full border border-slate-300 rounded-xl px-2.5 py-2 font-bold text-center">
                             </div>
                         </div>
 
@@ -7128,15 +7128,15 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                             </div>
                             <div>
                                 <label class="text-[10px] text-slate-600 font-bold block mb-0.5">${idx === 0 ? 'معامل الكبرى' : 'عددها داخل الكبرى (التعبئة)'}</label>
-                                <input type="text" inputmode="decimal" dir="ltr" id="unitFactor_${idx}" value="${u.factor}" ${idx === 0 ? 'disabled' : ''} onfocus="this.select()" oninput="ItemController.updateUnitFactor(${idx}, this.value)" class="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-center ${idx === 0 ? 'bg-slate-200' : 'bg-white'}">
+                                <input type="text" inputmode="decimal" dir="ltr" id="unitFactor_${idx}" value="${u.factor}" ${idx === 0 ? 'disabled' : ''} oninput="ItemController.updateUnitFactor(${idx}, this.value)" class="w-full border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold text-center ${idx === 0 ? 'bg-slate-200' : 'bg-white'}">
                             </div>
                             <div>
                                 <label class="text-[10px] text-slate-600 font-bold block mb-0.5">التكلفة (<span class="unit-curr-label">${currSym}</span>)</label>
-                                <input type="text" inputmode="decimal" dir="ltr" id="unitCost_${idx}" value="${u.costPrice !== undefined && u.costPrice !== null ? Accounting.formatEditableItemPrice(u.costPrice) : ''}" placeholder="${Accounting.itemPricePlaceholder()}" onfocus="this.value=ItemController.tempUnits[${idx}].costPrice;this.select()" onblur="this.value=Accounting.formatEditableItemPrice(ItemController.tempUnits[${idx}].costPrice)" oninput="ItemController.onUnitPriceInput(${idx}, 'costPrice', this.value, this)" class="w-full border border-slate-300 focus:border-emerald-500 rounded-lg px-2.5 py-1.5 text-xs font-extrabold text-center bg-white">
+                                <input type="text" inputmode="decimal" dir="ltr" id="unitCost_${idx}" value="${u.costPrice !== undefined && u.costPrice !== null ? Accounting.formatEditableItemPrice(u.costPrice) : ''}" placeholder="${Accounting.itemPricePlaceholder()}" onfocus="this.value=ItemController.tempUnits[${idx}].costPrice" onblur="this.value=Accounting.formatEditableItemPrice(ItemController.tempUnits[${idx}].costPrice)" oninput="ItemController.onUnitPriceInput(${idx}, 'costPrice', this.value, this)" class="w-full border border-slate-300 focus:border-emerald-500 rounded-lg px-2.5 py-1.5 text-xs font-extrabold text-center bg-white">
                             </div>
                             <div>
                                 <label class="text-[10px] text-emerald-800 font-bold block mb-0.5">المبيع (<span class="unit-curr-label">${currSym}</span>)</label>
-                                <input type="text" inputmode="decimal" dir="ltr" id="unitSale_${idx}" value="${u.salePrice !== undefined && u.salePrice !== null ? Accounting.formatEditableItemPrice(u.salePrice) : ''}" placeholder="${Accounting.itemPricePlaceholder()}" onfocus="this.value=ItemController.tempUnits[${idx}].salePrice;this.select()" onblur="this.value=Accounting.formatEditableItemPrice(ItemController.tempUnits[${idx}].salePrice)" oninput="ItemController.onUnitPriceInput(${idx}, 'salePrice', this.value, this)" class="w-full border border-emerald-400 focus:border-emerald-600 rounded-lg px-2.5 py-1.5 text-xs font-extrabold text-center bg-white">
+                                <input type="text" inputmode="decimal" dir="ltr" id="unitSale_${idx}" value="${u.salePrice !== undefined && u.salePrice !== null ? Accounting.formatEditableItemPrice(u.salePrice) : ''}" placeholder="${Accounting.itemPricePlaceholder()}" onfocus="this.value=ItemController.tempUnits[${idx}].salePrice" onblur="this.value=Accounting.formatEditableItemPrice(ItemController.tempUnits[${idx}].salePrice)" oninput="ItemController.onUnitPriceInput(${idx}, 'salePrice', this.value, this)" class="w-full border border-emerald-400 focus:border-emerald-600 rounded-lg px-2.5 py-1.5 text-xs font-extrabold text-center bg-white">
                             </div>
                             <div>
                                 <label class="text-[10px] text-teal-800 font-bold block mb-0.5">سعر المركز (<span class="unit-curr-label">${currSym}</span>)</label>
@@ -8501,7 +8501,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 }
             },
 
-            openItemGridModal() {
+            openItemGridModal(opening = null) {
                 this.gridCatFilter = 'all';
                 this.gridSearchQuery = '';
                 // Selections are kept separate from invoice rows until Add is confirmed.
@@ -8510,7 +8510,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                     <div class="flex items-center justify-between border-b pb-2.5 mb-3">
                         <h3 class="font-bold text-sm flex items-center gap-1.5 text-slate-900">
                             <i class="fas fa-grip text-emerald-600 text-base"></i>
-                            <span>شبكة اختيار وإضافة المواد للفاتورة</span>
+                            <span>${opening ? 'إضافة مواد جرد أول المدة' : 'شبكة اختيار وإضافة المواد للفاتورة'}</span>
                         </h3>
                         <button onclick="UI.forceCloseModal()" class="w-7 h-7 rounded-full bg-slate-100 text-slate-500 hover:text-slate-800 flex items-center justify-center">
                             <i class="fas fa-times"></i>
@@ -8519,8 +8519,8 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
 
                     <div class="space-y-2 mb-3">
                         <div class="relative">
-                            <i class="fas fa-search absolute right-3 top-2.5 text-slate-400 text-xs"></i>
-                            <input type="text" id="gridPickerSearch" oninput="InvoiceController.gridSearchQuery = this.value; InvoiceController.renderItemGridCards()" placeholder="ابحث باسم المادة أو الباركود..." class="w-full pr-8 pl-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                            <button type="button" class="absolute right-0 top-0 h-full px-3 text-slate-600" aria-label="بحث عن مادة" onclick="const field=document.getElementById('gridPickerSearch'); field.click(); field.focus(); InvoiceController.renderItemGridCards()"><i class="fas fa-search"></i></button>
+                            <input type="search" aria-label="بحث باسم المادة أو الباركود" id="gridPickerSearch" oninput="InvoiceController.gridSearchQuery = this.value; InvoiceController.renderItemGridCards()" placeholder="ابحث باسم المادة أو الباركود..." class="w-full pr-8 pl-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500">
                         </div>
                         <div id="gridCatPills" class="flex gap-1.5 overflow-x-auto no-scrollbar pb-1"></div>
                     </div>
@@ -8528,14 +8528,15 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                     <div id="itemGridCardsContainer" class="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-[55vh] overflow-y-auto p-0.5"></div>
 
                     <div class="flex items-center justify-between pt-3 mt-3 border-t border-slate-100">
-                        <button type="button" onclick="ItemController.openItemModal()" class="text-xs font-bold text-emerald-600 hover:underline flex items-center gap-1">
+                        ${opening ? '' : `<button type="button" onclick="ItemController.openItemModal()" class="text-xs font-bold text-emerald-600 hover:underline flex items-center gap-1">
                             <i class="fas fa-plus-circle"></i> تعريف مادة جديدة بالمستودع
-                        </button>
+                        </button>`}
                         <button type="button" id="itemGridApplyButton" onclick="InvoiceController.applyGridSelection()" class="bg-emerald-700 text-white font-bold px-5 py-2 rounded-xl text-xs disabled:opacity-50" disabled>
                             إضافة (0 أصناف)
                         </button>
                     </div>
                 `);
+                document.getElementById('itemGridCardsContainer').opening = opening;
                 this.renderItemGridCards();
             },
 
@@ -8544,20 +8545,22 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 const pillsContainer = document.getElementById('gridCatPills');
                 const gridContainer = document.getElementById('itemGridCardsContainer');
                 if (!gridContainer) return;
+                const opening = gridContainer.opening;
+                const items = opening ? opening.items : State.items;
 
                 if (pillsContainer) {
-                    const cats = ['all', ...State.categories];
+                    const cats = ['all', ...new Set([...(State.categories || []), ...items.map(item => item.category).filter(Boolean)])];
                     pillsContainer.innerHTML = cats.map(c => `
-                        <button type="button" onclick="InvoiceController.gridCatFilter = '${c}'; InvoiceController.renderItemGridCards()" class="px-2.5 py-1 rounded-lg text-[11px] font-bold shrink-0 transition ${this.gridCatFilter === c ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}">
-                            ${c === 'all' ? 'كل المجموعات' : c}
+                        <button type="button" data-category="${AppEscape.text(c)}" onclick="InvoiceController.gridCatFilter = this.dataset.category; InvoiceController.renderItemGridCards()" class="px-2.5 py-1 rounded-lg text-[11px] font-bold shrink-0 transition ${this.gridCatFilter === c ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}">
+                            ${c === 'all' ? 'كل المجموعات' : AppEscape.text(c)}
                         </button>
                     `).join('');
                 }
 
                 const q = (this.gridSearchQuery || '').trim().toLowerCase();
-                const filtered = State.items.filter(itm => {
+                const filtered = items.filter(itm => {
                     const matchCat = this.gridCatFilter === 'all' || itm.category === this.gridCatFilter;
-                    const matchQ = !q || itm.name.toLowerCase().includes(q) || (itm.barcode && itm.barcode.toLowerCase().includes(q));
+                    const matchQ = !q || String(itm.name).toLowerCase().includes(q) || (itm.barcode && String(itm.barcode).toLowerCase().includes(q));
                     return matchCat && matchQ;
                 });
 
@@ -8566,29 +8569,29 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                         <div class="col-span-full py-8 text-center text-slate-400">
                             <i class="fas fa-box-open text-3xl mb-2 opacity-40"></i>
                             <p class="text-xs font-bold text-slate-600">لا توجد مواد مطابقة في المستودع</p>
-                            <button type="button" onclick="ItemController.openItemModal()" class="mt-2 bg-emerald-600 text-white font-bold px-3 py-1.5 rounded-xl text-xs">+ تعريف مادة جديدة</button>
+                            ${opening ? '' : `<button type="button" onclick="ItemController.openItemModal()" class="mt-2 bg-emerald-600 text-white font-bold px-3 py-1.5 rounded-xl text-xs">+ تعريف مادة جديدة</button>`}
                         </div>
                     `;
                     return;
                 }
 
-                const d = this.draft;
+                const d = opening ? {type:'purchase', warehouseId:'wh_main'} : this.draft;
                 const isPurchase = (d.type === 'purchase' || d.type === 'purchase_return');
 
                 gridContainer.innerHTML = filtered.map(itm => {
-                    const u0 = itm.units[0] || { name: 'كرتونة', factor: 1, salePrice: 0, costPrice: 0 };
+                    const u0 = (!opening && typeof TiqanyManager152 !== 'undefined' && TiqanyManager152.chosen(itm, d.type)) || itm.units[0] || { name: 'كرتونة', factor: 1, salePrice: 0, costPrice: 0 };
                     const rawPrice = isPurchase ? Number(u0.costPrice) : (Accounting.itemSalePrice?.(itm,u0,d.accountId,((v)=>(typeof TiqanyPricing152!=='undefined'&&TiqanyPricing152&&typeof TiqanyPricing152.validTier==='function'?TiqanyPricing152.validTier(v):['wholesale','center','consumer'].includes(v)))(d.priceTierOverride)?d.priceTierOverride:null) ?? Number(u0.salePrice));
-                    const priceInInvCurr = Accounting.convert(rawPrice, itm.currency, d.currency, d.exchangeRate);
-                    const availStock = Math.round((Accounting.getItemBaseStock(itm.id, d.isEditing ? d.id : null, d.warehouseId || 'wh_main') + Number.EPSILON) * 100) / 100;
+                    const priceInInvCurr = opening ? opening.cost(itm) : Accounting.convert(rawPrice, itm.currency, d.currency, d.exchangeRate);
+                    const availStock = Math.round((Accounting.getItemBaseStock(itm.id, d.isEditing ? d.id : null, d.warehouseId || 'wh_main') * (Number(u0.factor) || 1) + Number.EPSILON) * 100) / 100;
                     const inCartQty = Number(this.gridPending?.[itm.id] || 0);
 
                     return `
-                        <div onclick="InvoiceController.selectItemFromGrid('${itm.id}')" class="relative bg-slate-50 hover:bg-emerald-50/70 active:scale-95 border ${inCartQty > 0 ? 'border-emerald-500 ring-1 ring-emerald-500 bg-emerald-50/40' : 'border-slate-200'} rounded-2xl p-2.5 cursor-pointer transition flex flex-col justify-between text-right shadow-2xs">
+                        <div data-grid-card="${AppEscape.text(itm.id)}" onclick="InvoiceController.selectItemFromGrid(this.dataset.gridCard)" class="relative bg-slate-50 hover:bg-emerald-50/70 active:scale-95 border ${inCartQty > 0 ? 'border-emerald-500 ring-1 ring-emerald-500 bg-emerald-50/40' : 'border-slate-200'} rounded-2xl p-2.5 cursor-pointer transition flex flex-col justify-between text-right shadow-2xs">
                             ${inCartQty > 0 ? `
-                                <span class="absolute -top-1.5 -left-1.5 bg-emerald-600 text-white text-[10px] font-extrabold w-6 h-6 rounded-full flex items-center justify-center shadow">
+                                <span data-grid-count class="absolute -top-1.5 -left-1.5 bg-emerald-600 text-white text-[10px] font-extrabold w-6 h-6 rounded-full flex items-center justify-center shadow">
                                     ${Accounting.formatItemQuantity(inCartQty)}
                                 </span>
-                                <button type="button" class="invoice-grid-decrement" onclick="event.stopPropagation(); InvoiceController.removeOneFromGrid('${itm.id}')" aria-label="إنقاص وحدة واحدة من ${itm.name} في الفاتورة" title="إنقاص كمية واحدة">×</button>
+                                <button type="button" class="invoice-grid-decrement" onclick="event.stopPropagation(); InvoiceController.removeOneFromGrid(this.closest('[data-grid-card]').dataset.gridCard)" aria-label="إنقاص وحدة واحدة من ${AppEscape.text(itm.name)} في الفاتورة" title="إنقاص كمية واحدة">×</button>
                             ` : ''}
                             <div>
                                 ${ItemController.photoThumb(itm, 'grid')}
@@ -8596,23 +8599,29 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                                     <span class="text-[9px] font-extrabold px-1.5 py-0.5 rounded ${itm.currency === 'USD' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-700'}">
                                         ${itm.currency}
                                     </span>
-                                    ${itm.category ? `<span class="text-[9px] text-slate-400 truncate">${itm.category}</span>` : ''}
+                                    ${itm.category ? `<span class="text-[9px] text-slate-400 truncate">${AppEscape.text(itm.category)}</span>` : ''}
                                 </div>
-                                <h4 class="font-extrabold text-xs text-slate-900 line-clamp-2 leading-snug mb-1.5">${itm.name}</h4>
+                                <h4 class="font-extrabold text-xs text-slate-900 line-clamp-2 leading-snug mb-1.5">${AppEscape.text(itm.name)}</h4>
                             </div>
 
                             <div class="pt-1.5 border-t border-slate-200/80">
                                 <div class="font-extrabold text-xs text-emerald-700">
-                                    ${Accounting.formatItemPrice(priceInInvCurr, d.currency)}
-                                    <span class="text-[9px] text-slate-500 font-normal">/ ${u0.name}</span>
+                                    ${Accounting.formatItemPrice(priceInInvCurr, opening ? itm.currency : d.currency)}
+                                    <span class="text-[9px] text-slate-500 font-normal">/ ${AppEscape.text(u0.name)}</span>
                                 </div>
                                 <div class="flex items-center justify-between text-[10px] mt-0.5">
                                     <span class="${availStock <= (itm.minStockBase || 0) ? 'text-rose-600 font-bold' : 'text-slate-500'}">
-                                        المتاح: ${Accounting.formatItemQuantity(availStock)} ${u0.name}
+                                        المتاح: ${Accounting.formatItemQuantity(availStock)} ${AppEscape.text(u0.name)}
                                     </span>
                                     <span class="text-emerald-600 font-bold"><i class="fas fa-plus-circle"></i> إضافة</span>
                                 </div>
                             </div>
+                            ${opening || inCartQty > 0 ? `<label class="flex items-center gap-1 mt-2 text-xs font-bold" onclick="event.stopPropagation()">
+                                الكمية <input type="text" inputmode="decimal" dir="ltr" data-grid-item="${AppEscape.text(itm.id)}"
+                                    value="${inCartQty}" aria-label="كمية ${AppEscape.text(itm.name)}"
+                                    class="min-w-0 w-full rounded-lg border px-2 py-2 text-center font-bold"
+                                    oninput="InvoiceGridEntry.update(this, InvoiceController.gridPending, () => InvoiceController.updateGridSelectionCounter())">
+                            </label>` : ''}
                         </div>
                     `;
                 }).join('');
@@ -8652,17 +8661,22 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
             },
 
             applyGridSelection() {
+                const invalid = document.querySelector('#itemGridCardsContainer input:invalid');
+                if (invalid) { invalid.reportValidity(); return; }
                 const chosen = Object.entries(this.gridPending || {}).filter(([, qty]) => Number(qty) > 0);
                 if (!chosen.length) return;
+                const opening = document.getElementById('itemGridCardsContainer').opening;
                 // Preserve the invoice draft if the grid is closed with X or Back.
                 UI.forceCloseModal();
                 this.gridPending = Object.create(null);
+                if (opening) { opening.add(chosen); return; }
                 for (const [itemId, quantity] of chosen) {
-                    for (let i = 0; i < quantity; i++) this.addItemToInvoice(itemId, false);
+                    this.addItemToInvoice(itemId, false, quantity);
                 }
                 this.markModified();
                 this.recalculate();
                 this.paintForm(document.getElementById('mainContent'));
+                InvoiceGridEntry.revealRows();
             },
 
             changeInvoiceAccount(accountId){
@@ -8796,7 +8810,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                 this.paintForm(document.getElementById('mainContent'));
             },
 
-            addItemToInvoice(itemId, repaint = true) {
+            addItemToInvoice(itemId, repaint = true, quantity = 1) {
                 const item = State.items.find(i => i.id === itemId);
                 if (!item) return;
 
@@ -8808,7 +8822,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
 
                 const existingRow = this.draft.rows.find(r => r.itemId === item.id && r.unitName === unit0.name);
                 if (existingRow) {
-                    existingRow.qty = Number(existingRow.qty) + 1;
+                    existingRow.qty = Number(existingRow.qty) + quantity;
                 } else {
                     this.draft.rows.push({
                         rowId: 'r_' + FieldProtocol.uuid(),
@@ -8820,10 +8834,10 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                         basePrice: rawPrice,
                         unitName: unit0.name,
                         unitFactor: Number(unit0.factor) || 1,
-                        qty: 1,
+                        qty: quantity,
                         price: convertedPrice,
                         discount: 0,
-                        total: convertedPrice
+                        total: convertedPrice * quantity
                     });
                 }
 
@@ -9058,11 +9072,11 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                                                 </div>
                                                 <div>
                                                     <label class="text-[10px] text-slate-500 block">الكمية</label>
-                                                    <input type="text" inputmode="decimal" dir="ltr" value="${r.qty}" onfocus="this.select()" oninput="InvoiceController.updateRowField(${idx}, 'qty', this.value)" class="w-full border border-slate-300 rounded-lg px-2 py-1.5 font-bold text-center">
+                                                    <input type="text" inputmode="decimal" dir="ltr" value="${r.qty}" oninput="InvoiceController.updateRowField(${idx}, 'qty', this.value)" class="w-full border border-slate-300 rounded-lg px-2 py-1.5 font-bold text-center">
                                                 </div>
                                                 <div>
                                                     <label class="text-[10px] text-slate-500 block">السعر (${cur})</label>
-                                                    <input type="text" inputmode="decimal" dir="ltr" id="rowPrice_${idx}" value="${Accounting.formatEditableItemPrice(r.price)}" onfocus="this.value=InvoiceController.draft.rows[${idx}].price;this.select()" onblur="this.value=Accounting.formatEditableItemPrice(InvoiceController.draft.rows[${idx}].price)" oninput="InvoiceController.updateRowField(${idx}, 'price', this.value)" class="w-full border border-slate-300 rounded-lg px-2 py-1.5 font-bold text-center">
+                                                    <input type="text" inputmode="decimal" dir="ltr" id="rowPrice_${idx}" value="${Accounting.formatEditableItemPrice(r.price)}" onfocus="this.value=InvoiceController.draft.rows[${idx}].price" onblur="this.value=Accounting.formatEditableItemPrice(InvoiceController.draft.rows[${idx}].price)" oninput="InvoiceController.updateRowField(${idx}, 'price', this.value)" class="w-full border border-slate-300 rounded-lg px-2 py-1.5 font-bold text-center">
                                                 </div>
                                                 <div class="text-left">
                                                     <label class="text-[10px] text-slate-500 block">الإجمالي</label>
@@ -9328,7 +9342,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                             </div>
                             <div>
                                 <label class="block font-bold text-slate-700 mb-1">سقف الائتمان الأقصى ($)</label>
-                                <input type="text" inputmode="decimal" dir="ltr" id="accLimit" onfocus="this.select()" oninput="AccountController.markAccDirty()" value="${ex ? (ex.creditLimitUsd || 0) : 0}" placeholder="0 = مفتوح" class="w-full border border-slate-300 rounded-xl px-3 py-2 font-bold text-center">
+                                <input type="text" inputmode="decimal" dir="ltr" id="accLimit" oninput="AccountController.markAccDirty()" value="${ex ? (ex.creditLimitUsd || 0) : 0}" placeholder="0 = مفتوح" class="w-full border border-slate-300 rounded-xl px-3 py-2 font-bold text-center">
                             </div>
                         </div>
 
@@ -9349,11 +9363,11 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                         <div class="grid grid-cols-2 gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
                             <div>
                                 <label class="block font-bold text-slate-700 mb-1">رصيد افتتاحي (ل.س)</label>
-                                <input type="text" inputmode="decimal" dir="ltr" id="accOpenSyp" onfocus="this.select()" oninput="AccountController.markAccDirty()" value="${ex ? (ex.openingSyp || 0) : 0}" class="w-full border border-slate-300 rounded-lg px-2 py-1.5 font-bold text-center bg-white">
+                                <input type="text" inputmode="decimal" dir="ltr" id="accOpenSyp" oninput="AccountController.markAccDirty()" value="${ex ? (ex.openingSyp || 0) : 0}" class="w-full border border-slate-300 rounded-lg px-2 py-1.5 font-bold text-center bg-white">
                             </div>
                             <div>
                                 <label class="block font-bold text-slate-700 mb-1">رصيد افتتاحي (USD)</label>
-                                <input type="text" inputmode="decimal" dir="ltr" id="accOpenUsd" onfocus="this.select()" oninput="AccountController.markAccDirty()" value="${ex ? (ex.openingUsd || 0) : 0}" class="w-full border border-slate-300 rounded-lg px-2 py-1.5 font-bold text-center bg-white">
+                                <input type="text" inputmode="decimal" dir="ltr" id="accOpenUsd" oninput="AccountController.markAccDirty()" value="${ex ? (ex.openingUsd || 0) : 0}" class="w-full border border-slate-300 rounded-lg px-2 py-1.5 font-bold text-center bg-white">
                             </div>
                         </div>
 
@@ -9620,11 +9634,11 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                             </div>
                             <div>
                                 <label class="block font-bold text-slate-700 mb-1">المبلغ المقبوض/المدفوع</label>
-                                <input type="text" inputmode="decimal" dir="ltr" value="${d.amount}" onfocus="this.select()" oninput="VoucherController.draft.amount = Accounting.parseNum(this.value); VoucherController.markModified(); VoucherController.recalcClearing()" class="w-full border border-emerald-500 rounded-xl px-2.5 py-2 font-extrabold text-center bg-white text-sm">
+                                <input type="text" inputmode="decimal" dir="ltr" value="${d.amount}" oninput="VoucherController.draft.amount = Accounting.parseNum(this.value); VoucherController.markModified(); VoucherController.recalcClearing()" class="w-full border border-emerald-500 rounded-xl px-2.5 py-2 font-extrabold text-center bg-white text-sm">
                             </div>
                             <div>
                                 <label class="block font-bold text-slate-700 mb-1">سعر الصرف المعتمد</label>
-                                <input type="text" inputmode="decimal" dir="ltr" value="${d.exchangeRate}" onfocus="this.select()" oninput="VoucherController.draft.exchangeRate = Accounting.parseNum(this.value); VoucherController.markModified(); VoucherController.recalcClearing()" class="w-full border border-slate-300 rounded-xl px-2.5 py-2 font-bold text-center bg-white">
+                                <input type="text" inputmode="decimal" dir="ltr" value="${d.exchangeRate}" oninput="VoucherController.draft.exchangeRate = Accounting.parseNum(this.value); VoucherController.markModified(); VoucherController.recalcClearing()" class="w-full border border-slate-300 rounded-xl px-2.5 py-2 font-bold text-center bg-white">
                             </div>
                         </div>
 
@@ -9643,7 +9657,7 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
                                 </div>
                                 <div>
                                     <label class="block text-[11px] text-slate-600 mb-1">المبلغ المحتسب في حساب العميل</label>
-                                    <input type="text" inputmode="decimal" dir="ltr" id="vchAccountAmountInput" value="${d.accountAmount}" onfocus="this.select()" oninput="VoucherController.draft.accountAmount = Accounting.parseNum(this.value); VoucherController.markModified(); VoucherController.updateBalanceFooter()" class="w-full border border-slate-300 rounded-xl px-2.5 py-1.5 font-extrabold text-center bg-white">
+                                    <input type="text" inputmode="decimal" dir="ltr" id="vchAccountAmountInput" value="${d.accountAmount}" oninput="VoucherController.draft.accountAmount = Accounting.parseNum(this.value); VoucherController.markModified(); VoucherController.updateBalanceFooter()" class="w-full border border-slate-300 rounded-xl px-2.5 py-1.5 font-extrabold text-center bg-white">
                                 </div>
                             </div>
                         </div>
@@ -10713,31 +10727,6 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
         /********************************************************************
          * 11. INITIALIZE APPLICATION ON LOAD
          ********************************************************************/
-        // Select numeric values automatically when the user focuses an input.
-        // This makes replacing quantities, prices, balances, rates and other numbers faster.
-        document.addEventListener('focusin', function (event) {
-            const field = event.target;
-            if (!(field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement)) return;
-            if (field.disabled || field.readOnly) return;
-            if (['password', 'file', 'date', 'datetime-local', 'time', 'checkbox', 'radio', 'button', 'submit', 'reset', 'hidden', 'search'].includes((field.type || '').toLowerCase())) return;
-
-            const numericMode = /^(number|decimal|numeric)$/i.test(field.type) || /^(decimal|numeric)$/i.test(field.inputMode || '');
-            const currentValue = String(field.value || '').trim();
-            const normalizedValue = currentValue
-                .replace(/[٠-٩]/g, digit => String('٠١٢٣٤٥٦٧٨٩'.indexOf(digit)))
-                .replace(/[۰-۹]/g, digit => String('۰۱۲۳۴۵۶۷۸۹'.indexOf(digit)))
-                .replace(/[٬,]/g, '')
-                .replace(/٫/g, '.')
-                .replace(/[−–]/g, '-');
-            const containsOnlyNumber = normalizedValue !== '' && /^[+-]?(?:\d+\.?\d*|\.\d+)$/.test(normalizedValue);
-
-            if (numericMode || containsOnlyNumber) {
-                requestAnimationFrame(() => {
-                    if (document.activeElement === field && typeof field.select === 'function') field.select();
-                });
-            }
-        }, true);
-
         window.onload = async function () {
             try {
                 await StorageEngine.init();
@@ -10910,6 +10899,8 @@ body:not(.ta-dashboard-screen) #topAppBar #headerSettingsBtn{
 <script defer src="static/ta-settings-pages-152.js"></script>
 <script defer src="static/ta-themes-154.js"></script>
 <script defer src="static/money-input.js"></script>
+<script defer src="static/field-entry.js"></script>
+<script defer src="static/invoice-grid-entry.js"></script>
 <script defer src="static/payroll.js"></script>
 <link rel="stylesheet" href="static/payroll.css">
 </body>

@@ -77,9 +77,14 @@ with sync_playwright() as pw:
  page.locator('#taOpeningStockAction').click()
  assert page.locator('[data-doc]').count()==1
  page.locator('[data-cmd=new]').click()
- page.locator('.opening-inventory select').select_option(label='مادة تجربة')
  page.locator('[data-cmd=add]').click()
- page.locator('[data-key=qty]').fill('7')
+ page.locator('#gridPickerSearch').fill('تجربة')
+ page.locator('[data-grid-item]').fill('5')
+ page.locator('[data-grid-card] h4').click(click_count=1)
+ page.locator('[data-grid-card] h4').click(click_count=1)
+ assert page.locator('[data-grid-item]').input_value()=='7'
+ page.locator('#itemGridApplyButton').click()
+ assert page.locator('[data-key=qty]').input_value()=='7'
  page.locator('[data-cmd=save]').click()
  page.wait_for_function("State.items[0].openingStockBase===10 && AppNav.current().screen==='opening_inventory'")
  page.locator('[data-doc]').first.click()

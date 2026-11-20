@@ -123,6 +123,7 @@ jobs:
           python tests/check_themes_154.py app/src/main/assets/www
           python tests/check_legibility_155.py app/src/main/assets/www
           python tests/check_payroll.py app/src/main/assets/www main
+          python tests/check_invoice_grid.py app/src/main/assets/www main
       - name: Archive theme review screens
         continue-on-error: true
         uses: actions/upload-artifact@v4
@@ -155,7 +156,7 @@ jobs:
           apk="app/build/outputs/apk/release/app-release.apk"
           test -s "$apk"
           package_info=$("$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$apk")
-          grep -Fq "versionCode='158' versionName='3.5.158'" <<< "$package_info"
+          grep -Fq "versionCode='159' versionName='3.5.159'" <<< "$package_info"
           verifier="$ANDROID_HOME/build-tools/35.0.0/apksigner"
           "$verifier" verify --verbose --print-certs "$apk"
           cert_digest=$("$verifier" verify --print-certs "$apk" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -n 1)
@@ -172,16 +173,16 @@ jobs:
             exit 1
           fi
           mkdir -p output
-          cp "$apk" "output/Tiqany-Acc-Main-3.5.158-RELEASE.apk"
-          (cd output && sha256sum "Tiqany-Acc-Main-3.5.158-RELEASE.apk" > "Tiqany-Acc-Main-3.5.158-RELEASE.apk.sha256")
+          cp "$apk" "output/Tiqany-Acc-Main-3.5.159-RELEASE.apk"
+          (cd output && sha256sum "Tiqany-Acc-Main-3.5.159-RELEASE.apk" > "Tiqany-Acc-Main-3.5.159-RELEASE.apk.sha256")
       - name: Upload signed app APK and checksum
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
-          name: Tiqany-Acc-Main-3.5.158-RELEASE
+          name: Tiqany-Acc-Main-3.5.159-RELEASE
           path: |
-            output/Tiqany-Acc-Main-3.5.158-RELEASE.apk
-            output/Tiqany-Acc-Main-3.5.158-RELEASE.apk.sha256
+            output/Tiqany-Acc-Main-3.5.159-RELEASE.apk
+            output/Tiqany-Acc-Main-3.5.159-RELEASE.apk.sha256
           if-no-files-found: error
           retention-days: 30
       - name: Publish isolated signed finance preview for direct download
@@ -191,11 +192,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          apk='output/Tiqany-Acc-Main-3.5.158-RELEASE.apk'
+          apk='output/Tiqany-Acc-Main-3.5.159-RELEASE.apk'
           checksum="${apk}.sha256"
           test -s "$apk" && test -s "$checksum"
           tag='tiqany-main-finance-preview-'"${GITHUB_SHA:0:10}"
-          gh release create "$tag" "$apk" "$checksum" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title 'المحاسب التقني المدير الرئيسي - معاينة الإصدار 3.5.158' --notes 'جرد أول المدة وسندات الأجور وتوقيت المصاريف وتحسين سندات القبض والدفع.' --prerelease
+          gh release create "$tag" "$apk" "$checksum" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title 'المحاسب التقني المدير الرئيسي - معاينة الإصدار 3.5.159' --notes 'تحديد الحقول باللمس وكميات شبكة المواد والانتقال لأصناف الفاتورة.' --prerelease
           gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json url --jq '.url'
       - name: Publish signed main branch artifact for two-theme update
         if: github.ref == 'refs/heads/main'
@@ -204,14 +205,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          apk='output/Tiqany-Acc-Main-3.5.158-RELEASE.apk'
+          apk='output/Tiqany-Acc-Main-3.5.159-RELEASE.apk'
           checksum="${apk}.sha256"
           test -s "$apk" && test -s "$checksum"
           tag='tiqany-main-themes-'"${GITHUB_SHA:0:10}"
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$tag" "$apk" "$checksum" --clobber --repo "$GITHUB_REPOSITORY"
           else
-            gh release create "$tag" "$apk" "$checksum" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title 'المحاسب التقني المدير Android 3.5.158' --notes 'جرد أول المدة وسندات الأجور وتوقيت المصاريف وتحسين سندات القبض والدفع.' --prerelease
+            gh release create "$tag" "$apk" "$checksum" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title 'المحاسب التقني المدير Android 3.5.159' --notes 'تحديد الحقول باللمس وكميات شبكة المواد والانتقال لأصناف الفاتورة.' --prerelease
           fi
           gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json url --jq '.url'
 

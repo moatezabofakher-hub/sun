@@ -16,15 +16,15 @@ const State={categories:['العناية'],items:[
 const Accounting={formatItemPrice:n=>String(n),formatItemQuantity:n=>String(n),getItemBaseStock:()=>100,convert:n=>n};
 const ItemController={photoThumb:()=>'<div></div>'};
 const els={gridCatPills:{innerHTML:''},itemGridCardsContainer:{innerHTML:''},mainContent:{},itemGridApplyButton:{textContent:'',disabled:true,setAttribute(k,v){this[k]=v;}}};
-const document={getElementById:id=>els[id]||null};
+const document={querySelector:()=>null,getElementById:id=>els[id]||null};
 const events={closed:0,dirty:0,painted:0,recalc:0};
 const UI={forceCloseModal(){events.closed++},toast(){}};
-const controller=new Function('State','Accounting','ItemController','document','UI','events',`return ({
+const controller=new Function('State','Accounting','ItemController','document','UI','events','AppEscape','InvoiceGridEntry',`return ({
   draft:{type:'sale',rows:[],currency:'USD',exchangeRate:15000},gridCatFilter:'all',gridPending:Object.create(null),
   ${impl}
-  addItemToInvoice(itemId){let row=this.draft.rows.find(r=>r.itemId===itemId);if(!row)this.draft.rows.push({itemId,qty:1});else row.qty++;},
+  addItemToInvoice(itemId,repaint,quantity){let row=this.draft.rows.find(r=>r.itemId===itemId);if(!row)this.draft.rows.push({itemId,qty:quantity});else row.qty+=quantity;},
   markModified(){events.dirty++},recalculate(){events.recalc++},paintForm(){events.painted++}
-});`)(State,Accounting,ItemController,document,UI,events);
+});`)(State,Accounting,ItemController,document,UI,events,{text:String},{revealRows(){events.revealed=true;}});
 controller.renderItemGridCards();
 assert.equal(els.itemGridApplyButton.disabled,true);
 controller.selectItemFromGrid('a');controller.selectItemFromGrid('a');controller.selectItemFromGrid('a');controller.selectItemFromGrid('b');
@@ -32,7 +32,7 @@ assert.equal(controller.gridSelectionCount(),2,'Count distinct selected items li
 assert.match(els.itemGridApplyButton.textContent,/2 أصناف/);
 assert.equal(els.itemGridApplyButton.disabled,false);
 assert.equal(controller.draft.rows.length,0,'No invoice row changes until Add is pressed');
-assert.match(els.itemGridCardsContainer.innerHTML,/InvoiceController\.removeOneFromGrid\('a'\)/);
+assert.match(els.itemGridCardsContainer.innerHTML,/InvoiceController\.removeOneFromGrid\(this\.closest/);
 assert.match(els.itemGridCardsContainer.innerHTML,/>\s*3\s*<\/span>/);
 controller.removeOneFromGrid('a');
 assert.equal(controller.gridPending.a,2,'X removes from staged selection, not invoice');
@@ -40,8 +40,10 @@ assert.equal(controller.draft.rows.length,0);
 controller.removeOneFromGrid('a');controller.removeOneFromGrid('a');
 assert.equal(controller.gridPending.a,undefined);
 assert.equal(controller.gridSelectionCount(),1);
+controller.gridPending.b=24.75;
 controller.applyGridSelection();
-assert.deepEqual(controller.draft.rows,[{itemId:'b',qty:1}]);
+assert.equal(events.revealed,true);
+assert.deepEqual(controller.draft.rows,[{itemId:'b',qty:24.75}]);
 assert.equal(events.closed,1);assert.equal(events.dirty,1);assert.equal(events.painted,1);assert.equal(events.recalc,1);
 assert.equal(controller.gridSelectionCount(),0,'Staging cleared after commit');
 assert.match(html,/#itemGridCardsContainer \.invoice-grid-decrement \{/);

@@ -59,22 +59,25 @@ const OpeningInventory = (() => {
         function paint(){
             main.innerHTML='<section dir="rtl" class="opening-inventory space-y-3"><div class="invoice-entry-top bg-white rounded-2xl border p-3">'+
                 '<img class="ta-operation-art inline-block" width="36" height="36" src="static/purchase.png" alt=""> <b>فاتورة جرد أول المدة</b><div>الحساب · '+account+'</div><small>'+
-                esc(dateLabel(doc?doc.date:new Date().toISOString()))+'</small></div><div class="ta-invoice-control-grid flex gap-2"><select class="rounded-xl border p-2" aria-label="اختيار مادة"><option value="">اختر المادة</option>'+
-                items.map((it,i)=>'<option value="'+i+'">'+esc(it.name)+'</option>').join('')+'</select>'+action('add','plus','إضافة مواد')+'</div>'+
+                esc(dateLabel(doc?doc.date:new Date().toISOString()))+'</small></div><div class="ta-invoice-control-grid flex gap-2">'+action('add','table-cells-large','إضافة مادة')+'</div>'+
                 '<div class="invoice-added-items">'+rows.map((r,i)=>'<div class="invoice-added-row p-3" data-row="'+i+'"><b class="invoice-row-index">'+(i+1)+'</b> <b>'+
                 esc(r.name)+'</b> · '+esc(r.unit)+'<div class="grid grid-cols-2 gap-2"><label>الكمية<input class="w-full" type="number" step="any" data-key="qty" value="'+esc(r.qty)+'"></label>'+
                 '<label>تكلفة الوحدة ('+esc(r.currency)+')<input class="w-full" type="number" step="any" min="0" data-key="cost" value="'+esc(r.cost)+'"></label></div>'+
                 '<button type="button" style="color:#b91c1c" data-remove="'+i+'" aria-label="حذف المادة"><i class="fas fa-trash"></i> حذف المادة</button></div>').join('')+'</div>'+
                 '<div class="ta-enh-panel"><b>إجمالي التكلفة </b><strong data-total>'+esc(totals(rows))+'</strong></div><div class="ta-enh-row">'+
                 action('save','floppy-disk','حفظ')+action('cancel','times','إلغاء')+(doc?action('delete','trash','حذف الفاتورة'):'')+'</div></section>';
-            main.querySelector('[data-cmd=add]').onclick=()=>{
-                const v=main.querySelector('select').value;
-                if(v==='')return UI.toast('اختر المادة أولاً','warn');
-                const item=items[Number(v)],found=rows.find(r=>r.itemId===item.id);
-                if(found)found.qty=Number(found.qty)+1;
-                else rows.push({itemId:item.id,name:item.name,unit:item.units[0].name,qty:1,cost:baseCost(item),currency:item.currency});
-                changed();paint();
-            };
+            main.querySelector('[data-cmd=add]').onclick=()=>InvoiceController.openItemGridModal({
+                items, cost:baseCost,
+                add(chosen){
+                    for(const [itemId,qty] of chosen){
+                        const item=items.find(it=>it.id===itemId);
+                        const existing=rows.find(r=>r.itemId===itemId);
+                        if(existing) existing.qty=Number(existing.qty)+qty;
+                        else rows.push({itemId,name:item.name,unit:item.units[0].name,qty,cost:baseCost(item),currency:item.currency});
+                    }
+                    changed();paint();
+                }
+            });
             main.querySelectorAll('[data-key]').forEach(input=>input.oninput=()=>{
                 rows[Number(input.closest('[data-row]').dataset.row)][input.dataset.key]=input.value===''?'':input.valueAsNumber;
                 main.querySelector('[data-total]').textContent=totals(rows);changed();
@@ -348,16 +351,16 @@ const E={
    const oldAccounts=Views.renderAccounts;Views.renderAccounts=function(main,...args){const out=oldAccounts.call(this,main,...args);E.addAccountControls(main);return out;};
    const oldItems=Views.renderItems;Views.renderItems=function(main,...args){const out=oldItems.call(this,main,...args);const t=main.querySelector('.ta-items-toolbar');if(t&&!t.querySelector('#taMovementAction'))t.insertAdjacentHTML('beforeend','<button id="taMovementAction" class="ta-enh-btn ta-enh-teal" onclick="TiqanyManager152.openMovement()"><i class="fas fa-arrows-spin"></i> حركة مادة</button><button id="taOpeningStockAction" class="ta-enh-btn ta-enh-teal" onclick="AppNav.navigate(\'opening_inventory\')"><i class="fas fa-boxes-stacked"></i> جرد أول المدة</button>');return out;};
    const oldSettings=Views.renderSettings;Views.renderSettings=function(main,...args){const out=oldSettings.call(this,main,...args);E.settings();return out;};
-   const oldAdd=InvoiceController.addItemToInvoice;InvoiceController.addItemToInvoice=function(itemId,repaint=true){
+   const oldAdd=InvoiceController.addItemToInvoice;InvoiceController.addItemToInvoice=function(itemId,repaint=true,quantity=1){
       const item=State.items.find(i=>i.id===itemId),d=this.draft,unit=E.chosen(item,d?.type);
-      if(!d||!unit||unit.name===(item.units?.[0]?.name))return oldAdd.call(this,itemId,repaint);
+      if(!d||!unit||unit.name===(item.units?.[0]?.name))return oldAdd.call(this,itemId,repaint,quantity);
       const matching=d.rows.find(r=>r.itemId===itemId&&r.unitName===unit.name);
-      if(matching){matching.qty=(Number(matching.qty)||0)+1;if(repaint){this.markModified();this.recalculate();this.paintForm(document.getElementById('mainContent'));}return;}
+      if(matching){matching.qty=(Number(matching.qty)||0)+quantity;if(repaint){this.markModified();this.recalculate();this.paintForm(document.getElementById('mainContent'));}return;}
       const start=d.rows.length,baseRow=d.rows.find(r=>r.itemId===itemId&&r.unitName===item.units[0].name);
       if(baseRow){
-         const clone={...baseRow,rowId:'r_' + FieldProtocol.uuid(),qty:1,discount:0,priceManuallySet:false};
+         const clone={...baseRow,rowId:'r_' + FieldProtocol.uuid(),qty:quantity,discount:0,priceManuallySet:false};
          d.rows.push(clone);
-      }else oldAdd.call(this,itemId,false);
+      }else oldAdd.call(this,itemId,false,quantity);
       const row=d.rows[d.rows.length-1];if(!row)return;
       row.unitName=unit.name;row.unitFactor=Number(unit.factor)||1;
       row.baseCostPrice=Accounting.itemCostPrice(item,unit);

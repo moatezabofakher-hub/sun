@@ -11,17 +11,18 @@ const items=[
  {id:'kit',name:'تجميعة',units:[{name:'طقم',factor:1}],isBundle:true,bundleComponents:[{itemId:'a',quantity:2},{itemId:'b',quantity:1}]}
 ];
 const button={textContent:'',disabled:true,setAttribute(){}};
-const document={getElementById:id=>id==='agentGridApplyButton'?button:null};
+const document={querySelector:()=>null,getElementById:id=>id==='agentGridApplyButton'?button:null};
 let warnings=[];let shown=0,closed=0,rendered=0;
 const Agent={
+ defaultSaleUnit(item){return item?.units[0]},
  state:{items},draft:[],currency:'USD',draftKind:'sale',stock:{a:4,b:3},gridPending:Object.create(null),
  remainingStockForItem(id){return this.stock[id]||0},
  toast(msg){warnings.push(msg)},renderPickerItems(){rendered++;this.updateGridCounter()},
  captureInvoiceMeta(){},closeInvoiceItemGrid(){closed++;this.gridPending=Object.create(null)},
  show(name){assert.equal(name,'invoice');shown++},unitPrice(){return 10}
 };
-new Function('Agent','document',`const A=Agent,round=(n)=>Math.round(n*100)/100;
-${src.slice(start,end)};`)(Agent,document);
+new Function('Agent','document','InvoiceGridEntry',`const A=Agent,round=(n)=>Math.round(n*100)/100;
+${src.slice(start,end)};`)(Agent,document,{revealRows(){}});
 Agent.addGridItem('kit');Agent.addGridItem('kit');
 assert.equal(Agent.gridPending.kit,2);
 assert.equal(button.disabled,false);

@@ -263,6 +263,8 @@ A.updateGridCounter=function(){
 
 };
 A.applyInvoiceItemGrid=function(){
+ const invalid=document.querySelector('#agentPickerItems input:invalid');
+ if(invalid){invalid.reportValidity();return;}
  const chosen=Object.entries(this.gridPending||{}).filter(([,qty])=>Number(qty)>0);
  if(!chosen.length)return;
  this.captureInvoiceMeta();
@@ -272,10 +274,10 @@ A.applyInvoiceItemGrid=function(){
  for(const [id,qty] of chosen){
   const it=this.state.items.find(x=>x.id===id);const u=this.defaultSaleUnit(it);if(!u)continue;
   let row=this.draft.find(r=>r.itemId===id&&r.unitName===u.name);
-  if(row){row.qty=round(Number(row.qty)+Number(qty),'USD');row.total=round(row.qty*row.price,this.currency);}
+  if(row){row.qty=Number(row.qty)+Number(qty);row.total=round(row.qty*row.price,this.currency);}
   else{const price=this.unitPrice(it,u,this.currency);this.draft.push({itemId:id,itemName:it.name,unitName:u.name,unitFactor:Number(u.factor),qty:Number(qty),price,total:round(price*qty,this.currency),bomComponents:it.isBundle?JSON.parse(JSON.stringify(it.bundleComponents||[])):undefined});}
  }
- this.closeInvoiceItemGrid();this.show('invoice');
+ this.closeInvoiceItemGrid();Promise.resolve(this.show('invoice')).then(()=>InvoiceGridEntry.revealRows());
 };
 A.openInvoiceItemGrid=function(){
  this.captureInvoiceMeta();this.gridSearch='';this.gridCategory='all';this.gridPending=Object.create(null);
@@ -308,16 +310,19 @@ A.renderPickerItems=function(){
  const q=String(this.gridSearch||'').toLowerCase().trim();
  const items=(this.state.items||[]).filter(it=>(this.gridCategory==='all'||String(it.categoryId||it.category||'other')===String(this.gridCategory))&&(!q||String(it.name).toLowerCase().includes(q)||String(it.barcode||'').toLowerCase().includes(q)));
  box.innerHTML=items.length?items.map(it=>{
-  const u=it.units?.[0]||{name:'وحدة',salePrice:0,factor:1};
+  const u=this.defaultSaleUnit(it)||{name:'وحدة',salePrice:0,factor:1};
   const chosen=Number(this.gridPending?.[it.id]||0);
   const stock=Number(this.stock[it.id]||0);
   const unitStock=round(stock*Number(u.factor||1),'USD');
   const outOfStock=this.draftKind==='sale'&&stock<=1e-5;
-  return `<div class="relative bg-slate-50 border ${outOfStock?'border-rose-400 bg-rose-50':chosen>0?'border-emerald-500 ring-1 ring-emerald-500 bg-emerald-50/40':'border-slate-200'} rounded-2xl p-2.5 cursor-pointer flex flex-col justify-between text-right shadow-2xs" role="button" tabindex="0" onclick="Agent.addGridItem('${esc(it.id)}')" onkeydown="if(event.key==='Enter')Agent.addGridItem('${esc(it.id)}')">
-   ${chosen>0?`<span class="absolute -top-1.5 -left-1.5 bg-emerald-600 text-white text-[10px] font-extrabold w-6 h-6 rounded-full flex items-center justify-center">${chosen}</span><button type="button" class="invoice-grid-decrement" onclick="event.stopPropagation();Agent.removeGridOne('${esc(it.id)}')">×</button>`:''}
+  return `<div data-grid-card class="relative bg-slate-50 border ${outOfStock?'border-rose-400 bg-rose-50':chosen>0?'border-emerald-500 ring-1 ring-emerald-500 bg-emerald-50/40':'border-slate-200'} rounded-2xl p-2.5 cursor-pointer flex flex-col justify-between text-right shadow-2xs" role="button" tabindex="0" onclick="Agent.addGridItem('${esc(it.id)}')" onkeydown="if(event.target===this && event.key==='Enter')Agent.addGridItem('${esc(it.id)}')">
+   ${chosen>0?`<span data-grid-count class="absolute -top-1.5 -left-1.5 bg-emerald-600 text-white text-[10px] font-extrabold w-6 h-6 rounded-full flex items-center justify-center">${chosen}</span><button type="button" class="invoice-grid-decrement" onclick="event.stopPropagation();Agent.removeGridOne('${esc(it.id)}')">×</button>`:''}
    <div><div class="h-24 mb-2 bg-white border border-slate-200 rounded-xl flex items-center justify-center overflow-hidden text-slate-400">${/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(it.photoData||'')?`<img src="${it.photoData}" alt="صورة المادة" loading="lazy" class="w-full h-full object-contain">`:'<i class="fas fa-box-open text-3xl"></i>'}</div><span class="text-[9px] font-extrabold px-1.5 py-0.5 rounded ${it.currency==='USD'?'bg-amber-100 text-amber-800':'bg-blue-100 text-blue-700'}">${esc(it.currency||'USD')}</span><h4 class="font-extrabold text-xs text-slate-900 my-2">${esc(it.name)}</h4></div>
    <div class="pt-1.5 border-t border-slate-200"><div class="font-extrabold text-xs text-emerald-700">${money(this.unitPrice(it,u,this.currency),this.currency)} ${esc(this.currency)} <span class="text-[9px] text-slate-500">/ ${esc(u.name)}</span></div>
-   <div class="flex items-center justify-between text-[10px] mt-1"><span class="${outOfStock?'text-rose-700 font-extrabold':'text-slate-500'}">${outOfStock?'نفدت الكمية':'المتاح: '+unitStock+' '+esc(u.name)}</span><span class="${outOfStock?'text-rose-700':'text-emerald-600'} font-bold">${outOfStock?'تنبيه':' + إضافة'}</span></div></div></div>`;
+   <div class="flex items-center justify-between text-[10px] mt-1"><span class="${outOfStock?'text-rose-700 font-extrabold':'text-slate-500'}">${outOfStock?'نفدت الكمية':'المتاح: '+unitStock+' '+esc(u.name)}</span><span class="${outOfStock?'text-rose-700':'text-emerald-600'} font-bold">${outOfStock?'تنبيه':' + إضافة'}</span></div></div>
+   ${chosen>0?`<label class="flex items-center gap-1 mt-2 text-xs font-bold" onclick="event.stopPropagation()">الكمية
+      <input type="text" inputmode="decimal" dir="ltr" data-grid-item="${esc(it.id)}" value="${chosen}" aria-label="كمية ${esc(it.name)}"
+       class="min-w-0 w-full rounded-lg border px-2 py-2 text-center font-bold" oninput="InvoiceGridEntry.update(this, Agent.gridPending, () => Agent.updateGridCounter())"></label>`:''}</div>`;
  }).join(''):'<div class="col-span-full p-6 text-center text-xs text-slate-500">لا توجد مواد مطابقة</div>';
 };
 A.renderInvoice=function(){
@@ -347,8 +352,8 @@ A.renderInvoice=function(){
   const it=items.find(x=>x.id===r.itemId),available=Number(this.stock[r.itemId]||0)*Number(r.unitFactor||1);
   return `<div class="invoice-added-row p-3"><div class="flex items-center justify-between mb-2"><div class="flex items-center gap-1.5 flex-wrap"><span class="invoice-row-index">${i+1}</span><span class="font-extrabold text-xs text-slate-900">${esc(r.itemName)}</span><span class="text-[10px] bg-slate-100 text-slate-600 font-bold px-1.5 py-0.5 rounded">عملة الأصل: ${esc(it?.currency||c)}</span><span class="text-[10px] bg-emerald-50 text-emerald-700 font-bold px-2 py-0.5 rounded">متاح: ${round(available,'USD')} ${esc(r.unitName)}</span></div><button type="button" class="ta-field-icon-button text-rose-700 p-1 rounded-lg text-xs" onclick="Agent.removeRow(${i})"><i class="fas fa-trash-can"></i></button></div>
   <div class="grid grid-cols-4 gap-1.5 items-end text-xs"><div><label class="text-[10px] text-slate-500 block">الوحدة</label><select class="w-full border border-slate-300 rounded-lg px-1.5 py-1.5 font-bold bg-white text-xs" onchange="Agent.changeRowUnit(${i},this.value)">${(it?.units||[{name:r.unitName}]).map(u=>`<option value="${esc(u.name)}" ${u.name===r.unitName?'selected':''}>${esc(u.name)}</option>`).join('')}</select></div>
-  <div><label class="text-[10px] text-slate-500 block">الكمية</label><input type="text" inputmode="decimal" dir="ltr" value="${r.qty}" onfocus="this.select()" oninput="Agent.changeRowValue(${i},'qty',this.value)" class="w-full border border-slate-300 rounded-lg px-2 py-1.5 font-bold text-center"></div>
-  <div><label class="text-[10px] text-slate-500 block">السعر (${c})</label><input type="text" inputmode="decimal" dir="ltr" value="${r.price}" onfocus="this.select()" oninput="Agent.changeRowValue(${i},'price',this.value)" class="w-full border border-slate-300 rounded-lg px-2 py-1.5 font-bold text-center"></div>
+  <div><label class="text-[10px] text-slate-500 block">الكمية</label><input type="text" inputmode="decimal" dir="ltr" value="${r.qty}" oninput="Agent.changeRowValue(${i},'qty',this.value)" class="w-full border border-slate-300 rounded-lg px-2 py-1.5 font-bold text-center"></div>
+  <div><label class="text-[10px] text-slate-500 block">السعر (${c})</label><input type="text" inputmode="decimal" dir="ltr" value="${r.price}" oninput="Agent.changeRowValue(${i},'price',this.value)" class="w-full border border-slate-300 rounded-lg px-2 py-1.5 font-bold text-center"></div>
   <div class="text-left"><label class="text-[10px] text-slate-500 block">الإجمالي</label><div id="rowTotal_${i}" class="font-extrabold text-slate-900 py-1.5 px-1 bg-slate-100 rounded-lg text-center truncate">${money(r.total,c)}</div></div></div></div>`;}).join('')}</div>`:`<div onclick="Agent.openInvoiceItemGrid()" class="p-6 text-center text-slate-400 text-xs cursor-pointer"><i class="fas fa-table-cells-large text-2xl mb-1 text-emerald-500"></i><p class="font-bold text-slate-600">الفاتورة فارغة حالياً - اضغط هنا لفتح شبكة المواد وإضافتها</p></div>`}</div>
  <div class="bg-white rounded-2xl border border-slate-200 p-3.5 mb-4 shadow-xs space-y-2.5 text-xs"><div class="flex items-center justify-between font-bold text-slate-700"><span>إجمالي الأصناف:</span><span id="invSubTotalTxt" class="text-sm">${money(calc.subTotal,c)} ${c}</span></div>
  <div class="grid grid-cols-2 gap-2 pt-1 border-t border-slate-100">

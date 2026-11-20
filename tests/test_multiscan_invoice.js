@@ -31,7 +31,7 @@ assert(html.includes('const DB_VERSION = 1'), 'KEEP existing IndexedDB schema ve
 assert(html.includes('https://'), 'WebView secure origin must remain');
 
 const methods = section('addItemsByBarcodeBatch(codes) {','            async openBarcodeScanner() {') + '\n' +
-                section('addItemToInvoice(itemId, repaint = true) {','            changeRowUnit(rowIdx, newUnitName) {');
+                section('addItemToInvoice(itemId, repaint = true, quantity = 1) {','            changeRowUnit(rowIdx, newUnitName) {');
 // Exercise the actual production controller methods with mocked browser dependencies.
 function makeController(type) {
   const state = { items: [
@@ -41,10 +41,10 @@ function makeController(type) {
   const events = {updates:0,repaints:0,messages:[]};
   const screen = {name:'invoice_form'};
   const accounting = {convert:(p)=>p};
-  const controller = new Function('State','AppNav','UI','Accounting','document','events',
+  const controller = new Function('State','AppNav','UI','Accounting','document','events','FieldProtocol',
    'return ({' + methods + '\n markModified(){events.updates++}, recalculate(){}, paintForm(){events.repaints++} });'
   )(state,{current:()=>({screen:screen.name})},{toast:(m,level)=>events.messages.push([m,level])},accounting,
-    {getElementById:()=>({})},events);
+    {getElementById:()=>({})},events,{uuid:()=>require('node:crypto').randomUUID()});
   controller.draft = {type, rows:[],currency:'USD',exchangeRate:15000};
   return {controller,events,screen};
 }
