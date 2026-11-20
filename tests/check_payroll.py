@@ -23,6 +23,7 @@ with sync_playwright() as pw:
  page.locator('#pay-gross').fill('250000')
  visual="e=>Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').get.call(e)"
  assert page.locator('#pay-gross').evaluate(visual)=='250,000'
+ assert page.locator('#pay-gross').evaluate('e=>e.value')=='250000'
  page.locator('#pay-days').fill('25');page.get_by_role('button',name='حفظ',exact=True).click()
  page.wait_for_function('State.payrollStaff.some(x=>x.gross===250000)')
  def nav(section,record=None):

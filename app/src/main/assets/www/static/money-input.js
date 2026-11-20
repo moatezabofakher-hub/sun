@@ -9,8 +9,8 @@
     const group=s=>raw(s).replace(/^(-?)(\d+)(?=\.|$)/,(_,sign,n)=>sign+n.replace(/\B(?=(\d{3})+(?!\d))/g,','));
     function monetary(el){
         if (!(el instanceof HTMLInputElement) || !['text','number','tel'].includes(el.type)) return false;
-        if (el.hasAttribute('data-money')||el.hasAttribute('data-count')||el.hasAttribute('data-allocation')) return true;
-        const handler=el.getAttribute('oninput')||'';
+        if (el.hasAttribute('data-money')||el.hasAttribute('data-count')||el.hasAttribute('data-allocation')||el.hasAttribute('data-cost-id')) return true;
+        const handler=[el.getAttribute('oninput'),el.getAttribute('onchange')].join(' ');
         return ids.test(el.id)||/(?:updatePrice|(?:discount|tax)Value|draft\.(?:amount|exchangeRate)|['"](?:price|costPrice|salePrice)['"])/i.test(handler);
     }
     function prepare(el){

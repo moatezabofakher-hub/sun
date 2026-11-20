@@ -103,7 +103,9 @@ with sync_playwright() as pw:
     page.wait_for_function("State.cashShifts[0].closedAt")
     assert page.evaluate("()=>State.cashShifts[0].difference.SYP")==-1000
     page.locator('#finance-save-shift:not(.ta-shift-close)').wait_for()
-    assert page.locator('[data-count="SYP"]').input_value()=='74000'
+    counted=page.locator('[data-count="SYP"]')
+    assert counted.input_value()=='74,000'
+    assert counted.evaluate('field=>Number(field.value)')==74000
     page.locator('#finance-person').fill('الأمين الثاني')
     page.locator('#finance-save-shift').click()
     page.wait_for_function("State.cashShifts.length===2")
