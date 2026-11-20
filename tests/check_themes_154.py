@@ -345,6 +345,10 @@ with sync_playwright() as playwright:
                 page.evaluate("async kind=>{Agent.startVoucher(kind);await Agent.show('voucher')}",kind)
             else:
                 page.evaluate("kind=>AppNav.navigate('voucher_form',{type:kind})",kind)
+                if kind=='receipt':
+                    discard=page.locator('#dialogContainer[data-dialog-type="unsaved"] #dlgDiscardBtn')
+                    discard.click(timeout=5000)
+                assert page.evaluate('AppNav.current().screen')=='voucher_form'
             cancel=page.locator('.ta-agent-voucher-cancel' if employee else '.ta-voucher-cancel-action').first
             cancel.wait_for(state='visible')
             assert cancel.get_attribute('data-action-tone')=='negative',(theme,kind)
