@@ -725,6 +725,16 @@ html body #mainContent .pos-line-label > strong {min-width:0;overflow-wrap:anywh
 html body #mainContent .pos-line-label .ta-pos-unit-change {max-width:48%;min-width:0}
 html body #mainContent .pos-line-label .ta-pos-delete {margin-inline-start:auto}
 
+/* A payable POS draft uses the green save surface in every theme. */
+html[data-ta-theme] body #mainContent .pos-page .ta-pos-fixed-footer .ta-pos-footer-actions > button[onclick^="POSController.save("],
+html[data-ta-theme] body #screen .agent-pos-screen .ta-agent-pos-footer .ta-agent-pos-actions > button {
+  background:#08613b linear-gradient(155deg,#167747,#075332)!important;
+  color:#fff!important;-webkit-text-fill-color:#fff!important;
+  border:1px solid #075735!important;text-shadow:none!important;
+}
+html[data-ta-theme] body #mainContent .pos-page .ta-pos-fixed-footer .ta-pos-footer-actions > button i {
+  background:transparent!important;color:white!important;-webkit-text-fill-color:white!important;
+}
 /* Petrol enamel, copper trim and warm paper. Keep business actions color-coded. */
 html[data-ta-theme="petrol"] {
   color-scheme:light; --ta-pearl:#fffaf2; --ta-silver:#c4a48b; --ta-heading:#153536;

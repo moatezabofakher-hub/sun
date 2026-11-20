@@ -46,7 +46,14 @@ def check_text_contrast(page, surface, captions, context):
         return old;
     })""")
     try:
-        png = base64.b64encode(surface.screenshot(animations='disabled', scale='css')).decode('ascii')
+        if context[0]=='Nav contrast':
+            # Sample the fixed dock directly in the viewport after responsive layout settles.
+            page.evaluate('()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))')
+            clip=surface.evaluate('e=>{const b=e.getBoundingClientRect();return {x:b.x+scrollX,y:b.y+scrollY,width:b.width,height:b.height}}')
+            pixels=page.screenshot(clip=clip,animations='disabled',scale='css')
+        else:
+            pixels=surface.screenshot(animations='disabled',scale='css')
+        png=base64.b64encode(pixels).decode('ascii')
     finally:
         captions.evaluate_all("""(nodes, old) => nodes.forEach((e,i) => {
             if (old[i] === null) e.removeAttribute('style');
@@ -409,6 +416,12 @@ with sync_playwright() as playwright:
         assert line.locator('.agent-pos-line-fields > .ta-pos-delete').count()==1
     else:
         assert remove.bounding_box()['x']+remove.bounding_box()['width']<=unit.bounding_box()['x']+1
+    save_actions=page.locator('.ta-agent-pos-actions button' if employee else '.ta-pos-footer-actions button')
+    assert save_actions.count()==2
+    for action in save_actions.all():
+        fill,ink=action.evaluate("e=>[getComputedStyle(e).backgroundImage,getComputedStyle(e).webkitTextFillColor]")
+        colors=[tuple(map(int,m)) for m in re.findall(r'rgb\((\d+), (\d+), (\d+)\)',fill)]
+        assert colors and all(g>r and g>b for r,g,b in colors) and ink=='rgb(255, 255, 255)',(fill,ink)
     unit.select_option('كرتونة')
     page.wait_for_function("employee=>(employee?Agent.draft:InvoiceController.draft.rows)[0].unitName==='كرتونة'",arg=employee)
     line.evaluate("e=>e.scrollIntoView({block:'center',behavior:'instant'})")
