@@ -28,7 +28,7 @@ test('Protected owner edit is accessible from management card, Back unwinds each
  const state=ledger();
  const owner=S.addOwner(state,{name:'مالك تجريبي',period:'all',at:'2026-11-01T12:00:00Z'});
  let latest='',closed=0,prompts=0;
- const document={getElementById:id=>id==='modalBox'?{querySelectorAll:()=>[]}:null,
+ const document={getElementById:id=>id==='modalBox'?{querySelectorAll:()=>[]}:id.startsWith('taShare')?{value:'all',addEventListener(){}}:null,
    querySelector:()=>({addEventListener:()=>{}}),addEventListener:()=>{}};
  const sandbox={document,State:state,require,console,Date,Math,UI:{
    openModal:v=>{latest=v;},requestCloseModal:()=>{closed++;},

@@ -20,7 +20,7 @@ function harness({phoneFilled=true,desktopFilled=false}={}){
  UI:{toast(...args){messages.push(args)}},setInterval:()=>0,setTimeout:fn=>{scheduled.push(fn);return 0;},clearTimeout:()=>{},confirm:()=>true};
  vm.runInNewContext(source,c);const peer=w.TiqanyPeerSync;peer.call=async msg=>{
   requests.push(msg);
-  if(msg.action==='fetch')return {ok:true,appVersion:'3.5.160',snapshot:WindowsSnapshot,ticket:'ticket'+requests.length,
+  if(msg.action==='fetch')return {ok:true,appVersion:'3.5.162',snapshot:WindowsSnapshot,ticket:'ticket'+requests.length,
     companyUid:UID_PC,desktopEmpty:!desktopFilled,serverId:'a'.repeat(32),profileId:'desktop-profile',conflictResolutions:{},resolvedReceipts:[]};
   if(msg.action==='commit')return {ok:true};
   return {ok:false};

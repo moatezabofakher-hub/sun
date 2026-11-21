@@ -10,8 +10,9 @@ const agentCss=read('field_agent/src/main/assets/www/static/glossy-ui-3549.css')
 for(const moduleName of ['app','field_agent']){
  const prefix=moduleName+'/src/main/';
  assert(read(prefix+'AndroidManifest.xml').includes('android:label="@string/app_name"'),'system locale controls Android label');
- assert(read(prefix+'res/values/strings.xml').includes('Tiqany Acc'));
- assert(read(prefix+'res/values-ar/strings.xml').includes('المحاسب التقني'));
+ const label=moduleName==='app'?'التقني الشامل':'التقني الموظف';
+ assert(read(prefix+'res/values/strings.xml').includes(label));
+ assert(read(prefix+'res/values-ar/strings.xml').includes(label));
 }
 assert(read('app/src/main/java/com/sunshine/accounting/MainActivity.java').includes('.setSmallIcon(R.drawable.ic_stat_tiqany)'));
 assert(read('app/src/main/java/com/sunshine/accounting/MainActivity.java').includes('.setLargeIcon('));

@@ -35,11 +35,12 @@ test('cash availability and profit allocations both protect shareholder withdraw
  assert.throws(()=>S.event(s,{type:'profitDraw',ownerId:a.id,amount:8},{availableCash:100}),/الربح/);
  assert.equal(S.movements(s).length,0);
 });
-test('withdrawal prevents changes in distribution that would overdraw an owner',()=>{
+test('a distribution change can produce a negative available balance without rewriting a withdrawal',()=>{
  const {s,a,b}=basic();sale(s);
  S.event(s,{type:'profitDraw',ownerId:a.id,amount:6},{availableCash:50});
- assert.throws(()=>S.setDistribution(s,{[a.id]:30,[b.id]:70}),/يتجاوز/);
- assert.equal(S.percentages(s)[a.id],60);
+ S.setDistribution(s,{[a.id]:30,[b.id]:70});
+ assert.equal(S.availableProfit(s,a),-240);
+ assert.equal(S.profitDrawn(s,a.id),600);
 });
 test('two manager snapshots sync shareholder financial rows once, while settings conflict resolves by nearest edited time',()=>{
  const seedBase=seed(),a=S.addOwner(seedBase,{name:'صاحب',period:'all'});

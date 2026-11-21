@@ -30,3 +30,17 @@
 .ta-share-modal label>input,.ta-share-modal label>select{min-height:46px;background:#fff;border:1px solid #bfd3e4;border-radius:10px;color:#133856;font-size:16px;padding:10px;width:100%}
 .ta-share-modal input:focus,.ta-share-modal select:focus{outline:2px solid #3286c1}
 @media(max-width:360px){.ta-share-metrics{grid-template-columns:1fr}.ta-share-actions{grid-template-columns:1fr}}
+
+.ta-share-modal label.ta-share-location {
+  flex-direction: row;
+  align-items: center;
+  gap: .6rem;
+  min-height: 44px;
+  margin: 0;
+}
+.ta-share-modal label.ta-share-location > input {
+  width: 1.2rem;
+  height: 1.2rem;
+  min-height: 0;
+  padding: 0;
+}

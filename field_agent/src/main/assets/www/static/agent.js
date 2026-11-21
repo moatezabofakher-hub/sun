@@ -182,7 +182,7 @@ const Agent={
       const raw=JSON.parse(e.data||'null');
       if(raw?.kind==='provision'){
         const payload=await FieldProtocol.unseal(e,this.ready()?this.state.key:raw.key);
-        if(payload.appVersion!=='3.5.160')throw Error('اختلاف إصدار التطبيقات: يجب تحديث جميع الأجهزة إلى الإصدار 3.5.160 قبل الاتصال أو المزامنة. لم تُنقل أي بيانات.');
+        if(payload.appVersion!=='3.5.162')throw Error('اختلاف إصدار التطبيقات: يجب تحديث جميع الأجهزة إلى الإصدار 3.5.162 قبل الاتصال أو المزامنة. لم تُنقل أي بيانات.');
         if(this.ready() && (payload.companyId!==this.state.companyId||payload.agentId!==this.state.agentId||payload.key!==this.state.key))throw Error('لا يمكن تغيير الشركة أو موظف البيع أو مفتاح الاقتران على جهاز مرتبط مسبقًا');
         if(!Array.isArray(payload.items)||!Array.isArray(payload.accounts)||!payload.companyId||!payload.agentId)throw Error('ملف تجهيز ناقص');
         const previous=this.state;
@@ -204,7 +204,7 @@ const Agent={
       }else if(raw?.kind==='ack'){
         if(!this.ready())throw Error('يجب ربط الجهاز أولًا');
         const ack=await FieldProtocol.unseal(e,this.state.key);
-        if(ack.appVersion!=='3.5.160')throw Error('اختلاف إصدار التطبيقات: يجب تحديث جميع الأجهزة إلى الإصدار 3.5.160 قبل الاتصال أو المزامنة. لم تُنقل أي بيانات.');
+        if(ack.appVersion!=='3.5.162')throw Error('اختلاف إصدار التطبيقات: يجب تحديث جميع الأجهزة إلى الإصدار 3.5.162 قبل الاتصال أو المزامنة. لم تُنقل أي بيانات.');
         if(ack.companyId!==this.state.companyId||ack.agentId!==this.state.agentId||!Array.isArray(ack.knownIds))throw Error('تأكيد استلام لشركة أخرى');
         const own=new Set(this.state.ops.map(o=>o.id));
         this.state.knownIds=Array.from(new Set([...this.state.knownIds,...ack.knownIds.filter(id=>own.has(id))]));
@@ -224,7 +224,7 @@ const Agent={
       const ops=this.pending.slice(0,250);
       this.lanSentCount=ops.length;
       const nonce=FieldProtocol.uuid();this.lanRequestNonce=nonce;
-      const msg={kind:'operations',appVersion:'3.5.160',nonce,companyId:this.state.companyId,agentId:this.state.agentId,
+      const msg={kind:'operations',appVersion:'3.5.162',nonce,companyId:this.state.companyId,agentId:this.state.agentId,
         warehouseId:this.state.warehouseId,issuedAt:new Date().toISOString(),operations:ops,pendingTotal:this.pending.length,historyCursor:Number(this.state.historyCursor||0),warehouseHistoryCursor:Number(this.state.warehouseHistoryCursor||0)};
       const packet=await FieldLanCrypto.pack(msg,this.state.key,this.state.companyId,this.state.agentId);
       this.lanFinalPacket=JSON.stringify(packet);
@@ -276,7 +276,7 @@ const Agent={
         if(result.transport!=='cloud')window.AndroidLocalSync?.rejectUnverifiedSync?.(this.state.companyId);
         throw error;
       }
-      if(ack.appVersion!=='3.5.160')throw Error('اختلاف إصدار التطبيقات: يجب تحديث جميع الأجهزة إلى الإصدار 3.5.160 قبل الاتصال أو المزامنة. لم تُنقل أي بيانات.');
+      if(ack.appVersion!=='3.5.162')throw Error('اختلاف إصدار التطبيقات: يجب تحديث جميع الأجهزة إلى الإصدار 3.5.162 قبل الاتصال أو المزامنة. لم تُنقل أي بيانات.');
       if(this.lanSyncStage==='version-probe'){
         if(ack.kind!=='sync_result'||ack.requestNonce!==this.lanRequestNonce||ack.companyId!==this.state.companyId||ack.agentId!==this.state.agentId)throw Error('تأكيد توافق الإصدار غير صالح');
         this.lanSyncStage='operations';
@@ -405,7 +405,7 @@ const Agent={
   async exportOutbox(){try{
     if(!this.ready())throw Error('موظف البيع غير مرتبط بالشركة');
     const operations=this.pending;if(!operations.length)throw Error('لا توجد عمليات جديدة');
-    const data={kind:'operations',appVersion:'3.5.160',companyId:this.state.companyId,agentId:this.state.agentId,warehouseId:this.state.warehouseId,issuedAt:new Date().toISOString(),operations};
+    const data={kind:'operations',appVersion:'3.5.162',companyId:this.state.companyId,agentId:this.state.agentId,warehouseId:this.state.warehouseId,issuedAt:new Date().toISOString(),operations};
     await this.saveFile('TA_Ops_'+this.state.agentId+'_'+Date.now()+'.json',await FieldProtocol.seal(data,this.state.key));
     this.toast('تم تجهيز ملف العمليات. أرسله إلى المسؤول ثم استورد ملف التأكيد.');
   }catch(err){this.toast(err.message);}},

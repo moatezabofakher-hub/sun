@@ -31,7 +31,7 @@ agent.show=async()=>{};agent.toast=()=>{};agent.syncPaint=()=>{};agent.active=as
 const catalog={kind:'provision',companyId,agentId,key,companyName:'X',agentName:'A',vehicleName:'Van',warehouseId:'wh_1',items:[],accounts:[],stock:{},knownIds:[],exchangeRate:15000};
 async function reply(build,transport){
  const request=await encryption.open(JSON.parse(sandbox.lastFrame),key,companyId,agentId);
- const ack={...build(request),appVersion:'3.5.160'};
+ const ack={...build(request),appVersion:'3.5.162'};
  const cipher=await encryption.pack(ack,key,companyId,agentId);
  await agent.onLocalSyncResult(JSON.stringify({data:JSON.stringify(cipher),...(transport?{transport}:{})}));
 }

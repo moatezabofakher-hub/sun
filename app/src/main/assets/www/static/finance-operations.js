@@ -64,6 +64,7 @@ function freeze(state,doc,previous) {
     const item=items.get(row.itemId);
     if (!item) continue;
     const old=(previous?.rows||[]).find(r=>r.rowId && r.rowId===row.rowId && r.itemId===row.itemId && factor(r)===factor(row));
+    row.profitCategory=old?.profitCategory ?? item.category ?? '';
     if (old && old.baseCostPrice!=null) {
       row.baseCostPrice=old.baseCostPrice;
       row.costCurrency=old.costCurrency || item.currency;

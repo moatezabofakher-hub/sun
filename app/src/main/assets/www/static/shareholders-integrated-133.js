@@ -50,13 +50,24 @@
  function percentages(s){const values=ensure(s).settings.shareholderDistribution.values||{};
    const result={};for(const o of owners(s))result[o.id]=Number(values[o.id])||0;return result;
  }
- function addOwner(s,{name,phone='',period='all',startDate='',at=timestamp()}){
+ function normalizeScope(scope){
+   if(scope==null || scope.kind==='all')return {kind:'all'};
+   if(scope.kind==='warehouses' && Array.isArray(scope.ids)){
+     const ids=[...new Set(scope.ids)];
+     if(ids.length && ids.every(id=>typeof id==='string' && id.trim()))return {kind:'warehouses',ids};
+     fail('اختر مستودعاً واحداً على الأقل');
+   }
+   if(scope.kind==='category' && typeof scope.category==='string' && scope.category.trim())
+     return {kind:'category',category:scope.category};
+   fail('اختر مصدر أرباح صالحاً');
+ }
+ function addOwner(s,{name,phone='',period='all',startDate='',profitScope,at=timestamp()}){
    const list=owners(s);name=String(name||'').trim();if(!name||name.length>120)fail('اسم المساهم مطلوب');
    if(list.some(o=>o.name===name))fail('اسم المساهم مكرر');
    if(!['all','added','date'].includes(period))fail('فترة احتساب الأرباح غير صالحة');
    if(period==='date'&&!dateValid(startDate))fail('تاريخ بدء الأرباح غير صالح');
    if(!dateValid(datePart(at)))fail('تاريخ الإضافة غير صالح');
-   const o={id:uuid(),name,phone:String(phone||'').trim().slice(0,40),period,
+   const o={id:uuid(),name,profitScope:normalizeScope(profitScope),phone:String(phone||'').trim().slice(0,40),period,
      startDate:period==='all'?'0001-01-01':period==='added'?datePart(at):datePart(startDate),createdAt:at};
    list.push(o);return o;
  }
@@ -104,7 +115,7 @@
    }
  }
 
- function editOwner(s,id,{name,phone,period,startDate}={}){
+ function editOwner(s,id,{name,phone,period,startDate,profitScope}={}){
    const list=owners(s),idx=list.findIndex(o=>o.id===id);
    if(idx<0)fail('المساهم غير موجود');
    const before=list[idx];
@@ -116,36 +127,45 @@
    if(!['all','added','date'].includes(nextPeriod))fail('فترة احتساب الأرباح غير صالحة');
    let nextDate=nextPeriod==='all'?'0001-01-01':nextPeriod==='added'?datePart(before.createdAt):datePart(startDate??before.startDate);
    if(!dateValid(nextDate))fail('تاريخ بدء احتساب الأرباح غير صالح');
-   const next={...before,name:nextName,phone:nextPhone,period:nextPeriod,startDate:nextDate,updatedAt:timestamp()};
+   const next={...before,profitScope:normalizeScope(profitScope??before.profitScope),name:nextName,phone:nextPhone,period:nextPeriod,startDate:nextDate,updatedAt:timestamp()};
    list[idx]=next;
    try {validate(s)}catch(e){list[idx]=before;throw e}
    return next;
  }
  function rateFor(record,settings){const r=Number(record?.exchangeRate??record?.rate);
    return Number.isFinite(r)&&r>0?r:Math.max(Number(settings?.exchangeRate)||0,1)}
- function operatingEntries(s){
+ function operatingEntries(s,profitScope){
+   const scope=normalizeScope(profitScope);
+   const warehouses=scope.kind==='warehouses' ? new Set(scope.ids) : null;
    ensure(s);const items=new Map((Array.isArray(s.items)?s.items:[]).filter(i=>i?.id).map(i=>[i.id,i]));
    const rows=[];
    for(const inv of (Array.isArray(s.invoices)?s.invoices:[])){
      if(!inv||!['sale','sale_return'].includes(inv.type)||!dateValid(datePart(inv.date)))continue;
+     if(warehouses && !warehouses.has(inv.warehouseId||'wh_main'))continue;
      const sign=inv.type==='sale_return'?-1:1,rate=rateFor(inv,s.settings),invoiceCur=inv.currency||'SYP';
      let usd=0;
      const lines=(inv.rows||[]).reduce((sum,r)=>sum+Number(r?.total ?? ((r?.qty||0)*(r?.price||0)-(r?.discount||0))),0);
      const adjustment=lines>0 ? Number(inv.netTotal ?? lines)/lines : 1;
      for(const r of (Array.isArray(inv.rows)?inv.rows:[])){
        if(!r||typeof r!=='object')continue;
-       const it=items.get(r.itemId);if(!it)continue;
-       const unit=(Array.isArray(it.units)?it.units:[]).find(x=>x?.name===r.unitName) || (Array.isArray(it.units)?it.units[0]:null) || {};
+       const it=items.get(r.itemId);
+       if(!it && r.weightedCostUsd==null && r.baseCostPrice==null)continue;
+       if(scope.kind==='category' && (r.profitCategory??it?.category??'')!==scope.category)continue;
+       const units=Array.isArray(it?.units)?it.units:[];
+       const unit=units.find(x=>x?.name===r.unitName)||units[0]||{};
        const qty=Number(r.qty)||0;
-       const unitCost=Number(r.baseCostPrice??unit.costPrice??it.costPrice)||0;
-       const unitCur=r.costCurrency||it.currency||invoiceCur;
+       const unitCost=Number(r.baseCostPrice??unit.costPrice??it?.costPrice)||0;
+       const unitCur=r.costCurrency||it?.currency||invoiceCur;
        const costUsd=r.weightedCostUsd!=null ? Number(r.weightedCostUsd)*qty : (unitCur==='USD'?unitCost*qty:unitCost*qty/rate);
-       const rowTotal=Number(r.total) || (qty*(Number(r.price)||0)-(Number(r.discount)||0));
+       const rowTotal=Number(r.total ?? (qty*(Number(r.price)||0)-(Number(r.discount)||0)));
        const revenueUsd=invoiceCur==='USD'?rowTotal:rowTotal/rate;
        usd+=sign*(revenueUsd*adjustment-costUsd);
      }
      rows.push({id:'invoice:'+String(inv.id),date:datePart(inv.date),usdCents:Math.round(usd*100),type:'invoice'});
    }
+   // A restricted share uses only the selected sales and returns.
+   // General expenses and currency gains have no item-group attribution.
+   if(scope.kind!=='all')return rows;
    for(const exp of (Array.isArray(s.expenses)?s.expenses:[])){
      if(!exp||!dateValid(datePart(exp.date)))continue;
      const amt=Number(exp.amount)||0,rate=rateFor(exp,s.settings);
@@ -167,8 +187,8 @@
    }
    return rows;
  }
- function operatingProfit(s,start='0001-01-01'){
-   return operatingEntries(s).filter(e=>e.date>=start).reduce((a,e)=>a+e.usdCents,0);
+ function operatingProfit(s,start='0001-01-01',scope){
+   return operatingEntries(s,scope).filter(e=>e.date>=start).reduce((a,e)=>a+e.usdCents,0);
  }
  function contributed(s,ownerId,c){return movements(s).filter(e=>e.ownerId===ownerId&&e.currency===c&&['contribution','returnCapital'].includes(e.type))
    .reduce((a,e)=>a+(e.type==='contribution'?e.units:-e.units),0);}
@@ -179,7 +199,7 @@
  function reserve(s,c){return retainedCapital(s,c)-capitalTransferNet(s,c)}
  function profitDrawn(s,ownerId){return movements(s).filter(e=>e.ownerId===ownerId&&e.type==='profitDraw')
    .reduce((a,e)=>a+e.usdCents,0);}
- function accrued(s,o){const pct=percentages(s)[o.id]||0;return Math.round(operatingProfit(s,o.startDate)*pct/100)}
+ function accrued(s,o){const pct=percentages(s)[o.id]||0;return Math.round(operatingProfit(s,o.startDate,o.profitScope)*pct/100)}
  function availableProfit(s,o){return accrued(s,o)-profitDrawn(s,o.id)}
  function validate(s,{allowLegacyReserve=true}={}){
    ensure(s);const ids=new Set();
@@ -189,12 +209,12 @@
    const seen=new Set();
    for(const e of movements(s)){
      if(!e||!e.id||seen.has(e.id))fail('حركة مساهم مكررة');seen.add(e.id);
-     if(!['contribution','returnCapital','profitDraw'].includes(e.type)||!ids.has(e.ownerId)||!CURRENCIES.includes(e.currency)||!Number.isSafeInteger(e.units)||e.units<=0||!dateValid(e.date))fail('سجل حركة مساهم غير صالح');
-     if(e.type==='profitDraw'&&(!Number.isSafeInteger(e.usdCents)||e.usdCents<=0))fail('قيمة سحب الأرباح غير صالحة');
+     if(!['contribution','returnCapital','profitDraw'].includes(e.type)||!ids.has(e.ownerId)||!CURRENCIES.includes(e.currency)||!Number.isSafeInteger(e.units)||(e.type==='profitDraw'?e.units===0:e.units<=0)||!dateValid(e.date))fail('سجل حركة مساهم غير صالح');
+     if(e.type==='profitDraw'&&(!Number.isSafeInteger(e.usdCents)||!e.usdCents||Math.sign(e.usdCents)!==Math.sign(e.units)))fail('قيمة سحب الأرباح غير صالحة');
    }
    for(const o of owners(s)){
      for(const c of CURRENCIES)if(contributed(s,o.id,c)<0)fail('رصيد مساهمة سالب: '+o.name);
-     if(availableProfit(s,o)<0)fail('سحب الأرباح يتجاوز الربح المستحق: '+o.name);
+
    }
    if(!allowLegacyReserve)for(const c of CURRENCIES)if(reserve(s,c)<0)fail('رصيد رأس المال المتاح غير كافٍ: '+c);
    return true;
@@ -218,6 +238,8 @@
    s.shareholderMovements.push(item);
    try{
      validate(s,{allowLegacyReserve:true});
+     if(type==='profitDraw' && availableProfit(s,owner(s,ownerId)) < (opts.priorShortfall||0))
+       fail('سحب الأرباح يتجاوز الربح المستحق: '+owner(s,ownerId).name);
      if(type==='returnCapital'&&reserve(s,currency)<0)fail('رأس المال المتاح للسحب غير كافٍ');
      if(type==='profitDraw'&&opts.availableCash!==undefined&&major(units,currency)>Number(opts.availableCash)+1e-5)fail('رصيد الصندوق غير كافٍ لسحب الأرباح');
    }catch(e){s.shareholderMovements.pop();throw e}
@@ -225,8 +247,10 @@
  }
  function editEvent(s,id,patch,opts={}){
    const list=movements(s),idx=list.findIndex(e=>e.id===id);if(idx<0)fail('الحركة غير موجودة');
-   const old=list[idx];list.splice(idx,1);
-   try{const next=event(s,{...old,...patch,id:old.id,amount:patch.amount??major(old.units,old.currency),type:old.type,ownerId:old.ownerId},opts);
+   const old=list[idx];
+   const priorShortfall=old.type==='profitDraw'?Math.min(0,availableProfit(s,owner(s,old.ownerId))):0;
+   list.splice(idx,1);
+   try{const next=event(s,{...old,...patch,id:old.id,amount:patch.amount??major(old.units,old.currency),type:old.type,ownerId:old.ownerId},{...opts,priorShortfall});
      next.createdAt=old.createdAt;next.updatedAt=timestamp();return next;
    }catch(e){list.splice(idx,0,old);throw e}
  }
@@ -236,7 +260,7 @@
  function cashMovements(s){return movements(s).filter(e=>e.type==='profitDraw').map(e=>({
    id:e.id,docType:'shareholder',date:e.date,ref:'سحب أرباح مساهم',
    party:owners(s).find(o=>o.id===e.ownerId)?.name||'مساهم',desc:e.note||'توزيع أرباح للمساهم',
-   currency:e.currency,inflow:0,outflow:major(e.units,e.currency)
+   currency:e.currency,inflow:major(Math.max(0,-e.units),e.currency),outflow:major(Math.max(0,e.units),e.currency)
  }))}
  function report(s){ensure(s);
    const prof=operatingProfit(s),draws=movements(s).filter(e=>e.type==='profitDraw').reduce((a,e)=>a+e.usdCents,0);
@@ -281,6 +305,42 @@
    m.querySelectorAll('[data-ta-action]').forEach(b=>b.addEventListener('click',()=>UIShareholders.action(b.dataset.taAction,b.dataset.taId)));
  };
  const formValue=id=>$(id)?.value;
+ function scopeLabel(scope){
+   if(scope?.kind==='category')return 'مجموعة المواد — '+scope.category;
+   if(scope?.kind==='warehouses')return scope.ids.map(id=>(State.warehouses||[]).find(w=>w.id===id)?.name||id).join('، ');
+   return 'كامل أرباح الشركة';
+ }
+ function scopeForm(saved={kind:'all'}){
+   const selected=new Set(saved.ids||[]);
+   const locations=new Map((State.warehouses||[]).map(w=>[w.id,w.name]));
+   if(!locations.has('wh_main'))locations.set('wh_main','المستودع الرئيسي');
+   for(const id of selected)if(!locations.has(id))locations.set(id,id);
+   const categories=new Set([...(State.categories||[]),...(State.items||[]).map(item=>item.category),saved.category].filter(Boolean));
+   const option=(value,label,chosen)=>'<option value="'+safe(value)+'" '+(chosen?'selected':'')+'>'+safe(label)+'</option>';
+   return '<label>مصدر أرباح المساهم<select id="taShareScope">'+
+     option('all','كامل أرباح الشركة',saved.kind==='all')+option('warehouses','مستودع أو عدة مستودعات',saved.kind==='warehouses')+
+     option('category','مجموعة مواد',saved.kind==='category')+'</select></label>'+
+     '<div id="taShareWarehouses" hidden><fieldset><legend>المستودعات المشمولة</legend>'+
+     Array.from(locations,([id,name])=>'<label class="ta-share-location"><input type="checkbox" value="'+safe(id)+'" '+(selected.has(id)?'checked':'')+'>'+safe(name)+'</label>').join('')+'</fieldset></div>'+
+     '<div id="taShareCategoryField" hidden><label>مجموعة المواد<select id="taShareCategory">'+option('','اختر مجموعة',!saved.category)+
+     Array.from(categories,c=>option(c,c,c===saved.category)).join('')+'</select></label></div>'+
+     '<p id="taShareScopeNote" class="ta-share-note" hidden>تُحسب النسبة من مبيعات النطاق المختار بعد الكلفة والحسومات والمردودات. تدخل المصاريف العامة وأرباح التصريف في خيار كامل أرباح الشركة.</p>';
+ }
+ function bindScope(){
+   const select=$('taShareScope');
+   function refresh(){
+     $('taShareWarehouses').hidden=select.value!=='warehouses';
+     $('taShareCategoryField').hidden=select.value!=='category';
+     $('taShareScopeNote').hidden=select.value==='all';
+   }
+   select.addEventListener('change',refresh);refresh();
+ }
+ function readScope(){
+   const kind=formValue('taShareScope');
+   if(kind==='warehouses')return {kind,ids:Array.from($('taShareWarehouses').querySelectorAll('input:checked'),el=>el.value)};
+   if(kind==='category')return {kind,category:formValue('taShareCategory')};
+   return {kind:'all'};
+ }
  const moneyLabels={contribution:'إضافة مبلغ إلى رأس المال',returnCapital:'سحب مبلغ من رأس المال',profitDraw:'سحب الأرباح'};
  const UIShareholders={
   _levels:[],_level:null,_backNavigation:false,
@@ -307,7 +367,7 @@
    this._enter('root');
    S.ensure(State);const r=S.report(State);
    const money=(v,c)=>'<strong dir="ltr">'+safe(format(v,c))+'</strong>';
-   const ownerHtml=r.owners.map(o=>'<article class="ta-share-owner"><strong>'+safe(o.name)+'</strong><small>بدء احتساب الأرباح: '+safe(o.startDate)+' • النسبة '+safe(o.percentage)+'%</small>'+
+   const ownerHtml=r.owners.map(o=>'<article class="ta-share-owner"><strong>'+safe(o.name)+'</strong><small>بدء احتساب الأرباح: '+safe(o.startDate)+' • النسبة '+safe(o.percentage)+'%</small><small>مصدر الأرباح: '+safe(scopeLabel(S.owner(State,o.id).profitScope))+'</small>'+
       '<div>رأس المال USD '+money(o.contributionUSD,'USD')+'</div><div>رأس المال SYP '+money(o.contributionSYP,'SYP')+'</div>'+
       '<div>الأرباح المسحوبة '+money(o.drawnUSD,'USD')+'</div><div>الأرباح المتاحة '+money(o.availableUSD,'USD')+'</div>'+
       ownerButton('owner',o.id,'إدارة مساهم')+'</article>').join('');
@@ -353,17 +413,19 @@
     modal('<h2 class="ta-share-heading">إضافة مساهم</h2>'+
       '<label>اسم المالك<input id="taShareName" maxlength="120" required></label>'+
        '<label>نسبة الربح (%)<input id="taShareNewPct" type="number" min="0" max="100" step="0.0001" placeholder="مثال: 25" required></label>'+
+      scopeForm()+
       '<label>رقم الهاتف<input id="taSharePhone" type="tel" maxlength="40"></label>'+
       '<label>فترة احتساب الأرباح<select id="taSharePeriod"><option value="all">كل المدة</option><option value="added">من تاريخ الإضافة</option><option value="date">تاريخ محدد</option></select></label>'+
       '<label>تاريخ البداية عند اختيار تاريخ محدد<input id="taShareStart" type="date" value="'+today()+'"></label>'+
       '<div class="ta-share-actions">'+btn('saveOwner','حفظ المساهم')+btn('back','إلغاء')+'</div>');
+    bindScope();
     const b=document.querySelector('[data-ta-action="saveOwner"]');b.addEventListener('click',async()=>{
       if(busy)return;
       const before=S.owners(State).slice();
       const previousDistribution=JSON.parse(JSON.stringify(State.settings.shareholderDistribution));
       try{
        S.addOwnerWithDistribution(State,{name:formValue('taShareName'),percentage:formValue('taShareNewPct'),
-        phone:formValue('taSharePhone'),period:formValue('taSharePeriod'),startDate:formValue('taShareStart')},
+        phone:formValue('taSharePhone'),profitScope:readScope(),period:formValue('taSharePeriod'),startDate:formValue('taShareStart')},
         {deviceId:localDeviceId()});
        busy=true;await StorageEngine.saveState();busy=false;this.open();ok('تمت إضافة المساهم وتوزيع النسب إلى 100%');}
       catch(e){State.shareholderOwners=before;State.settings.shareholderDistribution=previousDistribution;busy=false;problem(e)}
@@ -416,8 +478,9 @@
     this._enter('editOwner',id);
     const o=S.owner(State,id);
     modal('<h2 class="ta-share-heading"><i class="fas fa-user-shield"></i> تعديل المساهم</h2>'+
-      '<p class="ta-share-note">هذه البطاقة محمية. تعديل تاريخ بداية الأرباح قد يغيّر الأرباح المستحقة، ولن يقبل النظام تغييراً يؤدي إلى سحب أكبر من المستحق.</p>'+
+      '<p class="ta-share-note">هذه البطاقة محمية. تعديل فترة الاحتساب أو مصدر الأرباح يُعيد حساب حصة المساهم مع الاحتفاظ بسندات السحب السابقة.</p>'+
       '<label>اسم المالك<input id="taShareEditName" maxlength="120" value="'+safe(o.name)+'" required></label>'+
+      scopeForm(o.profitScope)+
       '<label>رقم الهاتف<input id="taShareEditPhone" type="tel" maxlength="40" value="'+safe(o.phone||'')+'"></label>'+
       '<label>فترة احتساب الأرباح<select id="taShareEditPeriod">'+
       '<option value="all" '+(o.period==='all'?'selected':'')+'>كل المدة</option>'+
@@ -426,12 +489,13 @@
       '<label>تاريخ البداية عند اختيار تاريخ محدد<input id="taShareEditStart" type="date" value="'+safe(o.period==='all'?'':o.startDate)+'"></label>'+
       '<div class="ta-share-actions">'+btn('saveOwnerEdit','حفظ تعديل المساهم')+
       btn('back','رجوع إلى المساهم')+'</div>');
+    bindScope();
     document.querySelector('[data-ta-action="saveOwnerEdit"]').addEventListener('click',async()=>{
       if(busy)return;
       const old=JSON.parse(JSON.stringify(State.shareholderOwners));
       try {
         S.editOwner(State,id,{name:formValue('taShareEditName'),phone:formValue('taShareEditPhone'),
-          period:formValue('taShareEditPeriod'),startDate:formValue('taShareEditStart')});
+          profitScope:readScope(),period:formValue('taShareEditPeriod'),startDate:formValue('taShareEditStart')});
         busy=true;await StorageEngine.saveState();busy=false;
         this._levels=[{kind:'root',id:null}];this._level={kind:'owner',id};
         this.ownerForm(id);ok('تم حفظ تعديل المساهم بعد التحقق من الحماية');
